@@ -77,6 +77,17 @@ export class GeoBuilder {
     return geo;
   }
   get empty() { return this.count === 0; }
+  // rotate the vertices added since `start` about (cx, cz) by yaw (positions + normals)
+  rotateFrom(start, cx, cz, yaw) {
+    if (!yaw) return;
+    const s = Math.sin(yaw), c = Math.cos(yaw);
+    const P = this.data.position, N = this.data.normal;
+    for (let i = start; i < this.count; i++) {
+      const x = P[i * 3] - cx, z = P[i * 3 + 2] - cz;
+      P[i * 3] = cx + x * c + z * s; P[i * 3 + 2] = cz - x * s + z * c;
+      if (N) { const nx = N[i * 3], nz = N[i * 3 + 2]; N[i * 3] = nx * c + nz * s; N[i * 3 + 2] = -nx * s + nz * c; }
+    }
+  }
 }
 
 // Build a geometry with vertex colors from a list of [geometry, color, matrix]

@@ -48,7 +48,7 @@ export class Game {
     this.renderer = renderer;
 
     this.scene = new THREE.Scene();
-    this.camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerHeight, 0.25, 3200);
+    this.camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerHeight, 0.25, 9000);
     this.scene.add(this.camera);
     progress(0.05, 'Surveying Los Soles');
     await tick();

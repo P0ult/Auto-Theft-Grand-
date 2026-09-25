@@ -11,6 +11,7 @@ export const U = {
   uNight: { value: 0 },          // 0 day .. 1 full night
   uWet: { value: 0 },            // rain wetness
   uStreetLights: { value: 0 },   // street light pools intensity
+  uFogFar: { value: new THREE.Vector2(3200, 5600) }, // distance fog fully swallows the world
 };
 
 export const FOG_GLSL = /* glsl */`
@@ -19,6 +20,7 @@ uniform vec3 uFogSunColor;
 uniform vec3 uSunDir;
 uniform float uFogDensity;
 uniform float uFogHeightFalloff;
+uniform vec2 uFogFar;
 vec3 atgFog(vec3 col, vec3 wpos) {
   vec3 v = wpos - cameraPosition;
   float d = length(v);
@@ -28,7 +30,7 @@ vec3 atgFog(vec3 col, vec3 wpos) {
   float k = abs(dy * fh) > 0.001 ? (1.0 - exp(-fh * dy)) / (fh * dy) : 1.0;
   float amt = uFogDensity * exp(-fh * max(cameraPosition.y, -5.0)) * d * k;
   amt = 1.0 - exp(-amt);
-  amt = max(amt, smoothstep(1800.0, 2600.0, d));
+  amt = max(amt, smoothstep(uFogFar.x, uFogFar.y, d));
   float sunAmt = pow(max(dot(dir, uSunDir), 0.0), 6.0);
   vec3 fc = mix(uFogColor, uFogSunColor, sunAmt);
   return mix(col, fc, clamp(amt, 0.0, 1.0));
@@ -64,7 +66,7 @@ export function patch(material, ext = {}) {
     Object.assign(shader.uniforms, {
       uFogColor: U.uFogColor, uFogSunColor: U.uFogSunColor, uSunDir: U.uSunDir,
       uFogDensity: U.uFogDensity, uFogHeightFalloff: U.uFogHeightFalloff,
-      uTime: U.uTime, uNight: U.uNight, uWet: U.uWet, uStreetLights: U.uStreetLights,
+      uTime: U.uTime, uNight: U.uNight, uWet: U.uWet, uStreetLights: U.uStreetLights, uFogFar: U.uFogFar,
     }, ext.uniforms || {});
     let vs = shader.vertexShader;
     vs = 'varying vec3 vAtgWorld;\nuniform float uTime;\n' + (ext.vertexPars || '') + '\n' + vs;

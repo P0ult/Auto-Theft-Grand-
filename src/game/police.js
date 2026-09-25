@@ -2,8 +2,7 @@
 // police helicopter with searchlight.
 import * as THREE from 'three';
 import { randomAppearance } from '../entities/humanoid.js';
-import { LaneDriver, nearestSegment, laneGeom, segmentValid, nearestIdx } from './traffic.js';
-import { XS, ZS } from '../world/citymap.js';
+import { LaneDriver, Traffic } from './traffic.js';
 import { std } from '../render/materials.js';
 import { RNG, rand, randInt, pick, clamp, dist2, wrapAngle } from '../core/utils.js';
 
@@ -19,29 +18,29 @@ export function copAppearance(swat = false) {
   });
 }
 
-// Pursuit driver: routes along the grid toward the target, then drives directly & rams.
+// Pursuit driver: routes along the road network toward the target, then drives directly & rams.
 class PursuitDriver extends LaneDriver {
-  constructor(game, veh, seg, police) {
-    super(game, veh, seg);
+  constructor(game, veh, start, police) {
+    super(game, veh, false);
     this.police = police;
+    this.fixedCruise = true;
     this.cruise = 30;
     this.ignoreLights = true;
     this.direct = false;
     this.reverseT = 0;
+    if (start) this._start(start); else this.resnap();
   }
-  _chooseNext() {
-    const { i, j, di, dj, lane } = this.seg;
-    const bi = i + di, bj = j + dj;
-    const t = this.police.targetPos();
-    const opts = [[1, 0], [-1, 0], [0, 1], [0, -1]].filter(([a, b]) => !(a === -di && b === -dj) && segmentValid(bi, bj, a, b));
-    if (!opts.length) return { i: bi, j: bj, di: -di, dj: -dj, lane };
+  _chooseNext(cur) {
+    const opts = this._options(cur);
+    if (!opts.length) return null;
+    const t = this.police ? this.police.targetPos() : this.game.player.pos;
     let best = opts[0], bd = Infinity;
     for (const o of opts) {
-      const x = XS[bi + o[0]], z = ZS[bj + o[1]];
-      const d = Math.hypot(x - t.x, z - t.z) + Math.random() * 20;
+      const far = this.net.nodes[o.dir === 0 ? o.e.b : o.e.a];
+      const d = Math.hypot(far.x - t.x, far.z - t.z) + Math.random() * 20;
       if (d < bd) { bd = d; best = o; }
     }
-    return { i: bi, j: bj, di: best[0], dj: best[1], lane: 0 };
+    return best;
   }
   update(dt) {
     const v = this.veh;
@@ -51,7 +50,12 @@ class PursuitDriver extends LaneDriver {
     const pl = this.game.player;
     const see = d < 80;
     this.direct = see || !this.game.map.isOnRoad(v.pos.x, v.pos.z);
-    if (!this.direct) { this.cruise = 26 + this.police.level * 2; super.update(dt); return; }
+    if (!this.direct) {
+      this.cruise = 26 + this.police.level * 2;
+      if (this._wasDirect) { this._wasDirect = false; this.resnap(); }
+      super.update(dt); return;
+    }
+    this._wasDirect = true;
     const inp = v.input;
     // direct chase: aim at predicted position
     const tv = pl.vehicle ? pl.vehicle.vel : pl.vel;
@@ -173,25 +177,27 @@ export class Police {
   spawnCar(pursuit = true) {
     const game = this.game;
     const p = this.targetPos();
-    const ci = nearestIdx(XS, p.x), cj = nearestIdx(ZS, p.z);
     for (let tries = 0; tries < 14; tries++) {
-      const i = clamp(ci + randInt(-2, 2), 0, XS.length - 1), j = clamp(cj + randInt(-2, 2), 0, ZS.length - 1);
-      const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]].filter(([a, b]) => segmentValid(i, j, a, b));
-      if (!dirs.length) continue;
-      const [di, dj] = pick(dirs);
-      const g = laneGeom(i, j, di, dj, 0);
-      const s0 = rand(4, Math.max(5, g.len - 5));
-      const x = g.ax + g.dx * s0, z = g.az + g.dz * s0;
+      const smp = Traffic.sampleLane(game, p.x, p.z, 75, 230);
+      if (!smp) continue;
+      const { x, z } = smp;
       const d2 = dist2(x, z, p.x, p.z);
-      if (d2 < 70 * 70 || d2 > 220 * 220) continue;
+      if (d2 < 70 * 70 || d2 > 240 * 240) continue;
       if (game.peds._inView(x, z) && d2 < 120 * 120 && tries < 10) continue;
-      const v = game.vehicles.spawn('police', x, z, Math.atan2(g.dx, g.dz), { persistent: true });
+      let blocked = false;
+      for (const o of game.vehicles.list) if (dist2(o.pos.x, o.pos.z, x, z) < 100 && Math.abs(o.pos.y - smp.y) < 4) { blocked = true; break; }
+      if (blocked) continue;
+      const net = game.map.roads;
+      const pts = net.lanePath(smp.start.e, smp.start.dir, smp.start.lane);
+      const k = Math.min(pts.length - 2, Math.max(0, Math.floor(smp.s0 / 5)));
+      const yaw = Math.atan2(pts[k + 1][0] - pts[k][0], pts[k + 1][2] - pts[k][2]);
+      const v = game.vehicles.spawn('police', x, z, yaw, { persistent: true });
       const n = pursuit && this.level >= 2 ? 2 : 1;
-      for (let k = 0; k < n; k++) { const cop = this.spawnCop(x, z); v.putIn(cop, k); cop.homeCar = v; }
-      v.ai = pursuit ? new PursuitDriver(game, v, { i, j, di, dj, lane: 0 }, this) : new LaneDriver(game, v, { i, j, di, dj, lane: 0 });
+      for (let q = 0; q < n; q++) { const cop = this.spawnCop(x, z); v.putIn(cop, q); cop.homeCar = v; }
+      v.ai = pursuit ? new PursuitDriver(game, v, smp.start, this) : new LaneDriver(game, v, smp.start);
       v.sirenOn = pursuit;
       v.policeUnit = true;
-      v.vel.set(g.dx * 12, 0, g.dz * 12);
+      v.vel.set(Math.sin(yaw) * 12, 0, Math.cos(yaw) * 12);
       this.cars.push(v);
       return v;
     }
@@ -288,11 +294,10 @@ export class Police {
     for (const v of this.cars) {
       if (!v.driver || v.driver.dead || v.driver.isPlayer) { v.sirenOn = false; continue; }
       if (this.level > 0 && !(v.ai instanceof PursuitDriver)) {
-        const seg = nearestSegment(v.pos.x, v.pos.z, v.yaw) || { i: 0, j: 0, di: 1, dj: 0, lane: 0 };
-        v.ai = new PursuitDriver(game, v, seg, this);
+        v.ai = new PursuitDriver(game, v, null, this);
         v.sirenOn = true;
       }
-      if (this.level === 0 && v.ai instanceof PursuitDriver) { v.ai = new LaneDriver(game, v, nearestSegment(v.pos.x, v.pos.z, v.yaw) || v.ai.seg); v.sirenOn = false; }
+      if (this.level === 0 && v.ai instanceof PursuitDriver) { v.ai = new LaneDriver(game, v, null); v.sirenOn = false; }
       v.ai?.update(dt);
       // cops bail out when the player is on foot nearby, or the car is stuck close by
       const tp = pl.vehicle ? pl.vehicle.pos : pl.pos;

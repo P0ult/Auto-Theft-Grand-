@@ -1,6 +1,6 @@
 // DOM + canvas HUD: stats cluster, radar, messages, subtitles, pause menu & map, shop, overlays.
 import * as THREE from 'three';
-import { buildMapImage, MAP_EXTENT } from './mapimage.js';
+import { buildMapImage, MAP_EXTENT, drawMapLayers } from './mapimage.js';
 import { WEAPONS, WEAPON_ORDER } from '../game/weapondefs.js';
 import { route } from '../game/gps.js';
 import { formatMoney, clamp } from '../core/utils.js';
@@ -268,7 +268,7 @@ export class HUD {
     const ctx = cv.getContext('2d');
     const img = this.mapImg;
     const p = game.player.vehicle ? game.player.vehicle.pos : game.player.pos;
-    const view = this._mapView || { cx: p.x, cz: p.z, zoom: 0.45 };
+    const view = this._mapView || { cx: p.x, cz: p.z, zoom: 1.6 };
     this._mapView = view;
     const legend = h('div', 'map-legend', wrap, '<b>Right-click / double-click</b> to set a waypoint · <b>Wheel</b> to zoom · <b>Drag</b> to pan<br>' +
       '<i style="background:#ffd23f"></i>Mission <i style="background:#ff5a36"></i>Gun Barn <i style="background:#6df0ff"></i>Spray Shack <i style="background:#6cff6c"></i>Safehouse <i style="background:#ffd166"></i>Food <i style="background:#d96cff"></i>Waypoint');
@@ -279,11 +279,15 @@ export class HUD {
       const [ox, oy] = img.toPx(view.cx, view.cz);
       ctx.save();
       ctx.translate(W / 2, H / 2); ctx.scale(s, s); ctx.translate(-ox, -oy);
-      ctx.drawImage(img.canvas, 0, 0);
+      drawMapLayers(ctx, img);
       ctx.restore();
       const w2s = (x, z) => { const [px, py] = img.toPx(x, z); return [(px - ox) * s + W / 2, (py - oy) * s + H / 2]; };
       ctx.font = 'bold 14px "Bebas Neue", Impact, sans-serif'; ctx.textAlign = 'center';
-      for (const L of img.labels) { const [x, y] = w2s(L.x, L.z); ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillText(L.name.toUpperCase(), x + 1, y + 1); ctx.fillStyle = 'rgba(255,255,255,0.85)'; ctx.fillText(L.name.toUpperCase(), x, y); }
+      for (const L of img.labels) {
+        if (!L.big && view.zoom < 1.2) continue;
+        ctx.font = L.big ? 'bold 18px "Bebas Neue", Impact, sans-serif' : 'bold 14px "Bebas Neue", Impact, sans-serif';
+        const [x, y] = w2s(L.x, L.z); ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillText(L.name.toUpperCase(), x + 1, y + 1); ctx.fillStyle = L.big ? 'rgba(255,236,170,0.95)' : 'rgba(255,255,255,0.85)'; ctx.fillText(L.name.toUpperCase(), x, y);
+      }
       if (this.route) { ctx.strokeStyle = '#d96cff'; ctx.lineWidth = 3; ctx.beginPath(); this.route.forEach(([x, z], i) => { const [sx, sy] = w2s(x, z); if (i) ctx.lineTo(sx, sy); else ctx.moveTo(sx, sy); }); ctx.stroke(); }
       for (const b of game.blips) { const [x, y] = w2s(b.x, b.z); drawBlip(ctx, x, y, b, 1.3); }
       const [px, py] = w2s(p.x, p.z);
@@ -294,7 +298,7 @@ export class HUD {
     cv.onmousedown = (e) => { drag = [e.offsetX, e.offsetY, view.cx, view.cz]; };
     cv.onmousemove = (e) => { if (drag) { view.cx = drag[2] - (e.offsetX - drag[0]) / (img.sx * view.zoom); view.cz = drag[3] - (e.offsetY - drag[1]) / (img.sz * view.zoom); draw(); } };
     window.addEventListener('mouseup', () => { drag = null; }, { once: true });
-    cv.onwheel = (e) => { e.preventDefault(); view.zoom = clamp(view.zoom * (e.deltaY > 0 ? 0.85 : 1.18), 0.25, 4); draw(); };
+    cv.onwheel = (e) => { e.preventDefault(); view.zoom = clamp(view.zoom * (e.deltaY > 0 ? 0.85 : 1.18), 0.3, 14); draw(); };
     const setWP = (e) => { e.preventDefault(); const [x, z] = toWorld(e.offsetX, e.offsetY); this.setWaypoint(x, z); this.routeTimer = 0; this._updateRoute(true); draw(); };
     cv.oncontextmenu = setWP; cv.ondblclick = setWP;
   }
@@ -443,7 +447,7 @@ export class HUD {
     if (!tgt) { this.route = null; return; }
     const p = game.player.vehicle ? game.player.vehicle.pos : game.player.pos;
     if (Math.hypot(tgt.x - p.x, tgt.z - p.z) < 15) { if (tgt === this.waypoint) { this.setWaypoint(tgt.x, tgt.z); } this.route = null; return; }
-    this.route = route(p.x, p.z, tgt.x, tgt.z);
+    this.route = route(game.map.roads, p.x, p.z, tgt.x, tgt.z);
   }
 
   // Analog speedometer (mph) with gear + damage readout; airspeed / altitude / throttle for aircraft.
@@ -544,7 +548,7 @@ export class HUD {
     ctx.scale(scale / img.sx, scale / img.sz);
     ctx.translate(-px, -py);
     ctx.globalAlpha = 0.92;
-    ctx.drawImage(img.canvas, 0, 0);
+    drawMapLayers(ctx, img);
     ctx.globalAlpha = 1;
     if (this.route) {
       ctx.strokeStyle = '#d96cff'; ctx.lineWidth = 5 * img.sx / scale; ctx.lineJoin = 'round';

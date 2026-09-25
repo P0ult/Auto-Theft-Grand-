@@ -1,10 +1,8 @@
 // Mission engine: async mission scripts driven by the frame loop, with cutscenes, objectives,
 // entity management, fail conditions, rewards, contacts/blips and story progression.
 import * as THREE from 'three';
-import { LaneDriver, nearestSegment } from './traffic.js';
-import { XS, ZS, CITY } from '../world/citymap.js';
+import { LaneDriver, nearestLane } from './traffic.js';
 import { clamp, dist2, rand, wrapAngle } from '../core/utils.js';
-import { segmentValid } from './traffic.js';
 
 export class MissionFail extends Error { constructor(reason) { super(reason); this.reason = reason; } }
 
@@ -17,44 +15,67 @@ const ARROW_MAT = () => _arrowMat || (_arrowMat = new THREE.MeshBasicMaterial({ 
 class MissionAbort extends Error {}
 
 // --------------------------------------------------------------------------- AI drivers for missions
-// Drives along the road grid toward a destination (greedy routing), optionally fleeing from the player.
+// Drives along the road network to a destination (A* route), or flees from the player.
 export class RouteDriver extends LaneDriver {
   constructor(game, veh, dest, opts = {}) {
-    // start in the lane that heads toward the destination (unless fleeing)
-    const yaw = opts.flee ? veh.yaw : Math.atan2(dest.x - veh.pos.x, dest.z - veh.pos.z);
-    const seg = nearestSegment(veh.pos.x, veh.pos.z, yaw) || nearestSegment(veh.pos.x, veh.pos.z, veh.yaw) || { i: 0, j: 0, di: 1, dj: 0, lane: 0 };
-    super(game, veh, seg);
-    if (!opts.flee && opts.snap !== false && veh.speedAbs < 2) {
-      // turn the car around in place if it was parked facing the wrong way
-      const segYaw = Math.atan2(seg.di, seg.dj);
-      if (Math.abs(wrapAngle(segYaw - veh.yaw)) > Math.PI / 2) {
-        veh.yaw = segYaw;
-        const g = this.geom;
-        const s = clamp((veh.pos.x - g.ax) * g.dx + (veh.pos.z - g.az) * g.dz, 0, g.len);
-        veh.pos.x = g.ax + g.dx * s; veh.pos.z = g.az + g.dz * s;
-      }
-    }
+    super(game, veh, false);
     this.dest = dest;
+    this.fixedCruise = true;
     this.cruise = opts.speed ?? 22;
     this.ignoreLights = opts.ignoreLights ?? true;
     this.flee = !!opts.flee;
     this.arrived = false;
-  }
-  _chooseNext() {
-    const { i, j, di, dj } = this.seg;
-    const bi = i + di, bj = j + dj;
-    const opts = [[1, 0], [-1, 0], [0, 1], [0, -1]].filter(([a, b]) => !(a === -di && b === -dj) && segmentValid(bi, bj, a, b));
-    if (!opts.length) return { i: bi, j: bj, di: -di, dj: -dj, lane: 0 };
-    let best = opts[0], bd = Infinity;
-    const p = this.game.player.vehicle ? this.game.player.vehicle.pos : this.game.player.pos;
-    for (const o of opts) {
-      const x = XS[bi + o[0]], z = ZS[bj + o[1]];
-      let d;
-      if (this.flee) d = -Math.hypot(x - p.x, z - p.z) + Math.random() * 40;
-      else d = Math.hypot(x - this.dest.x, z - this.dest.z) + Math.random() * 5;
-      if (d < bd) { bd = d; best = o; }
+    this.route = null;
+    const net = this.net;
+    // start in the lane that heads toward the destination (unless fleeing)
+    const yaw = this.flee ? veh.yaw : Math.atan2(dest.x - veh.pos.x, dest.z - veh.pos.z);
+    let st = nearestLane(net, veh.pos.x, veh.pos.z, yaw);
+    if (!this.flee && st) {
+      // pick the direction whose far end is closer to the destination along the road
+      const e = st.e;
+      if (e.lanesF > 0 && e.lanesB > 0) {
+        const r = net.route(veh.pos.x, veh.pos.z, dest.x, dest.z);
+        if (r && r.seq.length) {
+          const firstNode = r.seq[0].node;
+          const dir = firstNode === e.b ? 0 : 1;
+          if (dir !== st.dir) st = { ...st, dir, lane: 0, s: e.len - st.s };
+        }
+      }
     }
-    return { i: bi, j: bj, di: best[0], dj: best[1], lane: 0 };
+    if (st && !this.flee && opts.snap !== false && veh.speedAbs < 2) {
+      // turn the car around in place if it was parked facing the wrong way
+      const pts = net.lanePath(st.e, st.dir, st.lane);
+      let bi = 0, bd = Infinity;
+      for (let i = 0; i < pts.length - 1; i++) { const d = (pts[i][0] - veh.pos.x) ** 2 + (pts[i][2] - veh.pos.z) ** 2; if (d < bd) { bd = d; bi = i; } }
+      const a = pts[bi], b = pts[Math.min(pts.length - 1, bi + 1)];
+      const lyaw = Math.atan2(b[0] - a[0], b[2] - a[2]);
+      if (Math.abs(wrapAngle(lyaw - veh.yaw)) > Math.PI / 2) { veh.yaw = lyaw; veh.pos.x = a[0]; veh.pos.z = a[2]; }
+    }
+    if (st) this._start(st);
+  }
+  _chooseNext(cur) {
+    const opts = this._options(cur);
+    if (!opts.length) return null;
+    const net = this.net;
+    if (this.flee) {
+      const p = this.game.player.vehicle ? this.game.player.vehicle.pos : this.game.player.pos;
+      let best = opts[0], bd = -Infinity;
+      for (const o of opts) { const far = net.nodes[o.dir === 0 ? o.e.b : o.e.a]; const d = Math.hypot(far.x - p.x, far.z - p.z) + Math.random() * 40; if (d > bd) { bd = d; best = o; } }
+      return best;
+    }
+    // follow the A* route; recompute when we are off it
+    for (let attempt = 0; attempt < 2; attempt++) {
+      if (!this.route) this.route = net.route(cur.node.x, cur.node.z, this.dest.x, this.dest.z);
+      const seq = this.route ? this.route.seq : [];
+      const k = seq.findIndex((q) => q.node === cur.node.id);
+      const nextEdge = k >= 0 && k + 1 < seq.length ? seq[k + 1].edge : k < 0 && seq.length && (net.edges[seq[0].edge].a === cur.node.id || net.edges[seq[0].edge].b === cur.node.id) ? seq[0].edge : null;
+      if (nextEdge != null) { const o = opts.find((q) => q.e.id === nextEdge); if (o) return o; }
+      if (k >= 0 && k === seq.length - 1) { const g = this.route.goal.e; const o = opts.find((q) => q.e === g); if (o) return o; }
+      this.route = null;
+    }
+    let best = opts[0], bd = Infinity;
+    for (const o of opts) { const far = net.nodes[o.dir === 0 ? o.e.b : o.e.a]; const d = Math.hypot(far.x - this.dest.x, far.z - this.dest.z) + Math.random() * 5; if (d < bd) { bd = d; best = o; } }
+    return best;
   }
   update(dt) {
     const v = this.veh;
@@ -399,6 +420,7 @@ export class Missions {
   constructor(game, story) {
     this.game = game;
     this.story = story;
+    story.init?.(game);
     this.completed = new Set();
     this.active = null;
     this.contactMarkers = [];

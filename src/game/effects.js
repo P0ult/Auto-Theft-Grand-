@@ -58,7 +58,7 @@ class ParticlePool {
     g.instanceCount = 0;
     this.uniforms = {
       map: { value: texture }, uLight: { value: new THREE.Color(1, 1, 1) }, uAdditive: { value: additive ? 1 : 0 },
-      uFogColor: U.uFogColor, uFogSunColor: U.uFogSunColor, uSunDir: U.uSunDir, uFogDensity: U.uFogDensity, uFogHeightFalloff: U.uFogHeightFalloff,
+      uFogColor: U.uFogColor, uFogSunColor: U.uFogSunColor, uSunDir: U.uSunDir, uFogDensity: U.uFogDensity, uFogHeightFalloff: U.uFogHeightFalloff, uFogFar: U.uFogFar,
     };
     const m = new THREE.ShaderMaterial({
       vertexShader: PVERT, fragmentShader: PFRAG, uniforms: this.uniforms,

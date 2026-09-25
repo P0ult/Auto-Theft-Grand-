@@ -287,7 +287,9 @@ export class Vehicle {
     // ground sampling at wheels
     const s = Math.sin(this.yaw), c = Math.cos(this.yaw);
     const hw = d.track / 2, zf = d.wheelbase / 2, zr = -d.wheelbase / 2;
-    const gh = (lx, lz) => map.groundHeight(this.pos.x + lx * c + lz * s, this.pos.z - lx * s + lz * c);
+    const col = this.game.collision;
+    const yRef = this.pos.y + (this.airborne ? 0.6 : 1.3);
+    const gh = (lx, lz) => col.surfaceHeight(this.pos.x + lx * c + lz * s, this.pos.z - lx * s + lz * c, yRef);
     const h0 = gh(hw, zf), h1 = gh(-hw, zf), h2 = gh(hw, zr), h3 = gh(-hw, zr);
     const hF = (h0 + h1) / 2, hR = (h2 + h3) / 2, hL = (h0 + h2) / 2, hRt = (h1 + h3) / 2;
     const target = (hF + hR) / 2;

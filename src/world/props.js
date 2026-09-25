@@ -7,6 +7,7 @@ import { RNG } from '../core/utils.js';
 export const PROP_ATTRS = { position: 3, normal: 3, uv: 2, color: 3, aGlow: 3, aSig: 1 };
 
 function builder() { return new GeoBuilder(PROP_ATTRS); }
+function posHash(x, y, z) { const h = Math.sin(Math.round(x * 1000) * 12.9898 + Math.round(y * 1000) * 78.233 + Math.round(z * 1000) * 37.719) * 43758.5453; return h - Math.floor(h); }
 function put(gb, geo, color, m, glow = [0, 0, 0], sig = 0) {
   const c = new THREE.Color(color);
   gb.set('color', c.r, c.g, c.b);
@@ -207,9 +208,11 @@ export function treeGeos(variant = 0) {
   for (let k = 0; k < blobs; k++) {
     const g = new THREE.IcosahedronGeometry(r.range(1.3, 2.0), 1);
     const p = g.attributes.position;
+    const salt = k * 13.7;
     for (let i = 0; i < p.count; i++) {
-      const s = 1 + (r.next() - 0.5) * 0.25;
-      p.setXYZ(i, p.getX(i) * s, p.getY(i) * s * 0.85, p.getZ(i) * s);
+      const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
+      const s = 1 + (posHash(x + salt, y, z) - 0.5) * 0.25;
+      p.setXYZ(i, x * s, y * s * 0.85, z * s);
     }
     g.computeVertexNormals();
     const col = new THREE.Color().setHSL(0.26 + r.range(-0.04, 0.03), 0.45, 0.22 + r.range(-0.04, 0.06));
@@ -237,4 +240,150 @@ export function billboardGeo() {
   put(gb, box(10.4, 5.4, 0.3), 0x2a2c30, mat4(0, 7.5, 0.2));
   put(gb, box(10.6, 0.15, 1.0), m, mat4(0, 4.8, 0.7));
   return gb.build();
+}
+
+// ------------------------------------------------------------------ countryside & military props
+export function siloGeo() {
+  const gb = builder();
+  put(gb, cyl(3.2, 3.2, 16, 16), 0xb9bcc0, mat4(0, 8, 0));
+  for (let k = 1; k < 8; k++) put(gb, cyl(3.26, 3.26, 0.12, 16), 0x8e9296, mat4(0, k * 2, 0));
+  put(gb, new THREE.SphereGeometry(3.2, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2), 0xa9acb0, mat4(0, 16, 0));
+  put(gb, box(0.5, 16, 0.2), 0x6d6f72, mat4(0, 8, 3.3));
+  return gb.build();
+}
+export function pumpGeo() {
+  const gb = builder();
+  put(gb, box(0.8, 0.25, 1.4), 0x9a9a9a, mat4(0, 0.12, 0));
+  put(gb, box(0.55, 1.7, 0.8), 0xd8d8d8, mat4(0, 1.05, 0));
+  put(gb, box(0.57, 0.35, 0.82), 0xc0281c, mat4(0, 1.55, 0), [0.4, 0.05, 0.02]);
+  put(gb, box(0.1, 0.4, 0.25), 0x222222, mat4(0.33, 1.0, 0.2));
+  return gb.build();
+}
+export function postGeo(h = 4.6) {
+  const gb = builder();
+  put(gb, box(0.35, h, 0.35), 0xd9d9d9, mat4(0, h / 2, 0));
+  return gb.build();
+}
+export function haybaleGeo() {
+  const gb = builder();
+  put(gb, cyl(0.75, 0.75, 1.2, 14), 0xc9a54a, mat4(0, 0.75, 0, 0, 0, Math.PI / 2));
+  return gb.build();
+}
+export function windsockGeo() {
+  const gb = builder();
+  put(gb, cyl(0.06, 0.08, 6, 6), 0xdddddd, mat4(0, 3, 0));
+  put(gb, cyl(0.35, 0.18, 2.2, 8, 1, true), 0xff6a00, mat4(1.1, 5.8, 0, 0, 0, Math.PI / 2 + 0.25));
+  return gb.build();
+}
+export function fueltankGeo() {
+  const gb = builder();
+  put(gb, cyl(8, 8, 9, 20), 0xe6e6e0, mat4(0, 4.5, 0));
+  put(gb, cyl(8.1, 8.1, 0.3, 20), 0x9a9a92, mat4(0, 9.1, 0));
+  put(gb, box(0.4, 9.5, 0.4), 0x777777, mat4(0, 4.75, 8.1));
+  return gb.build();
+}
+export function radarGeo() {
+  const gb = builder();
+  put(gb, box(5, 10, 5), 0x9a9f94, mat4(0, 5, 0));
+  put(gb, new THREE.SphereGeometry(5.5, 18, 12), 0xf2f2ee, mat4(0, 12.5, 0));
+  put(gb, box(0.4, 3, 0.4), 0x666666, mat4(3.5, 11.5, 3.5));
+  put(gb, sph(0.3), 0xff2a1a, mat4(0, 18.2, 0), [4, 0.2, 0.1]);
+  return gb.build();
+}
+export function boothbarGeo() {
+  const gb = builder();
+  put(gb, box(3, 2.8, 3), 0xe9e4d6, mat4(0, 1.4, 0));
+  put(gb, box(3.3, 0.25, 3.3), 0x4a5a3a, mat4(0, 2.9, 0));
+  put(gb, box(2.6, 1.0, 0.05), 0x9fd4ff, mat4(0, 1.8, 1.52));
+  put(gb, box(0.3, 1.1, 0.3), 0x333333, mat4(0, 0.55, -2));
+  put(gb, box(0.15, 0.15, 9), 0xd82020, mat4(0, 1.05, -6.5));
+  for (let k = 0; k < 4; k++) put(gb, box(0.16, 0.16, 1.0), 0xffffff, mat4(0, 1.05, -3.5 - k * 2.2));
+  return gb.build();
+}
+export function sandbagsGeo() {
+  const gb = builder();
+  const r = new RNG(5);
+  for (let row = 0; row < 3; row++) for (let k = 0; k < 9; k++) {
+    const g = new THREE.CapsuleGeometry(0.22, 0.55, 3, 6);
+    put(gb, g, new THREE.Color().setHSL(0.12, 0.25, 0.48 + r.range(-0.04, 0.04)).getHex(), mat4(-4 + k * 1.0 + (row % 2) * 0.5, 0.22 + row * 0.38, 0, 0, 0, Math.PI / 2));
+  }
+  return gb.build();
+}
+export function powerpoleGeo() {
+  const gb = builder();
+  const wood = 0x5b4633;
+  put(gb, cyl(0.14, 0.2, 11, 7), wood, mat4(0, 5.5, 0));
+  put(gb, box(3.2, 0.2, 0.2), wood, mat4(0, 10.3, 0));
+  for (const x of [-1.4, 0, 1.4]) put(gb, cyl(0.08, 0.08, 0.3, 6), 0x7a8a8a, mat4(x, 10.55, 0));
+  put(gb, cyl(0.35, 0.35, 0.9, 8), 0x6f7478, mat4(0.35, 8.6, 0));
+  return gb.build();
+}
+
+// ------------------------------------------------------------------ vegetation (instanced, 2 levels of detail)
+function vegBuilder() { return new GeoBuilder({ position: 3, normal: 3, uv: 2, color: 3 }); }
+function vput(gb, geo, color, m) { const c = new THREE.Color(color); gb.set('color', c.r, c.g, c.b); gb.addGeometry(geo, m); }
+export function pineGeos() {
+  const near = vegBuilder(), far = vegBuilder();
+  const h = 13;
+  vput(near, cyl(0.2, 0.36, 4, 6), 0x4a3526, mat4(0, 2, 0));
+  const tiers = [[3.4, 5.2, 3.2], [2.8, 4.6, 5.8], [2.1, 4.0, 8.2], [1.3, 3.2, 10.4]];
+  tiers.forEach(([r, th, y], k) => {
+    const g = new THREE.ConeGeometry(r, th, 8, 1);
+    const p = g.attributes.position;
+    for (let i = 0; i < p.count; i++) { const a = Math.atan2(p.getZ(i), p.getX(i)); const s = 1 + 0.12 * Math.sin(a * 5 + k); if (p.getY(i) < 0) { p.setX(i, p.getX(i) * s); p.setZ(i, p.getZ(i) * s); } }
+    g.computeVertexNormals();
+    vput(near, g, new THREE.Color().setHSL(0.33, 0.42, 0.16 + k * 0.025).getHex(), mat4(0, y, 0));
+  });
+  vput(far, cyl(0.25, 0.3, 3, 3), 0x4a3526, mat4(0, 1.5, 0));
+  vput(far, new THREE.ConeGeometry(3.2, 10.5, 5, 1), 0x264a1f, mat4(0, 7.2, 0));
+  return { near: near.build(), far: far.build(), height: h };
+}
+export function oakGeos() {
+  const g = treeGeos(1);
+  const far = vegBuilder();
+  vput(far, cyl(0.2, 0.25, 3.4, 3), 0x5a4330, mat4(0, 1.7, 0));
+  vput(far, new THREE.IcosahedronGeometry(2.6, 0), 0x3d5a23, mat4(0, 4.8, 0));
+  return { near: [g.trunk, g.leaves], far: far.build(), height: g.height };
+}
+export function cactusGeos() {
+  const near = vegBuilder(), far = vegBuilder();
+  const green = 0x3f6b35;
+  vput(near, new THREE.CapsuleGeometry(0.32, 4.6, 4, 8), green, mat4(0, 2.6, 0));
+  vput(near, new THREE.CapsuleGeometry(0.22, 1.3, 3, 7), green, mat4(0.75, 2.2, 0, 0, 0, Math.PI / 2));
+  vput(near, new THREE.CapsuleGeometry(0.22, 1.6, 3, 7), green, mat4(1.1, 3.1, 0));
+  vput(near, new THREE.CapsuleGeometry(0.2, 1.0, 3, 7), green, mat4(-0.6, 3.0, 0, 0, 0, Math.PI / 2));
+  vput(near, new THREE.CapsuleGeometry(0.2, 1.2, 3, 7), green, mat4(-0.95, 3.7, 0));
+  vput(far, cyl(0.35, 0.35, 5, 4), green, mat4(0, 2.5, 0));
+  return { near: near.build(), far: far.build(), height: 5.2 };
+}
+export function rockGeos() {
+  const near = vegBuilder(), far = vegBuilder();
+  const g = new THREE.IcosahedronGeometry(1.4, 1);
+  const p = g.attributes.position;
+  // displacement keyed on the vertex position so shared corners move together (no cracks)
+  for (let i = 0; i < p.count; i++) { const x = p.getX(i), y = p.getY(i), z = p.getZ(i); const s = 1 + (posHash(x, y, z) - 0.5) * 0.45; p.setXYZ(i, x * s * 1.2, y * s * 0.75, z * s); }
+  g.computeVertexNormals();
+  vput(near, g, 0x8a7560, mat4(0, 0.6, 0));
+  vput(far, new THREE.IcosahedronGeometry(1.4, 0), 0x8a7560, mat4(0, 0.6, 0, 0, 0, 0, 1.2, 0.75, 1));
+  return { near: near.build(), far: far.build(), height: 1.5 };
+}
+export function deadtreeGeos() {
+  const near = vegBuilder(), far = vegBuilder();
+  const wood = 0x6e5a48;
+  vput(near, cyl(0.14, 0.26, 4.2, 6), wood, mat4(0, 2.1, 0));
+  vput(near, cyl(0.05, 0.1, 2.2, 5), wood, mat4(0.6, 3.7, 0, 0, 0, -0.8));
+  vput(near, cyl(0.05, 0.09, 1.8, 5), wood, mat4(-0.5, 3.4, 0.2, 0.3, 0, 0.9));
+  vput(near, cyl(0.04, 0.08, 1.6, 5), wood, mat4(0.1, 4.5, -0.5, -0.7, 0, 0.2));
+  vput(far, cyl(0.15, 0.2, 4.2, 3), wood, mat4(0, 2.1, 0));
+  return { near: near.build(), far: far.build(), height: 5 };
+}
+export function bushGeos() {
+  const near = vegBuilder(), far = vegBuilder();
+  const r = new RNG(88);
+  for (let k = 0; k < 4; k++) {
+    const g = new THREE.IcosahedronGeometry(r.range(0.6, 0.95), 0);
+    vput(near, g, new THREE.Color().setHSL(0.22 + r.range(-0.03, 0.04), 0.35, 0.2 + r.range(0, 0.06)).getHex(), mat4(r.range(-0.6, 0.6), 0.55 + r.range(0, 0.3), r.range(-0.6, 0.6)));
+  }
+  vput(far, new THREE.IcosahedronGeometry(1.0, 0), 0x3f5226, mat4(0, 0.6, 0));
+  return { near: near.build(), far: far.build(), height: 1.4 };
 }

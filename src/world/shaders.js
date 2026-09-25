@@ -13,9 +13,11 @@ float fbm3(vec2 p) { return vn2(p) * 0.5 + vn2(p * 2.1 + 3.1) * 0.3 + vn2(p * 4.
 const f = (v) => (Number.isInteger(v) ? v.toFixed(1) : String(v));
 
 // ------------------------------------------------------------------ ROADS
+export const RB_CENTERS = [[3, 2], [15, 3], [6, 11], [11, 12], [16, 5], [13, 9]].map(([i, j]) => [XS[i], ZS[j]]);
 export const ROAD_EXT = {
   key: 'road',
   fragPars: NOISE_GLSL + `
+const vec2 RBC[${RB_CENTERS.length}] = vec2[](${RB_CENTERS.map(([x, z]) => `vec2(${f(x)}, ${f(z)})`).join(', ')});
 const float XS_[${XS.length}] = float[](${XS.map(f).join(',')});
 const float ZS_[${ZS.length}] = float[](${ZS.map(f).join(',')});
 const float HR = ${f(HALF_ROAD)};
@@ -30,6 +32,9 @@ float stripe(float x, float c, float w, float aa) { return 1.0 - smoothstep(w - 
   for (int i = 0; i < ${XS.length}; i++) { float d = wp.x - XS_[i]; if (abs(d) < abs(dxm)) dxm = d; }
   for (int j = 0; j < ${ZS.length}; j++) { float d = wp.y - ZS_[j]; if (abs(d) < abs(dzm)) dzm = d; }
   float ax = abs(dxm), az = abs(dzm);
+  float rbD = 1e5; vec2 rbC = vec2(0.0);
+  for (int k = 0; k < ${RB_CENTERS.length}; k++) { float dd = length(wp - RBC[k]); if (dd < rbD) { rbD = dd; rbC = RBC[k]; } }
+  bool nearRb = rbD < 26.0;
   float n = fbm3(wp * 0.25);
   float fine = vn2(wp * 6.0);
   vec3 col = vec3(0.085, 0.085, 0.09) * (0.72 + 0.45 * n) * (0.9 + 0.2 * fine);
@@ -54,16 +59,22 @@ float stripe(float x, float c, float w, float aa) { return 1.0 - smoothstep(w - 
     // crosswalk zebra
     float cw = step(0.6, fromInt) * (1.0 - step(4.4, fromInt)) * step(abs(lat), HR - 0.6);
     paintW += cw * step(0.5, fract(lat / 1.2 + 0.25));
-    // stop line
-    paintW += step(4.9, fromInt) * (1.0 - step(5.5, fromInt)) * step(0.0, side) * step(0.3, abs(lat)) * step(abs(lat), 7.1);
+    // stop line (a dashed give-way line at roundabouts)
+    paintW += step(4.9, fromInt) * (1.0 - step(5.5, fromInt)) * step(0.0, side) * step(0.3, abs(lat)) * step(abs(lat), 7.1) * (nearRb ? step(0.5, fract(lat / 0.9)) : 1.0);
     paintW *= wear; paintY *= wear;
     // oil stains in lane centers near stop lines
     float oil = smoothstep(0.55, 0.9, vn2(wp * 0.9)) * (1.0 - smoothstep(6.0, 22.0, fromInt));
     col *= 1.0 - oil * 0.35;
   } else if (inNS && inEW) {
-    // manhole in the middle of intersections
-    float mh = 1.0 - smoothstep(0.55, 0.6, length(vec2(dxm, dzm) - vec2(2.5, -3.0)));
-    col = mix(col, vec3(0.06), mh);
+    if (nearRb) {
+      // mini roundabout: white apron ring round the island + dashed outer lane edge
+      paintW += stripe(rbD, 6.6, 0.12, aa) + stripe(rbD, 9.6, 0.1, aa) * step(0.5, fract(atan(wp.y - rbC.y, wp.x - rbC.x) * 3.0));
+      col *= 0.97;
+    } else {
+      // manhole in the middle of intersections
+      float mh = 1.0 - smoothstep(0.55, 0.6, length(vec2(dxm, dzm) - vec2(2.5, -3.0)));
+      col = mix(col, vec3(0.06), mh);
+    }
     col *= 0.95 + 0.1 * vn2(wp * 3.0);
   }
   // cracks / patches
@@ -88,12 +99,13 @@ float stripe(float x, float c, float w, float aa) { return 1.0 - smoothstep(w - 
 // aLot.x = surface type, aRect = block rect (x0,z0,x1,z1) for sidewalk distance (or 0 for lots)
 export const GROUND_EXT = {
   key: 'ground',
-  vertexPars: 'attribute vec4 aRect; attribute float aLot; varying vec4 vRect; varying float vLot; varying vec3 vGN;',
-  vertexMain: 'vRect = aRect; vLot = aLot; vGN = normal;',
+  vertexPars: 'attribute vec4 aRect; attribute float aLot; varying vec4 vRect; varying float vLot; varying vec3 vGN; varying vec2 vGUv;',
+  vertexMain: 'vRect = aRect; vLot = aLot; vGN = normal; vGUv = uv;',
   fragPars: NOISE_GLSL + `
-varying vec4 vRect; varying float vLot; varying vec3 vGN;
+varying vec4 vRect; varying float vLot; varying vec3 vGN; varying vec2 vGUv;
 float atgRough = 0.9;
 const float SW = ${f(SIDEWALK_W)};
+float bandG(float x, float c, float w) { return step(abs(x - c), w); }
 `,
   fragColor: `
 {
@@ -102,10 +114,49 @@ const float SW = ${f(SIDEWALK_W)};
   float n = fbm3(wp * 0.3);
   vec3 col = vec3(0.5);
   float edge = 1e5;
-  if (vRect.z > vRect.x) {
+  bool pad = vRect.x < -0.5;
+  if (!pad && vRect.z > vRect.x) {
     edge = min(min(wp.x - vRect.x, vRect.z - wp.x), min(wp.y - vRect.y, vRect.w - wp.y));
   }
-  if (edge < SW) {
+  if (pad && type > 8.5) {
+    // airfield / base surfaces in local coordinates (u across, v along, half sizes in vRect.zw)
+    float u = vGUv.x, v = vGUv.y, hw = vRect.z, hl = vRect.w;
+    float fromEnd = hl - abs(v);
+    vec3 asph = vec3(0.1, 0.1, 0.105) * (0.75 + 0.35 * n) * (0.9 + 0.2 * vn2(wp * 5.0));
+    if (type < 9.5) { // runway
+      col = asph;
+      float paint = 0.0;
+      paint += bandG(abs(u), hw - 1.2, 0.4);
+      paint += step(abs(u), 0.45) * step(0.5, fract(v / 60.0)) * step(60.0, fromEnd);
+      paint += step(6.0, fromEnd) * step(fromEnd, 38.0) * step(abs(u), hw - 3.0) * step(0.5, fract((u + hw) / 3.4));
+      paint += step(150.0, fromEnd) * step(fromEnd, 195.0) * step(4.0, abs(u)) * step(abs(u), 9.5);
+      paint += step(fromEnd, 1.5) * step(abs(u), hw - 1.0);
+      col = mix(col, vec3(0.82, 0.82, 0.8), clamp(paint, 0.0, 1.0) * (0.55 + 0.45 * smoothstep(0.2, 0.6, vn2(wp * 1.3))));
+      col *= 1.0 - smoothstep(0.6, 0.9, vn2(vec2(u * 0.4, v * 0.02))) * 0.25 * step(abs(u), 6.0); // tyre marks
+      atgRough = mix(0.9, 0.2, uWet);
+    } else if (type < 10.5) { // taxiway: yellow centre line + edge lines
+      col = asph * 1.05;
+      float y = step(abs(u), 0.18) + bandG(abs(u), hw - 0.8, 0.12) + bandG(abs(u), hw - 1.2, 0.12);
+      col = mix(col, vec3(0.8, 0.62, 0.12), clamp(y, 0.0, 1.0));
+      atgRough = mix(0.9, 0.2, uWet);
+    } else if (type < 11.5) { // concrete apron slabs
+      vec2 g = fract(wp / 7.5);
+      col = vec3(0.56, 0.55, 0.52) * (0.85 + 0.2 * n) * (1.0 - (step(g.x, 0.012) + step(g.y, 0.012)) * 0.3);
+      col *= 1.0 - smoothstep(0.62, 0.85, vn2(wp * 0.35)) * 0.3;
+      atgRough = mix(0.85, 0.25, uWet);
+    } else if (type < 12.5) { // helipad
+      col = vec3(0.45, 0.46, 0.44) * (0.85 + 0.2 * n);
+      float r = length(vec2(u, v));
+      float ring = bandG(r, hw * 0.78, 0.35);
+      float H = (step(abs(u + 2.2), 0.45) + step(abs(u - 2.2), 0.45)) * step(abs(v), 3.2) + step(abs(u), 2.2) * step(abs(v), 0.45);
+      col = mix(col, vec3(0.85, 0.7, 0.12), ring);
+      col = mix(col, vec3(0.9), clamp(H, 0.0, 1.0));
+      atgRough = 0.8;
+    } else { // packed dirt yard
+      col = vec3(0.4, 0.34, 0.24) * (0.75 + 0.4 * n) * (0.9 + 0.2 * vn2(wp * 3.0));
+      atgRough = 1.0;
+    }
+  } else if (edge < SW) {
     // sidewalk: concrete slabs with joints; curb band at the edge
     vec2 g = fract(wp / 1.6);
     float joint = step(g.x, 0.025) + step(g.y, 0.025);

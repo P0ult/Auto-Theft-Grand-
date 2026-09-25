@@ -2,7 +2,7 @@
 // Andre "Dre" Castillo returns to Los Soles after his little brother Tino is killed.
 import * as THREE from 'three';
 import { RouteDriver, RaceDriver, MissionFail } from './missions.js';
-import { laneGeom, segmentValid } from './traffic.js';
+import { laneGeom, segmentValid, nearestLane } from './traffic.js';
 import { XS, ZS, HALF_ROAD, CITY } from '../world/citymap.js';
 import { randomAppearance } from '../entities/humanoid.js';
 import { copAppearance } from './police.js';
@@ -33,8 +33,20 @@ function laneSpot(i, j, di, dj, t = 0.5, lane = 1) {
   const s = g.len * t;
   return { x: g.ax + g.dx * s, z: g.az + g.dz * s, yaw: Math.atan2(g.dx, g.dz) };
 }
-// Nearest point on a road lane to (x,z)
+// Nearest point on a city street lane to (x,z)
+let NET = null;
 function roadNear(x, z, lane = 1) {
+  if (NET) {
+    const st = nearestLane(NET, x, z, null, (e) => !!e.grid);
+    if (st) {
+      const pts = NET.lanePath(st.e, st.dir, Math.min(lane, (st.dir === 0 ? st.e.lanesF : st.e.lanesB) - 1));
+      let bi = 0, bd = Infinity;
+      for (let i = 0; i < pts.length - 1; i++) { const d = (pts[i][0] - x) ** 2 + (pts[i][2] - z) ** 2; if (d < bd) { bd = d; bi = i; } }
+      bi = clamp(bi, 1, Math.max(1, pts.length - 3));
+      const a = pts[bi], b = pts[Math.min(pts.length - 1, bi + 1)];
+      return { x: a[0], z: a[2], yaw: Math.atan2(b[0] - a[0], b[2] - a[2]) };
+    }
+  }
   let bi = 0, bd = Infinity;
   for (let i = 0; i < XS.length; i++) { const d = Math.abs(XS[i] - x); if (d < bd) { bd = d; bi = i; } }
   let bj = 0, bdz = Infinity;
@@ -52,7 +64,7 @@ function ring(cx, cz, n, r, phase = 0) { const out = []; for (let i = 0; i < n; 
 // Chase driver: follow roads toward the player, then ram / pace alongside.
 class ChaseDriver extends RouteDriver {
   constructor(game, veh, opts = {}) { super(game, veh, game.player.pos, { speed: opts.speed ?? 30 }); this.pace = opts.pace ?? 8; this.rev = 0; }
-  _chooseNext() { this.dest = this.game.player.vehicle ? this.game.player.vehicle.pos : this.game.player.pos; return super._chooseNext(); }
+  _chooseNext(cur) { this.dest = this.game.player.vehicle ? this.game.player.vehicle.pos : this.game.player.pos; this.route = null; return super._chooseNext(cur); }
   update(dt) {
     const v = this.veh, g = this.game;
     const tp = g.player.vehicle ? g.player.vehicle.pos : g.player.pos;
@@ -159,6 +171,7 @@ async function fadeTeleport(m, x, z, yaw, y) {
 
 // ------------------------------------------------------------------ missions
 export const STORY = {
+  init(game) { NET = game.map.roads; },
   missions: [
     // ================================================================ CHAPTER I — HOMECOMING
     {

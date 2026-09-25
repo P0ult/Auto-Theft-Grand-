@@ -1,6 +1,10 @@
 // Deterministic layout of the city of Los Soles: road grid, districts, blocks, lots, buildings,
 // terrain height, water, sidewalk & lane graphs and story landmarks. Pure data (no rendering).
 import { RNG, clamp, smoothstep, fbm, lerp } from '../core/utils.js';
+import { WORLD as WORLD_BOUNDS, Heightfield, landHeight, TOWNS, BASE, AIRFIELD, LAKE, cityDist, regionWeights, riverDist } from './worldgen.js';
+import { buildRoadNetwork, REMOVED_SEGMENTS, SUPERBLOCKS, CITY_ROUNDABOUTS, ROUTES } from './roadlayout.js';
+import { shapeTerrain } from './roadnet.js';
+import { populateCountryside } from './countryside.js';
 
 export const ROAD_W = 20;
 export const HALF_ROAD = ROAD_W / 2;
@@ -18,7 +22,8 @@ export const CITY = {
   minX: XS[0] - HALF_ROAD, maxX: XS[XS.length - 1] + HALF_ROAD,
   minZ: ZS[0] - HALF_ROAD, maxZ: ZS[ZS.length - 1] + HALF_ROAD,
 };
-export const WORLD = { minX: -1500, maxX: 1500, minZ: -1500, maxZ: 1350 };
+export const WORLD = WORLD_BOUNDS;
+const cellPhase = (i, j) => ((i * 7 + j * 13) % 17) * 2.0; // mirrors shaders.intersectionPhase
 
 export const DISTRICTS = {
   hills: { name: 'Vistawood Hills', color: '#6c8f4e' },
@@ -29,6 +34,10 @@ export const DISTRICTS = {
   corona: { name: 'El Corona', color: '#b88d6a' },
   westside: { name: 'Rosewood', color: '#9c8f86' },
   midtown: { name: 'Market District', color: '#9a9488' },
+  country: { name: 'Verde County', color: '#8f9a5a' },
+  forest: { name: 'Pinewood Forest', color: '#4f6b3a' },
+  desert: { name: 'Tierra Seca Desert', color: '#c9ad7a' },
+  base: { name: 'Fort Carver', color: '#8a8d73' },
 };
 
 function districtFor(cx, cz) {
@@ -66,6 +75,8 @@ export const SPECIAL_BLOCKS = {
   '4,12': 'liquor',
 };
 
+const RB_SET = new Set(CITY_ROUNDABOUTS.map(([i, j]) => i + ',' + j));
+
 export class CityMap {
   constructor(seed = 1337) {
     this.seed = seed;
@@ -84,9 +95,16 @@ export class CityMap {
   blockAt(x, z) {
     const i = this._idx(XS, x), j = this._idx(ZS, z);
     if (i < 0 || j < 0) return null;
-    return this.blocks[j * (XS.length - 1) + i] || null;
+    return this.cellBlocks[j * (XS.length - 1) + i] || null;
   }
-  getBlock(i, j) { return this.blocks[j * (XS.length - 1) + i] || null; }
+  // a walkable area (city block or town) with sidewalk graph nodes
+  walkAreaAt(x, z) {
+    const b = this.blockAt(x, z);
+    if (b) return b;
+    if (this.townAreas) for (const t of this.townAreas) if (Math.hypot(x - t.x, z - t.z) < t.r && t.nodeIds.length) return t;
+    return null;
+  }
+  getBlock(i, j) { if (i < 0 || j < 0 || i >= XS.length - 1 || j >= ZS.length - 1) return null; return this.cellBlocks[j * (XS.length - 1) + i] || null; }
   _idx(arr, v) {
     if (v < arr[0] || v > arr[arr.length - 1]) return -1;
     let lo = 0, hi = arr.length - 1;
@@ -98,15 +116,35 @@ export class CityMap {
   nearestX(x) { let best = 1e9, bi = 0; for (let i = 0; i < XS.length; i++) { const d = Math.abs(x - XS[i]); if (d < best) { best = d; bi = i; } } return bi; }
   nearestZ(z) { let best = 1e9, bi = 0; for (let j = 0; j < ZS.length; j++) { const d = Math.abs(z - ZS[j]); if (d < best) { best = d; bi = j; } } return bi; }
 
+  // any paved road: city streets or the regional network
   isOnRoad(x, z) {
+    if (this.isOnCityStreet(x, z)) return true;
+    return !!(this.roads && this.roads.onRoad(x, z));
+  }
+  isOnCityStreet(x, z, margin = 0) {
     if (x < CITY.minX - 1 || x > CITY.maxX + 1 || z < CITY.minZ - 1 || z > CITY.maxZ + 1) return false;
-    const dx = Math.abs(x - XS[this.nearestX(x)]), dz = Math.abs(z - ZS[this.nearestZ(z)]);
-    return dx <= HALF_ROAD || dz <= HALF_ROAD;
+    const i = this.nearestX(x), j = this.nearestZ(z);
+    const dx = Math.abs(x - XS[i]), dz = Math.abs(z - ZS[j]);
+    if (dx > HALF_ROAD + margin && dz > HALF_ROAD + margin) return false;
+    // inside a merged super-block (the removed street is built over)
+    const b = this.blockAt(x, z);
+    if (b && b.merged && x > b.x0 && x < b.x1 && z > b.z0 && z < b.z1) return false;
+    return true;
+  }
+  isOnRoadNet(x, z, margin = 0, except = null) {
+    if (!this.roads) return false;
+    const h = this.roads.onRoad(x, z, margin);
+    return !!(h && h.e !== except);
   }
 
   districtAt(x, z) {
     const b = this.blockAt(x, z);
     if (b) return b.district;
+    if (cityDist(x, z) > 700) {
+      if (x > BASE.minX - 100 && x < BASE.maxX + 100 && z > BASE.minZ - 100 && z < BASE.maxZ + 100) return 'base';
+      const w = regionWeights(x, z);
+      return w.desert > 0.5 ? 'desert' : w.mountain > 0.5 ? 'forest' : 'country';
+    }
     if (z > CITY.maxZ && x < 480) return 'beach';
     if (x > CITY.maxX && z > -250) return 'docks';
     if (z < CITY.minZ) return 'hills';
@@ -116,15 +154,35 @@ export class CityMap {
     return bb ? bb.district : 'midtown';
   }
   zoneName(x, z) {
-    if (z < -900) return 'Mount Vista';
-    if (x < CITY.minX - 60) return 'Red Canyon';
+    for (const t of Object.values(TOWNS)) if (Math.hypot(x - t.x, z - t.z) < t.r + 60) return t.name;
+    if (x > BASE.minX && x < BASE.maxX && z > BASE.minZ && z < BASE.maxZ) return 'Fort Carver';
+    if (Math.hypot(x - AIRFIELD.x, z - AIRFIELD.z) < AIRFIELD.len / 2 + 80) return AIRFIELD.name;
+    if (Math.hypot(x - LAKE.x, z - LAKE.z) < LAKE.r + 120) return 'Lake Mirador';
+    if (this.hf && this.hf.sample(x, z) < -0.5 && cityDist(x, z) > 0) {
+      if (riverDist(x, z) < 60) return 'Rio Verde';
+      return 'Pacific Ocean';
+    }
     if (z > CITY.maxZ + 70 && x > 60 && x < 150 && z < 960) return 'Santa Luz Pier';
-    if (z > 720) return 'Pacific Ocean';
+    const dC = cityDist(x, z);
+    if (dC > 0 && dC < 700) {
+      if (z < CITY.minZ - 60 && x > -700 && x < 700) return dC < 360 ? 'Vistawood Hills' : 'Mount Vista';
+      if (x < CITY.minX - 60) return 'Red Canyon';
+      if (x > CITY.maxX + 60 && z < -250) return 'Bayshore';
+    }
+    if (dC >= 700) {
+      if (riverDist(x, z) < 90) return 'Rio Verde';
+      if (Math.hypot(x + 900, z + 3250) < 700) return 'Mount Cedro';
+      const w = regionWeights(x, z);
+      if (w.desert > 0.5) return x < -4600 ? 'Bone Flats' : 'Tierra Seca Desert';
+      if (w.mountain > 0.5) return x > 400 ? 'Bayshore' : 'Pinewood Forest';
+      return 'Verde County';
+    }
     return DISTRICTS[this.districtAt(x, z)].name;
   }
 
   // ---------------------------------------------------------------- terrain
-  terrainHeight(x, z) {
+  terrainHeight(x, z) { return this.hf ? this.hf.sample(x, z) : landHeight(x, z); }
+  _oldTerrainHeight(x, z) {
     const eW = CITY.minX - 6, eE = CITY.maxX + 6, eN = CITY.minZ - 6, eS = CITY.maxZ + 6;
     let h = 0;
     // hills north
@@ -177,7 +235,7 @@ export class CityMap {
       if (b && x > b.x0 && x < b.x1 && z > b.z0 && z < b.z1) return CURB_H;
       return 0;
     }
-    return this.terrainHeight(x, z);
+    return this.hf.sample(x, z);
   }
 
   waterDepth(x, z) { return WATER_Y - this.groundHeight(x, z); }
@@ -186,6 +244,21 @@ export class CityMap {
   // ---------------------------------------------------------------- build
   build() {
     const nI = XS.length - 1, nJ = ZS.length - 1;
+    // terrain first (roads follow it), with flat pads for the towns, the base and the airstrip
+    this.hf = new Heightfield();
+    const pads = [
+      ...Object.entries(TOWNS).map(([k, t]) => ({ key: k, x: t.x, z: t.z, r: t.r, blend: 140 })),
+      { key: 'base', minX: BASE.minX, maxX: BASE.maxX, minZ: BASE.minZ, maxZ: BASE.maxZ, blend: 160 },
+      { key: 'air', minX: AIRFIELD.x - 60, maxX: AIRFIELD.x + 60, minZ: AIRFIELD.z - AIRFIELD.len / 2 - 20, maxZ: AIRFIELD.z + AIRFIELD.len / 2 + 20, blend: 80 },
+    ];
+    this.hf.generate(landHeight, 3, pads);
+    // valleys & passes for the roads, then re-flatten the pads
+    this.hf.carveRoutes(ROUTES, (key) => pads.find((p) => p.key === key)?.y ?? null);
+    for (const p of pads) this.hf.pad(p);
+    const built = buildRoadNetwork({ XS, ZS, intersectionPhase: cellPhase }, this.hf);
+    this.roads = built.net;
+    this.roadInfo = built.info;
+    this.cellBlocks = [];
     for (let j = 0; j < nJ; j++) {
       for (let i = 0; i < nI; i++) {
         const x0 = XS[i] + HALF_ROAD, x1 = XS[i + 1] - HALF_ROAD;
@@ -202,19 +275,75 @@ export class CityMap {
           { x: x0 + 2, z: z0 + 2 }, { x: x1 - 2, z: z0 + 2 }, { x: x1 - 2, z: z1 - 2 }, { x: x0 + 2, z: z1 - 2 },
         ];
         this.blocks.push(b);
+        this.cellBlocks.push(b);
+      }
+    }
+    // merge pairs of blocks across a removed street into super-blocks
+    for (const sb of SUPERBLOCKS) {
+      const cells = sb.cells.map(([i, j]) => this.getBlock(i, j));
+      const m = cells[0];
+      const x0 = Math.min(...cells.map((c) => c.x0)), x1 = Math.max(...cells.map((c) => c.x1));
+      const z0 = Math.min(...cells.map((c) => c.z0)), z1 = Math.max(...cells.map((c) => c.z1));
+      Object.assign(m, { x0, x1, z0, z1, cx: (x0 + x1) / 2, cz: (z0 + z1) / 2, ix0: x0 + SIDEWALK_W, iz0: z0 + SIDEWALK_W, ix1: x1 - SIDEWALK_W, iz1: z1 - SIDEWALK_W, merged: true, special: 'super', superKind: sb.kind, superName: sb.name });
+      m.corners = [{ x: x0 + 2, z: z0 + 2 }, { x: x1 - 2, z: z0 + 2 }, { x: x1 - 2, z: z1 - 2 }, { x: x0 + 2, z: z1 - 2 }];
+      for (const c of cells.slice(1)) {
+        this.blocks.splice(this.blocks.indexOf(c), 1);
+        this.cellBlocks[c.j * nI + c.i] = m;
       }
     }
     this.landmarks.pier = { x0: 92, x1: 120, z0: CITY.maxZ + 8, z1: 960, y: 2.6 };
     for (const b of this.blocks) this._fillBlock(b);
+    this._clearUnderFreeway();
     this._streetProps();
     this._buildSidewalkGraph();
+    // roads cut into the hills, sit on embankments or become bridges
+    shapeTerrain(this.roads, this.hf, (x, z) => (cityDist(x, z) < 0.5 ? this._cityGround(x, z) : null));
+    populateCountryside(this);
     this._buildLandmarks();
+  }
+
+  _cityGround(x, z) {
+    const b = this.blockAt(x, z);
+    if (b && x > b.x0 && x < b.x1 && z > b.z0 && z < b.z1) return CURB_H;
+    return 0;
+  }
+
+  // Buildings, fences, lots, props and parking under the city freeway and its ramps are cleared away
+  _clearUnderFreeway() {
+    const net = this.roads;
+    const hit = (x0, z0, x1, z1, pad = 1.5) => {
+      const list = net.edgesIn(x0 - 30, z0 - 30, x1 + 30, z1 + 30);
+      for (const e of list) {
+        if (e.grid || (e.type !== 'freeway' && e.type !== 'ramp')) continue;
+        for (let i = 0; i < e.n - 1; i++) {
+          const ax = e.p[i * 3], az = e.p[i * 3 + 2], bx = e.p[i * 3 + 3], bz = e.p[i * 3 + 5];
+          const w = Math.max(e.wL, e.wR) + pad;
+          if (Math.max(ax, bx) + w < x0 || Math.min(ax, bx) - w > x1 || Math.max(az, bz) + w < z0 || Math.min(az, bz) - w > z1) continue;
+          // distance from the rect to the segment (sample)
+          for (let k = 0; k <= 4; k++) {
+            const t = k / 4, px = ax + (bx - ax) * t, pz = az + (bz - az) * t;
+            const dx = Math.max(x0 - px, 0, px - x1), dz = Math.max(z0 - pz, 0, pz - z1);
+            if (Math.hypot(dx, dz) < w) return true;
+          }
+        }
+      }
+      return false;
+    };
+    const inCity = (x, z) => x > CITY.minX && x < CITY.maxX && z > CITY.minZ && z < CITY.maxZ;
+    this.buildings = this.buildings.filter((b) => !(inCity(b.x0, b.z0) && hit(b.x0, b.z0, b.x1, b.z1)));
+    this.fences = this.fences.filter((f) => !(inCity(f.x0, f.z0) && hit(Math.min(f.x0, f.x1), Math.min(f.z0, f.z1), Math.max(f.x0, f.x1), Math.max(f.z0, f.z1))));
+    this.props = this.props.filter((p) => !(inCity(p.x, p.z) && p.type !== 'trafficlight' && hit(p.x - 0.5, p.z - 0.5, p.x + 0.5, p.z + 0.5, 1)));
+    this.parkingSpots = this.parkingSpots.filter((p) => !(inCity(p.x, p.z) && !p.curb && hit(p.x - 2.5, p.z - 2.5, p.x + 2.5, p.z + 2.5, 0.5)));
+    this.containers = this.containers.filter((c) => !hit(c.x - 3, c.z - 3, c.x + 3, c.z + 3));
+    this.pools = this.pools.filter((pl) => !hit(pl.x0, pl.z0, pl.x1, pl.z1));
+    // what's left under the viaduct is gravel / parking
+    for (const l of this.lotSurfaces) if (inCity(l.x0, l.z0) && hit(l.x0, l.z0, l.x1, l.z1, 0)) l.type = l.type === 'grass' ? 'dirt' : l.type;
   }
 
   _addBuilding(b, x0, z0, x1, z1, height, style, opts = {}) {
     if (x1 - x0 < 2 || z1 - z0 < 2) return null;
     const bld = {
-      x0, z0, x1, z1, y0: opts.y0 ?? CURB_H, y1: (opts.y0 ?? CURB_H) + height, style,
+      x0, z0, x1, z1, y0: opts.y0 ?? CURB_H, y1: (opts.y0 ?? CURB_H) + height, style, rot: opts.rot || 0, base: opts.base ?? null,
       tint: opts.tint ?? [1, 1, 1], seed: opts.seed ?? Math.random(), roof: opts.roof || 'flat',
       district: b ? b.district : 'midtown', kind: opts.kind || 'building', floorH: opts.floorH || (style === 4 ? 6 : 3.4),
       cell: opts.cell || 3.2, name: opts.name, sign: opts.sign, noCollide: opts.noCollide,
@@ -333,6 +462,7 @@ export class CityMap {
     const sp = b.special;
     const warm = () => rng.pick([[1, 0.95, 0.88], [0.93, 0.9, 0.86], [0.85, 0.8, 0.75], [1, 0.88, 0.75], [0.8, 0.82, 0.86], [0.95, 0.95, 0.95], [0.95, 0.75, 0.6], [0.75, 0.85, 0.95], [0.85, 0.95, 0.85], [1, 0.82, 0.82], [0.9, 0.8, 0.6], [0.7, 0.72, 0.78]]);
 
+    if (sp === 'super') { this._superBlock(b, rng); return; }
     if (sp === 'park' || sp === 'court' || sp === 'plaza') {
       b.ground = sp === 'plaza' ? 'plaza' : 'grass';
       b.park = true;
@@ -430,6 +560,66 @@ export class CityMap {
       }
       default:
         this._perimeter(b, rng, { depth: [14, 20], width: [12, 24], floors: [2, 6], styles: [0, 2, 5], tint: warm });
+    }
+  }
+
+  // merged blocks: stadium, mall, country club, big park
+  _superBlock(b, rng) {
+    const { ix0, iz0, ix1, iz1 } = b;
+    const cx = (ix0 + ix1) / 2, cz = (iz0 + iz1) / 2;
+    const W = ix1 - ix0, D = iz1 - iz0;
+    this.landmarks[b.superKind] = { x: cx, z: cz, name: b.superName };
+    switch (b.superKind) {
+      case 'stadium': {
+        b.ground = 'asphalt';
+        this.lotSurfaces.push({ x0: ix0, z0: iz0, x1: ix1, z1: iz1, type: 'asphalt' });
+        // oval bowl of rotated stand sections around a pitch
+        const ra = Math.min(W, D) * 0.42, rb = Math.max(W, D) * 0.4;
+        const alongZ = D > W;
+        const n = 22;
+        for (let k = 0; k < n; k++) {
+          const a0 = k / n * Math.PI * 2, a1 = (k + 1) / n * Math.PI * 2, am = (a0 + a1) / 2;
+          const ex = alongZ ? ra : rb, ez = alongZ ? rb : ra;
+          const p0 = [cx + Math.cos(a0) * ex, cz + Math.sin(a0) * ez], p1 = [cx + Math.cos(a1) * ex, cz + Math.sin(a1) * ez];
+          const len = Math.hypot(p1[0] - p0[0], p1[1] - p0[1]) + 0.6;
+          const mx = (p0[0] + p1[0]) / 2, mz = (p0[1] + p1[1]) / 2;
+          const yaw = Math.atan2(p1[0] - p0[0], p1[1] - p0[1]);
+          const dep = 9;
+          const nx = Math.cos(am), nz = Math.sin(am);
+          const ccx = mx + nx * dep * 0.1, ccz = mz + nz * dep * 0.1;
+          this._addBuilding(b, ccx - dep / 2, ccz - len / 2, ccx + dep / 2, ccz + len / 2, 16 + (k % 2) * 0.01, 6, { rot: yaw, tint: [0.92, 0.9, 0.86], seed: 0.66 + k * 0.001, roof: 'flat', kind: 'stand', name: k === 0 ? b.superName : undefined });
+        }
+        const px = alongZ ? ra * 0.72 : rb * 0.7, pz = alongZ ? rb * 0.7 : ra * 0.72;
+        this.lotSurfaces.push({ x0: cx - px, z0: cz - pz, x1: cx + px, z1: cz + pz, type: 'grass' });
+        for (let k = 0; k < 6; k++) this.parkingSpots.push({ x: ix0 + 8 + k * 7, z: iz0 + 6, rot: 0, district: b.district, lot: true });
+        for (const [x, z] of [[ix0 + 4, iz0 + 4], [ix1 - 4, iz0 + 4], [ix0 + 4, iz1 - 4], [ix1 - 4, iz1 - 4]]) this.props.push({ type: 'streetlight', x, z, rot: 0 });
+        break;
+      }
+      case 'mall': {
+        b.ground = 'asphalt';
+        this.lotSurfaces.push({ x0: ix0, z0: iz0, x1: ix1, z1: iz1, type: 'asphalt' });
+        this._addBuilding(b, ix0 + 12, iz0 + 8, ix1 - 12, iz0 + D * 0.55, 13, 5, { tint: [0.95, 0.9, 0.82], seed: 0.71, roof: 'ac', floorH: 6.5, name: b.superName, sign: 'MALL' });
+        this._addBuilding(b, cx - 14, iz0 + D * 0.55 - 1, cx + 14, iz0 + D * 0.55 + 7, 8, 1, { tint: [0.7, 0.85, 1.0], seed: 0.72, roof: 'flat' });
+        for (let x = ix0 + 8; x < ix1 - 8; x += 6) for (const z of [iz1 - 8, iz1 - 22]) if (rng.chance(0.45)) this.parkingSpots.push({ x, z, rot: Math.PI / 2 * (rng.chance(0.5) ? 1 : -1), district: b.district, lot: true });
+        for (let x = ix0 + 10; x < ix1; x += 26) this.props.push({ type: 'streetlight', x, z: iz1 - 15, rot: 0 });
+        break;
+      }
+      case 'golf': {
+        b.ground = 'grass';
+        this._addBuilding(b, cx - 14, iz0 + 6, cx + 14, iz0 + 20, 7, 7, { tint: [1, 0.97, 0.9], seed: 0.73, roof: 'gable', floorH: 3.5, kind: 'house', name: b.superName });
+        this.lotSurfaces.push({ x0: cx - 18, z0: iz0 + 20, x1: cx + 18, z1: iz0 + 34, type: 'asphalt' });
+        for (let k = 0; k < 4; k++) this.parkingSpots.push({ x: cx - 12 + k * 7, z: iz0 + 27, rot: Math.PI / 2, district: 'hills', lot: true, fancy: true });
+        for (let k = 0; k < 40; k++) {
+          const x = rng.range(ix0 + 4, ix1 - 4), z = rng.range(iz0 + 40, iz1 - 4);
+          if (rng.chance(0.4)) this.props.push({ type: rng.chance(0.5) ? 'palm' : 'tree', x, z, rot: rng.range(0, 6.28), scale: rng.range(1, 1.4) });
+        }
+        this.lotSurfaces.push({ x0: cx - 30, z0: iz1 - 40, x1: cx + 10, z1: iz1 - 25, type: 'sand' });
+        break;
+      }
+      default: {
+        b.ground = 'grass'; b.park = true;
+        this._park(b, rng, 'park');
+      }
     }
   }
 
@@ -663,7 +853,11 @@ export class CityMap {
       }
       // traffic lights at the block's NW corner (intersection XS[i],ZS[j]) — 4 per intersection handled by corners
       const cornersInfo = [[x0, z0, -1, -1], [x1, z0, 1, -1], [x1, z1, 1, 1], [x0, z1, -1, 1]];
-      for (const c of cornersInfo) this.props.push({ type: 'trafficlight', x: c[0] - c[2] * 0.8, z: c[1] - c[3] * 0.8, rot: 0, corner: [c[2], c[3]] });
+      for (const c of cornersInfo) {
+        const ni = this.nearestX(c[0] + c[2] * 10), nj = this.nearestZ(c[1] + c[3] * 10);
+        if (RB_SET.has(ni + ',' + nj)) { this.props.push({ type: 'palm', x: c[0] - c[2] * 1.4, z: c[1] - c[3] * 1.4, rot: 0, scale: 1.1 }); continue; }
+        this.props.push({ type: 'trafficlight', x: c[0] - c[2] * 0.8, z: c[1] - c[3] * 0.8, rot: 0, corner: [c[2], c[3]] });
+      }
     }
     // push curb parking spots onto the parking strip of the adjacent road, facing the flow of traffic
     const k = HALF_ROAD - PARK_OFF;
@@ -710,15 +904,20 @@ export class CityMap {
     this.colliders = [];
     for (const b of this.buildings) {
       if (b.noCollide) continue;
-      this.colliders.push({ minX: b.x0, minZ: b.z0, maxX: b.x1, maxZ: b.z1, minY: b.y0 - 0.2, maxY: b.y1 + (b.roof === 'gable' ? 2.5 : 0), type: 'building' });
+      const maxY = b.y1 + (b.roof === 'gable' ? 2.5 : 0);
+      if (b.rot) this.colliders.push({ cx: (b.x0 + b.x1) / 2, cz: (b.z0 + b.z1) / 2, hx: (b.x1 - b.x0) / 2, hz: (b.z1 - b.z0) / 2, yaw: b.rot, minY: b.y0 - 1.2, maxY, type: 'building' });
+      else this.colliders.push({ minX: b.x0, minZ: b.z0, maxX: b.x1, maxZ: b.z1, minY: b.y0 - 0.2, maxY, type: 'building' });
     }
     for (const f of this.fences) {
-      this.colliders.push({ minX: Math.min(f.x0, f.x1), minZ: Math.min(f.z0, f.z1), maxX: Math.max(f.x0, f.x1), maxZ: Math.max(f.z0, f.z1), minY: 0, maxY: CURB_H + f.h, type: 'fence', soft: f.type !== 'hedge' });
+      const y0 = f.y ?? 0;
+      if (f.rot) this.colliders.push({ cx: f.cx, cz: f.cz, hx: f.hx, hz: f.hz, yaw: f.rot, minY: y0 - 0.5, maxY: y0 + CURB_H + f.h, type: 'fence', soft: f.type !== 'hedge' && f.type !== 'wall' });
+      else this.colliders.push({ minX: Math.min(f.x0, f.x1), minZ: Math.min(f.z0, f.z1), maxX: Math.max(f.x0, f.x1), maxZ: Math.max(f.z0, f.z1), minY: y0 - 0.5, maxY: y0 + CURB_H + f.h, type: 'fence', soft: f.type !== 'hedge' && f.type !== 'wall' });
     }
     for (const c of this.containers) {
       const hx = 1.25, hz = 3.05;
       const ch = Math.abs(Math.sin(c.rot)) > 0.5;
-      this.colliders.push({ minX: c.x - (ch ? hz : hx), maxX: c.x + (ch ? hz : hx), minZ: c.z - (ch ? hx : hz), maxZ: c.z + (ch ? hx : hz), minY: c.level * 2.6, maxY: (c.level + 1) * 2.6 + CURB_H, type: 'container' });
+      const cy = c.y ?? 0;
+      this.colliders.push({ minX: c.x - (ch ? hz : hx), maxX: c.x + (ch ? hz : hx), minZ: c.z - (ch ? hx : hz), maxZ: c.z + (ch ? hx : hz), minY: cy + c.level * 2.6, maxY: cy + (c.level + 1) * 2.6 + CURB_H, type: 'container' });
     }
   }
 }

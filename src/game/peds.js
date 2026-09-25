@@ -139,7 +139,7 @@ export class Ped extends Character {
       // pick nearest walk node
       let best = null, bd = Infinity;
       const nodes = map.walkNodes;
-      const b = map.blockAt(this.pos.x, this.pos.z);
+      const b = map.walkAreaAt(this.pos.x, this.pos.z);
       const cands = b ? b.nodeIds.map((i) => nodes[i]) : nodes;
       for (const n of cands) { const d = dist2(n.x, n.z, this.pos.x, this.pos.z); if (d < bd) { bd = d; best = n; } }
       this.node = best;
@@ -331,8 +331,8 @@ export class PedManager {
       const ang = Math.random() * Math.PI * 2;
       const r = this._ignoreView ? rand(12, 90) : rand(55, 95);
       const x = p.x + Math.cos(ang) * r, z = p.z + Math.sin(ang) * r;
-      const b = map.blockAt(x, z);
-      if (!b) continue;
+      const b = map.walkAreaAt(x, z);
+      if (!b || !b.nodeIds.length) continue;
       // in view? prefer out of view or far
       const inView = this._inView(x, z, 1);
       if (inView && r < 80 && !this._ignoreView) continue;

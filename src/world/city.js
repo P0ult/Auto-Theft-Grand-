@@ -9,9 +9,13 @@ import { palmFrondTexture, adAtlas, signTexture, softDotTexture } from './textur
 import { CITY, CURB_H, WATER_Y, XS, ZS, WORLD } from './citymap.js';
 import { RNG, clamp } from '../core/utils.js';
 import { buildLandmarks } from './landmarks.js';
+import { TerrainMesh } from './terrainmesh.js';
+import { RoadMeshes } from './roadmesh.js';
+import { Vegetation } from './vegetation.js';
+import { LAKE } from './worldgen.js';
 
 const CHUNK = 200;
-const GROUND_TYPES = { concrete: 0, grass: 1, dirt: 2, asphalt: 3, plaza: 4, driveway: 5, court: 6, path: 7, sand: 8 };
+const GROUND_TYPES = { concrete: 0, grass: 1, dirt: 2, asphalt: 3, plaza: 4, driveway: 5, court: 6, path: 7, sand: 8, runway: 9, taxiway: 10, apron: 11, helipad: 12, dirtpad: 13 };
 
 export class City {
   constructor(scene, map, collision) {
@@ -56,7 +60,10 @@ export class City {
     this._fences();
     this._props();
     this._containers();
-    this._terrain();
+    this.terrainMesh = new TerrainMesh(this.root, this.map);
+    this.roadMeshes = new RoadMeshes(this.root, this.map, this.collision);
+    this.vegetation = new Vegetation(this.root, this.map, this.collision);
+    this._pads();
     this._water();
     this._billboards();
     this._signs();
@@ -152,10 +159,13 @@ export class City {
   _buildings() {
     const rng = new RNG(4242);
     for (const b of this.map.buildings) {
-      const c = this.chunk((b.x0 + b.x1) / 2, (b.z0 + b.z1) / 2);
+      const bcx = (b.x0 + b.x1) / 2, bcz = (b.z0 + b.z1) / 2;
+      const c = this.chunk(bcx, bcz);
       const gb = c.bld;
+      const start = gb.count, startD = c.det.count;
       gb.set('color', b.tint[0], b.tint[1], b.tint[2]);
-      const ground = b.y0 < CURB_H + 0.5 ? (b.kind === 'house' || b.kind === 'mansion' ? 2 : 1) : 0;
+      const onGround = b.y0 < CURB_H + 0.5 || (b.base != null && Math.abs(b.y0 - b.base) < 0.01);
+      const ground = onGround ? (b.kind === 'house' || b.kind === 'mansion' || b.kind === 'barn' ? 2 : 1) : 0;
       const floorH = b.floorH;
       const h = b.y1 - b.y0;
       const nx = Math.max(1, Math.round((b.x1 - b.x0) / b.cell));
@@ -186,6 +196,7 @@ export class City {
         }
         this._roofDetails(c, b, rng);
       }
+      if (b.rot) { gb.rotateFrom(start, bcx, bcz, b.rot); c.det.rotateFrom(startD, bcx, bcz, b.rot); }
     }
   }
 
@@ -277,13 +288,37 @@ export class City {
     this.beacons.push(new THREE.Vector3(x, y, z));
   }
 
+  // flat surfaces outside the city (runways, taxiways, aprons, helipads, gas station forecourts)
+  _pads() {
+    const list = this.map.padSurfaces;
+    if (!list || !list.length) return;
+    const gb = new GeoBuilder({ position: 3, normal: 3, uv: 2, aRect: 4, aLot: 1 });
+    for (const p of list) {
+      const s = Math.sin(p.yaw), c = Math.cos(p.yaw);
+      const L = (lx, lz) => [p.cx + lx * c + lz * s, p.y, p.cz - lx * s + lz * c];
+      gb.set('aRect', -1, 0, p.hx, p.hz);
+      gb.set('aLot', GROUND_TYPES[p.type] ?? 0);
+      // split long pads so they follow the (flat) ground in manageable pieces
+      const nz = Math.max(1, Math.ceil(p.hz * 2 / 60));
+      for (let k = 0; k < nz; k++) {
+        const z0 = -p.hz + (k / nz) * p.hz * 2, z1 = -p.hz + ((k + 1) / nz) * p.hz * 2;
+        gb.quad(L(-p.hx, z1), L(p.hx, z1), L(p.hx, z0), L(-p.hx, z0), [0, 1, 0], [-p.hx, z1], [p.hx, z1], [p.hx, z0], [-p.hx, z0]);
+      }
+    }
+    const m = new THREE.Mesh(gb.build(), this.mats.lot);
+    m.receiveShadow = true;
+    m.name = 'pads';
+    this.root.add(m);
+  }
+
   // -------------------------------------------------------------- fences / hedges
   _fences() {
     const chainGB = new GeoBuilder({ position: 3, normal: 3, uv: 2 });
     for (const f of this.map.fences) {
+      if (f.rot) { this._rotFence(f); continue; }
       const c = this.chunk((f.x0 + f.x1) / 2, (f.z0 + f.z1) / 2);
       const det = c.det;
-      const y0 = CURB_H, y1 = CURB_H + f.h;
+      const y0 = (f.y ?? 0) + CURB_H, y1 = y0 + f.h;
       if (f.type === 'hedge') {
         det.set('color', 0.16, 0.3, 0.12);
         det.box(f.x0, y0, f.z0, f.x1, y1, f.z1, { top: true });
@@ -320,6 +355,20 @@ export class City {
     }
   }
 
+  _rotFence(f) {
+    // rotated rail fence (farms): posts + two rails along local z
+    const c = this.chunk(f.cx, f.cz);
+    const det = c.det;
+    const start = det.count;
+    const y0 = f.y + CURB_H, y1 = y0 + f.h;
+    det.set('color', 0.48, 0.36, 0.25);
+    const n = Math.max(1, Math.round(f.hz * 2 / 3));
+    for (let k = 0; k <= n; k++) { const z = f.cz - f.hz + (k / n) * f.hz * 2; det.box(f.cx - 0.07, y0 - 0.3, z - 0.07, f.cx + 0.07, y1, z + 0.07, { top: true }); }
+    det.box(f.cx - 0.04, y1 - 0.25, f.cz - f.hz, f.cx + 0.04, y1 - 0.1, f.cz + f.hz, { top: true });
+    det.box(f.cx - 0.04, y0 + 0.35, f.cz - f.hz, f.cx + 0.04, y0 + 0.5, f.cz + f.hz, { top: true });
+    det.rotateFrom(start, f.cx, f.cz, f.rot);
+  }
+
   // -------------------------------------------------------------- props
   _props() {
     const defs = {
@@ -333,6 +382,17 @@ export class City {
       phonebooth: { parts: [[P.phoneboothGeo(), 'prop']], r: 0.55, h: 2.4, breakable: true, mass: 0.8 },
       hoop: { parts: [[P.hoopGeo(), 'prop']], r: 0.2, h: 4, breakable: false },
       fountain: { parts: [[P.fountainGeo(), 'prop']], r: 5.2, h: 0.7, breakable: false },
+      silo: { parts: [[P.siloGeo(), 'prop']], r: 3.3, h: 19, breakable: false },
+      pump: { parts: [[P.pumpGeo(), 'prop']], r: 0.5, h: 1.9, breakable: true, mass: 0.6 },
+      post: { parts: [[P.postGeo(4.6), 'prop']], r: 0.25, h: 4.6, breakable: false },
+      stilt: { parts: [[P.postGeo(7), 'prop']], r: 0.25, h: 7, breakable: false },
+      haybale: { parts: [[P.haybaleGeo(), 'prop']], r: 0.75, h: 1.5, breakable: false },
+      windsock: { parts: [[P.windsockGeo(), 'prop']], r: 0.15, h: 6, breakable: true, mass: 0.2 },
+      fueltank: { parts: [[P.fueltankGeo(), 'prop']], r: 8.1, h: 9.3, breakable: false },
+      radar: { parts: [[P.radarGeo(), 'prop']], r: 3.6, h: 18, breakable: false },
+      boothbar: { parts: [[P.boothbarGeo(), 'prop']], r: 1.6, h: 3, breakable: false },
+      sandbags: { parts: [[P.sandbagsGeo(), 'prop']], r: 0.9, h: 1.1, breakable: false },
+      powerpole: { parts: [[P.powerpoleGeo(), 'prop']], r: 0.25, h: 11, breakable: true, mass: 1.4 },
     };
     for (let v = 0; v < 3; v++) {
       const g = P.palmGeos(v);
@@ -352,14 +412,16 @@ export class City {
       if (!def) continue;
       const c = this.chunk(p.x, p.z);
       if (!c.props[type]) c.props[type] = [];
-      const y = this.map.groundHeight(p.x, p.z);
+      const y = p.y ?? this.map.groundHeight(p.x, p.z);
       const inst = { x: p.x, y, z: p.z, rot: p.rot || 0, scale: p.scale || 1, type, chunk: c, index: c.props[type].length, broken: false };
       if (type === 'trafficlight') {
         const i = this.map.nearestX(p.x), j = this.map.nearestZ(p.z);
         inst.phase = intersectionPhase(i, j);
       }
       c.props[type].push(inst);
-      const col = { x: p.x, z: p.z, r: def.r * (type.startsWith('palm') || type.startsWith('tree') ? 1 : 1), h: def.h, type: 'prop', prop: inst, breakable: def.breakable };
+      const multi = type === 'boothbar' || type === 'sandbags';
+      const col = { x: p.x, z: p.z, r: def.r, h: y + def.h, y0: y - 0.5, type: 'prop', prop: inst, breakable: def.breakable };
+      if (multi) { col.r = 1.4; }
       inst.collider = col;
       this.collision.addCircle(col);
       this.propColliders.push(col);
@@ -375,7 +437,7 @@ export class City {
     const m = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(1, 1, 1), p = new THREE.Vector3();
     list.forEach((c, i) => {
       q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), c.rot);
-      p.set(c.x, CURB_H + c.level * 2.6, c.z);
+      p.set(c.x, (c.y ?? 0) + CURB_H + c.level * 2.6, c.z);
       m.compose(p, q, s);
       mesh.setMatrixAt(i, m);
       mesh.setColorAt(i, new THREE.Color(colors[c.color % colors.length]));
@@ -385,72 +447,15 @@ export class City {
     this.root.add(mesh);
   }
 
-  // -------------------------------------------------------------- terrain
-  _terrain() {
-    const minX = WORLD.minX, maxX = WORLD.maxX, minZ = WORLD.minZ, maxZ = WORLD.maxZ;
-    const step = 10;
-    const nx = Math.round((maxX - minX) / step), nz = Math.round((maxZ - minZ) / step);
-    const geo = new THREE.PlaneGeometry(maxX - minX, maxZ - minZ, nx, nz);
-    geo.rotateX(-Math.PI / 2);
-    geo.translate((minX + maxX) / 2, 0, (minZ + maxZ) / 2);
-    const pos = geo.attributes.position;
-    const colors = new Float32Array(pos.count * 3);
-    const map = this.map;
-    const inCity = (x, z) => x > CITY.minX - 0.5 && x < CITY.maxX + 0.5 && z > CITY.minZ - 0.5 && z < CITY.maxZ + 0.5;
-    const col = new THREE.Color();
-    for (let i = 0; i < pos.count; i++) {
-      const x = pos.getX(i), z = pos.getZ(i);
-      let h = map.terrainHeight(x, z);
-      if (inCity(x, z)) h = -0.3;
-      pos.setY(i, h);
-      // colors
-      const hn = h;
-      const beachZone = z > CITY.maxZ && x < 480;
-      if (beachZone && hn < 4) col.setRGB(0.86, 0.74, 0.52);
-      else if (hn < WATER_Y - 0.5) col.setRGB(0.45, 0.4, 0.3);
-      else {
-        const t = clamp(hn / 120, 0, 1);
-        col.setRGB(0.28 - t * 0.05, 0.3 - t * 0.08, 0.14 - t * 0.04);
-        const dry = 0.5 + 0.5 * Math.sin(x * 0.01) * Math.cos(z * 0.013);
-        col.lerp(new THREE.Color(0.42, 0.36, 0.22), dry * 0.6);
-        if (hn > 70) col.lerp(new THREE.Color(0.4, 0.37, 0.33), clamp((hn - 70) / 60, 0, 0.8));
-      }
-      colors[i * 3] = col.r; colors[i * 3 + 1] = col.g; colors[i * 3 + 2] = col.b;
-    }
-    geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-    geo.computeVertexNormals();
-    const mat = std({ color: 0xffffff, vertexColors: true, roughness: 0.95 }, {
-      key: 'terrain',
-      fragPars: NOISE_GLSL,
-      fragColor: `
-        {
-          vec2 wp = vAtgWorld.xz;
-          float n = fbm3(wp * 0.08) * 0.6 + vn2(wp * 1.5) * 0.4;
-          diffuseColor.rgb *= 0.75 + 0.5 * n;
-          // rock on steep slopes
-          vec3 wn = normalize(cross(dFdx(vAtgWorld), dFdy(vAtgWorld)));
-          float steep = smoothstep(0.75, 0.55, abs(wn.y));
-          diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.36, 0.33, 0.3) * (0.7 + 0.5 * n), steep);
-          diffuseColor.rgb *= 1.0 - uWet * 0.25;
-        }
-      `,
-    });
-    const mesh = new THREE.Mesh(geo, mat);
-    mesh.receiveShadow = true;
-    mesh.name = 'terrain';
-    this.root.add(mesh);
-    this.terrain = mesh;
-  }
-
   // -------------------------------------------------------------- water
   _water() {
     // depth texture over the world for shoreline effects
-    const res = 256;
+    const res = 1024;
     const data = new Uint8Array(res * res * 4);
     for (let j = 0; j < res; j++) for (let i = 0; i < res; i++) {
       const x = WORLD.minX + (i + 0.5) / res * (WORLD.maxX - WORLD.minX);
       const z = WORLD.minZ + (j + 0.5) / res * (WORLD.maxZ - WORLD.minZ);
-      const dpt = WATER_Y - this.map.terrainHeight(x, z);
+      const dpt = WATER_Y - this.map.hf.sample(x, z);
       const k = (j * res + i) * 4;
       data[k] = clamp(Math.round(dpt / 10 * 255), 0, 255);
       data[k + 1] = 0; data[k + 2] = 0; data[k + 3] = 255;
@@ -501,20 +506,31 @@ export class City {
       fragRoughness: 'roughnessFactor = mix(0.04, 0.6, atgFoam);',
     });
     const mat = std({ color: 0xffffff, roughness: 0.05, metalness: 0.0, transparent: true, opacity: 1, envMapIntensity: 1.8 }, waterExt('water', false));
-    const geo = new THREE.PlaneGeometry(8000, 8000, 1, 1);
+    const geo = new THREE.PlaneGeometry(40000, 40000, 1, 1);
     geo.rotateX(-Math.PI / 2);
     const water = new THREE.Mesh(geo, mat);
-    water.position.set(0, WATER_Y, 0);
+    water.position.set(-2000, WATER_Y, -2000);
+    water.frustumCulled = false;
     water.renderOrder = 1;
     water.receiveShadow = true;
     water.name = 'ocean';
     this.root.add(water);
     this.water = water;
 
+    // Lake Mirador up in the hills
+    {
+      const lg = new THREE.CircleGeometry(LAKE.r + 24, 64);
+      lg.rotateX(-Math.PI / 2);
+      const lakeMat = std({ color: 0xffffff, roughness: 0.05, metalness: 0.0, envMapIntensity: 1.6 }, waterExt('lake', true));
+      const lake = new THREE.Mesh(lg, lakeMat);
+      lake.position.set(LAKE.x, LAKE.y, LAKE.z);
+      lake.name = 'lake';
+      this.root.add(lake);
+    }
     const poolMat = std({ color: 0xffffff, roughness: 0.05, metalness: 0.0 }, waterExt('pool', true));
     const pg = new GeoBuilder({ position: 3, normal: 3, uv: 2 });
     for (const pl of this.map.pools) {
-      const y = CURB_H + 0.08;
+      const y = (pl.y ?? 0) + CURB_H + 0.08;
       pg.quad([pl.x0, y, pl.z1], [pl.x1, y, pl.z1], [pl.x1, y, pl.z0], [pl.x0, y, pl.z0], [0, 1, 0]);
     }
     if (!pg.empty) {
@@ -532,7 +548,7 @@ export class City {
     const frame = new GeoBuilder({ position: 3, normal: 3, uv: 2, color: 3 });
     const faces = new GeoBuilder({ position: 3, normal: 3, uv: 2 });
     const bgeo = P.billboardGeo();
-    const cands = this.map.buildings.filter((b) => b.roof === 'flat' && b.y1 > 10 && b.y1 < 45 && (b.x1 - b.x0) > 14 && (b.z1 - b.z0) > 8 && b.district !== 'hills');
+    const cands = this.map.buildings.filter((b) => !b.rot && b.base == null && b.roof === 'flat' && b.y1 > 10 && b.y1 < 45 && (b.x1 - b.x0) > 14 && (b.z1 - b.z0) > 8 && b.district !== 'hills');
     let count = 0;
     for (const b of cands) {
       if (!rng.chance(0.18) || count > 70) continue;
@@ -568,6 +584,8 @@ export class City {
       'GUN BARN': { bg: '#1b1b1b', fg: '#ff5a36' }, HOSPITAL: { bg: '#f4f4f4', fg: '#d62828', glow: false },
       POLICE: { bg: '#0b1f4d', fg: '#e8eefc' }, 'SPRAY SHACK': { bg: '#222', fg: '#6df0ff' },
       'BIG BUN': { bg: '#6b1a00', fg: '#ffd166' }, GARAGE: { bg: '#222', fg: '#ffffff' }, LIQUOR: { bg: '#1d0826', fg: '#ff5ec4' },
+      GAS: { bg: '#b3121b', fg: '#ffffff' }, MOTEL: { bg: '#123d4a', fg: '#ff6fb5' }, SALOON: { bg: '#3b2412', fg: '#ffcc66' }, CANTINA: { bg: '#5a1a4a', fg: '#ffd166' },
+      'FORT CARVER': { bg: '#2f3a26', fg: '#e9e4c8' }, AIRFIELD: { bg: '#1c2f4a', fg: '#ffffff' }, MALL: { bg: '#20252b', fg: '#7ee0ff' }, LODGE: { bg: '#2d3d22', fg: '#f4e3b2' },
     };
     for (const b of this.map.buildings) {
       if (!b.sign) continue;
@@ -575,6 +593,19 @@ export class City {
       const tex = signTexture(b.sign, st);
       const mat = patch(new THREE.MeshBasicMaterial({ map: tex, color: 0xffffff }), { key: 'sign' });
       this.signMats.push(mat);
+      if (b.rot) {
+        // countryside: sign on the face towards the road (b.front)
+        const hx = (b.x1 - b.x0) / 2, hz = (b.z1 - b.z0) / 2;
+        const w = Math.min(hz * 2 - 1, 12), h = w * 0.19;
+        const mesh = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat);
+        const f = b.front || [Math.cos(b.rot), -Math.sin(b.rot)];
+        const cx = (b.x0 + b.x1) / 2, cz = (b.z0 + b.z1) / 2;
+        mesh.position.set(cx + f[0] * (hx + 0.08), Math.min(b.y1 - h * 0.6, b.y0 + (b.foundation || 0) + 4.2 + h / 2), cz + f[1] * (hx + 0.08));
+        mesh.rotation.y = Math.atan2(f[0], f[1]);
+        mesh.name = 'sign:' + b.sign;
+        this.root.add(mesh);
+        continue;
+      }
       const w = Math.min(b.x1 - b.x0 - 1, 14), h = w * 0.19;
       const geo = new THREE.PlaneGeometry(w, h);
       const mesh = new THREE.Mesh(geo, mat);
@@ -707,8 +738,12 @@ export class City {
     // prop visibility by distance
     for (const c of this.chunks.values()) {
       const d = Math.hypot(c.cx - camPos.x, c.cz - camPos.z);
-      c.propGroup.visible = d < 520;
+      c.propGroup.visible = d < 520 + Math.max(0, camPos.y - 60);
     }
+    this.terrainMesh?.update(dt, camPos);
+    this.vegetation?.update(dt, camPos);
+    // keep the (huge) ocean plane centred near the camera
+    if (this.water) this.water.position.set(Math.round(camPos.x / 500) * 500, WATER_Y, Math.round(camPos.z / 500) * 500);
     if (this.billboardMat) this.billboardMat.emissiveIntensity = 0.05 + night * 1.6;
     for (const m of this.signMats) m.color.setScalar(0.55 + night * 2.2);
     if (this.beaconMat) {
