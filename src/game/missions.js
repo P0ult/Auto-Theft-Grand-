@@ -7,6 +7,13 @@ import { clamp, dist2, rand, wrapAngle } from '../core/utils.js';
 import { segmentValid } from './traffic.js';
 
 export class MissionFail extends Error { constructor(reason) { super(reason); this.reason = reason; } }
+
+let _arrowGeo = null, _arrowMat = null;
+const ARROW_GEO = () => {
+  if (!_arrowGeo) { _arrowGeo = new THREE.ConeGeometry(0.2, 0.42, 4); _arrowGeo.rotateX(Math.PI); _arrowGeo.userData.shared = true; }
+  return _arrowGeo;
+};
+const ARROW_MAT = () => _arrowMat || (_arrowMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(2.4, 0.18, 0.12), fog: false }));
 class MissionAbort extends Error {}
 
 // --------------------------------------------------------------------------- AI drivers for missions
@@ -246,7 +253,25 @@ class Ctx {
     p.missionEnemy = true;
     this.peds.push(p);
     if (opts.blip !== false) this.blipEntity(p, 0xff3030, 'dot', true);
+    if (opts.arrow !== false) this.targetArrow(p);
     return p;
+  }
+  // bobbing red arrow over a target's head (San Andreas style), removed on death / cleanup
+  targetArrow(p) {
+    const arrow = new THREE.Mesh(ARROW_GEO(), ARROW_MAT());
+    arrow.renderOrder = 3;
+    p.root.add(arrow);
+    p.targetArrow = arrow;
+    const ph = Math.random() * 6;
+    this.tick(() => {
+      if (p.removed) return;
+      const s = 1 / (p.root.scale.y || 1);
+      arrow.visible = !p.dead && !p.ragdolling && !p.vehicle;
+      arrow.scale.setScalar(s);
+      arrow.position.y = (2.3 + Math.sin(this.game.time * 4 + ph) * 0.08) * s;
+      arrow.rotation.y = this.game.time * 2 + ph;
+    });
+    return arrow;
   }
   car(type, x, z, yaw = 0, opts = {}) {
     const v = this.game.vehicles.spawn(type, x, z, yaw, { persistent: true, ...opts });
@@ -352,6 +377,7 @@ class Ctx {
     for (const m of this.markers) game.pickups.removeMarker(m);
     for (const b of this.blips) game.blips.delete(b);
     for (const p of this.peds) {
+      if (p.targetArrow) { p.targetArrow.parent?.remove(p.targetArrow); p.targetArrow = null; }
       if (p.removed) continue;
       if (p.keep) continue;
       p.persistent = false; p.invincible = false;
@@ -461,8 +487,11 @@ export class Missions {
     const game = this.game;
     ctx.cleanup(false);
     this.active = null;
-    game.hud.bigMessage('MISSION FAILED!', 'failed', 4.5, reason || '');
-    game.audio?.play('failed');
+    // while the wasted / busted screen is up, hold the message until the player has respawned
+    const show = () => { game.hud.bigMessage('MISSION FAILED!', 'failed', 4.5, reason || ''); game.audio?.play('failed'); };
+    const st = game.gameplay?.state;
+    if (st === 'dead' || st === 'busted' || st === 'respawning') game.gameplay.afterRespawn = show;
+    else show();
     game.events.emit('missionFailed', ctx.def.id);
     setTimeout(() => this.refreshContacts(), 4000);
   }

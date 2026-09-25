@@ -129,6 +129,8 @@ uniform float uChroma;
 uniform float uFade;
 uniform float uRaysOn;
 uniform vec2 uResolution;
+uniform float uDeath;
+uniform float uFlash;
 
 vec3 ACESFilm(vec3 x) {
   // Stephen Hill fitted ACES
@@ -157,6 +159,15 @@ void main() {
   } else {
     col = texture2D(tScene, uv).rgb;
   }
+  if (uDeath > 0.0) {
+    // death: soft ghosting blur that grows toward the edges
+    vec2 px = (0.6 + 2.4 * r2 * 4.0) * uDeath / uResolution * 3.0;
+    vec3 acc = col;
+    acc += texture2D(tScene, uv + vec2(px.x, 0.0)).rgb + texture2D(tScene, uv - vec2(px.x, 0.0)).rgb;
+    acc += texture2D(tScene, uv + vec2(0.0, px.y)).rgb + texture2D(tScene, uv - vec2(0.0, px.y)).rgb;
+    acc += texture2D(tScene, uv + px * 0.7).rgb + texture2D(tScene, uv - px * 0.7).rgb;
+    col = mix(col, acc / 7.0, clamp(uDeath, 0.0, 1.0) * 0.7);
+  }
   col += texture2D(tBloom, uv).rgb * uBloom;
   if (uRaysOn > 0.5) col += texture2D(tRays, uv).rgb;
   col *= uExposure;
@@ -168,9 +179,18 @@ void main() {
   col = (col - 0.5) * uContrast + 0.5;
   col = col + uLift * (1.0 - col);
   col = clamp(col, 0.0, 1.0);
+  if (uDeath > 0.0) {
+    // GTA-style death grade: harsh black & white with crushed blacks and a slow darkening
+    float g = dot(col, vec3(0.2126, 0.7152, 0.0722));
+    g = smoothstep(0.04, 0.92, g);
+    g = pow(g, 1.12);
+    col = mix(col, vec3(g), clamp(uDeath * 1.3, 0.0, 1.0));
+    col *= 1.0 - 0.18 * uDeath;
+  }
+  col = mix(col, vec3(1.0), clamp(uFlash, 0.0, 1.0));
   // vignette
-  float vig = smoothstep(0.85, 0.15, r2 * uVignette * 2.2);
-  col *= mix(1.0, vig, 0.55);
+  float vig = smoothstep(0.85, 0.15, r2 * (uVignette + uDeath * 0.9) * 2.2);
+  col *= mix(1.0, vig, 0.55 + 0.25 * uDeath);
   // damage vignette
   col = mix(col, vec3(0.55, 0.0, 0.0), uDamage * smoothstep(0.05, 0.45, r2) * 0.8);
   col = toSRGB(col);
@@ -209,6 +229,7 @@ export class PostFX {
       uTint: { value: new THREE.Color(1.05, 1.0, 0.93) }, uLift: { value: new THREE.Color(0.012, 0.01, 0.018) },
       uVignette: { value: 0.8 }, uGrain: { value: 0.025 }, uDamage: { value: 0 }, uDesat: { value: 0 },
       uChroma: { value: 0.0022 }, uFade: { value: 0 }, uRaysOn: { value: 1 }, uResolution: { value: new THREE.Vector2(1, 1) },
+      uDeath: { value: 0 }, uFlash: { value: 0 },
     });
     this.blackTex = new THREE.DataTexture(new Uint8Array([0, 0, 0, 255]), 1, 1);
     this.blackTex.needsUpdate = true;

@@ -581,6 +581,18 @@ export class CityMap {
       }
       case 'liquor': {
         this._houses(b, rng);
+        // corner store on the north street with a small parking apron out front
+        const sx0 = cx - 13, sx1 = cx + 13, mid = (iz0 + iz1) / 2;
+        const clear = (o) => o.x1 > sx0 - 1 && o.x0 < sx1 + 1 && o.z0 < mid - 0.2 && o.z1 > iz0 - 1;
+        this.buildings = this.buildings.filter((x) => !(clear(x) && x.district === b.district && x.y0 < 1));
+        this.fences = this.fences.filter((f) => !(Math.max(f.x0, f.x1) > sx0 - 1 && Math.min(f.x0, f.x1) < sx1 + 1 && Math.min(f.z0, f.z1) < mid - 0.2 && Math.max(f.z0, f.z1) > iz0 - 1));
+        this.lotSurfaces = this.lotSurfaces.filter((l) => !clear(l));
+        this.props = this.props.filter((pr) => !(pr.x > sx0 - 1 && pr.x < sx1 + 1 && pr.z > iz0 - 1 && pr.z < mid - 0.2));
+        this.parkingSpots = this.parkingSpots.filter((pr) => !(pr.x > sx0 - 1 && pr.x < sx1 + 1 && pr.z > iz0 - 1 && pr.z < mid - 0.2));
+        this.lotSurfaces.push({ x0: sx0, z0: iz0, x1: sx1, z1: mid - 0.2, type: 'asphalt' });
+        this._addBuilding(b, cx - 11, iz0 + 9, cx + 11, iz0 + 21, 5, 5, { tint: [0.95, 0.88, 0.7], seed: 0.83, roof: 'ac', floorH: 5, name: "Ray's Liquor", sign: 'LIQUOR' });
+        this.props.push({ type: 'trashcan', x: cx + 12, z: iz0 + 8, rot: 0 });
+        this.props.push({ type: 'phonebooth', x: cx - 12.2, z: iz0 + 7.5, rot: 0 });
         this.landmarks.liquor = { x: cx, z: iz0 - 1 };
         break;
       }

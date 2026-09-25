@@ -96,7 +96,7 @@ body.menu .hud { display: none; }
 .letterbox { position: fixed; left: 0; right: 0; height: 0; background: #000; z-index: 6; transition: height 0.6s ease; pointer-events: none; }
 .letterbox.top { top: 0; } .letterbox.bottom { bottom: 0; }
 body.cinematic .letterbox { height: 11vh; }
-body.cinematic .hud-tr, body.cinematic .hud-radar, body.cinematic .hud-zone, body.cinematic .hud-vehname { opacity: 0; transition: opacity 0.4s; }
+body.cinematic .hud-tr, body.cinematic .hud-radar, body.cinematic .hud-zone, body.cinematic .hud-vehname, body.cinematic .hud-speedo { opacity: 0; transition: opacity 0.4s; }
 body.cinematic .hud-subtitles { bottom: 3.5vh; z-index: 7; }
 .hud-fade { position: fixed; inset: 0; background: #000; opacity: 0; pointer-events: none; z-index: 20; }
 
@@ -187,3 +187,23 @@ body.cinematic .hud-subtitles { bottom: 3.5vh; z-index: 7; }
   .hud-tr { right: 10px; top: 10px; transform: scale(0.75); transform-origin: top right; }
   .hud-subtitles { font-size: 16px; }
 }
+
+/* speedometer */
+.hud-speedo { position: absolute; right: 26px; bottom: 22px; width: 190px; height: 190px; opacity: 0; transform: translateY(16px) scale(0.96); transition: opacity 0.25s, transform 0.25s; filter: drop-shadow(0 4px 10px rgba(0,0,0,0.5)); }
+.hud-speedo.show { opacity: 1; transform: none; }
+.hud-speedo canvas { width: 100%; height: 100%; }
+@media (max-width: 700px) { .hud-speedo { width: 130px; height: 130px; right: 12px; bottom: 12px; } }
+
+body.in-vehicle .hud-zone { bottom: 226px; }
+body.in-vehicle .hud-vehname { bottom: 276px; }
+
+/* GTA V style wasted / busted shard */
+.hud-shard { position: fixed; left: 0; right: 0; top: 50%; height: clamp(104px, 18vh, 180px); transform: translateY(-50%); display: flex; align-items: center; justify-content: center; pointer-events: none; z-index: 30; opacity: 0;
+  background: linear-gradient(to bottom, rgba(0,0,0,0) 0%, rgba(0,0,0,0.58) 14%, rgba(0,0,0,0.62) 50%, rgba(0,0,0,0.58) 86%, rgba(0,0,0,0) 100%); }
+.hud-shard.show { opacity: 1; transition: opacity 0.35s ease-out; }
+.hud-shard span { font-family: 'Anton', Impact, 'Arial Black', sans-serif; font-size: clamp(66px, 12.5vh, 128px); line-height: 1; color: #c3272b; letter-spacing: 1px; text-transform: lowercase;
+  text-shadow: 0 0 1px #2b0000, 2px 2px 0 rgba(0,0,0,0.9), -1px -1px 0 rgba(0,0,0,0.7), 1px -1px 0 rgba(0,0,0,0.7), -1px 1px 0 rgba(0,0,0,0.7), 0 0 26px rgba(0,0,0,0.55); opacity: 0; }
+.hud-shard.show span { animation: shardIn 0.5s cubic-bezier(0.16, 0.9, 0.3, 1) forwards; }
+@keyframes shardIn { 0% { transform: scale(1.5); opacity: 0; filter: blur(8px); } 60% { opacity: 1; } 100% { transform: scale(1); opacity: 1; filter: blur(0); } }
+body.dead .hud-tr, body.dead .hud-radar, body.dead .hud-speedo, body.dead .hud-zone, body.dead .hud-vehname, body.dead .hud-help, body.dead .hud-subtitles, body.dead .hud-objective, body.dead .hud-timer, body.dead .hud-counter, body.dead .hud-progress, body.dead .hud-crosshair { opacity: 0 !important; transition: opacity 0.5s; }
+

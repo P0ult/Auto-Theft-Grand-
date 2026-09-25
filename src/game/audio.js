@@ -28,7 +28,14 @@ export class Audio {
     this.master.gain.value = this.volume;
     const comp = ctx.createDynamicsCompressor();
     comp.threshold.value = -14; comp.ratio.value = 4; comp.attack.value = 0.003; comp.release.value = 0.2;
-    this.master.connect(comp).connect(ctx.destination);
+    // world filter: muffles everything (except stingers) on death / busted
+    this.worldFilter = ctx.createBiquadFilter();
+    this.worldFilter.type = 'lowpass'; this.worldFilter.frequency.value = 20000; this.worldFilter.Q.value = 0.5;
+    this.master.connect(this.worldFilter).connect(comp).connect(ctx.destination);
+    // stingers bypass the world filter
+    this.stinger = ctx.createGain(); this.stinger.gain.value = this.volume; this.stinger.connect(ctx.destination);
+    this.samples = {};
+    this.loadSample('wasted', 'assets/audio/wasted.mp3');
     this.sfx = ctx.createGain(); this.sfx.connect(this.master);
     this.music = ctx.createGain(); this.music.gain.value = this.musicVolume * 0.55; this.music.connect(this.master);
     this.amb = ctx.createGain(); this.amb.gain.value = 0.5; this.amb.connect(this.master);
@@ -47,7 +54,51 @@ export class Audio {
     this.radio = new Radio(this);
   }
 
-  setVolume(v) { this.volume = v; if (this.master) this.master.gain.value = v; }
+  setVolume(v) { this.volume = v; if (this.master) this.master.gain.value = v; if (this.stinger) this.stinger.gain.value = v; }
+
+  // ---------------------------------------------------------------- recorded samples
+  async loadSample(name, url) {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(res.status);
+      this.samples[name] = await this.ctx.decodeAudioData(await res.arrayBuffer());
+    } catch (e) { this.samples[name] = null; }
+  }
+  // plays a loaded sample on the stinger bus; returns false if it isn't available (caller falls back)
+  playSample(name, vol = 1) {
+    if (!this.enabled) return false;
+    const buf = this.samples[name];
+    if (!buf) return false;
+    this.stopSample(name);
+    const src = this.ctx.createBufferSource();
+    src.buffer = buf;
+    const g = this.ctx.createGain(); g.gain.value = vol;
+    src.connect(g).connect(this.stinger);
+    src.start();
+    this._playing = this._playing || {};
+    this._playing[name] = { src, g };
+    src.onended = () => { if (this._playing[name]?.src === src) delete this._playing[name]; };
+    return true;
+  }
+  stopSample(name, fade = 0) {
+    const p = this._playing?.[name];
+    if (!p) return;
+    const t = this.ctx.currentTime;
+    if (fade > 0) { p.g.gain.setValueAtTime(p.g.gain.value, t); p.g.gain.linearRampToValueAtTime(0, t + fade); p.src.stop(t + fade + 0.05); }
+    else p.src.stop();
+    delete this._playing[name];
+  }
+  // muffle the world (death / arrest) and duck the radio
+  muffle(on) {
+    if (!this.enabled) return;
+    const t = this.ctx.currentTime;
+    const f = this.worldFilter.frequency;
+    f.cancelScheduledValues(t); f.setValueAtTime(f.value, t);
+    f.exponentialRampToValueAtTime(on ? 420 : 20000, t + (on ? 0.6 : 1.2));
+    const m = this.music.gain;
+    m.cancelScheduledValues(t); m.setValueAtTime(m.value, t);
+    m.linearRampToValueAtTime(on ? this.musicVolume * 0.12 : this.musicVolume * 0.55, t + (on ? 0.5 : 1.5));
+  }
   setMusic(v) { this.musicVolume = v; if (this.music) this.music.gain.value = v * 0.55; }
 
   _noiseBuffer(sec, type) {

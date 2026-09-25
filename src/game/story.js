@@ -7,6 +7,7 @@ import { XS, ZS, HALF_ROAD, CITY } from '../world/citymap.js';
 import { randomAppearance } from '../entities/humanoid.js';
 import { copAppearance } from './police.js';
 import { GANGS } from './peds.js';
+import { WEAPONS } from './weapondefs.js';
 import { rand, randInt, pick, clamp, RNG } from '../core/utils.js';
 
 // ------------------------------------------------------------------ cast
@@ -305,19 +306,25 @@ export const STORY = {
           m.face(deacon, m.player); m.face(m.player, deacon);
           m.twoShot(m.player, deacon, 1, 3.3);
           await m.lines([
-            ['Deacon', 'Three Viper pushers slinging on our corner, right by the liquor store.'],
+            ['Deacon', 'Three Viper pushers slinging on our corner, out front of Ray\'s Liquor. Four blocks east.'],
             ['Deacon', 'Kings don\'t use guns on our own streets. Show \'em some old-fashioned Cedar Row hospitality.'],
             ['Dre', 'With my fists? Sounds like a Tuesday.'],
           ]);
         });
-        m.player.switchTo('fist');
+        m.player.switchTo(m.player.weapons.bat ? 'bat' : 'fist');
         const spot = { x: L.liquor.x, z: L.liquor.z + 3 };
-        const dealers = crew(m, 'vipers', ring(spot.x, spot.z, 3, 2.5), ['fist', 'fist', 'knife'], { guard: true, health: 70 });
+        const dealers = crew(m, 'vipers', ring(spot.x, spot.z, 3, 2.5), ['fist', 'fist', 'knife'], { guard: true, health: 70, face: Math.PI });
         aggroWhenNear(m, dealers, 6);
         game.police.maxWanted = 0;
-        m.failIf(() => m.player.weapon !== 'fist' && m.player.weapon !== 'bat' && m.player.aiming, 'Kings rules: no guns on our own block!');
+        const melee = () => { const t = WEAPONS[m.player.weapon]?.type; return t === 'melee' || !t; };
+        m.failIf(() => !melee() && m.player.aiming, 'Kings rules: no guns on our own block!');
         const unsub = game.events.on('gunshot', (sh) => { if (sh === m.player) m._rejectAll(new MissionFail('Kings rules: no guns on our own block!')); });
-        m.help('Left mouse throws punches. Chain them into a <b>jab-cross-kick</b> combo.', 7);
+        m.gps(spot.x, spot.z);
+        m.objective('Go to <span class="y">Ray\'s Liquor</span> on Cedar Row. Three Viper <span class="r">dealers</span> are slinging out front.');
+        m.help('Follow the purple GPS line on the radar. Targets have a <b style="color:#ff4a3a">red arrow</b> over their heads.', 7);
+        await m.until(() => m.distTo(spot) < 28 || dealers.some((d) => d.state === 'attack'));
+        m.gpsOff();
+        m.help('Left mouse throws punches. Chain them into a <b>jab-cross-kick</b> combo. A bat hits harder.', 7);
         await m.killAll(dealers, 'Beat down the <span class="r">dealers</span>.', { counter: 'DEALERS' });
         unsub();
         game.police.maxWanted = null;

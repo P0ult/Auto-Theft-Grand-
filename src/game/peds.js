@@ -225,7 +225,7 @@ export class Ped extends Character {
         this.stop();
         this.meleeTimer -= dt;
         if (this.meleeTimer <= 0 && !this.anim.busy && !t.vehicle) {
-          this.meleeTimer = rand(0.6, 1.1);
+          this.meleeTimer = rand(0.85, 1.5);
           const act = this.weapon === 'knife' ? 'stab' : this.weapon === 'bat' ? 'swing' : pick(['jab', 'cross', 'jab', 'kick']);
           const a = this.anim.play(act);
           a.onHit = () => game.combat.meleeHit(this, act);

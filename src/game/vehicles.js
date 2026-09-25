@@ -167,8 +167,12 @@ export class VehicleManager {
     // car point velocity
     const px = c.pos.x - v.pos.x, pz = c.pos.z - v.pos.z;
     const vpx = v.vel.x + v.r * pz, vpz = v.vel.z - v.r * px;
-    const rel = (vpx - c.vel.x) * nx + (vpz - c.vel.z) * nz;
-    if (rel > 3.2 && !c.invincible) {
+    // Impact speed is how fast the *car* closes on the person. Someone running into a parked car
+    // must not count as being hit by it (only a person moving away softens the blow).
+    const carN = vpx * nx + vpz * nz;
+    const pedN = c.vel.x * nx + c.vel.z * nz;
+    const rel = carN - Math.max(0, pedN);
+    if (rel > 3.2 && carN > 3.2 && !c.invincible) {
       const spd = Math.hypot(vpx, vpz);
       const dmg = Math.pow(rel - 2.5, 2) * 2.4 + 6;
       const imp = new THREE.Vector3(vpx * 0.85 + nx * 2, 2.2 + spd * 0.22, vpz * 0.85 + nz * 2);
@@ -185,7 +189,9 @@ export class VehicleManager {
       // gentle push
       const push = r - d + 0.02;
       c.pos.x += nx * push; c.pos.z += nz * push;
-      if (rel > 0.6 && !c.isPlayer) c.onBumped?.(v);
+      // cancel the part of the person's velocity that points into the car
+      if (pedN < 0) { c.vel.x -= nx * pedN; c.vel.z -= nz * pedN; }
+      if (carN > 0.6 && !c.isPlayer) c.onBumped?.(v);
     }
   }
 

@@ -538,7 +538,7 @@ export class City {
     const styles = {
       'GUN BARN': { bg: '#1b1b1b', fg: '#ff5a36' }, HOSPITAL: { bg: '#f4f4f4', fg: '#d62828', glow: false },
       POLICE: { bg: '#0b1f4d', fg: '#e8eefc' }, 'SPRAY SHACK': { bg: '#222', fg: '#6df0ff' },
-      'BIG BUN': { bg: '#6b1a00', fg: '#ffd166' }, GARAGE: { bg: '#222', fg: '#ffffff' },
+      'BIG BUN': { bg: '#6b1a00', fg: '#ffd166' }, GARAGE: { bg: '#222', fg: '#ffffff' }, LIQUOR: { bg: '#1d0826', fg: '#ff5ec4' },
     };
     for (const b of this.map.buildings) {
       if (!b.sign) continue;

@@ -11,7 +11,7 @@ import { Pickups } from './game/pickups.js';
 import { Missions } from './game/missions.js';
 import { STORY } from './game/story.js';
 import { SaveSystem } from './game/save.js';
-import { Gameplay } from './game/gameplay.js';
+import { Gameplay, FREE_ROAM_KIT } from './game/gameplay.js';
 import { HUD } from './ui/hud.js';
 
 const params = new URLSearchParams(location.search);
@@ -157,8 +157,9 @@ function startGame(game, cont, _, free = false) {
   } else if (free) {
     p.setPosition(home.x, undefined, home.z);
     p.money = 5000;
-    for (const [w, a] of [['bat', 0], ['pistol', 120], ['smg', 200], ['shotgun', 40], ['rifle', 180], ['rpg', 6], ['grenade', 8]]) p.giveWeapon(w, a);
+    for (const [w, a] of FREE_ROAM_KIT) p.giveWeapon(w, a);
     p.equip('pistol');
+    g.freeRoam = true;
     g.env.setTime(17.5);
     g.missions.completed = new Set(STORY.missions.map((m) => m.id));
     g.hud.help('Free roam: every weapon, $5000 and the whole city. Cause some chaos!', 7);

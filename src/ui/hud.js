@@ -50,9 +50,17 @@ export class HUD {
     this.letterTop = h('div', 'letterbox top', document.body);
     this.letterBot = h('div', 'letterbox bottom', document.body);
     this.fadeEl = h('div', 'hud-fade', document.body);
+    this.shard = h('div', 'hud-shard', document.body);
+    this.shardText = h('span', '', this.shard, 'wasted');
     this.damageFlash = 0;
     this.overlay = h('div', 'hud-overlay', document.body);
     this.fpsEl = h('div', 'hud-fps', root);
+    // speedometer (shown in vehicles)
+    this.speedoWrap = h('div', 'hud-speedo', root);
+    this.speedo = h('canvas', '', this.speedoWrap);
+    this.speedo.width = 220; this.speedo.height = 220;
+    this.sctx = this.speedo.getContext('2d');
+    this.speedoNeedle = 0;
     this.interactEl = h('div', 'hud-interact', root);
     this.timers = { help: 0, big: 0, sub: 0, subs: 0, zone: 0, veh: 0, radio: 0, money: 0 };
     this.lastZone = '';
@@ -138,8 +146,16 @@ export class HUD {
     setTimeout(done, 42000);
   }
 
+  // GTA V style "shard": dark band across the screen with the word in red, the rest of the HUD hidden
   showWasted(kind) {
-    this.bigMessage(kind === 'busted' ? 'BUSTED' : 'WASTED', kind, 5);
+    this.shardText.textContent = kind === 'busted' ? 'busted' : 'wasted';
+    this.shard.className = 'hud-shard ' + kind;
+    void this.shard.offsetWidth; // restart the CSS animation
+    this.shard.classList.add('show');
+  }
+  deathMode(on) {
+    document.body.classList.toggle('dead', on);
+    if (!on) this.shard.className = 'hud-shard';
   }
 
   openShop() {
@@ -408,6 +424,7 @@ export class HUD {
     game.post.composite.uniforms.uDamage.value = Math.max(this.damageFlash, hp < 0.2 && !p.dead ? 0.35 + Math.sin(game.time * 4) * 0.1 : 0);
     this._tick(dt);
     this._drawRadar(dt);
+    this._drawSpeedo(dt);
     // fps
     if (this.showFps) { this.fpsAcc += dt; this.fpsN++; if (this.fpsAcc > 0.5) { this.fpsEl.textContent = `${Math.round(this.fpsN / this.fpsAcc)} FPS · ${game.renderer.info.render.calls} draws`; this.fpsAcc = 0; this.fpsN = 0; } this.fpsEl.style.display = 'block'; }
     else this.fpsEl.style.display = 'none';
@@ -427,6 +444,78 @@ export class HUD {
     const p = game.player.vehicle ? game.player.vehicle.pos : game.player.pos;
     if (Math.hypot(tgt.x - p.x, tgt.z - p.z) < 15) { if (tgt === this.waypoint) { this.setWaypoint(tgt.x, tgt.z); } this.route = null; return; }
     this.route = route(p.x, p.z, tgt.x, tgt.z);
+  }
+
+  // Analog speedometer (mph) with gear + damage readout; airspeed / altitude / throttle for aircraft.
+  _drawSpeedo(dt) {
+    const p = this.game.player;
+    const v = p.vehicle && p.seat === 0 ? p.vehicle : null;
+    this.speedoWrap.classList.toggle('show', !!v && !p.dead);
+    if (this._inVeh !== !!v) { this._inVeh = !!v; document.body.classList.toggle('in-vehicle', !!v); }
+    if (!v) return;
+    const ctx = this.sctx, S = this.speedo.width, C = S / 2, R = S / 2 - 12;
+    const air = !!v.def.aircraft;
+    const mph = Math.abs(v.forwardSpeed ?? v.speed) * 2.23694;
+    const max = air ? (v.def.maxDial || 400) : v.def.tank ? 60 : 160;
+    this.speedoNeedle += (Math.min(mph, max * 1.03) - this.speedoNeedle) * Math.min(1, dt * 10);
+    const a0 = Math.PI * 0.75, a1 = Math.PI * 2.25;
+    const ang = (val) => a0 + (a1 - a0) * clamp(val / max, 0, 1.03);
+    ctx.clearRect(0, 0, S, S);
+    // face
+    const bg = ctx.createRadialGradient(C, C * 0.8, R * 0.1, C, C, R);
+    bg.addColorStop(0, 'rgba(28,30,36,0.92)'); bg.addColorStop(1, 'rgba(6,7,9,0.92)');
+    ctx.fillStyle = bg; ctx.beginPath(); ctx.arc(C, C, R, 0, Math.PI * 2); ctx.fill();
+    ctx.lineWidth = 4; ctx.strokeStyle = '#000'; ctx.stroke();
+    ctx.lineWidth = 1.5; ctx.strokeStyle = 'rgba(232,182,76,0.8)'; ctx.beginPath(); ctx.arc(C, C, R - 4, 0, Math.PI * 2); ctx.stroke();
+    // red zone
+    ctx.lineWidth = 7; ctx.strokeStyle = 'rgba(220,40,30,0.85)';
+    ctx.beginPath(); ctx.arc(C, C, R - 13, ang(max * 0.85), ang(max)); ctx.stroke();
+    // ticks + numbers
+    const major = max <= 60 ? 10 : max <= 200 ? 20 : 50, minor = major / (max <= 60 ? 2 : 4);
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = 'bold 17px "Bebas Neue", Impact, sans-serif';
+    for (let val = 0; val <= max + 0.01; val += minor) {
+      const a = ang(val), big = Math.abs(val / major - Math.round(val / major)) < 1e-6;
+      const r0 = R - (big ? 24 : 18), r1 = R - 9;
+      ctx.strokeStyle = big ? '#f4f4f4' : 'rgba(244,244,244,0.55)'; ctx.lineWidth = big ? 3 : 1.5;
+      ctx.beginPath(); ctx.moveTo(C + Math.cos(a) * r0, C + Math.sin(a) * r0); ctx.lineTo(C + Math.cos(a) * r1, C + Math.sin(a) * r1); ctx.stroke();
+      if (big) { ctx.fillStyle = '#e9e9e9'; ctx.fillText(String(Math.round(val)), C + Math.cos(a) * (R - 38), C + Math.sin(a) * (R - 38)); }
+    }
+    // digital readout
+    ctx.fillStyle = '#fff';
+    ctx.font = '38px "Bebas Neue", Impact, sans-serif';
+    ctx.fillText(String(Math.round(mph)).padStart(air ? 3 : 2, '0'), C, C + R * 0.42);
+    ctx.font = '14px "Bebas Neue", Impact, sans-serif'; ctx.fillStyle = '#e8b64c';
+    ctx.fillText(air ? 'MPH · AIRSPEED' : 'MPH', C, C + R * 0.62);
+    // gear / altitude
+    ctx.font = '22px "Bebas Neue", Impact, sans-serif';
+    if (air) {
+      const alt = Math.max(0, v.altitude ?? 0);
+      ctx.fillStyle = '#9fe3ff'; ctx.fillText(`ALT ${Math.round(alt * 3.281)} FT`, C, C - R * 0.34);
+      // throttle arc
+      ctx.lineWidth = 5; ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+      ctx.beginPath(); ctx.arc(C, C, R * 0.28, Math.PI * 0.8, Math.PI * 2.2); ctx.stroke();
+      ctx.strokeStyle = '#6cff8a';
+      ctx.beginPath(); ctx.arc(C, C, R * 0.28, Math.PI * 0.8, Math.PI * 0.8 + Math.PI * 1.4 * clamp(v.throttle ?? 0, 0, 1)); ctx.stroke();
+    } else {
+      const sp = v.speed;
+      const gear = sp < -0.5 ? 'R' : mph < 1 ? 'N' : String(Math.min(6, 1 + Math.floor(mph / (max / 6.2))));
+      ctx.fillStyle = gear === 'R' ? '#ff6b5a' : '#fff';
+      ctx.fillText(gear, C, C - R * 0.34);
+    }
+    // damage bar
+    const hp = clamp(v.health / (v.maxHealth || 1000), 0, 1);
+    ctx.fillStyle = 'rgba(255,255,255,0.12)'; ctx.fillRect(C - 34, C + R * 0.74, 68, 5);
+    ctx.fillStyle = hp > 0.5 ? '#6cd46c' : hp > 0.25 ? '#ffb13b' : '#ff4a3a'; ctx.fillRect(C - 34, C + R * 0.74, 68 * hp, 5);
+    // needle
+    const na = ang(this.speedoNeedle);
+    ctx.save(); ctx.translate(C, C); ctx.rotate(na);
+    ctx.shadowColor = 'rgba(255,120,40,0.8)'; ctx.shadowBlur = 8;
+    ctx.fillStyle = '#ff7a1a';
+    ctx.beginPath(); ctx.moveTo(-10, -3); ctx.lineTo(R - 16, -1); ctx.lineTo(R - 16, 1); ctx.lineTo(-10, 3); ctx.closePath(); ctx.fill();
+    ctx.restore();
+    ctx.fillStyle = '#111'; ctx.strokeStyle = '#e8b64c'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(C, C, 8, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
   }
 
   _drawRadar(dt) {

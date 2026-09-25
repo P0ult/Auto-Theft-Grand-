@@ -3,6 +3,8 @@
 import * as THREE from 'three';
 import { clamp, wrapAngle } from '../core/utils.js';
 
+export const FREE_ROAM_KIT = [['bat', 0], ['pistol', 120], ['smg', 200], ['shotgun', 40], ['rifle', 180], ['rpg', 6], ['grenade', 8]];
+
 export class Gameplay {
   constructor(game) {
     this.game = game;
@@ -42,40 +44,88 @@ export class Gameplay {
     const g = this.game;
     if (this.state === 'dead') return;
     this.state = 'dead';
-    this.deathTimer = 0;
     g.stats.wasted++;
-    g.hud.showWasted('wasted');
-    g.audio?.play('wasted');
-    g.timeScale = 0.35;
+    this._beginDeathScreen('wasted', 0.28);
     g.events.emit('playerDied');
   }
   onBusted() {
     const g = this.game;
     if (this.state !== 'playing') return;
     this.state = 'busted';
-    this.deathTimer = 0;
     g.stats.busted++;
     const p = g.player;
     if (p.vehicle) { const v = p.vehicle; v.input.throttle = 0; v.input.brake = 1; g.vehicles.exit(p); }
     p.animState.handsUp = true;
-    g.hud.showWasted('busted');
-    g.audio?.play('wasted');
-    g.timeScale = 0.6;
+    this._beginDeathScreen('busted', 0.5);
+  }
+
+  // GTA V style sequence: slow motion + white flash, black & white, slow camera drift away from the body,
+  // the recorded stinger plays and the "wasted" shard lands on its big hit (~2.45 s), then fade & respawn.
+  _beginDeathScreen(kind, slowmo) {
+    const g = this.game;
+    this.deathTimer = 0;
+    this.deathKind = kind;
+    this.shardShown = false;
+    g.timeScale = slowmo;
+    g.hud.deathMode(true);
+    g.audio?.muffle(true);
+    const sampled = g.audio?.playSample('wasted', 1);
+    if (!sampled) g.audio?.play('wasted');
+    this.shardAt = sampled ? 2.42 : 1.1;
+    this.audioStart = sampled ? g.audio.ctx.currentTime : null;
+    this.deathCam = null;
+  }
+
+  _deathCamera(dt) {
+    const g = this.game, p = g.player;
+    const body = p.ragdolling ? p.ragdoll.center : p.vehicle ? p.vehicle.pos : p.pos;
+    if (!this.deathCam) {
+      const cp = g.camera.position;
+      let dx = cp.x - body.x, dz = cp.z - body.z;
+      const d = Math.hypot(dx, dz) || 1;
+      dx /= d; dz /= d;
+      this.deathCam = { dx, dz, d0: clamp(d, 2.5, p.vehicle ? 9 : 5), h0: clamp(cp.y - body.y, 2.2, 4.5), side: Math.random() < 0.5 ? -1 : 1 };
+    }
+    const D = this.deathCam;
+    const k = clamp(this.deathTimer / 6.5, 0, 1);
+    const e = 1 - Math.pow(1 - k, 2);
+    // swing slowly around the body while rising into a high-angle shot
+    const a = D.side * e * 0.55;
+    const ca = Math.cos(a), sa = Math.sin(a);
+    const rx = D.dx * ca - D.dz * sa, rz = D.dx * sa + D.dz * ca;
+    const dist = D.d0 + e * (this.deathKind === 'busted' ? 1.5 : 2.6);
+    const pos = new THREE.Vector3(body.x + rx * dist, body.y + D.h0 + e * (this.deathKind === 'busted' ? 1.5 : 4.2), body.z + rz * dist);
+    const look = new THREE.Vector3(body.x, body.y + (p.ragdolling ? 0.2 : 0.9), body.z);
+    g.rig.setCinematic(pos, look, 58 - e * 8);
   }
   respawn(kind) {
     const g = this.game, p = g.player;
     const L = g.map.landmarks;
     const spot = kind === 'busted' ? L.police.respawn : L.hospital.respawn;
+    g.audio?.stopSample('wasted', 0.9);
     g.hud.fade(0.8, () => {
       g.timeScale = 1;
       g.post.composite.uniforms.uDesat.value = 0;
+      g.post.composite.uniforms.uDeath.value = 0;
+      g.post.composite.uniforms.uFlash.value = 0;
+      g.hud.deathMode(false);
+      g.audio?.muffle(false);
+      g.rig.clearCinematic();
       if (p.vehicle) { const v = p.vehicle; v.takeOut(p); }
       p.dead = false; p.ragdolling = false;
       p.health = p.maxHealth; p.armor = 0;
-      const lost = kind === 'busted' ? 100 * Math.max(1, g.police.level) : 100;
+      const free = !!g.freeRoam && !g.missions?.active;
+      const lost = free ? 0 : kind === 'busted' ? 100 * Math.max(1, g.police.level) : 100;
       p.money = Math.max(0, p.money - lost);
-      p.weapons = { fist: { ammo: Infinity, clip: Infinity } };
-      p.equip('fist');
+      if (free) {
+        // free roam: keep everything and top the ammo back up
+        const keep = p.weapon;
+        for (const [w, a] of FREE_ROAM_KIT) { if (!p.weapons[w]) p.giveWeapon(w, a); else if ((p.weapons[w].ammo || 0) + (p.weapons[w].clip || 0) < a) p.giveWeapon(w, a); }
+        p.equip(p.weapons[keep] ? keep : 'pistol');
+      } else {
+        p.weapons = { fist: { ammo: Infinity, clip: Infinity } };
+        p.equip('fist');
+      }
       p.anim.action = null;
       p.anim.beginBlend(0.01);
       p.animState.handsUp = false;
@@ -86,8 +136,10 @@ export class Gameplay {
       g.env.setTime(g.env.hours + 3);
       g.rig.yaw = spot.rot + Math.PI;
       this.state = 'playing';
-      g.hud.help(kind === 'busted' ? `The cops took your weapons and $${lost}.` : `The hospital bill came to $${lost}. Your weapons were... misplaced.`, 5);
+      if (free) g.hud.help(kind === 'busted' ? 'Back on the street. Free roam: you keep your weapons and cash.' : 'Patched up. Free roam: you keep your weapons and cash.', 5);
+      else g.hud.help(kind === 'busted' ? `The cops took your weapons and $${lost}.` : `The hospital bill came to $${lost}. Your weapons were... misplaced.`, 5);
       g.missions?.refreshContacts();
+      if (this.afterRespawn) { const f = this.afterRespawn; this.afterRespawn = null; setTimeout(f, 700); }
     });
   }
 
@@ -97,10 +149,22 @@ export class Gameplay {
     if (this.state === 'menu') { this._flyover(dt); return; }
     g.stats.playTime += dt;
     if (this.state === 'dead' || this.state === 'busted') {
-      this.deathTimer += dt / Math.max(0.2, g.timeScale);
-      g.post.composite.uniforms.uDesat.value = clamp(this.deathTimer / 1.5, 0, 0.9);
+      const real = dt / Math.max(0.05, g.timeScale);
+      this.deathTimer += real;
+      const T = this.deathTimer;
+      const U = g.post.composite.uniforms;
+      U.uDesat.value = clamp(T / 0.6, 0, 1);
+      U.uDeath.value = clamp(T / 1.1, 0, 1);
+      U.uFlash.value = T < 0.08 ? 0.55 : Math.max(0, 0.55 * (1 - (T - 0.08) / 0.45));
+      // a second, softer pulse when the shard lands
+      const sinceAudio = this.audioStart != null && g.audio?.ctx ? g.audio.ctx.currentTime - this.audioStart : T;
+      if (!this.shardShown && sinceAudio >= this.shardAt) { this.shardShown = true; this.shardTime = T; g.hud.showWasted(this.deathKind); }
+      if (this.shardShown) U.uFlash.value = Math.max(U.uFlash.value, 0.22 * Math.max(0, 1 - (T - this.shardTime) / 0.35));
+      // ease the slow motion back a little after the hit
+      g.timeScale = this.deathKind === 'busted' ? 0.5 : T < 2.4 ? 0.28 : 0.4;
       if (this.state === 'busted') { p.moveTarget.set(0, 0); p.animState.handsUp = true; }
-      if (this.deathTimer > 4.5) { const k = this.state; this.state = 'respawning'; this.respawn(k === 'busted' ? 'busted' : 'wasted'); }
+      this._deathCamera(real);
+      if (T > 6.3) { const k = this.state; this.state = 'respawning'; this.respawn(k === 'busted' ? 'busted' : 'wasted'); }
       return;
     }
     // distance stats

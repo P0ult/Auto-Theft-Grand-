@@ -140,12 +140,13 @@ export class Combat {
       let dmg = def.damage;
       if (act === 'kick') dmg *= 1.6;
       if (act === 'cross') dmg *= 1.2;
-      if (!attacker.isPlayer) dmg *= 0.8;
+      // NPC melee is toned down so a group can't flatten the player in a second or two
+      if (!attacker.isPlayer) dmg *= c.isPlayer ? 0.42 : 0.8;
       if (c.ragdolling) dmg *= 1.3;
       const strong = act === 'kick' || def.id === 'bat' || (act === 'cross' && Math.random() < 0.25);
       const imp = new THREE.Vector3(fx * (strong ? 3.5 : 1.5), strong ? 1.5 : 0.5, fz * (strong ? 3.5 : 1.5));
       const hp = c.chestPos;
-      c.takeDamage(dmg, { part: act === 'cross' && Math.random() < 0.3 ? 'head' : 'torso', headMul: 1.5, source: attacker, type: 'melee', impulse: imp, knockdown: strong && !c.isPlayer, hitPoint: hp });
+      c.takeDamage(dmg, { part: act === 'cross' && Math.random() < 0.3 && attacker.isPlayer ? 'head' : 'torso', headMul: 1.5, source: attacker, type: 'melee', impulse: imp, knockdown: strong && !c.isPlayer, hitPoint: hp });
       if (def.id === 'knife') game.effects.blood(hp, new THREE.Vector3(fx, 0.2, fz), 10);
       else if (def.id === 'bat' && Math.random() < 0.5) game.effects.blood(hp, new THREE.Vector3(fx, 0.3, fz), 4);
       game.audio?.playAt(def.id === 'knife' ? 'stab' : def.id === 'bat' ? 'bat' : 'punch', hp, 0.9);
