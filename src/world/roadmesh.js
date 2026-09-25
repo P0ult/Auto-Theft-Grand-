@@ -244,8 +244,10 @@ export class RoadMeshes {
         if (deck) this._deckSegment(c.conc, e, prev, cur);
         const bL = e.barrierL && (e.type === 'freeway' || deck) , bR = (e.barrierR && deck) || (e.type === 'freeway' && e.barrierR && deck);
         const noB = (s) => (e.noBarrierA && s < e.noBarrierA) || (e.noBarrierB && s > e.len - e.noBarrierB);
-        if (bL && !(e.type === 'ramp' && noB(r.s))) this._barrier(c.conc, prev.lx, prev.yl, prev.lz, cur.lx, cur.yl, cur.lz, prev.r, r, -1);
-        if ((bR || (deck && e.type !== 'dirt')) && !noB(r.s) && !noB(prev.r.s)) this._barrier(c.conc, prev.Rx, prev.yr, prev.Rz, cur.Rx, cur.yr, cur.Rz, prev.r, r, 1);
+        // ramps merge into / diverge from the freeway on their left: keep that side open along the taper
+        const taper = (s) => e.type === 'ramp' && ((e.trimA && s < e.trimA + 8) || (e.trimB && s > e.len - e.trimB - 8));
+        if (bL && !(e.type === 'ramp' && noB(r.s)) && !taper(r.s) && !taper(prev.r.s)) this._barrier(c.conc, prev.lx, prev.yl, prev.lz, cur.lx, cur.yl, cur.lz, prev.r, r, -1);
+        if ((bR || (deck && e.type !== 'dirt')) && (e.type === 'ramp' || (!noB(r.s) && !noB(prev.r.s)))) this._barrier(c.conc, prev.Rx, prev.yr, prev.Rz, cur.Rx, cur.yr, cur.Rz, prev.r, r, 1);
       }
       prev = cur;
     }

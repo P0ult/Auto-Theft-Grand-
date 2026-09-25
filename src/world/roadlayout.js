@@ -189,16 +189,17 @@ export function buildRoadNetwork(C, hf) {
   info.freewayEB = buildCarriage(ebPts, fwCum, EB, jDw, jDt, false);
   info.freewayWB = buildCarriage(wbPts, wbCum, WB, jDt, jDw, true);
   info.freewayCenter = { pts: fwC, cum: fwCum, y: fwY };
-  // no barriers where ramps run alongside
+  // no outer barrier where ramps run alongside: traffic merges over the last stretch before an on-ramp's node
+  // and peels off over the first stretch after an off-ramp's node (the ramps' lane paths are trimmed to match)
   for (const key in stationNodes) {
     const { node } = stationNodes[key];
     for (const eid of node.e) {
       const e = net.edges[eid];
       if (e.type !== 'freeway') continue;
-      if (e.b === node.id && key.includes('off')) e.noBarrierB = 75;
-      if (e.a === node.id && key.includes('on')) e.noBarrierA = 75;
-      if (e.a === node.id && key.includes('off')) e.noBarrierA = 5;
-      if (e.b === node.id && key.includes('on')) e.noBarrierB = 5;
+      if (e.a === node.id && key.includes('off')) e.noBarrierA = 75;
+      if (e.b === node.id && key.includes('on')) e.noBarrierB = 75;
+      if (e.b === node.id && key.includes('off')) e.noBarrierB = 5;
+      if (e.a === node.id && key.includes('on')) e.noBarrierA = 5;
     }
   }
 

@@ -367,7 +367,7 @@ class Ctx {
   wanted(level) { this.game.police.setLevel(Math.max(this.game.police.level, level)); }
   keepAlive(ent, reason) { return this.failIf(() => ent.dead || ent.isWrecked, reason); }
   cash(amount) { this.player.money += amount; this.hud.moneyFlash(amount); }
-  distTo(ent) { const p = this.player.vehicle ? this.player.vehicle.pos : this.player.pos; const e = ent.vehicle ? ent.vehicle.pos : ent.pos; return Math.hypot(p.x - e.x, p.z - e.z); }
+  distTo(ent) { const p = this.player.vehicle ? this.player.vehicle.pos : this.player.pos; const e = ent.vehicle ? ent.vehicle.pos : ent.pos || ent; return Math.hypot(p.x - e.x, p.z - e.z); }
   // make a ped shoot at the player (or another target) from inside a vehicle
   driveBy(ped, target = null, range = 35) {
     let t = rand(0.5, 1.5);

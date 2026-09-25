@@ -226,7 +226,8 @@ export class RoadNet {
   }
 
   // Closest point on any edge (optionally only renderable / non-grid). Returns {e, s, d, lat, y, i}
-  closest(x, z, filter = null, maxD = 1e9) {
+  // nearest edge point in plan view; with `y`, roads far above / below (viaducts vs streets) are ruled out
+  closest(x, z, filter = null, maxD = 1e9, y = null) {
     let best = null;
     const tryRange = (e, i0, i1) => {
       for (let i = i0; i < i1; i++) {
@@ -234,7 +235,8 @@ export class RoadNet {
         const dx = bx - ax, dz = bz - az, L2 = dx * dx + dz * dz || 1;
         const t = clamp(((x - ax) * dx + (z - az) * dz) / L2, 0, 1);
         const px = ax + dx * t, pz = az + dz * t;
-        const d = Math.hypot(x - px, z - pz);
+        let d = Math.hypot(x - px, z - pz);
+        if (y != null) { const ey = e.p[i * 3 + 1] + (e.p[i * 3 + 4] - e.p[i * 3 + 1]) * t; d += Math.max(0, Math.abs(ey - y) - 3) * 12; }
         if (d < maxD && (!best || d < best.d)) {
           const L = Math.sqrt(L2);
           const lat = ((x - ax) * -dz + (z - az) * dx) / L; // left-positive

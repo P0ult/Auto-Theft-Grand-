@@ -61,8 +61,8 @@ function sampleOn(path, s, out) {
 }
 
 // closest lane to a position (optionally matching a heading)
-export function nearestLane(net, x, z, yaw = null, filter = null) {
-  const c = net.closest(x, z, (e) => !e.removed && (e.lanesF > 0 || e.lanesB > 0) && (!filter || filter(e)), 300);
+export function nearestLane(net, x, z, yaw = null, filter = null, y = null) {
+  const c = net.closest(x, z, (e) => !e.removed && (e.lanesF > 0 || e.lanesB > 0) && (!filter || filter(e)), 300, y);
   if (!c) return null;
   const e = c.e;
   const t = net.at(e, c.s);
@@ -417,13 +417,14 @@ export class LaneDriver {
     // stuck detection (e.g. after collisions)
     if (Math.abs(speed) < 0.5 && desired > 3) this.stuck += dt; else this.stuck = 0;
     if (this.stuck > 3) { inp.brake = 1; inp.throttle = 0; inp.steer = -inp.steer; if (this.stuck > 5) this.stuck = 0; }
-    // pushed far off the route: find the nearest lane again
-    if (this._lat > 14) this.resnap();
+    // pushed far off the route, or knocked off a viaduct / ramp onto the ground below: find the nearest lane again
+    if (Math.abs(T[1] - v.pos.y) > 4 && !v.airborne) this.offLevel = (this.offLevel || 0) + dt; else this.offLevel = 0;
+    if (this._lat > 14 || this.offLevel > 1.2) { this.offLevel = 0; this.resnap(); }
   }
 
   resnap() {
     const v = this.veh;
-    const st = nearestLane(this.net, v.pos.x, v.pos.z, v.yaw);
+    const st = nearestLane(this.net, v.pos.x, v.pos.z, v.yaw, null, v.pos.y);
     if (st) this._start(st);
   }
 }
