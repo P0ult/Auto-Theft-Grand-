@@ -2,7 +2,7 @@
 // handbrake drifting, ground following + jumps, collision response, damage/deformation, fire & explosion.
 import * as THREE from 'three';
 import { VEHICLES } from './vehicledefs.js';
-import { buildVehicleModel, vehicleMaterials } from './vehiclemodels.js';
+import { buildVehicleModel, vehicleMaterials, isSharedMaterial } from './vehiclemodels.js';
 import { WATER_Y } from '../world/citymap.js';
 import { clamp, damp, pick, wrapAngle, sign } from '../core/utils.js';
 import { U } from '../render/materials.js';
@@ -491,6 +491,7 @@ export class Vehicle {
     const night = U.uNight.value > 0.4;
     const on = (night || this.game.env?.rain > 0.3) && !!this.driver && !this.isWrecked;
     if (on !== this.lightsOn) { this.lightsOn = on; this.model.head.material = on ? M.headOn : M.headOff; }
+    if (this.model.beam) this.model.beam.visible = on && !this.airborne;
     const braking = !!this.driver && (this.input.brake > 0.1 && this.speed > 0.5 || this.input.handbrake);
     const tailMat = this.isWrecked ? M.tailOff : braking ? M.tailBrake : on ? M.tailOn : M.tailOff;
     if (this.model.tail.material !== tailMat) this.model.tail.material = tailMat;
@@ -505,7 +506,17 @@ export class Vehicle {
   remove() {
     if (this.removed) return;
     this.removed = true;
+    for (const o of this.occupants) if (o && !o.isPlayer) { if (this.game.peds) this.game.peds.remove(o); else o.remove(); }
     this.group.parent?.remove(this.group);
-    for (const o of this.occupants) if (o && !o.isPlayer) o.remove();
+    // free GPU resources owned by this car
+    const seen = new Set();
+    this.group.traverse((obj) => {
+      if (obj.userData.character) return;
+      if (!obj.isMesh || obj.isSkinnedMesh) return;
+      const g = obj.geometry;
+      if (g && !g.userData.shared && !seen.has(g)) { seen.add(g); g.dispose(); }
+      const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+      for (const m of mats) if (m && !isSharedMaterial(m) && !seen.has(m)) { seen.add(m); m.dispose(); }
+    });
   }
 }

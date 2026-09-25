@@ -62,7 +62,12 @@ export class Input {
     canvas.addEventListener('contextmenu', (e) => e.preventDefault());
     window.addEventListener('mousemove', (e) => {
       if (this.locked) { this.mouse.dx += e.movementX; this.mouse.dy += e.movementY; }
+      else if (this.lockFailed && this.enabled && e.target === canvas) {
+        // fallback when pointer lock is unavailable (e.g. sandboxed iframes): look by moving the mouse
+        this.mouse.dx += e.movementX * 1.4; this.mouse.dy += e.movementY * 1.4;
+      }
     });
+    document.addEventListener('pointerlockerror', () => { this.lockFailed = true; });
     window.addEventListener('wheel', (e) => { this.mouse.wheel += Math.sign(e.deltaY); }, { passive: true });
     document.addEventListener('pointerlockchange', () => {
       this.locked = document.pointerLockElement === canvas;
@@ -81,8 +86,8 @@ export class Input {
     if (document.pointerLockElement !== this.canvas) {
       try {
         const p = this.canvas.requestPointerLock({ unadjustedMovement: true });
-        if (p && p.catch) p.catch(() => { try { this.canvas.requestPointerLock(); } catch { /* ignore */ } });
-      } catch { /* ignore */ }
+        if (p && p.catch) p.catch(() => { try { const p2 = this.canvas.requestPointerLock(); if (p2 && p2.catch) p2.catch(() => { this.lockFailed = true; }); } catch { this.lockFailed = true; } });
+      } catch { this.lockFailed = true; }
     }
   }
   exitLock() { if (document.pointerLockElement) document.exitPointerLock(); }

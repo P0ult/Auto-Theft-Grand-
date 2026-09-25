@@ -90,8 +90,8 @@ const rbox = (w, h, d) => { const g = new THREE.BoxGeometry(w, h, d, 2, 2, 2); c
 const geoCache = new Map();
 
 export function buildHumanoidGeometry(a) {
-  const key = JSON.stringify(a);
-  if (geoCache.has(key)) return geoCache.get(key);
+  const key = a.cacheKey ? a.cacheKey + JSON.stringify(a) : null;
+  if (key && geoCache.has(key)) return geoCache.get(key);
   const off = restOffsets(a);
   // world-space rest positions of each bone
   const wp = [];
@@ -202,8 +202,8 @@ export function buildHumanoidGeometry(a) {
     sb.add(new THREE.BoxGeometry(0.105, 0.02, 0.255), M(f[0], f[1] - 0.055, f[2] + 0.05), 0xdddddd, ft);
   }
   const geo = sb.build();
-  const res = { geo, rest: off, world: wp };
-  geoCache.set(key, res);
+  const res = { geo, rest: off, world: wp, cached: !!key };
+  if (key) { geo.userData.shared = true; geoCache.set(key, res); }
   return res;
 }
 

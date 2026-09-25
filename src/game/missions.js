@@ -386,7 +386,7 @@ export class Missions {
     if (this.active) return;
     const shown = new Set();
     for (const def of this.available()) {
-      if (def.auto) continue;
+      if (def.auto && !def.start) continue;
       const pos = def.start(this.game.map.landmarks);
       const key = `${Math.round(pos.x)},${Math.round(pos.z)}`;
       if (shown.has(key)) continue;
@@ -401,7 +401,8 @@ export class Missions {
   start(def) {
     if (this.active) return;
     const game = this.game;
-    if (game.police.level > 0 && !def.allowWanted) { game.hud.help('Lose your wanted level before starting a mission.'); return; }
+    if (def.auto) game.police.clear();
+    else if (game.police.level > 0 && !def.allowWanted) { game.hud.help('Lose your wanted level before starting a mission.'); return; }
     for (const m of this.contactMarkers) game.pickups.removeMarker(m);
     this.contactMarkers = [];
     const ctx = new Ctx(this, def);

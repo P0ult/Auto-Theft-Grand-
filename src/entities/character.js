@@ -19,6 +19,10 @@ const HOLD = {
 };
 
 const _v = new THREE.Vector3();
+const _aim = new THREE.Vector3(), _zero = new THREE.Vector3(), _up = new THREE.Vector3(0, 1, 0);
+const _m4 = new THREE.Matrix4(), _qW = new THREE.Quaternion(), _qH = new THREE.Quaternion(), _qL = new THREE.Quaternion(), _qR = new THREE.Quaternion();
+const _flip = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI);
+const _eR = new THREE.Euler();
 let nextId = 1;
 
 export class Character {
@@ -149,6 +153,30 @@ export class Character {
     st.crouch = this.crouching && !this.swimming;
     if (this.weaponMesh) this.weaponMesh.visible = !this.swimming;
     this.anim.update(dt, st);
+    this._orientWeapon();
+  }
+
+  // While aiming, point the gun straight at the aim target (the arm pose only approximates it).
+  _orientWeapon() {
+    const m = this.weaponMesh;
+    if (!m) return;
+    const def = WEAPONS[this.weapon];
+    const aimingGun = this.aiming && def && (def.type === 'gun' || def.type === 'launcher') && !this.ragdolling;
+    const k = this.anim.w.aim;
+    const h = HOLD[this.weapon] || HOLD.pistol;
+    if (!aimingGun || k < 0.05) { m.rotation.set(...h.r); return; }
+    const hand = this.bones[B.rHand];
+    this.root.updateMatrixWorld(true);
+    let dir = this.aimDir;
+    if (!dir) { dir = _aim.set(Math.sin(this.yaw) * Math.cos(this.aimPitch), Math.sin(this.aimPitch), Math.cos(this.yaw) * Math.cos(this.aimPitch)); }
+    _m4.lookAt(_zero, dir, _up);
+    _qW.setFromRotationMatrix(_m4);
+    // lookAt makes -Z face dir; weapon model barrel is +Z -> rotate 180 about Y
+    _qW.multiply(_flip);
+    hand.getWorldQuaternion(_qH);
+    _qL.copy(_qH).invert().multiply(_qW);
+    _qR.setFromEuler(_eR.set(...h.r));
+    m.quaternion.copy(_qR).slerp(_qL, Math.min(1, k));
   }
 
   physics(dt) {
@@ -336,6 +364,9 @@ export class Character {
     if (this.removed) return;
     this.removed = true;
     this.root.parent?.remove(this.root);
+    // free GPU resources (weapon geometry is shared and stays)
+    if (!this.mesh.geometry.userData.shared) this.mesh.geometry.dispose();
+    this.mesh.skeleton?.dispose();
   }
 }
 

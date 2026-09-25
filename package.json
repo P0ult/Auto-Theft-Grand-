@@ -1,0 +1,11 @@
+{
+  "name": "auto-theft-grand",
+  "version": "1.0.0",
+  "description": "An open-world crime game in the browser: procedural city, driving with drifting, shooting, police, and a 22-mission story.",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "node server.mjs"
+  },
+  "license": "MIT"
+}

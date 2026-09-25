@@ -151,6 +151,7 @@ async function fadeTeleport(m, x, z, yaw, y) {
   m.hud.fadeTo(1, 0.4);
   await m.wait(0.5);
   teleport(m.game, x, z, yaw, y);
+  if (y == null) { m.game.traffic.populate(10); m.game.peds.populate(10); }
   await m.wait(0.3);
   m.hud.fadeTo(0, 0.5);
 }
@@ -162,7 +163,7 @@ export const STORY = {
     {
       id: 'welcome', title: 'Welcome Home', contact: 'V', auto: true, reward: 100,
       log: 'Dre came home for Tino\'s funeral. Detective Voss robbed him and dumped him in Viper turf.',
-      start: (L) => L.plaza,
+      start: (L) => ({ x: L.plaza.x, z: L.plaza.z + 9 }),
       async run(m, game) {
         const L = m.L;
         game.env.setTime(18.6);
@@ -273,7 +274,7 @@ export const STORY = {
         const say = (who, t) => m.hud.subtitle(t, who, 4);
         m.tick(() => {});
         setTimeout(() => say('Deacon', 'Man, Vipers been getting bold. They hit Tino\'s corner three times this month.'), 3000);
-        await m.goTo(L.burger.x, L.burger.z + 8, { vehicle: true, radius: 5, text: 'Drive to <span class="y">Big Bun Burgers</span>.' });
+        await m.goTo(L.burger.x, L.burger.z - 9, { vehicle: true, radius: 5, text: 'Drive to <span class="y">Big Bun Burgers</span>.' });
         await m.say('Lou', 'Hold up... that red Brawler. That\'s Vipers! GET DOWN!', 3);
         const r2 = roadNear(L.burger.x - 60, L.burger.z);
         const { v: vc, drv, guns } = chaseCar(m, 'brawler', r2.x, r2.z, r2.yaw, 'vipers', 2);
@@ -815,6 +816,7 @@ export const STORY = {
     },
     {
       id: 'ambush', title: 'Ambush', contact: 'L', auto: true, requires: ['tail'], reward: 2000,
+      start: (L) => ({ x: L.home.x + 4, z: L.home.z + 2 }),
       log: 'Survived the Vipers\' assault on Cedar Row. Lou was shot defending the block.',
       async run(m, game) {
         const L = m.L;
@@ -866,6 +868,7 @@ export const STORY = {
     },
     {
       id: 'hospital', title: 'Rush to All Saints', contact: 'L', auto: true, requires: ['ambush'], reward: 2000,
+      start: (L) => ({ x: L.home.x + 4, z: L.home.z + 2 }),
       log: 'Raced a bleeding Lou to All Saints General with Vipers on the bumper. He pulled through.',
       chapterEnd: ['CHAPTER IV', 'Rise'],
       async run(m, game) {

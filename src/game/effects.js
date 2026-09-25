@@ -299,6 +299,49 @@ class Tracers {
   }
 }
 
+// ------------------------------------------------------------------ rain (GPU animated streaks around the camera)
+class Rain {
+  constructor(scene, count = 6000) {
+    const pos = new Float32Array(count * 2 * 3);
+    const seed = new Float32Array(count * 2 * 3);
+    for (let i = 0; i < count; i++) {
+      const x = Math.random() * 60, y = Math.random() * 40, z = Math.random() * 60;
+      for (let k = 0; k < 2; k++) { pos.set([x, y, z], (i * 2 + k) * 3); seed.set([k, Math.random(), 0], (i * 2 + k) * 3); }
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    g.setAttribute('aSeed', new THREE.BufferAttribute(seed, 3));
+    this.uniforms = { uTime: { value: 0 }, uCam: { value: new THREE.Vector3() }, uAmount: { value: 0 }, uWind: { value: new THREE.Vector2(1.5, 0.8) }, uColor: { value: new THREE.Color(0.7, 0.75, 0.8) } };
+    const m = new THREE.ShaderMaterial({
+      uniforms: this.uniforms,
+      vertexShader: `attribute vec3 aSeed; uniform float uTime; uniform vec3 uCam; uniform float uAmount; uniform vec2 uWind; varying float vA;
+        void main(){
+          vec3 p = position;
+          float fall = 18.0 + aSeed.y * 6.0;
+          p.y = mod(p.y - uTime * fall, 40.0);
+          p.xz = mod(p.xz + uWind * (40.0 - p.y) * 0.05 - uCam.xz + 30.0, 60.0);
+          vec3 w = vec3(p.x - 30.0 + uCam.x, p.y - 12.0 + uCam.y, p.z - 30.0 + uCam.z);
+          w.xz -= uWind * aSeed.x * 0.04; w.y += aSeed.x * 0.55;
+          vA = step(aSeed.y, uAmount) * (0.35 + aSeed.x * 0.4);
+          gl_Position = projectionMatrix * viewMatrix * vec4(w, 1.0);
+        }`,
+      fragmentShader: 'uniform vec3 uColor; varying float vA; void main(){ if (vA < 0.01) discard; gl_FragColor = vec4(uColor, vA * 0.35); }',
+      transparent: true, depthWrite: false,
+    });
+    this.mesh = new THREE.LineSegments(g, m);
+    this.mesh.frustumCulled = false;
+    this.mesh.renderOrder = 9;
+    scene.add(this.mesh);
+  }
+  update(dt, cam, amount, light) {
+    this.uniforms.uTime.value += dt;
+    this.uniforms.uCam.value.copy(cam);
+    this.uniforms.uAmount.value = amount;
+    this.uniforms.uColor.value.copy(light).multiplyScalar(0.9).addScalar(0.08);
+    this.mesh.visible = amount > 0.02;
+  }
+}
+
 // ------------------------------------------------------------------ main effects system
 export class Effects {
   constructor(game) {
@@ -319,6 +362,7 @@ export class Effects {
     }
     this.debris = [];
     this.emitters = [];
+    this.rain = new Rain(scene);
     this.lightColor = new THREE.Color();
   }
 
@@ -459,6 +503,7 @@ export class Effects {
     this.dotAlpha.update(dt);
     this.decals.update(dt, this.lightColor);
     this.tracers.update(dt);
+    this.rain.update(dt, this.game.camera.position, this.game.env.rain, this.lightColor);
     for (const l of this.lights) {
       if (l.light.intensity <= 0) continue;
       l.t += dt;

@@ -32,6 +32,10 @@ export class VehicleManager {
 
   update(dt) {
     const list = this.list;
+    // AI for vehicles not driven by the traffic or police systems (mission cars)
+    for (const v of list) {
+      if (v.ai && !v.traffic && !v.policeUnit && v.driver && !v.driver.isPlayer && !v.driver.dead && !v.isWrecked) v.ai.update(dt);
+    }
     for (const v of list) v.update(dt);
     // vehicle vs vehicle
     for (let i = 0; i < list.length; i++) {
@@ -205,7 +209,7 @@ export class VehicleManager {
   nearestEnterable(pos, maxDist = 4.5) {
     let best = null, bd = maxDist * maxDist;
     for (const v of this.list) {
-      if (v.isWrecked || v.removed) continue;
+      if (v.isWrecked || v.removed || v.locked) continue;
       const dp = v.doorWorld(_a);
       const d = dist2(pos.x, pos.z, dp.x, dp.z);
       const dc = dist2(pos.x, pos.z, v.pos.x, v.pos.z);

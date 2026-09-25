@@ -10,6 +10,8 @@ import { RNG, rand, randInt, pick, clamp, dist2, wrapAngle } from '../core/utils
 const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
 const NI = XS.length, NJ = ZS.length;
 
+export function nearestIdx(arr, v) { let b = 0, bd = Infinity; for (let i = 0; i < arr.length; i++) { const d = Math.abs(arr[i] - v); if (d < bd) { bd = d; b = i; } } return b; }
+
 export function segmentValid(i, j, di, dj) {
   const i2 = i + di, j2 = j + dj;
   return i >= 0 && j >= 0 && i < NI && j < NJ && i2 >= 0 && j2 >= 0 && i2 < NI && j2 < NJ;
@@ -88,19 +90,19 @@ export class LaneDriver {
       const along = dx * fx + dz * fz;
       if (along < 0 || along > maxD + v.hz) return;
       const lat = Math.abs(dx * fz - dz * fx);
-      const allowed = 1.4 + rad + Math.min(1.2, along * 0.05);
+      const allowed = v.hx + rad + 0.25;
       if (lat < allowed) best = Math.min(best, along - v.hz - rad);
     };
     for (const o of this.game.vehicles.list) {
       if (o === v || o.removed) continue;
       if (Math.abs(o.pos.x - v.pos.x) > maxD + 8 || Math.abs(o.pos.z - v.pos.z) > maxD + 8) continue;
-      check(o.pos.x, o.pos.z, Math.min(o.hx, o.hz) + 0.6);
+      check(o.pos.x, o.pos.z, Math.min(o.hx, o.hz));
     }
     const pl = this.game.player;
-    if (!pl.vehicle) check(pl.pos.x, pl.pos.z, 0.6);
+    if (!pl.vehicle) check(pl.pos.x, pl.pos.z, 0.5);
     if (this.game.peds) for (const p of this.game.peds.list) {
       if (p.vehicle || Math.abs(p.pos.x - v.pos.x) > maxD + 4 || Math.abs(p.pos.z - v.pos.z) > maxD + 4) continue;
-      check(p.ragdolling ? p.ragdoll.pos[0] : p.pos.x, p.ragdolling ? p.ragdoll.pos[2] : p.pos.z, 0.5);
+      check(p.ragdolling ? p.ragdoll.pos[0] : p.pos.x, p.ragdolling ? p.ragdoll.pos[2] : p.pos.z, 0.4);
     }
     return best;
   }
@@ -173,6 +175,12 @@ export class LaneDriver {
         this.game.audio?.playAt('horn', v.pos, 0.7);
       }
     } else this.blockedTime = 0;
+    // blocked for a while (double-parked car, wreck, player's car): change lanes to get around
+    if (this.blockedTime > 5 && this.mode === 'lane') {
+      this.blockedTime = 0;
+      this.seg = { ...this.seg, lane: 1 - this.seg.lane };
+      this.geom = laneGeom(this.seg.i, this.seg.j, this.seg.di, this.seg.dj, this.seg.lane);
+    }
     this.honkTimer -= dt;
     // stuck detection (e.g. after collisions)
     if (Math.abs(speed) < 0.5 && desired > 3) this.stuck += dt; else this.stuck = 0;
@@ -250,11 +258,20 @@ export class Traffic {
     return v;
   }
 
-  _trySpawn() {
+  // Fill the streets immediately (used at game start / after teleports)
+  populate(count = this.maxCars) {
+    const saved = this._ignoreView;
+    this._ignoreView = true;
+    for (let k = 0; k < count && this.cars.filter((c) => !c.removed).length < this.maxCars; k++) this._trySpawn(35);
+    this._ignoreView = saved;
+  }
+
+  _trySpawn(minDist = 70) {
     const game = this.game;
     const p = game.player.vehicle ? game.player.vehicle.pos : game.player.pos;
-    for (let tries = 0; tries < 8; tries++) {
-      const i = randInt(0, NI - 1), j = randInt(0, NJ - 1);
+    const ci = nearestIdx(XS, p.x), cj = nearestIdx(ZS, p.z);
+    for (let tries = 0; tries < 10; tries++) {
+      const i = clamp(ci + randInt(-2, 2), 0, NI - 1), j = clamp(cj + randInt(-2, 2), 0, NJ - 1);
       const [di, dj] = pick(DIRS);
       if (!segmentValid(i, j, di, dj)) continue;
       const lane = Math.random() < 0.5 ? 0 : 1;
@@ -262,8 +279,8 @@ export class Traffic {
       const s0 = rand(5, Math.max(6, g.len - 10));
       const x = g.ax + g.dx * s0, z = g.az + g.dz * s0;
       const d2 = dist2(x, z, p.x, p.z);
-      if (d2 < 70 * 70 || d2 > 190 * 190) continue;
-      if (game.peds._inView(x, z) && d2 < 140 * 140) continue;
+      if (d2 < minDist * minDist || d2 > 190 * 190) continue;
+      if (!this._ignoreView && game.peds._inView(x, z) && d2 < 140 * 140) continue;
       let blocked = false;
       for (const v of game.vehicles.list) if (dist2(v.pos.x, v.pos.z, x, z) < 12 * 12) { blocked = true; break; }
       if (blocked) continue;

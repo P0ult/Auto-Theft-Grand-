@@ -213,7 +213,7 @@ export class Game {
       vis = env.sunVisible * clamp(1.4 - edge, 0, 1) * (0.35 + 0.65 * clamp(1 - env.sunDir.y * 1.5, 0, 1));
     }
     const c = this.post.composite.uniforms;
-    c.uExposure.value = 1.0 + env.night * 0.85;
+    c.uExposure.value = 1.0 + env.night * 1.0;
     c.uTime.value = this.time;
     this.post.render(this.scene, cam, new THREE.Vector2(sp.x * 0.5 + 0.5, sp.y * 0.5 + 0.5), vis * 0.45);
   }

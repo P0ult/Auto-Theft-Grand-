@@ -136,7 +136,7 @@ export class Environment {
     // ambient from sky zenith
     this.sky.sample(_v.set(0, 1, 0), this.sunDir, this.ambientColor);
     this.ambientColor.multiplyScalar(1.4);
-    const nightAmb = _c2.setRGB(0.03, 0.04, 0.075);
+    const nightAmb = _c2.setRGB(0.085, 0.105, 0.19);
     this.ambientColor.lerp(nightAmb, this.night);
     if (this.cloudCover > 0.5) { const g = (this.ambientColor.r + this.ambientColor.g + this.ambientColor.b) / 3; this.ambientColor.lerp(_c2.setRGB(g, g, g * 1.05), (this.cloudCover - 0.5) * 1.4); }
     su.uSunLight.value.copy(this.sunLightColor).multiplyScalar(1.1).add(_c2.setRGB(0.02, 0.025, 0.04).multiplyScalar(this.night));
@@ -148,7 +148,7 @@ export class Environment {
     if (this.lightDir.y < 0.12) { this.lightDir.y = 0.12; this.lightDir.normalize(); }
     if (moonMode) {
       this.sun.color.setRGB(0.55, 0.65, 1.0);
-      this.sun.intensity = 0.55 * smoothstep(-0.05, 0.2, this.moonDir.y) * (1 - this.cloudCover * 0.6);
+      this.sun.intensity = 0.8 * smoothstep(-0.05, 0.2, this.moonDir.y) * (1 - this.cloudCover * 0.5);
     } else {
       this.sun.color.copy(_c).multiplyScalar(1 / Math.max(_c.r, _c.g, _c.b, 0.001));
       this.sun.intensity = 3.4 * sunI * Math.max(_c.r, _c.g, _c.b);
@@ -159,7 +159,7 @@ export class Environment {
     // Hemisphere ambient
     this.hemi.color.copy(this.ambientColor).multiplyScalar(1.0);
     this.hemi.groundColor.setRGB(0.18, 0.15, 0.12).multiplyScalar(0.25 + dayF * 0.75).multiply(_c2.setRGB(1, 1, 1).lerp(this.sun.color, 0.4));
-    this.hemi.intensity = 0.9 + this.night * 1.2 + this.lightning * 3;
+    this.hemi.intensity = 0.9 + this.night * 1.4 + this.lightning * 3;
 
     // Fog colors from horizon
     this.sky.sample(_v.set(-this.sunDir.x, 0.04, -this.sunDir.z).normalize(), this.sunDir, U.uFogColor.value);

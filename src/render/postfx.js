@@ -206,9 +206,9 @@ export class PostFX {
       tScene: { value: null }, tBloom: { value: null }, tRays: { value: null },
       uBloom: { value: 0.08 }, uExposure: { value: 1.0 }, uTime: { value: 0 },
       uSaturation: { value: 1.12 }, uContrast: { value: 1.06 },
-      uTint: { value: new THREE.Color(1.03, 1.0, 0.95) }, uLift: { value: new THREE.Color(0.012, 0.01, 0.018) },
+      uTint: { value: new THREE.Color(1.05, 1.0, 0.93) }, uLift: { value: new THREE.Color(0.012, 0.01, 0.018) },
       uVignette: { value: 0.8 }, uGrain: { value: 0.025 }, uDamage: { value: 0 }, uDesat: { value: 0 },
-      uChroma: { value: 0.006 }, uFade: { value: 0 }, uRaysOn: { value: 1 }, uResolution: { value: new THREE.Vector2(1, 1) },
+      uChroma: { value: 0.0022 }, uFade: { value: 0 }, uRaysOn: { value: 1 }, uResolution: { value: new THREE.Vector2(1, 1) },
     });
     this.blackTex = new THREE.DataTexture(new Uint8Array([0, 0, 0, 255]), 1, 1);
     this.blackTex.needsUpdate = true;

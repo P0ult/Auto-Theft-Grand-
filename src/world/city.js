@@ -377,7 +377,7 @@ export class City {
       // colors
       const hn = h;
       const beachZone = z > CITY.maxZ && x < 480;
-      if (beachZone && hn < 4) col.setRGB(0.72, 0.63, 0.46);
+      if (beachZone && hn < 4) col.setRGB(0.86, 0.74, 0.52);
       else if (hn < WATER_Y - 0.5) col.setRGB(0.45, 0.4, 0.3);
       else {
         const t = clamp(hn / 120, 0, 1);
@@ -471,7 +471,7 @@ export class City {
       `,
       fragRoughness: 'roughnessFactor = mix(0.04, 0.6, atgFoam);',
     });
-    const mat = std({ color: 0xffffff, roughness: 0.05, metalness: 0.0, transparent: true, opacity: 1 }, waterExt('water', false));
+    const mat = std({ color: 0xffffff, roughness: 0.05, metalness: 0.0, transparent: true, opacity: 1, envMapIntensity: 1.8 }, waterExt('water', false));
     const geo = new THREE.PlaneGeometry(8000, 8000, 1, 1);
     geo.rotateX(-Math.PI / 2);
     const water = new THREE.Mesh(geo, mat);
@@ -634,6 +634,15 @@ export class City {
     im.name = 'lightpools';
     this.root.add(im);
     this.lightPools = im;
+    // a few real point lights that follow the nearest street lamps at night
+    this.lampLights = [];
+    for (let i = 0; i < 4; i++) {
+      const l = new THREE.PointLight(0xffc27a, 0, 26, 1.7);
+      l.position.set(0, -100, 0);
+      this.root.add(l);
+      this.lampLights.push(l);
+    }
+    this._lampTimer = 0;
 
     // aviation beacons (blinking red)
     if (this.beacons && this.beacons.length) {
@@ -678,5 +687,19 @@ export class City {
       this.beaconMat.color.setRGB(8 * on, 0.3 * on, 0.2 * on);
     }
     if (this.landmarks) this.landmarks.update(dt, night);
+    this._lampTimer -= dt;
+    const sl = U.uStreetLights.value;
+    if (this._lampTimer <= 0 && this.lampPositions) {
+      this._lampTimer = 0.4;
+      const near = [];
+      for (const l of this.lampPositions) {
+        const d = (l[0] - camPos.x) ** 2 + (l[1] - camPos.z) ** 2;
+        if (d > 90 * 90) continue;
+        near.push([d, l]);
+      }
+      near.sort((a, b) => a[0] - b[0]);
+      this.lampLights.forEach((L, i) => { const n = near[i]; if (n) L.position.set(n[1][0], n[1][2] + 7.6, n[1][1]); else L.position.set(0, -100, 0); });
+    }
+    for (const L of this.lampLights) L.intensity = sl * 55;
   }
 }

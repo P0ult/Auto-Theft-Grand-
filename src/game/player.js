@@ -60,6 +60,7 @@ export class Player extends Character {
       // pitch from camera
       const dir = rig.lookDir(new THREE.Vector3());
       this.aimPitch = Math.asin(clamp(dir.y, -1, 1));
+      this.aimDir = (this.aimDir || new THREE.Vector3()).copy(dir);
     } else if (len > 0.1) {
       this.yaw = dampAngle(this.yaw, Math.atan2(dx, dz), this.sprinting ? 8 : 11, dt);
     }

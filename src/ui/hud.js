@@ -208,7 +208,7 @@ export class HUD {
     this.overlay.innerHTML = '';
     this.menuOpen = null;
     this.game.paused = false;
-    this.game.input.requestLock();
+    if (this.game.gameplay?.state === 'playing') this.game.input.requestLock();
   }
 
   togglePause() {

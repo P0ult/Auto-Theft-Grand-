@@ -30,6 +30,7 @@ const TIPS = [
 function el(tag, cls, parent, html) { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; if (parent) parent.appendChild(e); return e; }
 
 async function boot() {
+  document.body.classList.add('menu');
   const loading = el('div', 'loading', document.body);
   el('div', 'art', loading, 'Auto Theft Grand');
   const bar = el('div', 'bar', loading, '<i></i>');
@@ -74,7 +75,21 @@ async function boot() {
   loading.style.transition = 'opacity 0.8s';
   loading.style.opacity = 0;
   setTimeout(() => loading.remove(), 900);
-  game.start();
+  if (params.has('manual')) {
+    // test mode: advance the simulation deterministically from the console / automation
+    window.__step = (sec, dt = 1 / 30, render = true) => {
+      const n = Math.max(1, Math.round(sec / dt));
+      for (let i = 0; i < n; i++) {
+        game.input.pollGamepad();
+        if (!game.paused) game.update(dt * game.timeScale, dt);
+        game.hud.update(dt);
+        game.input.endFrame();
+      }
+      if (render) game.render(dt);
+    };
+    window.__press = (code) => { game.input.keys.add(code); game.input.pressed.add(code); };
+    window.__release = (code) => { game.input.keys.delete(code); };
+  } else game.start();
   window.__ready = true;
 
   if (params.get('autostart') === 'new') return startGame(game, false, null);
@@ -107,7 +122,11 @@ function showTitle(game) {
     startGame(game, cont, null, free);
   };
   bCont.onclick = () => go(true);
-  bNew.onclick = () => { if (hasSave && !confirm('Start a new game? Your saved progress will be overwritten when you next save.')) return; go(false); };
+  let armed = false;
+  bNew.onclick = () => {
+    if (hasSave && !armed) { armed = true; bNew.textContent = 'New Game? Click again'; setTimeout(() => { armed = false; bNew.textContent = 'New Game'; }, 3500); return; }
+    go(false);
+  };
   bFree.onclick = () => go(false, true);
   bSet.onclick = () => { game.audio.init(); game.hud.openPause('settings'); game.paused = false; };
   bCtl.onclick = () => { game.hud.openPause('controls'); game.paused = false; };
@@ -148,14 +167,16 @@ function startGame(game, cont, _, free = false) {
     const first = STORY.missions.find((m) => m.auto && !(m.requires || []).length);
     g.missions.start(first);
   }
+  g.traffic.populate(Math.floor(g.traffic.maxCars * 0.7));
+  g.peds.populate(Math.floor(g.peds.maxPeds * 0.6));
   // pointer lock handling
   const clickLayer = el('div', 'click-to-play', document.body, '<div>CLICK TO PLAY</div>');
   clickLayer.onclick = () => { g.input.requestLock(); };
   g.input.onPointerLockChange = (locked) => {
-    clickLayer.classList.toggle('show', !locked && !g.hud.menuOpen && g.gameplay.state === 'playing');
+    clickLayer.classList.toggle('show', !locked && !g.input.lockFailed && !g.hud.menuOpen && g.gameplay.state === 'playing');
     if (!locked && !g.hud.menuOpen && g.gameplay.state === 'playing' && !g.cutscene) { g.hud.openPause('map'); g.hud._autoPauseT = performance.now(); }
   };
-  setInterval(() => { clickLayer.classList.toggle('show', !g.input.locked && !g.hud.menuOpen && (g.gameplay.state === 'playing' || g.gameplay.state === 'dead') && !g.params?.noLock); }, 500);
+  setInterval(() => { clickLayer.classList.toggle('show', !g.input.locked && !g.input.lockFailed && !g.hud.menuOpen && (g.gameplay.state === 'playing' || g.gameplay.state === 'dead')); }, 500);
 }
 
 function tick() { return new Promise((r) => setTimeout(r, 0)); }

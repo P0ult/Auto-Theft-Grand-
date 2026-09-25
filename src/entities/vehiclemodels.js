@@ -23,6 +23,37 @@ export function vehicleMaterials() {
   return MATS;
 }
 
+let _beamGeo = null, _beamMat = null;
+function beamGeometry() {
+  if (_beamGeo) return _beamGeo;
+  const g = new THREE.PlaneGeometry(7, 11);
+  g.rotateX(-Math.PI / 2);
+  g.userData.shared = true;
+  _beamGeo = g;
+  return g;
+}
+function beamMaterial() {
+  if (_beamMat) return _beamMat;
+  _beamMat = new THREE.ShaderMaterial({
+    vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
+    fragmentShader: `varying vec2 vUv; void main(){
+      float x = (vUv.x - 0.5) * 2.0; float y = vUv.y; // y: 0 far .. 1 near
+      float w = mix(1.0, 0.3, y);
+      float a = smoothstep(w, w * 0.2, abs(x)) * smoothstep(0.0, 0.5, y) * smoothstep(1.0, 0.85, y);
+      float twin = 0.75 + 0.25 * smoothstep(0.1, 0.35, abs(x));
+      gl_FragColor = vec4(vec3(1.0, 0.92, 0.75) * a * twin * 0.55, 1.0); }`,
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -8,
+  });
+  return _beamMat;
+}
+
+export function isSharedMaterial(m) {
+  if (m === _beamMat) return true;
+  if (!MATS) return false;
+  for (const k in MATS) if (MATS[k] === m) return true;
+  return false;
+}
+
 export function bodyMaterial(color) {
   const m = new THREE.MeshPhysicalMaterial({ color, metalness: 0.55, roughness: 0.32, clearcoat: 1.0, clearcoatRoughness: 0.06, vertexColors: true });
   return patch(m, { key: 'vbody' });
@@ -331,12 +362,19 @@ export function buildVehicleModel(def, color) {
     wheels.push({ pivot, spin, x, z, front, baseY: wy, comp: 0 });
   }
 
+  // headlight glow on the road ahead (visible at night)
+  const beamMesh = new THREE.Mesh(beamGeometry(), beamMaterial());
+  beamMesh.position.set(0, 0.03, L / 2 + 5.5);
+  beamMesh.renderOrder = 2;
+  beamMesh.visible = false;
+  group.add(beamMesh);
+
   const seatBase = new THREE.Vector3(0.38, seatY + 0.05 - 0.02, seatZ - 0.1);
   return {
     group, bodyGroup, body, bodyMat, glass: glassMesh, head, tail, lightbar, wheels,
     door: { pivot: doorPivot, mesh: doorMesh, open: 0 },
     seats: [seatBase.clone(), seatBase.clone().setX(-0.38), seatBase.clone().setZ(seatBase.z - 0.9), seatBase.clone().set(-0.38, seatBase.y, seatBase.z - 0.9)],
     doorPos: new THREE.Vector3(W / 2 + 0.55, 0, (dz0 + dz1) / 2 - 0.15),
-    trim: trimMesh,
+    trim: trimMesh, beam: beamMesh,
   };
 }

@@ -193,6 +193,7 @@ export class Ped extends Character {
       this.faceTowards(tp.x, tp.z, dt, 12);
       const aimY = (t.vehicle ? tp.y + 1.0 : tp.y + 1.3) - (this.pos.y + 1.45);
       this.aimPitch = Math.atan2(aimY, d);
+      this.aimDir = (this.aimDir || new THREE.Vector3()).set(dx / d * Math.cos(this.aimPitch), Math.sin(this.aimPitch), dz / d * Math.cos(this.aimPitch));
       // keep some distance, strafe a bit
       const want = 9 + (this.id % 5);
       if (d > want + 4) this.goTo(tp.x, tp.z, 4.2, dt, 0);
@@ -317,6 +318,8 @@ export class PedManager {
     return randomAppearance(rng, o);
   }
 
+  populate(n = 20) { this._ignoreView = true; for (let i = 0; i < n; i++) this._spawnAmbient(); this._ignoreView = false; }
+
   // Random civilian near but out of sight of the player
   _spawnAmbient() {
     const game = this.game;
@@ -326,13 +329,13 @@ export class PedManager {
     const cam = game.camera;
     for (let tries = 0; tries < 12; tries++) {
       const ang = Math.random() * Math.PI * 2;
-      const r = rand(55, 95);
+      const r = this._ignoreView ? rand(12, 90) : rand(55, 95);
       const x = p.x + Math.cos(ang) * r, z = p.z + Math.sin(ang) * r;
       const b = map.blockAt(x, z);
       if (!b) continue;
       // in view? prefer out of view or far
       const inView = this._inView(x, z, 1);
-      if (inView && r < 80) continue;
+      if (inView && r < 80 && !this._ignoreView) continue;
       const n = nodes[pick(b.nodeIds)];
       // spawn on the sidewalk between two nodes
       const n2 = nodes[pick(n.links)];
@@ -465,6 +468,7 @@ export class PedManager {
       sphere.center.set(cx, (p.ragdolling ? p.ragdoll.pos[1] : p.pos.y) + 0.9, cz);
       const vis = this.frustum.intersectsSphere(sphere);
       p.root.visible = vis;
+      p.mesh.castShadow = d2 < 55 * 55;
       // animation LOD: far or invisible peds update less often
       p.animLod = (p.animLod + 1) % (d2 > 70 * 70 || !vis ? 3 : 1);
       if (p.animLod === 0) p.update(dt * (d2 > 70 * 70 || !vis ? 3 : 1));

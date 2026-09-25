@@ -2,7 +2,7 @@
 // police helicopter with searchlight.
 import * as THREE from 'three';
 import { randomAppearance } from '../entities/humanoid.js';
-import { LaneDriver, nearestSegment, laneGeom, segmentValid } from './traffic.js';
+import { LaneDriver, nearestSegment, laneGeom, segmentValid, nearestIdx } from './traffic.js';
 import { XS, ZS } from '../world/citymap.js';
 import { std } from '../render/materials.js';
 import { RNG, rand, randInt, pick, clamp, dist2, wrapAngle } from '../core/utils.js';
@@ -173,8 +173,9 @@ export class Police {
   spawnCar(pursuit = true) {
     const game = this.game;
     const p = this.targetPos();
-    for (let tries = 0; tries < 10; tries++) {
-      const i = randInt(0, XS.length - 1), j = randInt(0, ZS.length - 1);
+    const ci = nearestIdx(XS, p.x), cj = nearestIdx(ZS, p.z);
+    for (let tries = 0; tries < 14; tries++) {
+      const i = clamp(ci + randInt(-2, 2), 0, XS.length - 1), j = clamp(cj + randInt(-2, 2), 0, ZS.length - 1);
       const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]].filter(([a, b]) => segmentValid(i, j, a, b));
       if (!dirs.length) continue;
       const [di, dj] = pick(dirs);
@@ -182,8 +183,8 @@ export class Police {
       const s0 = rand(4, Math.max(5, g.len - 5));
       const x = g.ax + g.dx * s0, z = g.az + g.dz * s0;
       const d2 = dist2(x, z, p.x, p.z);
-      if (d2 < 90 * 90 || d2 > 200 * 200) continue;
-      if (game.peds._inView(x, z) && d2 < 150 * 150) continue;
+      if (d2 < 70 * 70 || d2 > 220 * 220) continue;
+      if (game.peds._inView(x, z) && d2 < 120 * 120 && tries < 10) continue;
       const v = game.vehicles.spawn('police', x, z, Math.atan2(g.dx, g.dz), { persistent: true });
       const n = pursuit && this.level >= 2 ? 2 : 1;
       for (let k = 0; k < n; k++) { const cop = this.spawnCop(x, z); v.putIn(cop, k); cop.homeCar = v; }
