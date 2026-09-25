@@ -13,6 +13,10 @@ export class Combat {
     this.rocketMat = new THREE.MeshStandardMaterial({ color: 0x3e4a2f, roughness: 0.6 });
     this.grenadeGeo = new THREE.SphereGeometry(0.06, 8, 6);
     this.grenadeMat = new THREE.MeshStandardMaterial({ color: 0x3b4a2a, roughness: 0.7 });
+    this.missileGeo = new THREE.CylinderGeometry(0.1, 0.1, 2.4, 8).rotateX(Math.PI / 2);
+    this.missileMat = new THREE.MeshStandardMaterial({ color: 0xe8e8e2, roughness: 0.4, metalness: 0.3 });
+    this.shellGeo = new THREE.CylinderGeometry(0.07, 0.07, 0.9, 6).rotateX(Math.PI / 2);
+    this.shellMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(4, 2.6, 1.2) });
   }
 
   // Cast a ray against characters, vehicles and the static world. Returns nearest hit.
@@ -105,11 +109,11 @@ export class Combat {
       if (c.dead && !wasDead) { game.effects.bloodPool(c.ragdolling ? new THREE.Vector3(c.ragdoll.pos[0], 0, c.ragdoll.pos[2]) : c.pos); game.events.emit('kill', shooter, c, def.id, hit.part); }
     } else if (hit.kind === 'vehicle') {
       const v = hit.obj;
-      v.damage(def.damage * 0.9, shooter);
+      v.damage(def.damage * 0.9 * (v.def.bulletMul ?? 1), shooter);
       game.effects.impact(hit.point, hit.normal, 'metal');
       game.audio?.playAt('bulletmetal', hit.point, 0.5);
       // tires & fuel: small chance to ignite when already damaged
-      if (v.health < 250 && Math.random() < 0.05) v.health = 0;
+      if (v.health < 250 && Math.random() < 0.05 && !v.def.tank) v.health = 0;
       game.events.emit('vehicleShot', v, shooter);
     } else if (hit.kind === 'heli') {
       hit.obj.hit(def.damage * (shooter.isPlayer ? 1 : 0.3));
@@ -192,7 +196,8 @@ export class Combat {
       const d = v.pos.distanceTo(pos);
       if (d > radius * 1.3) continue;
       const k = 1 - d / (radius * 1.3);
-      v.damage(damage * k * 4.5, source);
+      v.damage(damage * k * 4.5 * (v.def.blastMul ?? 1), source);
+      if (v.def.kind) continue; // aircraft & tanks don't get tossed around
       const dir = new THREE.Vector3().subVectors(v.pos, pos).setY(0).normalize();
       v.vel.addScaledVector(dir, k * 9 * 1500 / v.mass);
       v.r += (Math.random() - 0.5) * k * 3;
@@ -228,6 +233,66 @@ export class Combat {
     game.events.emit('gunshot', shooter, muzzle, WEAPONS.rpg);
   }
 
+  // Vehicle-mounted guns (jet cannon, helicopter minigun): hitscan from a muzzle with tracers.
+  vehicleGun(shooter, muzzle, dir, def) {
+    const game = this.game;
+    const d = dir.clone();
+    const sp = def.spread || 0;
+    d.x += rand(-sp, sp); d.y += rand(-sp, sp); d.z += rand(-sp, sp);
+    d.normalize();
+    const hit = this.raycast(muzzle.x, muzzle.y, muzzle.z, d.x, d.y, d.z, def.range, shooter);
+    const end = hit ? hit.point : muzzle.clone().addScaledVector(d, def.range);
+    if (Math.random() < 0.7) game.effects.tracers.add(muzzle, end);
+    if (hit) this.applyHit(hit, def, shooter || { isPlayer: false, damageMul: 1 }, d);
+    game.effects.muzzleFlash(muzzle, d, false);
+    game.audio?.playAt(def.sound || 'smg', muzzle, shooter?.isPlayer ? 0.9 : 0.7, { gun: true });
+    game.events.emit('gunshot', shooter, muzzle, def);
+  }
+
+  // Rockets (straight), missiles (homing, accelerating) and tank shells (fast, slight drop).
+  fireProjectile(shooter, kind, pos, dir, opts = {}) {
+    const game = this.game;
+    const geo = kind === 'shell' ? this.shellGeo : kind === 'missile' ? this.missileGeo : this.rocketGeo;
+    const mat = kind === 'shell' ? this.shellMat : kind === 'missile' ? this.missileMat : this.rocketMat;
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.copy(pos);
+    if (kind === 'rocket') mesh.scale.setScalar(1.8);
+    game.scene.add(mesh);
+    const vel = dir.clone().multiplyScalar(opts.speed ?? 80);
+    if (opts.inherit) vel.addScaledVector(opts.inherit, 0.9);
+    this.projectiles.push({
+      type: 'rocket', kind, mesh, pos: pos.clone(), vel, t: 0, owner: shooter,
+      radius: opts.radius ?? 8, damage: opts.damage ?? 220, gravity: opts.gravity ?? 0, life: opts.life ?? 5,
+      target: opts.target || null, turn: opts.turn ?? 0, accel: opts.accel ?? 0, maxSpeed: opts.maxSpeed ?? 0,
+    });
+    game.effects.muzzleFlash(pos, dir, true);
+    if (kind !== 'shell') game.audio?.playAt('rpg', pos, 0.9);
+    game.events.emit('gunshot', shooter, pos, WEAPONS.rpg);
+  }
+
+  // Best homing target in a narrow cone ahead: the police helicopter, occupied vehicles, aircraft.
+  lockTarget(from, dir, exclude = null, maxDist = 1000) {
+    const game = this.game;
+    let best = null, bs = -Infinity;
+    const consider = (obj, p) => {
+      const dx = p.x - from.x, dy = p.y - from.y, dz = p.z - from.z;
+      const d = Math.hypot(dx, dy, dz);
+      if (d < 15 || d > maxDist) return;
+      const c = (dx * dir.x + dy * dir.y + dz * dir.z) / d;
+      if (c < 0.97) return;
+      const score = c * 2 - d / maxDist;
+      if (score > bs) { bs = score; best = obj; }
+    };
+    const heli = game.police?.heli;
+    if (heli && !heli.down && !heli.done) consider(heli, heli.pos);
+    for (const v of game.vehicles.list) {
+      if (v === exclude || v.removed || v.isWrecked) continue;
+      if (!v.driver && !v.def.aircraft) continue;
+      consider(v, v.cg ? v.cg() : v.pos);
+    }
+    return best;
+  }
+
   throwGrenade(thrower, dir) {
     const game = this.game;
     const p = thrower.pos.clone().add(new THREE.Vector3(0, 1.7, 0)).addScaledVector(thrower.forward, 0.4);
@@ -246,20 +311,40 @@ export class Combat {
       const pr = this.projectiles[i];
       pr.t += dt;
       if (pr.type === 'rocket') {
+        // homing: steer toward the locked target, speed up to the motor's max
+        const tg = pr.target;
+        let near = false;
+        if (tg && !tg.removed && !tg.exploded && !tg.done && !tg.down) {
+          const tp = tg.cg ? tg.cg() : tg.def ? tg.pos.clone().setY(tg.pos.y + tg.def.H / 2) : tg.pos.clone();
+          const want = tp.sub(pr.pos);
+          near = want.length() < 3.5;
+          want.normalize();
+          const sp = pr.vel.length();
+          const cur = pr.vel.clone().divideScalar(sp);
+          const ang = cur.angleTo(want);
+          if (ang > 1e-4) cur.lerp(want, Math.min(1, (pr.turn * dt) / ang)).normalize();
+          pr.vel.copy(cur).multiplyScalar(sp);
+        }
+        if (pr.accel) { const sp = pr.vel.length(); pr.vel.multiplyScalar(Math.min(pr.maxSpeed || sp, sp + pr.accel * dt) / sp); }
+        if (pr.gravity) pr.vel.y -= pr.gravity * dt;
         const step = pr.vel.length() * dt;
         const d = pr.vel.clone().normalize();
         const hit = this.raycast(pr.pos.x, pr.pos.y, pr.pos.z, d.x, d.y, d.z, step + 0.3, pr.owner);
-        if (hit || pr.t > 5) {
+        if (hit || near || pr.t > (pr.life ?? 5)) {
           const at = hit ? hit.point : pr.pos;
           pr.mesh.parent?.remove(pr.mesh);
           this.projectiles.splice(i, 1);
-          this.explosion(at, 8, 220, pr.owner);
-          if (hit && hit.kind === 'vehicle') hit.obj.health = Math.min(hit.obj.health, -1);
+          this.explosion(at, pr.radius ?? 8, pr.damage ?? 220, pr.owner);
+          const hv = hit && hit.kind === 'vehicle' ? hit.obj : near && tg?.def ? tg : null;
+          if (hv) { if (hv.def.tank) hv.damage(900, pr.owner); else hv.health = Math.min(hv.health, -1); if (hv.def.aircraft) hv.explode(); }
           if (hit && hit.kind === 'heli') hit.obj.hit(9999);
+          else if (near && tg && tg.hit) tg.hit(9999);
           continue;
         }
         pr.pos.addScaledVector(pr.vel, dt);
         pr.mesh.position.copy(pr.pos);
+        pr.mesh.lookAt(pr.pos.x + d.x, pr.pos.y + d.y, pr.pos.z + d.z);
+        if (pr.kind === 'shell') continue;
         game.effects.alphaPool.spawn({ x: pr.pos.x, y: pr.pos.y, z: pr.pos.z, vx: rand(-0.3, 0.3), vy: rand(0, 0.5), vz: rand(-0.3, 0.3), age: 0, life: 1.6, size0: 0.3, size1: 1.8, rot: Math.random() * 6, spin: 0.5, grav: 0, drag: 1, alpha: 0.5, fadeIn: 0.05, fadePow: 1.5, color: [0.8, 0.8, 0.8], color1: null, floor: null });
         game.effects.addPool.spawn({ x: pr.pos.x, y: pr.pos.y, z: pr.pos.z, vx: 0, vy: 0, vz: 0, age: 0, life: 0.08, size0: 0.5, size1: 0.3, rot: 0, spin: 0, grav: 0, drag: 0, alpha: 1, fadeIn: 0.01, fadePow: 1, color: [6, 3, 1], color1: null, floor: null });
       } else if (pr.type === 'grenade') {

@@ -181,7 +181,7 @@ export class Character {
 
   physics(dt) {
     const map = this.game.map;
-    const accel = this.swimming ? 6 : this.grounded ? 24 : 3;
+    const accel = this.swimming ? 6 : this.grounded ? 24 : (this.airAccel || 3);
     const tx = this.moveTarget.x, tz = this.moveTarget.y;
     const dvx = tx - this.vel.x, dvz = tz - this.vel.z;
     const dl = Math.hypot(dvx, dvz);

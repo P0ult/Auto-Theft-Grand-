@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { clamp, damp, dampAngle, wrapAngle, lerp } from '../core/utils.js';
 
 const _v = new THREE.Vector3(), _t = new THREE.Vector3(), _d = new THREE.Vector3();
+const _f = new THREE.Vector3(), _u = new THREE.Vector3(), _o = new THREE.Vector3(), _c = new THREE.Vector3();
 
 export class CameraRig {
   constructor(camera, game) {
@@ -47,6 +48,7 @@ export class CameraRig {
     const moved = Math.abs(dx) + Math.abs(dy) > 0.0005;
     if (moved) this.lastLookInput = this.time;
 
+    cam.up.set(0, 1, 0);
     if (this.cine) {
       cam.position.lerp(this.cine.pos, 1 - Math.exp(-dt * 3));
       cam.lookAt(this.cine.target);
@@ -56,7 +58,17 @@ export class CameraRig {
     }
 
     const veh = player.vehicle;
-    if (veh) {
+    if (veh && (veh.def.kind === 'plane' || veh.def.kind === 'jet') && !player.dead) { this._flightCam(dt, veh); return; }
+    this.flightOff = null;
+    if (veh && veh.def.tank) {
+      // tank: free world-space orbit (the turret follows where you look)
+      this.yaw = wrapAngle(this.yaw - dx);
+      this.pitch = clamp(this.pitch - dy, -0.8, 0.28);
+      const size = veh.def.camDist || 12;
+      this.dist = [size, size * 1.4, size * 0.62][this.vehicleCamIndex % 3];
+      this.pivot.set(veh.pos.x, veh.pos.y + (veh.def.camHeight || 3), veh.pos.z);
+      this.fovBase = 60;
+    } else if (veh) {
       // vehicle chase camera
       const vyaw = veh.yaw;
       const speed = veh.speed;
@@ -90,7 +102,8 @@ export class CameraRig {
       _t.set(tp.x, py, tp.z);
       this.pivot.lerp(_t, player.ragdolling ? 1 - Math.exp(-dt * 5) : 1);
       if (!player.ragdolling) this.pivot.copy(_t);
-      this.dist = lerp(4.3, 2.0, this.aimBlend);
+      this.dist = player.chute ? 9 : lerp(4.3, 2.0, this.aimBlend);
+      if (player.chute) this.pivot.y += 2.4;
       this.fovBase = lerp(64, 48, this.aimBlend) + (player.sprinting ? 4 : 0);
     }
 
@@ -117,6 +130,36 @@ export class CameraRig {
     _t.copy(piv).addScaledVector(_d, -10);
     cam.lookAt(_t);
     this.fov = damp(this.fov, this.fovBase, 6, dt);
+    this._finish(dt);
+  }
+
+  // Planes & jets: chase camera locked behind the nose (with lag in the aircraft's frame) that banks with it.
+  _flightCam(dt, veh) {
+    const cam = this.cam;
+    const q = veh.quat;
+    const f = _f.set(0, 0, 1).applyQuaternion(q), u = _u.set(0, 1, 0).applyQuaternion(q);
+    const cg = veh.cg(_c);
+    const size = veh.def.camDist || 15;
+    const dist = [size, size * 1.6, size * 0.5][this.vehicleCamIndex % 3];
+    const back = this.lookBehind ? -1 : 1;
+    _o.copy(f).multiplyScalar(-dist * back);
+    _o.y *= 0.55;
+    _o.addScaledVector(u, dist * 0.17);
+    _o.y += dist * 0.08;
+    if (!this.flightOff) this.flightOff = _o.clone();
+    this.flightOff.lerp(_o, 1 - Math.exp(-dt * 7));
+    this.pos.copy(cg).add(this.flightOff);
+    const gh = this.game.map.groundHeight(this.pos.x, this.pos.z);
+    if (this.pos.y < gh + 1.2) this.pos.y = gh + 1.2;
+    cam.position.copy(this.pos);
+    cam.up.set(0, 1, 0).lerp(u, 0.4).normalize();
+    _t.copy(cg).addScaledVector(f, 300 * back);
+    cam.lookAt(_t);
+    this.yaw = veh.yaw + Math.PI;
+    this.pitch = -0.15;
+    this.curDist = dist;
+    const spd = Math.max(0, veh.forwardSpeed);
+    this.fov = damp(this.fov, 60 + clamp(spd / 160, 0, 1) * 16, 4, dt);
     this._finish(dt);
   }
 

@@ -144,6 +144,16 @@ export class Police {
     this._updateLevel();
   }
 
+  // at least `l` stars right now (restricted areas), still capped by the current mission
+  raise(l) {
+    if (!this.enabled || this.game.player.dead) return;
+    if (this.heat < THRESH[l]) this.heat = THRESH[l] + 0.01;
+    const p = this.game.player;
+    this.lastSeen = this.game.time;
+    this.lastKnown.copy(p.vehicle ? p.vehicle.pos : p.pos);
+    this._updateLevel();
+  }
+
   setLevel(l) {
     this.level = clamp(l, 0, 5);
     this.heat = THRESH[this.level];

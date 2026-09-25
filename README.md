@@ -1,9 +1,9 @@
 # Auto Theft Grand — Los Soles
 
 An open-world crime game that runs in your browser, inspired by the San Andreas era of the genre.
-It's built with Three.js and WebGL 2 and needs no build step. The city, buildings, cars, people, animations,
-sounds and radio music are all generated procedurally when you load the page, so the game ships no 3D models,
-textures or audio files.
+It's built with Three.js and WebGL 2 and needs no build step. The world, buildings, cars, aircraft, people,
+animations, sounds and radio music are all generated procedurally when you load the page. The game ships no 3D
+models or textures; the only asset file is the sound clip played on the WASTED screen.
 
 You play Andre "Dre" Castillo. He comes home to the sunny, smoggy city of **Los Soles** after his little brother
 Tino is gunned down. Within an hour of landing, a crooked detective has robbed him and dumped him in rival gang
@@ -39,11 +39,37 @@ Chrome, Edge or Firefox with hardware acceleration turned on is recommended. If 
 | Q / E, wheel, 1-9 | Switch weapon | G | Hydraulics (lowriders) |
 | F / Enter | Enter or steal a car (carjack drivers) | F | Exit (bail out at speed) |
 
+| Planes & jets | | Helicopters | | Tank | |
+|---|---|---|---|---|---|
+| W / S | Throttle up / down | Space / Shift | Climb / descend | W / S | Drive / reverse |
+| Mouse or ↑ ↓ | Pitch (↓ pulls up) | W / S | Nose down / up (fly forward / back) | A / D | Turn on the spot |
+| A / D | Roll (bank to turn) | A / D | Turn | Mouse | Aim the turret |
+| Q / E | Rudder | Q / E | Strafe | Left mouse | Fire the cannon |
+| Space | Wheel brakes | Mouse | Camera | | |
+| Left / right mouse | Cannon / homing missile (jet) | Left / right mouse | Minigun / rockets (Warhawk) | | |
+| F | Bail out (parachute opens by itself, or press Space) | F | Bail out | F | Climb out |
+
+To take off, open the throttle, build speed down the runway and pull up once the speedometer passes rotation
+speed. The landing gear retracts and deploys by itself. Touch down gently with the wings level: hitting the
+ground hard, nose-first or with the gear up tears the aircraft apart.
+
 Esc or P opens the pause menu: map (right-click to set a waypoint with GPS route), mission brief, stats,
 settings and controls. M opens the map directly. Standard-layout gamepads are supported.
 
 ## Features
 
+- **World.** A GTA-style map of about 7 × 7 km: the city of Los Soles on the coast, three small towns (Fern
+  Creek, Pine Hollow and the desert town of Dry Wells), farmland, pine-forested mountains with a lake, a river
+  with bridges, and a red-rock desert with mesas. The terrain is a streamed heightfield with level of detail,
+  biome shading and instanced vegetation (pines, oaks, saguaros, dead trees, boulders).
+  - **Roads.** A real road graph rather than a pure grid: the elevated six-lane Sol Freeway with on/off ramps and
+    diamond interchanges, winding country highways, dirt tracks, roundabouts in town and in the city, bridges
+    and viaducts, and superblocks that break up the grid (a stadium, a mall, a golf club and a park).
+  - **Fort Carver.** A walled military base in the desert with a runway, hangars, a control tower, barracks,
+    helipads and a tank yard. You can steal the **Raptor** fighter jet, the **Hercules** cargo plane, the
+    **Warhawk** attack helicopter, the **Mammoth** tank and army trucks. It's a restricted zone: after a
+    warning, soldiers open fire and the police send a three-star response. The **Skipper** light plane waits at
+    Fern Creek Airfield, and a **Skylark** helicopter sits on the hospital roof in the city.
 - **City.** Eight districts (Cedar Row, Downtown, Market District, Rosewood, El Corona, Port Morena docks,
   Santa Luz Beach and Vistawood Hills) on a 1.7 km road grid, surrounded by hills and ocean. About 1,700 buildings
   with setback towers, gable-roof houses, warehouses and mansions. The Santa Luz pier has a working Ferris wheel.
@@ -69,9 +95,15 @@ settings and controls. M opens the map directly. Standard-layout gamepads are su
   - Suspension that sways as you drive, jumps and airtime, and crash physics.
   - Dents that deform the body, engine smoke, fire and **explosions** with chain reactions.
   - Tire smoke and skid marks. Smashable lamp posts, hydrants (they spray water), benches and phone booths.
-  - 11 vehicle types, including a police cruiser with a light bar and siren, a lowrider with hydraulics, a
-    supercar and a box truck.
+  - 11 car types, including a police cruiser with a light bar and siren, a lowrider with hydraulics, a
+    supercar and a box truck, plus army trucks.
+  - An analogue speedometer with gear and damage readouts (airspeed, altitude and throttle in aircraft).
   - Drift and stunt-jump cash bonuses.
+- **Flying and armour.** Arcade flight physics: stall and nose drop, banked turns, loops, gear, crash
+  detection and afterburners. Helicopters hover on their own and flare as they land. The Raptor has a cannon
+  and heat-seeking missiles that lock on to vehicles and the police helicopter. The Warhawk has a chin-turret
+  minigun and rocket pods, both aimed with the camera. The tank shrugs off bullets and flattens cars, and its
+  turret tracks where you look. Bail out of anything that flies and a parachute opens.
 - **Combat.** Fists, knife, bat, pistol, SMG, shotgun, assault rifle, rocket launcher and grenades. Headshots,
   tracers, muzzle flashes, blood, bullet holes, scorch marks and bodies that pile up. You can punch, stab, shoot
   or run people over.
@@ -87,6 +119,9 @@ settings and controls. M opens the map directly. Standard-layout gamepads are su
 - **Story.** 22 missions across five chapters, with cutscenes and dialogue: races, a stealth tail, chases, a
   kidnapping rescue, a heist, drive-bys, turf wars, a mansion assault, a rooftop showdown and a finale on the
   pier. Credits roll at the end, then free roam continues.
+- **WASTED / BUSTED.** The death screen follows modern GTA: slow motion, a white flash and a black-and-white
+  blur while the camera drifts away from your body. The "wasted" banner lands on the hit of the stinger. In Free
+  Roam you respawn with all your weapons and cash.
 - **Extras**
   - HUD in the style of the era: clock, weapon and ammo, health and armor, money, wanted stars.
   - A rotating radar with blips and a GPS route.
@@ -102,12 +137,15 @@ index.html, css/          page shell, HUD styles, fonts
 src/main.js               loading screen, title screen with live city flyover, new game / continue
 src/core/                 input (keyboard, mouse, gamepad), events, math/noise utils
 src/render/               sky shader, post-processing, material patching (fog/atmosphere)
-src/world/                city layout & districts, city mesh builder, building/road shaders, props,
-                          landmarks, collision world, environment (time of day, weather, lighting)
+src/world/                worldgen (heightfield, regions, towns), road graph + layout + meshes,
+                          terrain & vegetation streaming, countryside & Fort Carver, city layout,
+                          city mesh builder, shaders, props, collision world, environment
 src/entities/             humanoid generator, animator (IK gait + actions), ragdoll, character,
-                          vehicle models & physics, vehicle catalogue
-src/game/                 game loop, player, camera, vehicles, peds & gangs, traffic, police,
-                          combat, effects, pickups & shops, audio & radio, missions engine, story, save
+                          car models & physics, aircraft / tank models & physics, vehicle catalogue
+src/game/                 game loop, player (+ parachute), camera, vehicles, peds & gangs, lane-following
+                          traffic, police, military base, combat, effects, pickups & shops,
+                          audio & radio, missions engine, story, save
+assets/audio/             the WASTED stinger
 src/ui/                   HUD, radar, pause menu & map
 vendor/three/             Three.js r186 (MIT), bundled
 server.mjs                zero-dependency static server
@@ -115,7 +153,9 @@ server.mjs                zero-dependency static server
 
 ## Tips
 
-- In Free Roam you start with every weapon and $5000.
+- In Free Roam you start with every weapon and $5000, and you keep them when you die.
+- Want to fly without the army on your tail? Take the Skipper at Fern Creek Airfield or the Skylark on the
+  hospital roof.
 - Walk into the green marker at your house in Cedar Row to save.
 - Yellow letter blips on the radar are story missions.
 - If the stars are flashing, stay out of sight.

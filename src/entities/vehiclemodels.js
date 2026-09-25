@@ -47,8 +47,12 @@ function beamMaterial() {
   return _beamMat;
 }
 
+// materials owned by other model builders that must survive a vehicle's disposal
+const EXTRA_SHARED = new Set();
+export function markShared(m) { EXTRA_SHARED.add(m); return m; }
+
 export function isSharedMaterial(m) {
-  if (m === _beamMat) return true;
+  if (m === _beamMat || EXTRA_SHARED.has(m)) return true;
   if (!MATS) return false;
   for (const k in MATS) if (MATS[k] === m) return true;
   return false;

@@ -187,10 +187,13 @@ export function landHeight(x, z) {
     }
   }
   h = cityCoast(x, z, h);
-  // world edges rise into impassable ridges on the land sides
-  const eWd = x - WORLD.minX, eNd = z - WORLD.minZ;
+  // world edges: coastal ranges on the land sides whose seaward faces drop into the Pacific at the map
+  // boundary, so from the air the map reads as an island rather than ending in a wall
+  const eWd = x - WORLD.minX + (fbmN(4.2, z * 0.003, 2) - 0.5) * 60, eNd = z - WORLD.minZ + (fbmN(x * 0.003, 8.1, 2) - 0.5) * 60;
   if (eWd < 450) h += (1 - eWd / 450) ** 2 * 360;
   if (eNd < 450) h += (1 - eNd / 450) ** 2 * 360;
+  const sea = Math.min(smoothstep(10, 170, eWd), smoothstep(10, 170, eNd));
+  if (sea < 1) h = lerp(-28, h, sea * sea * (3 - 2 * sea));
   return Math.max(h, -40);
 }
 

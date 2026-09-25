@@ -31,7 +31,14 @@ export class Gameplay {
       if (c !== g.player) return;
       if (!v.ownedByPlayer) { v.ownedByPlayer = true; if (v.parked || v.traffic) g.stats.carsStolen++; }
       v.traffic = false; v.ai = null; v.parked = false;
-      if (!this.hinted.drive) { this.hinted.drive = true; g.hud.help('<b>W</b> accelerate · <b>S</b> brake/reverse · <b>Space</b> handbrake · <b>N</b> radio · <b>V</b> camera · <b>F</b> exit', 7); }
+      const kind = v.def.kind;
+      if (kind && !this.hinted[kind]) {
+        this.hinted[kind] = true;
+        const guns = v.def.weapons ? (kind === 'jet' ? ' · <b>LMB</b> cannon · <b>RMB</b> homing missile' : kind === 'heli' ? ' · <b>LMB</b> minigun · <b>RMB</b> rockets' : '') : '';
+        if (kind === 'plane' || kind === 'jet') g.hud.help(`<b>W/S</b> throttle · <b>Mouse</b> or <b>↑↓</b> pitch (↓ pulls up) · <b>A/D</b> roll · <b>Q/E</b> rudder · <b>Space</b> brakes${guns} · <b>F</b> bail out. Build speed on the runway, then pull up.`, 12);
+        else if (kind === 'heli') g.hud.help(`<b>Space</b> climb · <b>Shift</b> descend · <b>W/S</b> nose down/up · <b>A/D</b> turn · <b>Q/E</b> strafe · <b>Mouse</b> camera${guns} · <b>F</b> bail out. Wait for the rotor to spin up.`, 12);
+        else if (kind === 'tank') g.hud.help('<b>W/S</b> drive · <b>A/D</b> turn on the spot · <b>Mouse</b> aim the turret · <b>LMB</b> fire the cannon · drive straight over cars.', 10);
+      } else if (!kind && !this.hinted.drive) { this.hinted.drive = true; g.hud.help('<b>W</b> accelerate · <b>S</b> brake/reverse · <b>Space</b> handbrake · <b>N</b> radio · <b>V</b> camera · <b>F</b> exit', 7); }
     });
     ev.on('vehicleExploded', (v) => { if (v.lastDamager === g.player || g.player.vehicle === v) g.stats.carsDestroyed++; });
     ev.on('pedRunOver', (c, v) => { if (v.driver === g.player) g.stats.runOver++; });
@@ -174,7 +181,7 @@ export class Gameplay {
     this.lastPos.copy(pos);
     // drift scoring & stunts
     const v = p.vehicle;
-    if (v && p.seat === 0 && !v.isWrecked) {
+    if (v && p.seat === 0 && !v.isWrecked && !v.def.kind) {
       const spd = v.speedAbs;
       const velYaw = Math.atan2(v.vel.x, v.vel.z);
       const slip = Math.abs(wrapAngle(velYaw - v.yaw));

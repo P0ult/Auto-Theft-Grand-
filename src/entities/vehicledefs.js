@@ -55,6 +55,47 @@ export const VEHICLES = {
     mass: 5200, force: 20000, top: 32, grip: 0.85, drive: 'rwd', steer: 0.5, brake: 30000, rarity: 2, camDist: 12, camHeight: 3.2,
     colors: [0xffffff, 0x1d3557, 0x9b2226],
   },
+  // ------------------------------------------------ military ground vehicles (car physics)
+  ranger: {
+    name: 'Ranger', body: 'suv', L: 4.7, W: 2.05, H: 1.95, wheelbase: 2.85, track: 1.75, wheelR: 0.44, clearance: 0.42,
+    mass: 2300, force: 13000, top: 42, grip: 1.05, drive: 'awd', steer: 0.6, brake: 18000, rarity: 0, camDist: 8.4, camHeight: 2.0, military: true,
+    colors: [0x4b5320, 0x5a5a3c, 0x6b5b3e],
+  },
+  barracks: {
+    name: 'Barracks', body: 'truck', L: 8.2, W: 2.5, H: 3.3, wheelbase: 4.8, track: 2.0, wheelR: 0.55, clearance: 0.5,
+    mass: 7800, force: 26000, top: 30, grip: 0.9, drive: 'awd', steer: 0.5, brake: 36000, rarity: 0, camDist: 13, camHeight: 3.4, military: true,
+    colors: [0x4b5320],
+  },
+  // ------------------------------------------------ tank
+  mammoth: {
+    name: 'Mammoth Tank', kind: 'tank', tank: true, L: 9.2, W: 3.7, H: 2.9, mass: 46000, top: 13, turn: 0.85, accel: 3.2,
+    wheelbase: 5, track: 3, wheelR: 0.5, clearance: 0.5, force: 1, grip: 1, drive: 'awd', steer: 0.5, brake: 1, rarity: 0,
+    camDist: 14, camHeight: 4.2, military: true, weapons: true, health: 3000, bulletMul: 0.05, blastMul: 0.35, colors: [0x4f5a36],
+  },
+  // ------------------------------------------------ aircraft
+  skipper: {
+    name: 'Skipper', kind: 'plane', aircraft: true, L: 8.4, W: 11, H: 2.9, colW: 1.3, mass: 1100, rarity: 0, health: 700,
+    thrust: 11, vStall: 20, vMax: 60, vRotate: 24, pitchRate: 1.3, rollRate: 2.2, yawRate: 0.6, gearH: 1.3, drag: 0.0028,
+    camDist: 17, camHeight: 3.4, maxDial: 200, colors: [0xd62828, 0xf4f1de, 0x1d3557, 0xf77f00],
+  },
+  raptor: {
+    name: 'Raptor', kind: 'jet', aircraft: true, L: 16.5, W: 11.5, H: 4.4, colW: 3.2, mass: 12000, rarity: 0, weapons: true, military: true, health: 1100,
+    thrust: 28, vStall: 34, vMax: 150, vRotate: 42, pitchRate: 1.6, rollRate: 3.6, yawRate: 0.55, gearH: 1.9, drag: 0.0011,
+    camDist: 25, camHeight: 5, maxDial: 400, colors: [0x6b7178, 0x4d535a],
+  },
+  hercules: {
+    name: 'Hercules', kind: 'plane', aircraft: true, L: 29, W: 40, H: 11, colW: 4.4, mass: 40000, rarity: 0, cargo: true, military: true, health: 1800,
+    thrust: 7.5, vStall: 30, vMax: 82, vRotate: 36, pitchRate: 0.55, rollRate: 0.75, yawRate: 0.3, gearH: 2.1, drag: 0.0009,
+    camDist: 46, camHeight: 12, maxDial: 250, colors: [0x5d6a4f],
+  },
+  warhawk: {
+    name: 'Warhawk', kind: 'heli', aircraft: true, L: 15.5, W: 3.2, H: 4.2, colW: 2.2, mass: 7000, rarity: 0, weapons: true, military: true, health: 1300, bulletMul: 0.6,
+    vMax: 72, rotorR: 7.3, skidH: 0.25, camDist: 18, camHeight: 5.5, maxDial: 200, colors: [0x3d4a33],
+  },
+  skylark: {
+    name: 'Skylark', kind: 'heli', aircraft: true, L: 11.5, W: 2.4, H: 3.3, colW: 1.9, mass: 2400, rarity: 0, health: 800,
+    vMax: 62, rotorR: 5.4, skidH: 0.25, camDist: 14, camHeight: 4.2, maxDial: 200, colors: [0x1d3557, 0xe63946, 0xf1faee, 0x111111],
+  },
 };
 
 export const TRAFFIC_POOL = Object.entries(VEHICLES).filter(([, d]) => d.rarity > 0).map(([id, d]) => [id, d.rarity]);

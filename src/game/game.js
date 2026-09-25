@@ -159,10 +159,14 @@ export class Game {
       if (player.vehicle) {
         this.rig.lookBehind = input.down('lookBehind');
         if (input.hit('camera')) this.rig.vehicleCamIndex++;
-        player.aiming = input.aimDown() && player.weaponDef.type === 'gun' && (player.weapon === 'pistol' || player.weapon === 'smg');
-        if (player.aiming) {
-          player.fireCooldown -= dt;
-          if (input.mouse.left && player.fireCooldown <= 0) player.fire(this.rig);
+        const pv0 = player.vehicle;
+        if (pv0.armed && player.seat === 0) player.aiming = !!pv0.showCrosshair; // mounted guns fire from playerControl
+        else {
+          player.aiming = input.aimDown() && player.weaponDef.type === 'gun' && (player.weapon === 'pistol' || player.weapon === 'smg') && !pv0.def.kind;
+          if (player.aiming) {
+            player.fireCooldown -= dt;
+            if (input.mouse.left && player.fireCooldown <= 0) player.fire(this.rig);
+          }
         }
       }
     } else {

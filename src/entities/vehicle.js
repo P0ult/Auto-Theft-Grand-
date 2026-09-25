@@ -25,7 +25,7 @@ export class Vehicle {
     this.def = VEHICLES[id];
     const d = this.def;
     this.color = opts.color ?? pick(d.colors);
-    const model = buildVehicleModel(d, this.color);
+    const model = this.buildModel(d, this.color);
     this.model = model;
     this.group = model.group;
     this.group.rotation.order = 'YXZ';
@@ -34,7 +34,7 @@ export class Vehicle {
     this.pos = this.group.position;
     this.yaw = opts.yaw || 0;
     this.pos.set(opts.x || 0, 0, opts.z || 0);
-    this.pos.y = game.map.groundHeight(this.pos.x, this.pos.z);
+    this.pos.y = opts.y ?? game.map.groundHeight(this.pos.x, this.pos.z);
     this.vel = new THREE.Vector3();
     this.r = 0;
     this.hx = d.W / 2; this.hz = d.L / 2;
@@ -45,7 +45,7 @@ export class Vehicle {
     this.input = { throttle: 0, brake: 0, steer: 0, handbrake: false };
     this.axLong = 0; this.ayLat = 0;
     this.rearGrip = 1;
-    this.health = 1000;
+    this.health = this.maxHealth = d.health ?? 1000;
     this.burnTime = 0;
     this.onFire = false;
     this.exploded = false;
@@ -74,8 +74,12 @@ export class Vehicle {
     this.persistent = !!opts.persistent;
     this.missionTag = opts.missionTag || null;
     this.group.rotation.y = this.yaw;
+    this.setup?.(opts);
     this._updateVisual(0);
   }
+
+  // subclasses (aircraft, tanks) provide their own meshes
+  buildModel(def, color) { return buildVehicleModel(def, color); }
 
   get driver() { return this.occupants[0]; }
   get speed() { return this.vel.x * Math.sin(this.yaw) + this.vel.z * Math.cos(this.yaw); }
@@ -118,7 +122,8 @@ export class Vehicle {
     char.seat = -1;
     this.game.scene.add(char.root);
     const p = pos || this.doorWorld();
-    char.pos.set(p.x, this.game.map.groundHeight(p.x, p.z), p.z);
+    // stand on whatever the vehicle is on (bridge decks, rooftops), not the terrain underneath
+    char.pos.set(p.x, this.game.collision.floorHeight(p.x, p.z, this.pos.y + 0.4), p.z);
     char.root.rotation.set(0, this.yaw, 0);
     char.yaw = this.yaw;
     char.vel.set(this.vel.x * 0.5, 0, this.vel.z * 0.5);

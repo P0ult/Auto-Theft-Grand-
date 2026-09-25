@@ -9,6 +9,8 @@ export const GANGS = {
   kings: { name: 'Cedar Row Kings', color: 0xf2b705, district: 'hood', friendly: true, weapons: ['pistol', 'bat', 'fist'] },
   vipers: { name: 'Vipers', color: 0xc1121f, district: 'corona', friendly: false, weapons: ['pistol', 'smg', 'bat', 'knife'] },
   cuervos: { name: 'Los Cuervos', color: 0x1f7a8c, district: 'docks', friendly: false, weapons: ['pistol', 'smg', 'shotgun'] },
+  // Fort Carver garrison: only hostile once the base is on alert (see military.js)
+  army: { name: 'Army', color: 0x556b2f, district: 'base', friendly: false, weapons: ['rifle'], aggroOnly: true, range: 70 },
 };
 
 const LINES = {
@@ -18,6 +20,7 @@ const LINES = {
   gang: ['Wrong hood, fool!', 'Vipers run this!', 'Get outta here!', 'You lost?'],
   handsUp: ['Take it! Take anything!', 'Don\'t shoot!', 'Please!'],
   jacked: ['My car!', 'Hey, that\'s my ride!', 'Thief!'],
+  army: ['Contact!', 'Intruder on base!', 'Open fire!', 'Take him down!', 'Weapons free!'],
 };
 
 export class Ped extends Character {
@@ -84,10 +87,13 @@ export class Ped extends Character {
     this.aiming = false;
     // gang hostility
     if (this.gang && !GANGS[this.gang].friendly && !player.dead && this.state !== 'attack' && this.state !== 'flee') {
-      const d2 = dist2(this.pos.x, this.pos.z, player.pos.x, player.pos.z);
-      if (d2 < 22 * 22 && (game.peds.gangAggro[this.gang] || d2 < 12 * 12)) {
+      const G = GANGS[this.gang];
+      const pp = player.vehicle ? player.vehicle.pos : player.pos;
+      const d2 = dist2(this.pos.x, this.pos.z, pp.x, pp.z);
+      const R = G.range || 22;
+      if (d2 < R * R && (game.peds.gangAggro[this.gang] || (d2 < 12 * 12 && !G.aggroOnly))) {
         this.threat = player; this.setState('attack');
-        if (game.time - this.lastSay > 5) this.say(pick(LINES.gang));
+        if (game.time - this.lastSay > 5) this.say(pick(G.aggroOnly ? LINES.army : LINES.gang));
       }
     }
     // player aiming at me
@@ -186,7 +192,7 @@ export class Ped extends Character {
     const tp = t.vehicle ? t.vehicle.pos : t.pos;
     const dx = tp.x - this.pos.x, dz = tp.z - this.pos.z;
     const d = Math.hypot(dx, dz);
-    if (d > 60) { this.threat = null; this.setState(this.gang ? 'guard' : 'wander'); return; }
+    if (d > Math.max(60, (GANGS[this.gang]?.range || 0) + 25)) { this.threat = null; this.setState(this.gang ? 'guard' : 'wander'); return; }
     const def = this.weaponDef;
     if (def.type === 'gun') {
       this.aiming = true;
@@ -279,7 +285,7 @@ export class PedManager {
     this.list = [];
     this.maxPeds = game.quality?.peds ?? 36;
     this.spawnTimer = 0;
-    this.gangAggro = { vipers: true, cuervos: false, kings: false };
+    this.gangAggro = { vipers: true, cuervos: false, kings: false, army: false };
     this.frustum = new THREE.Frustum();
     this._m = new THREE.Matrix4();
     this.bodies = 0;
@@ -346,6 +352,7 @@ export class PedManager {
       // gangs in their turf
       for (const gid in GANGS) {
         const g = GANGS[gid];
+        if (g.aggroOnly) continue;
         if (g.district === district && Math.random() < (game.missions?.gangDensity?.[gid] ?? 0.3)) {
           const count = randInt(2, 4);
           const face = Math.random() * 6.28;
@@ -464,7 +471,7 @@ export class PedManager {
       if (!p.persistent && !p.vehicle) {
         if (d2 > 150 * 150 || (p.dead && game.time - p.deathTime > 60 && d2 > 40 * 40)) { this.remove(p); continue; }
       }
-      if (p.vehicle) { p.root.visible = true; p.update(dt); continue; }
+      if (p.vehicle) { p.root.visible = !p.hiddenInVehicle; p.update(dt); continue; }
       sphere.center.set(cx, (p.ragdolling ? p.ragdoll.pos[1] : p.pos.y) + 0.9, cz);
       const vis = this.frustum.intersectsSphere(sphere);
       p.root.visible = vis;

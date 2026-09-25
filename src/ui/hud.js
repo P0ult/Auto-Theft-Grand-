@@ -361,6 +361,10 @@ export class HUD {
       <div><h3>In a vehicle</h3><table><tr><td>W / S</td><td>Accelerate / brake-reverse</td></tr><tr><td>A / D</td><td>Steer</td></tr><tr><td>Space</td><td>Handbrake (drift!)</td></tr>
       <tr><td>H</td><td>Horn (Shift+H: siren in police cars)</td></tr><tr><td>N</td><td>Next radio station</td></tr><tr><td>V</td><td>Change camera</td></tr><tr><td>B</td><td>Look behind</td></tr>
       <tr><td>Right mouse + left mouse</td><td>Drive-by (pistol / SMG)</td></tr><tr><td>G</td><td>Hydraulics (lowriders)</td></tr><tr><td>F</td><td>Exit (bail out when fast)</td></tr></table>
+      </div><div><h3>Planes &amp; jets</h3><table><tr><td>W / S</td><td>Throttle up / down</td></tr><tr><td>Mouse, ↑ ↓</td><td>Pitch (↓ pulls up)</td></tr>
+      <tr><td>A / D</td><td>Roll (bank to turn)</td></tr><tr><td>Q / E</td><td>Rudder</td></tr><tr><td>Space</td><td>Wheel brakes</td></tr><tr><td>Left / right mouse</td><td>Cannon / homing missile</td></tr><tr><td>F</td><td>Bail out (parachute)</td></tr></table>
+      <h3>Helicopters</h3><table><tr><td>Space / Shift</td><td>Climb / descend</td></tr><tr><td>W / S</td><td>Fly forward / back</td></tr><tr><td>A / D</td><td>Turn</td></tr><tr><td>Q / E</td><td>Strafe</td></tr><tr><td>Left / right mouse</td><td>Minigun / rockets</td></tr></table>
+      <h3>Tank</h3><table><tr><td>W / S, A / D</td><td>Drive, turn on the spot</td></tr><tr><td>Mouse / left mouse</td><td>Aim turret / fire</td></tr></table>
       <h3>General</h3><table><tr><td>Esc / P</td><td>Pause, map & settings</td></tr><tr><td>M</td><td>Map</td></tr><tr><td>Space / Enter</td><td>Skip cutscene line</td></tr></table>
       <p class="muted">Gamepad supported (standard layout): sticks, RT/LT to drive, RB handbrake, Y enter vehicle, A sprint.</p></div></div>`;
   }
@@ -495,12 +499,12 @@ export class HUD {
     ctx.font = '22px "Bebas Neue", Impact, sans-serif';
     if (air) {
       const alt = Math.max(0, v.altitude ?? 0);
-      ctx.fillStyle = '#9fe3ff'; ctx.fillText(`ALT ${Math.round(alt * 3.281)} FT`, C, C - R * 0.34);
-      // throttle arc
-      ctx.lineWidth = 5; ctx.strokeStyle = 'rgba(255,255,255,0.15)';
-      ctx.beginPath(); ctx.arc(C, C, R * 0.28, Math.PI * 0.8, Math.PI * 2.2); ctx.stroke();
-      ctx.strokeStyle = '#6cff8a';
-      ctx.beginPath(); ctx.arc(C, C, R * 0.28, Math.PI * 0.8, Math.PI * 0.8 + Math.PI * 1.4 * clamp(v.throttle ?? 0, 0, 1)); ctx.stroke();
+      ctx.fillStyle = '#9fe3ff';
+      ctx.font = '12px "Bebas Neue", Impact, sans-serif'; ctx.fillText('ALT FT', C, C - R * 0.4);
+      ctx.font = '19px "Bebas Neue", Impact, sans-serif'; ctx.fillText(String(Math.round(alt * 3.281)), C, C - R * 0.22);
+      // throttle / rotor bar under the damage bar
+      ctx.fillStyle = 'rgba(255,255,255,0.12)'; ctx.fillRect(C - 34, C + R * 0.84, 68, 4);
+      ctx.fillStyle = '#6cff8a'; ctx.fillRect(C - 34, C + R * 0.84, 68 * clamp(v.throttle ?? 0, 0, 1), 4);
     } else {
       const sp = v.speed;
       const gear = sp < -0.5 ? 'R' : mph < 1 ? 'N' : String(Math.min(6, 1 + Math.floor(mph / (max / 6.2))));
@@ -653,6 +657,10 @@ const ICONS = {
   target: (c) => { c.beginPath(); c.arc(0, 0, 5, 0, Math.PI * 2); c.stroke(); c.fillRect(-1, -1, 2, 2); },
   skull: (c) => { c.beginPath(); c.arc(0, -1, 5, 0, Math.PI * 2); c.fill(); c.fillRect(-3, 3, 6, 3); },
   flag: (c) => { c.fillRect(-4, -6, 2, 12); c.fillRect(-2, -6, 7, 5); },
+  plane: (c) => { c.fillRect(-1, -7, 2, 13); c.fillRect(-7, -2, 14, 2.5); c.fillRect(-3, 4, 6, 2); },
+  jet: (c) => { c.beginPath(); c.moveTo(0, -7); c.lineTo(6, 4); c.lineTo(2, 3); c.lineTo(0, 6); c.lineTo(-2, 3); c.lineTo(-6, 4); c.closePath(); c.fill(); },
+  heli: (c) => { c.beginPath(); c.arc(-1, 1, 3.5, 0, Math.PI * 2); c.fill(); c.fillRect(1, 0, 6, 1.6); c.fillRect(-7, -4.5, 12, 1.4); c.fillRect(-1.5, -4, 1.4, 3); },
+  tank: (c) => { c.fillRect(-6, 0, 12, 4); c.fillRect(-3, -3, 6, 3); c.fillRect(2, -2.2, 6, 1.4); },
 };
 
 export function drawWeaponIcon(c, id, size) {

@@ -3,7 +3,8 @@ import * as THREE from 'three';
 import { Character } from '../entities/character.js';
 import { randomAppearance } from '../entities/humanoid.js';
 import { WEAPONS, WEAPON_ORDER } from './weapondefs.js';
-import { clamp, dampAngle, wrapAngle } from '../core/utils.js';
+import { clamp, damp, dampAngle, wrapAngle } from '../core/utils.js';
+import { std } from '../render/materials.js';
 
 export const PLAYER_LOOK = {
   female: false, skin: 0x8a5536, hair: 0x111111, hairStyle: 'buzz', shirt: 0xf2f2f2, shirtType: 'tank', pants: 0x2b3a55, shorts: false,
@@ -48,11 +49,15 @@ export class Player extends Character {
     if (wantSprint && this.stamina > 0.05) { this.sprinting = true; this.stamina = Math.max(0, this.stamina - dt * 0.08); }
     else { this.sprinting = false; this.stamina = Math.min(1, this.stamina + dt * 0.15); }
     let speed = this.sprinting ? 7.2 : 4.3;
+    if (this.chute) speed = 9;
     if (this.aiming) speed = 2.6;
     if (this.crouching) speed = 1.8;
     if (this.swimming) speed = this.sprinting ? 3.8 : 2.4;
     if (this.anim.busy && this.anim.action && ['jab', 'cross', 'kick', 'stab', 'swing', 'getup'].includes(this.anim.action.name)) speed *= 0.25;
     this.moveTarget.set(dx * speed, dz * speed);
+    // under canopy: glide forward when hands-off, Space opens the chute in free fall
+    if (this.chute && len < 0.1) this.moveTarget.set(Math.sin(this.yaw) * 6, Math.cos(this.yaw) * 6);
+    if (this.skydive && !this.chute && input.hit('jump')) this.openChute();
 
     // facing
     if (this.aiming || (this.anim.busy && def.type === 'melee')) {
@@ -93,6 +98,46 @@ export class Player extends Character {
         if (this.fireCooldown <= 0 && this.reloading <= 0) this.fire(rig);
       }
     }
+  }
+
+  // ------------------------------------------------------------------ bailing out & parachute
+  bailOut(alt) {
+    this.skydive = { t: 0, auto: alt > 28 };
+    if (alt > 28) this.game.hud?.help('Press <b>Space</b> to open your parachute', 3);
+  }
+  openChute() {
+    if (this.chute) return;
+    if (!this._chuteMesh) this._chuteMesh = buildChute();
+    this.root.add(this._chuteMesh);
+    this.chute = true;
+    this.skydive = null;
+    this.airAccel = 5;
+    this.game.audio?.play('swoosh', 1);
+  }
+  closeChute() {
+    if (!this.chute) return;
+    this.root.remove(this._chuteMesh);
+    this.chute = false;
+    this.airAccel = 0;
+  }
+
+  update(dt) {
+    if (this.skydive) {
+      const s = this.skydive;
+      s.t += dt;
+      if (this.grounded || this.dead || this.swimming || this.vehicle || this.ragdolling) this.skydive = null;
+      else {
+        // free fall: air drag bleeds off the aircraft's speed, terminal velocity ~55 m/s
+        this.vel.x *= Math.exp(-dt * 0.9); this.vel.z *= Math.exp(-dt * 0.9);
+        this.vel.y = Math.max(this.vel.y, -55);
+        if (s.auto && s.t > 1.6) this.openChute();
+      }
+    }
+    if (this.chute) {
+      if (this.grounded || this.swimming || this.dead || this.vehicle || this.ragdolling) this.closeChute();
+      else if (this.vel.y < -4.5) this.vel.y = damp(this.vel.y, -4.5, 5, dt);
+    }
+    super.update(dt);
   }
 
   cycleWeapon(dir) {
@@ -177,4 +222,37 @@ export class Player extends Character {
     if (w.clip + w.ammo <= 0) setTimeout(() => { delete this.weapons.grenade; this.switchTo('fist'); }, 800);
   }
 
+}
+
+// Striped ram-air canopy with rigging lines, hung from the shoulders (built once, reused)
+function buildChute() {
+  const g = new THREE.Group();
+  const geo = new THREE.SphereGeometry(3.2, 24, 6, 0, Math.PI * 2, 0, 0.8);
+  const pos = geo.attributes.position;
+  const col = new Float32Array(pos.count * 3);
+  for (let i = 0; i < pos.count; i++) {
+    const a = Math.atan2(pos.getZ(i), pos.getX(i));
+    const k = Math.floor((a + Math.PI) / (Math.PI * 2) * 12) % 2;
+    const c = k ? [0.86, 0.12, 0.1] : [0.95, 0.94, 0.9];
+    col.set(c, i * 3);
+  }
+  geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  const canopy = new THREE.Mesh(geo, std({ color: 0xffffff, vertexColors: true, roughness: 0.85, side: THREE.DoubleSide }, { key: 'chute' }));
+  canopy.scale.set(1.3, 0.5, 0.85);
+  canopy.position.y = 3.9;
+  canopy.castShadow = true;
+  g.add(canopy);
+  const rimY = 3.9 + Math.cos(0.8) * 3.2 * 0.5, rimR = Math.sin(0.8) * 3.2;
+  const lineMat = std({ color: 0x222222, roughness: 0.9 }, { key: 'chuteline' });
+  for (let k = 0; k < 8; k++) {
+    const a = k / 8 * Math.PI * 2;
+    const top = new THREE.Vector3(Math.cos(a) * rimR * 1.3, rimY, Math.sin(a) * rimR * 0.85);
+    const bot = new THREE.Vector3(Math.cos(a) > 0 ? 0.2 : -0.2, 1.45, 0);
+    const d = new THREE.Vector3().subVectors(top, bot);
+    const line = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, d.length(), 3), lineMat);
+    line.position.copy(bot).addScaledVector(d, 0.5);
+    line.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize());
+    g.add(line);
+  }
+  return g;
 }

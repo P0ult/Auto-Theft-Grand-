@@ -2,6 +2,7 @@
 // and enter / exit / carjack sequences for any character.
 import * as THREE from 'three';
 import { Vehicle } from '../entities/vehicle.js';
+import { vehicleClass } from '../entities/aircraft.js';
 import { VEHICLES, TRAFFIC_POOL } from '../entities/vehicledefs.js';
 import { RNG, clamp, dist2, hash2 } from '../core/utils.js';
 
@@ -19,7 +20,8 @@ export class VehicleManager {
   }
 
   spawn(id, x, z, yaw, opts = {}) {
-    const v = new Vehicle(this.game, id, { x, z, yaw, ...opts });
+    const Cls = vehicleClass(VEHICLES[id]) || Vehicle;
+    const v = new Cls(this.game, id, { x, z, yaw, ...opts });
     this.list.push(v);
     return v;
   }
@@ -125,6 +127,19 @@ export class VehicleManager {
     const vax = A.vel.x + A.r * raz, vaz = A.vel.z - A.r * rax;
     const vbx = Bc.vel.x + Bc.r * rbz, vbz = Bc.vel.z - Bc.r * rbx;
     const rvn = (vbx - vax) * nx + (vbz - vaz) * nz;
+    // tanks flatten whatever they drive into
+    const tank = A.def.tank ? A : Bc.def.tank ? Bc : null;
+    if (tank) {
+      const other = tank === A ? Bc : A;
+      if (!other.def.tank && !other.def.kind && tank.speedAbs > 1.2 && this.game.time - (other._crushT || 0) > 0.35) {
+        other._crushT = this.game.time;
+        other.damage(240, tank.driver);
+        other.dent(px, other.pos.y + 1.1, pz, 30);
+        other.bodyYV -= 2.5;
+        this.game.audio?.playAt('crash', _a.set(px, other.pos.y + 0.8, pz), 0.8);
+        this.game.effects?.sparks?.(new THREE.Vector3(px, other.pos.y + 0.8, pz), 12);
+      }
+    }
     if (rvn >= 0) return;
     const raN = raz * nx - rax * nz, rbN = rbz * nx - rbx * nz;
     const e = 0.25;
@@ -237,6 +252,18 @@ export class VehicleManager {
   exit(char, opts = {}) {
     const veh = char.vehicle;
     if (!veh || this.isBusy(char)) return false;
+    if (veh.def.aircraft && (!veh.grounded || veh.speedAbs > 9)) {
+      // bail out: step off the side into the air (the player's chute opens once clear)
+      const alt = veh.altitude;
+      const side = veh.localPoint(veh.hx + 1.6, veh.cgY, 0);
+      veh.takeOut(char, side);
+      char.pos.y = side.y - 1;
+      char.vel.copy(veh.vel).multiplyScalar(0.8);
+      char.grounded = false;
+      if (char.isPlayer) char.bailOut?.(alt);
+      this.game.events.emit('exitedVehicle', char, veh);
+      return true;
+    }
     if (veh.speedAbs > 9 && char.isPlayer) {
       // bail out of a moving car
       veh.takeOut(char, veh.localToWorld(veh.hx + 1.0, 0, 0));

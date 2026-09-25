@@ -395,6 +395,67 @@ export class Audio {
     this.sirens = [];
   }
 
+  // Aircraft engines for the player's plane / jet / helicopter (built on first use)
+  _setupAirAudio() {
+    const ctx = this.ctx;
+    const out = ctx.createGain(); out.gain.value = 0; out.connect(this.sfx);
+    // turbine: broadband roar + whine
+    const roar = this._src(this.noise, true);
+    const rf = ctx.createBiquadFilter(); rf.type = 'bandpass'; rf.frequency.value = 600; rf.Q.value = 0.6;
+    const rg = ctx.createGain(); rg.gain.value = 0;
+    roar.connect(rf).connect(rg).connect(out); roar.start();
+    const rumble = this._src(this.brown, true);
+    const bf = ctx.createBiquadFilter(); bf.type = 'lowpass'; bf.frequency.value = 160;
+    const bg = ctx.createGain(); bg.gain.value = 0;
+    rumble.connect(bf).connect(bg).connect(out); rumble.start();
+    const whine = ctx.createOscillator(); whine.type = 'sine'; whine.frequency.value = 2500;
+    const wg = ctx.createGain(); wg.gain.value = 0;
+    whine.connect(wg).connect(out); whine.start();
+    // piston + propeller buzz
+    const prop = ctx.createOscillator(); prop.type = 'sawtooth'; prop.frequency.value = 40;
+    const prop2 = ctx.createOscillator(); prop2.type = 'square'; prop2.frequency.value = 20;
+    const pf = ctx.createBiquadFilter(); pf.type = 'lowpass'; pf.frequency.value = 500; pf.Q.value = 2;
+    const pg = ctx.createGain(); pg.gain.value = 0;
+    const pg2 = ctx.createGain(); pg2.gain.value = 0.5;
+    prop.connect(pf); prop2.connect(pg2).connect(pf); pf.connect(pg).connect(out); prop.start(); prop2.start();
+    // rotor chop: low noise amplitude-modulated at the blade-pass rate
+    const rot = this._src(this.brown, true);
+    const rof = ctx.createBiquadFilter(); rof.type = 'lowpass'; rof.frequency.value = 420;
+    const am = ctx.createGain(); am.gain.value = 0.45;
+    const lfo = ctx.createOscillator(); lfo.type = 'sine'; lfo.frequency.value = 12;
+    const lg = ctx.createGain(); lg.gain.value = 0.55;
+    lfo.connect(lg).connect(am.gain);
+    const rtg = ctx.createGain(); rtg.gain.value = 0;
+    rot.connect(rof).connect(am).connect(rtg).connect(out); rot.start(); lfo.start();
+    const turb = this._src(this.pink, true);
+    const tf = ctx.createBiquadFilter(); tf.type = 'bandpass'; tf.frequency.value = 1400; tf.Q.value = 1.2;
+    const tg = ctx.createGain(); tg.gain.value = 0;
+    turb.connect(tf).connect(tg).connect(out); turb.start();
+    this.air = { out, rg, rf, bg, wg, whine, prop, prop2, pf, pg, rtg, rof, lfo, tg };
+  }
+
+  _airUpdate(pv, t) {
+    if (!this.air) this._setupAirAudio();
+    const A = this.air, k = pv.def.kind, s = pv.spool || 0;
+    const set = (param, v, tc = 0.08) => param.setTargetAtTime(v, t, tc);
+    set(A.out.gain, pv.isWrecked ? 0 : 1, 0.2);
+    const jet = k === 'jet', plane = k === 'plane', heli = k === 'heli';
+    set(A.rg.gain, jet ? 0.04 + s * 0.3 : plane ? 0.015 : 0);
+    set(A.rf.frequency, 350 + s * 1500);
+    set(A.bg.gain, jet ? s * 0.5 : heli ? s * 0.25 : plane ? s * 0.15 : 0);
+    set(A.wg.gain, jet ? 0.004 + s * 0.012 : heli ? s * 0.004 : 0);
+    set(A.whine.frequency, (jet ? 1800 : 3200) + s * (jet ? 4200 : 1800));
+    const big = pv.def.L > 20;
+    set(A.prop.frequency, (big ? 25 : 38) + s * (big ? 45 : 80));
+    set(A.prop2.frequency, ((big ? 25 : 38) + s * (big ? 45 : 80)) * 0.5);
+    set(A.pf.frequency, 200 + s * 900);
+    set(A.pg.gain, plane ? 0.03 + s * 0.13 : 0);
+    set(A.rtg.gain, heli ? s * 0.55 : 0);
+    set(A.lfo.frequency, 2 + s * (pv.type === 'warhawk' ? 17 : 12));
+    set(A.rof.frequency, 250 + s * 300);
+    set(A.tg.gain, heli ? s * 0.035 : 0);
+  }
+
   _setupAmbience() {
     const ctx = this.ctx;
     const city = this._src(this.brown, true);
@@ -448,7 +509,10 @@ export class Audio {
     // player vehicle
     const pv = game.player.vehicle;
     const V = this.veh;
-    if (pv && !pv.isWrecked) {
+    const flying = pv && pv.def.aircraft;
+    if (flying) this._airUpdate(pv, t);
+    else if (this.air) this.air.out.gain.setTargetAtTime(0, t, 0.3);
+    if (pv && !pv.isWrecked && !flying) {
       const sp = Math.abs(pv.speed);
       const top = pv.def.top;
       // fake gearbox
@@ -475,7 +539,7 @@ export class Audio {
     } else {
       V.out.gain.setTargetAtTime(0, t, 0.1);
       V.tg.gain.setTargetAtTime(0, t, 0.05);
-      V.wg.gain.setTargetAtTime(0, t, 0.2);
+      V.wg.gain.setTargetAtTime(flying && !pv.isWrecked ? clamp(pv.vel.length() / 120, 0, 1) * 0.16 : 0, t, 0.2);
       V.hg.gain.setTargetAtTime(0, t, 0.01);
     }
     // sirens: attach loop handles to nearest 2 siren cars

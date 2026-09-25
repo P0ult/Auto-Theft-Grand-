@@ -8,6 +8,7 @@ import { Combat } from './game/combat.js';
 import { Effects } from './game/effects.js';
 import { Audio } from './game/audio.js';
 import { Pickups } from './game/pickups.js';
+import { Military } from './game/military.js';
 import { Missions } from './game/missions.js';
 import { STORY } from './game/story.js';
 import { SaveSystem } from './game/save.js';
@@ -57,6 +58,7 @@ async function boot() {
   game.addSystem('traffic', new Traffic(game));
   game.addSystem('police', new Police(game));
   game.addSystem('pickups', new Pickups(game));
+  game.addSystem('military', new Military(game));
   setP(0.88, 'Writing the story');
   await tick();
   game.addSystem('missions', new Missions(game, STORY));

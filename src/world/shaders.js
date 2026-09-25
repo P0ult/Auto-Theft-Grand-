@@ -141,11 +141,12 @@ float bandG(float x, float c, float w) { return step(abs(x - c), w); }
       atgRough = mix(0.9, 0.2, uWet);
     } else if (type < 11.5) { // concrete apron slabs
       vec2 g = fract(wp / 7.5);
-      col = vec3(0.56, 0.55, 0.52) * (0.85 + 0.2 * n) * (1.0 - (step(g.x, 0.012) + step(g.y, 0.012)) * 0.3);
-      col *= 1.0 - smoothstep(0.62, 0.85, vn2(wp * 0.35)) * 0.3;
+      float slab = vn2(floor(wp / 7.5) * 1.37);
+      col = vec3(0.38, 0.375, 0.36) * (0.9 + 0.1 * n) * (0.94 + 0.1 * slab) * (1.0 - clamp(step(g.x, 0.01) + step(g.y, 0.01), 0.0, 1.0) * 0.35);
+      col *= 1.0 - smoothstep(0.66, 0.9, vn2(wp * 0.35)) * 0.16; // oil & tyre stains
       atgRough = mix(0.85, 0.25, uWet);
     } else if (type < 12.5) { // helipad
-      col = vec3(0.45, 0.46, 0.44) * (0.85 + 0.2 * n);
+      col = vec3(0.34, 0.35, 0.33) * (0.9 + 0.12 * n);
       float r = length(vec2(u, v));
       float ring = bandG(r, hw * 0.78, 0.35);
       float H = (step(abs(u + 2.2), 0.45) + step(abs(u - 2.2), 0.45)) * step(abs(v), 3.2) + step(abs(u), 2.2) * step(abs(v), 0.45);
