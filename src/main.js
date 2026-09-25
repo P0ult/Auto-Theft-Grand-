@@ -1,29 +1,208 @@
+// Bootstrap: loading screen -> live title screen (city flyover) -> new game / continue.
 import * as THREE from 'three';
 import { Game } from './game/game.js';
-import { Character } from './entities/character.js';
-import { randomAppearance } from './entities/humanoid.js';
+import { PedManager } from './game/peds.js';
+import { Traffic } from './game/traffic.js';
+import { Police } from './game/police.js';
+import { Combat } from './game/combat.js';
+import { Effects } from './game/effects.js';
+import { Audio } from './game/audio.js';
+import { Pickups } from './game/pickups.js';
+import { Missions } from './game/missions.js';
+import { STORY } from './game/story.js';
+import { SaveSystem } from './game/save.js';
+import { Gameplay } from './game/gameplay.js';
+import { HUD } from './ui/hud.js';
 
-const q = new URLSearchParams(location.search);
-const game = new Game(document.getElementById('game'));
-await game.init((p, msg) => console.log('load', p, msg));
-const home = game.map.landmarks.home;
-game.player.setPosition(home.x, undefined, home.z);
-game.player.setYaw(0);
-game.env.setTime(parseFloat(q.get('t') || '10'));
-game.env.timeScale = 0;
-game.rig.yaw = parseFloat(q.get('cy') || '2.6');
-game.rig.pitch = -0.1;
-const v = game.vehicles.spawn(q.get('car') || 'brawler', home.x + 4, home.z + 6, Math.PI / 2);
-game.testCar = v;
-const peds = [];
-for (let i = 0; i < 4; i++) {
-  const c = new Character(game, randomAppearance());
-  c.setPosition(home.x - 3 + i * 1.5, undefined, home.z + 2);
-  c.setYaw(Math.PI * 0.8);
-  peds.push(c);
+const params = new URLSearchParams(location.search);
+const TIPS = [
+  'Tap Space while turning to kick the tail out. Hold throttle to keep the drift alive.',
+  'Losing the cops? Break line of sight and wait for the stars to stop flashing — or visit a Spray Shack.',
+  'Headshots are instant kills on most enemies.',
+  'Hidden packages are scattered across Los Soles. Find them all for a special reward at your safehouse.',
+  'Walk into the green marker at your safehouse to save the game.',
+  'Big Bun Burgers restores your health for $10.',
+  'Press N in a car to cycle radio stations. Radio Los Soles plays West Coast classics.',
+  'Lowriders have hydraulics — press G to bounce.',
+  'Gun Barn in the Market District sells weapons, ammo and body armor.',
+];
+
+function el(tag, cls, parent, html) { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; if (parent) parent.appendChild(e); return e; }
+
+async function boot() {
+  const loading = el('div', 'loading', document.body);
+  el('div', 'art', loading, 'Auto Theft Grand');
+  const bar = el('div', 'bar', loading, '<i></i>');
+  const msg = el('div', 'msg', loading, 'Starting up');
+  el('div', 'tip', loading, TIPS[Math.floor(Math.random() * TIPS.length)]);
+  const setP = (p, m) => { bar.firstChild.style.width = `${Math.round(p * 100)}%`; if (m) msg.textContent = m.toUpperCase(); };
+
+  const settings = SaveSystem.loadSettings();
+  if (params.get('q')) settings.quality = params.get('q');
+  const game = new Game(document.getElementById('game'), { settings });
+  window.__game = game; window.THREE = THREE;
+  try {
+    await game.init(setP);
+  } catch (e) {
+    console.error(e);
+    msg.innerHTML = `Could not start WebGL: ${e.message}. Try a recent Chrome, Edge or Firefox with hardware acceleration enabled.`;
+    return;
+  }
+  setP(0.8, 'Hiring pedestrians');
+  await tick();
+  game.addSystem('effects', new Effects(game));
+  game.addSystem('combat', new Combat(game));
+  game.addSystem('peds', new PedManager(game));
+  game.addSystem('traffic', new Traffic(game));
+  game.addSystem('police', new Police(game));
+  game.addSystem('pickups', new Pickups(game));
+  setP(0.88, 'Writing the story');
+  await tick();
+  game.addSystem('missions', new Missions(game, STORY));
+  game.addSystem('audio', new Audio(game));
+  game.save = new SaveSystem(game);
+  game.addSystem('gameplay', new Gameplay(game));
+  game.hud = new HUD(game);
+  game.pickups.refreshPackages();
+  setP(0.93, 'Compiling shaders');
+  game.input.enabled = false;
+  await warmup(game);
+  game.env.setTime(18.35);
+  game.env.timeScale = 0.25;
+  setP(1, 'Ready');
+  await tick();
+  loading.style.transition = 'opacity 0.8s';
+  loading.style.opacity = 0;
+  setTimeout(() => loading.remove(), 900);
+  game.start();
+  window.__ready = true;
+
+  if (params.get('autostart') === 'new') return startGame(game, false, null);
+  if (params.get('autostart') === 'free') return startGame(game, false, null, true);
+  showTitle(game);
 }
-game.peds = { list: peds, update(dt) { for (const p of peds) p.update(dt); } };
-game.addSystem('peds', game.peds);
-game.start();
-window.__game = game; window.THREE = THREE;
-window.__ready = true;
+
+function showTitle(game) {
+  const t = el('div', 'title-screen transparent', document.body);
+  const logo = el('div', 'title-logo', t);
+  el('div', 'l1', logo, 'AUTO THEFT');
+  el('div', 'l2', logo, 'GRAND');
+  el('div', 'l3', logo, 'Los Soles');
+  const menu = el('div', 'title-menu', t);
+  const hasSave = game.save.hasSave();
+  const info = game.save.info();
+  const bCont = el('button', '', menu, 'Continue');
+  if (!hasSave) bCont.disabled = true;
+  else if (info) bCont.title = `${info.progress} missions complete`;
+  const bNew = el('button', '', menu, 'New Game');
+  const bFree = el('button', '', menu, 'Free Roam');
+  const bSet = el('button', '', menu, 'Settings');
+  const bCtl = el('button', '', menu, 'Controls');
+  el('div', 'title-foot', t, 'WASD + Mouse · Gamepad supported · Best in Chrome/Edge with hardware acceleration · An original parody inspired by open-world crime classics');
+  const go = (cont, free = false) => {
+    game.audio.init();
+    t.style.transition = 'opacity 0.6s';
+    t.style.opacity = 0;
+    setTimeout(() => t.remove(), 700);
+    startGame(game, cont, null, free);
+  };
+  bCont.onclick = () => go(true);
+  bNew.onclick = () => { if (hasSave && !confirm('Start a new game? Your saved progress will be overwritten when you next save.')) return; go(false); };
+  bFree.onclick = () => go(false, true);
+  bSet.onclick = () => { game.audio.init(); game.hud.openPause('settings'); game.paused = false; };
+  bCtl.onclick = () => { game.hud.openPause('controls'); game.paused = false; };
+  (hasSave ? bCont : bNew).focus();
+}
+
+function startGame(game, cont, _, free = false) {
+  const g = game;
+  g.audio.init();
+  document.body.classList.remove('menu');
+  if (g.hud.menuOpen) g.hud.closeOverlay();
+  const p = g.player;
+  const L = g.map.landmarks;
+  p.root.visible = true;
+  g.rig.clearCinematic();
+  g.env.timeScale = 1;
+  g.gameplay.state = 'playing';
+  g.input.enabled = true;
+  g.input.wantLock = true;
+  g.input.requestLock();
+  const home = L.home;
+  if (cont && g.save.load()) {
+    p.setPosition(home.x, undefined, home.z);
+    p.setYaw(0);
+    g.rig.yaw = Math.PI;
+    g.missions.refreshContacts();
+    g.hud.help('Welcome back to Los Soles.', 4);
+  } else if (free) {
+    p.setPosition(home.x, undefined, home.z);
+    p.money = 5000;
+    for (const [w, a] of [['bat', 0], ['pistol', 120], ['smg', 200], ['shotgun', 40], ['rifle', 180], ['rpg', 6], ['grenade', 8]]) p.giveWeapon(w, a);
+    p.equip('pistol');
+    g.env.setTime(17.5);
+    g.missions.completed = new Set(STORY.missions.map((m) => m.id));
+    g.hud.help('Free roam: every weapon, $5000 and the whole city. Cause some chaos!', 7);
+  } else {
+    p.money = 250;
+    const first = STORY.missions.find((m) => m.auto && !(m.requires || []).length);
+    g.missions.start(first);
+  }
+  // pointer lock handling
+  const clickLayer = el('div', 'click-to-play', document.body, '<div>CLICK TO PLAY</div>');
+  clickLayer.onclick = () => { g.input.requestLock(); };
+  g.input.onPointerLockChange = (locked) => {
+    clickLayer.classList.toggle('show', !locked && !g.hud.menuOpen && g.gameplay.state === 'playing');
+    if (!locked && !g.hud.menuOpen && g.gameplay.state === 'playing' && !g.cutscene) { g.hud.openPause('map'); g.hud._autoPauseT = performance.now(); }
+  };
+  setInterval(() => { clickLayer.classList.toggle('show', !g.input.locked && !g.hud.menuOpen && (g.gameplay.state === 'playing' || g.gameplay.state === 'dead') && !g.params?.noLock); }, 500);
+}
+
+function tick() { return new Promise((r) => setTimeout(r, 0)); }
+
+// Spawn one of everything in front of the camera, precompile all shader programs and render a couple
+// of frames (for shadow-map variants), then clean up. Avoids hitches when things first appear.
+async function warmup(game) {
+  const cam = game.camera;
+  const home = game.map.landmarks.home;
+  const base = new THREE.Vector3(home.x, 0, home.z + 30);
+  cam.position.set(base.x, 6, base.z - 18);
+  cam.lookAt(base.x, 1, base.z);
+  cam.updateMatrixWorld();
+  const temp = [];
+  const ids = Object.keys(await import('./entities/vehicledefs.js').then((m) => m.VEHICLES));
+  ids.forEach((id, i) => { const v = game.vehicles.spawn(id, base.x - 20 + i * 4, base.z + (i % 2) * 6, 0); v.explodedPreview = false; temp.push(['v', v]); });
+  const ped = game.peds.spawnPed(base.x, base.z - 4, {});
+  ped.giveWeapon('rifle', 10); ped.equip('rifle');
+  const cop = game.police.spawnCop(base.x + 2, base.z - 4);
+  temp.push(['p', ped], ['p', cop]);
+  const mk = game.pickups.addMarker(base.x - 3, base.z - 6, { radius: 1.2 });
+  const pk = ['money', 'health', 'armor', 'package'].map((k, i) => game.pickups.spawn(k, base.x - 6 + i, base.z - 8, { life: 0.5 }));
+  game.pickups.spawn('weapon', base.x + 4, base.z - 8, { weapon: 'smg', ammo: 1, life: 0.5 });
+  game.effects.explosion(new THREE.Vector3(base.x, 20, base.z + 8), 3);
+  game.effects.blood(new THREE.Vector3(base.x, 1, base.z - 2), new THREE.Vector3(0, 1, 0), 4);
+  game.effects.tracers.add(new THREE.Vector3(base.x, 1, base.z), new THREE.Vector3(base.x + 5, 1, base.z + 5));
+  game.effects.impact(new THREE.Vector3(base.x, 0.2, base.z), new THREE.Vector3(0, 1, 0));
+  for (const w of ['pistol', 'smg', 'shotgun', 'rpg', 'knife', 'bat', 'grenade']) { const m = (await import('./game/weapondefs.js')).createWeaponMesh(w); if (m) { m.position.set(base.x + Math.random() * 4, 1, base.z - 5); game.scene.add(m); temp.push(['m', m]); } }
+  game.env.update(0, base);
+  try { if (game.renderer.compileAsync) await game.renderer.compileAsync(game.scene, cam); else game.renderer.compile(game.scene, cam); } catch (e) { console.warn(e); }
+  game.render(0.016);
+  await tick();
+  // wrecked car + night headlight variants
+  { const vm = await import('./entities/vehiclemodels.js'); temp[1][1].model.body.material = vm.vehicleMaterials().burnt; }
+  game.env.setTime(22);
+  game.render(0.016);
+  await tick();
+  game.env.setTime(12);
+  game.render(0.016);
+  for (const [k, o] of temp) {
+    if (k === 'v') { for (const oc of o.occupants) if (oc) game.peds.remove(oc); game.vehicles.remove(o); }
+    else if (k === 'p') game.peds.remove(o);
+    else o.parent?.remove(o);
+  }
+  game.pickups.removeMarker(mk);
+  game.effects.emitters.length = 0;
+  game.police.reset();
+}
+
+boot();

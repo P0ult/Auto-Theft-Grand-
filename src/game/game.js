@@ -29,6 +29,8 @@ export class Game {
     this.timeScale = 1;
     this.settings = Object.assign({ quality: 'high', volume: 0.8, music: 0.6, sensitivity: 1, invertY: false }, opts.settings || {});
     this.systems = [];
+    this.blips = new Set();
+    this.stats = { kills: 0, copKills: 0, headshots: 0, carsStolen: 0, carsDestroyed: 0, runOver: 0, wasted: 0, busted: 0, maxWanted: 0, bestDrift: 0, driven: 0, walked: 0, playTime: 0, missions: 0, sprays: 0 };
   }
 
   async init(progress = () => {}) {

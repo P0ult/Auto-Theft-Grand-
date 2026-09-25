@@ -172,8 +172,8 @@ export class Character {
       this.onWallHit?.(res.hit);
     }
     // ground
-    const gh = map.groundHeight(this.pos.x, this.pos.z);
-    const depth = WATER_Y - gh;
+    const gh = this.game.collision.floorHeight(this.pos.x, this.pos.z, oldY);
+    const depth = WATER_Y - map.groundHeight(this.pos.x, this.pos.z);
     if (depth > 1.35 && this.pos.y < WATER_Y - 0.85) {
       if (!this.swimming) this.onEnterWater?.();
       this.swimming = true;

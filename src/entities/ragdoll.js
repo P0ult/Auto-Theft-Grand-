@@ -127,7 +127,7 @@ export class Ragdoll {
         for (let i = 0; i < n; i++) {
           const k = i * 3;
           const r = RADIUS[i];
-          const gh = map.groundHeight(p[k], p[k + 2]) + r;
+          const gh = col.floorHeight(p[k], p[k + 2], q[k + 1]) + r;
           if (p[k + 1] < gh) {
             p[k + 1] = gh;
             // friction

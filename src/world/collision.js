@@ -193,6 +193,20 @@ export class CollisionWorld {
     return { t: bestT, x: ox + dx * bestT, y: oy + dy * bestT, z: oz + dz * bestT, nx: nX, ny: nY, nz: nZ, obj: bestObj };
   }
 
+  // Highest walkable surface under (x,z) that is not above y + step (terrain, curbs, roofs, containers)
+  floorHeight(x, z, y, step = 0.55) {
+    let best = this.map.groundHeight(x, z);
+    if (y - best < 0.3) return best;
+    const arr = this.cells.get(this._key(Math.floor(x / CELL), Math.floor(z / CELL)));
+    if (!arr) return best;
+    for (const o of arr) {
+      if (o.kind !== 'box' || o.removed) continue;
+      if (x < o.minX || x > o.maxX || z < o.minZ || z > o.maxZ) continue;
+      if (o.maxY <= y + step && o.maxY > best) best = o.maxY;
+    }
+    return best;
+  }
+
   // Line of sight test (true if clear)
   lineOfSight(ax, ay, az, bx, by, bz) {
     const dx = bx - ax, dy = by - ay, dz = bz - az;
