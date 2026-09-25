@@ -253,6 +253,8 @@ export class PostFX {
     }
     const sw = Math.max(1, Math.floor(w * this.scale)), sh = Math.max(1, Math.floor(h * this.scale));
     const scene = this._makeRT(sw, sh, this.samples);
+    // a 32-bit float depth attachment is what makes the reversed depth buffer precise
+    if (this.renderer.capabilities.reversedDepthBuffer) scene.depthTexture = new THREE.DepthTexture(sw, sh, THREE.FloatType);
     const mips = [], ups = [];
     let mw = Math.max(1, sw >> 1), mh = Math.max(1, sh >> 1);
     for (let i = 0; i < 6; i++) {

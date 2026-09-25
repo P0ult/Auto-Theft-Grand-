@@ -107,16 +107,45 @@ export class City {
 
     const lb = new GeoBuilder(attrs);
     lb.set('aRect', 0, 0, 0, 0);
-    const y = CURB_H + 0.005;
-    for (const s of this.map.lotSurfaces) {
+    // Overlapping lot surfaces (yard + driveway, crossing paths...) are stacked in 1 cm layers so they
+    // never share a plane (that is what made them flicker).
+    const layers = this._lotLayers(this.map.lotSurfaces);
+    this.map.lotSurfaces.forEach((s, i) => {
+      const y = CURB_H + 0.01 + layers[i] * 0.01;
+      s.y = y;
       lb.set('aLot', GROUND_TYPES[s.type] ?? 0);
       lb.quad([s.x0, y, s.z1], [s.x1, y, s.z1], [s.x1, y, s.z0], [s.x0, y, s.z0], [0, 1, 0]);
-    }
+    });
     // beach sand strip handled by terrain; pier handled by landmarks
     const lots = new THREE.Mesh(lb.build(), this.mats.lot);
     lots.receiveShadow = true;
     lots.name = 'lots';
     this.root.add(lots);
+  }
+
+  _lotLayers(list) {
+    const cell = 40, grid = new Map(), layers = new Array(list.length).fill(0);
+    list.forEach((s, i) => {
+      let layer = 0;
+      const seen = new Set();
+      for (let gx = Math.floor(s.x0 / cell); gx <= Math.floor(s.x1 / cell); gx++) for (let gz = Math.floor(s.z0 / cell); gz <= Math.floor(s.z1 / cell); gz++) {
+        const arr = grid.get(gx * 7919 + gz);
+        if (!arr) continue;
+        for (const j of arr) {
+          if (seen.has(j)) continue;
+          seen.add(j);
+          const o = list[j];
+          if (o.x0 < s.x1 - 0.01 && o.x1 > s.x0 + 0.01 && o.z0 < s.z1 - 0.01 && o.z1 > s.z0 + 0.01) layer = Math.max(layer, layers[j] + 1);
+        }
+      }
+      layers[i] = Math.min(layer, 4);
+      for (let gx = Math.floor(s.x0 / cell); gx <= Math.floor(s.x1 / cell); gx++) for (let gz = Math.floor(s.z0 / cell); gz <= Math.floor(s.z1 / cell); gz++) {
+        const k = gx * 7919 + gz;
+        if (!grid.has(k)) grid.set(k, []);
+        grid.get(k).push(i);
+      }
+    });
+    return layers;
   }
 
   // -------------------------------------------------------------- buildings
@@ -485,7 +514,7 @@ export class City {
     const poolMat = std({ color: 0xffffff, roughness: 0.05, metalness: 0.0 }, waterExt('pool', true));
     const pg = new GeoBuilder({ position: 3, normal: 3, uv: 2 });
     for (const pl of this.map.pools) {
-      const y = CURB_H + 0.02;
+      const y = CURB_H + 0.08;
       pg.quad([pl.x0, y, pl.z1], [pl.x1, y, pl.z1], [pl.x1, y, pl.z0], [pl.x0, y, pl.z0], [0, 1, 0]);
     }
     if (!pg.empty) {

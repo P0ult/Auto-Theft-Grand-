@@ -36,7 +36,8 @@ export class Game {
   async init(progress = () => {}) {
     const q = QUALITY[this.settings.quality] || QUALITY.high;
     this.quality = q;
-    const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance', stencil: false });
+    // reversed float depth: stable depth precision from 25 cm to many kilometres (no distant z-fighting)
+    const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance', stencil: false, reversedDepthBuffer: !this.opts.noReversedDepth });
     renderer.setPixelRatio(q.pixelRatio);
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.shadowMap.enabled = true;

@@ -528,7 +528,7 @@ export class CityMap {
         this._addBuilding(b, x0, iz0 + 6, x0 + 1, iz0 + 18, 6, 4, { tint: [0.9, 0.6, 0.3], seed: 0.5 });
         this._addBuilding(b, x1 - 1, iz0 + 6, x1, iz0 + 18, 6, 4, { tint: [0.9, 0.6, 0.3], seed: 0.5 });
         this._addBuilding(b, x0, iz0 + 17, x1, iz0 + 18, 6, 4, { tint: [0.9, 0.6, 0.3], seed: 0.5 });
-        this._addBuilding(b, x0, iz0 + 5.5, x1, iz0 + 18, 1.2, 4, { tint: [0.9, 0.6, 0.3], seed: 0.5, y0: CURB_H + 5, name: 'Spray Shack', sign: 'SPRAY SHACK', noCollide: true });
+        this._addBuilding(b, x0 - 0.3, iz0 + 5.5, x1 + 0.3, iz0 + 18.3, 1.2, 4, { tint: [0.9, 0.6, 0.3], seed: 0.5, y0: CURB_H + 5, name: 'Spray Shack', sign: 'SPRAY SHACK', noCollide: true });
         this.lotSurfaces.push({ x0, z0: iz0, x1, z1: iz0 + 18, type: 'concrete' });
         this.landmarks[sp] = { x: (x0 + x1) / 2, z: iz0 + 12, entry: { x: (x0 + x1) / 2, z: iz0 - 3 } };
         break;
@@ -574,7 +574,7 @@ export class CityMap {
         this._addBuilding(b, ix0 + 4, iz1 - 16, ix0 + 26, iz1 - 15, 6, 4, { tint: [0.4, 0.45, 0.5], seed: 0.61 });
         this._addBuilding(b, ix0 + 4, iz1 - 16, ix0 + 5, iz1 - 2, 6, 4, { tint: [0.4, 0.45, 0.5], seed: 0.61 });
         this._addBuilding(b, ix0 + 25, iz1 - 16, ix0 + 26, iz1 - 2, 6, 4, { tint: [0.4, 0.45, 0.5], seed: 0.61 });
-        this._addBuilding(b, ix0 + 4, iz1 - 16, ix0 + 26, iz1 - 2, 1, 4, { tint: [0.4, 0.45, 0.5], seed: 0.61, y0: CURB_H + 6, name: 'Lock-Up Garage', sign: 'GARAGE', noCollide: true });
+        this._addBuilding(b, ix0 + 3.7, iz1 - 16.3, ix0 + 26.3, iz1 - 2, 1, 4, { tint: [0.4, 0.45, 0.5], seed: 0.61, y0: CURB_H + 5.9, name: 'Lock-Up Garage', sign: 'GARAGE', noCollide: true });
         this.lotSurfaces.push({ x0: ix0 + 4, z0: iz1 - 16, x1: ix0 + 26, z1: iz1, type: 'concrete' });
         this.landmarks.garage = { x: ix0 + 15, z: iz1 - 8, entry: { x: ix0 + 15, z: iz1 + 3 } };
         break;

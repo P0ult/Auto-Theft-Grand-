@@ -398,7 +398,7 @@ export class Effects {
   }
 
   blood(pos, dir, amount = 8) {
-    const floor = this.game.map.groundHeight(pos.x, pos.z) + 0.02;
+    const floor = this.game.map.groundHeight(pos.x, pos.z) + 0.07;
     for (let i = 0; i < amount; i++) {
       const sp = rand(1, 4);
       this.dotAlpha.spawn(P({
@@ -412,7 +412,7 @@ export class Effects {
   }
 
   bloodPool(pos) {
-    const y = this.game.map.groundHeight(pos.x, pos.z) + 0.01;
+    const y = this.game.map.groundHeight(pos.x, pos.z) + 0.07;
     this.decals.add(new THREE.Vector3(pos.x, y, pos.z), UP, 0.3, 1, { grow: 0.18, targetSize: rand(1.4, 2.2), life: 150 });
   }
 
@@ -454,7 +454,7 @@ export class Effects {
     for (let i = 0; i < 16; i++) this.dotAlpha.spawn(P({ x: pos.x, y: pos.y, z: pos.z, vx: rand(-9, 9), vy: rand(4, 14), vz: rand(-9, 9), life: rand(1, 2), size0: rand(0.1, 0.25), size1: 0.1, color: [0.05, 0.05, 0.05], grav: -16, drag: 0.2, floor: this.game.map.groundHeight(pos.x, pos.z) }));
     this.flash(pos, 0xff8a3a, 250, 0.9, 60);
     const gy = this.game.map.groundHeight(pos.x, pos.z);
-    if (pos.y - gy < 3) this.decals.add(new THREE.Vector3(pos.x, gy + 0.01, pos.z), UP, radius * 0.9, 2, { life: 200 });
+    if (pos.y - gy < 3) this.decals.add(new THREE.Vector3(pos.x, gy + 0.07, pos.z), UP, radius * 0.9, 2, { life: 200 });
     // lingering fire
     this.emitters.push({ type: 'fire', pos: pos.clone().setY(gy + 0.2), t: 0, life: 6, size: s * 1.2 });
   }
