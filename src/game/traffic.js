@@ -100,9 +100,10 @@ export class LaneDriver {
     }
     const pl = this.game.player;
     if (!pl.vehicle) check(pl.pos.x, pl.pos.z, 0.5);
-    if (this.game.peds) for (const p of this.game.peds.list) {
-      if (p.vehicle || Math.abs(p.pos.x - v.pos.x) > maxD + 4 || Math.abs(p.pos.z - v.pos.z) > maxD + 4) continue;
-      check(p.ragdolling ? p.ragdoll.pos[0] : p.pos.x, p.ragdolling ? p.ragdoll.pos[2] : p.pos.z, 0.4);
+    if (this.game.peds && !(this.impatient > 0)) for (const p of this.game.peds.list) {
+      if (p.vehicle || p.dead || p.ragdolling) continue;
+      if (Math.abs(p.pos.x - v.pos.x) > maxD + 4 || Math.abs(p.pos.z - v.pos.z) > maxD + 4) continue;
+      check(p.pos.x, p.pos.z, 0.4);
     }
     return best;
   }
@@ -175,6 +176,9 @@ export class LaneDriver {
         this.game.audio?.playAt('horn', v.pos, 0.7);
       }
     } else this.blockedTime = 0;
+    // blocked for a long time: stop yielding to pedestrians and nudge through
+    this.impatient = Math.max(0, (this.impatient || 0) - dt);
+    if (this.blockedTime > 9) { this.impatient = 3; this.blockedTime = 0; }
     // blocked for a while (double-parked car, wreck, player's car): change lanes to get around
     if (this.blockedTime > 5 && this.mode === 'lane') {
       this.blockedTime = 0;

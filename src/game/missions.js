@@ -13,8 +13,20 @@ class MissionAbort extends Error {}
 // Drives along the road grid toward a destination (greedy routing), optionally fleeing from the player.
 export class RouteDriver extends LaneDriver {
   constructor(game, veh, dest, opts = {}) {
-    const seg = nearestSegment(veh.pos.x, veh.pos.z, veh.yaw) || { i: 0, j: 0, di: 1, dj: 0, lane: 0 };
+    // start in the lane that heads toward the destination (unless fleeing)
+    const yaw = opts.flee ? veh.yaw : Math.atan2(dest.x - veh.pos.x, dest.z - veh.pos.z);
+    const seg = nearestSegment(veh.pos.x, veh.pos.z, yaw) || nearestSegment(veh.pos.x, veh.pos.z, veh.yaw) || { i: 0, j: 0, di: 1, dj: 0, lane: 0 };
     super(game, veh, seg);
+    if (!opts.flee && opts.snap !== false && veh.speedAbs < 2) {
+      // turn the car around in place if it was parked facing the wrong way
+      const segYaw = Math.atan2(seg.di, seg.dj);
+      if (Math.abs(wrapAngle(segYaw - veh.yaw)) > Math.PI / 2) {
+        veh.yaw = segYaw;
+        const g = this.geom;
+        const s = clamp((veh.pos.x - g.ax) * g.dx + (veh.pos.z - g.az) * g.dz, 0, g.len);
+        veh.pos.x = g.ax + g.dx * s; veh.pos.z = g.az + g.dz * s;
+      }
+    }
     this.dest = dest;
     this.cruise = opts.speed ?? 22;
     this.ignoreLights = opts.ignoreLights ?? true;

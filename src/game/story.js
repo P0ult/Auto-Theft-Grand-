@@ -768,7 +768,7 @@ export const STORY = {
         const dcar = m.car('summit', r.x, r.z, r.yaw, { color: 0x111111 });
         const deacon = m.ped(r.x, r.z, { appearance: look('deacon'), invincible: true }); dcar.putIn(deacon, 0);
         const dest = { x: L.plaza.x, z: L.plaza.z + 40 };
-        const drv = new RouteDriver(game, dcar, dest, { speed: 13, ignoreLights: false });
+        const drv = new RouteDriver(game, dcar, dest, { speed: 14, ignoreLights: true });
         dcar.ai = null;
         m.blipEntity(dcar, 0x4aa3ff, 'car');
         m.objective('Follow <span class="b">Deacon</span>. Keep your distance.');
@@ -782,8 +782,14 @@ export const STORY = {
         });
         m.failIf(() => m.distTo(deacon) > 150, 'You lost Deacon.');
         m.failIf(() => close > 2.5, 'Deacon spotted you.');
-        m.failIf(() => dcar.health < 900, 'Deacon noticed someone was messing with his car.');
+        let spotted = false;
+        const off1 = game.events.on('carCrash', (A, B) => { const pv = m.player.vehicle; if (pv && ((A === dcar && B === pv) || (B === dcar && A === pv))) spotted = true; });
+        const off2 = game.events.on('vehicleShot', (v, sh) => { if (v === dcar && sh === m.player) spotted = true; });
+        const off3 = game.events.on('gunshot', (sh) => { if (sh === m.player && m.distTo(deacon) < 60) spotted = true; });
+        m.failIf(() => spotted, 'Deacon noticed you.');
+        m.tick(() => { if (!game.missions.active) { off1(); off2(); off3(); } });
         await m.until(() => drv.arrived);
+        off1(); off2(); off3();
         m.hud.setBar(null);
         const pz = L.plaza;
         const voss = m.ped(pz.x + 2, pz.z + 3, { appearance: look('voss'), invincible: true });

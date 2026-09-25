@@ -341,7 +341,7 @@ export class PedManager {
       const n2 = nodes[pick(n.links)];
       const t = Math.random();
       const sx = n.x + (n2.x - n.x) * t + rand(-1, 1), sz = n.z + (n2.z - n.z) * t + rand(-1, 1);
-      if (map.isOnRoad(sx, sz) && !(n.cross && n.cross.includes(n2.id))) continue;
+      if (map.isOnRoad(sx, sz)) continue;
       const district = b.district;
       // gangs in their turf
       for (const gid in GANGS) {
