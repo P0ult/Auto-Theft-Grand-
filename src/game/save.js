@@ -16,6 +16,7 @@ export class SaveSystem {
 
   save(auto = false) {
     const g = this.game, p = g.player;
+    if (g.freeRoam) return false; // free roam (everything unlocked, unlimited cash) never touches the story save
     const weapons = {};
     for (const [id, w] of Object.entries(p.weapons)) weapons[id] = { ammo: Number.isFinite(w.ammo) ? w.ammo : -1, clip: Number.isFinite(w.clip) ? w.clip : -1 };
     const data = {

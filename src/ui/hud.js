@@ -205,6 +205,7 @@ export class HUD {
   promptSave() {
     const game = this.game;
     if (game.missions?.active) { this.help('You can\'t save during a mission.'); return; }
+    if (game.freeRoam) { this.help('Free roam isn\'t saved — your story save is left untouched.'); return; }
     game.paused = true;
     game.input.exitLock();
     const o = this.overlay;
@@ -245,7 +246,9 @@ export class HUD {
     h('h1', 'logo-small', head, 'AUTO THEFT <span>GRAND</span>');
     const tabs = h('div', 'tabs', head);
     const body = h('div', 'pause-body', panel);
-    const T = { map: 'Map', brief: 'Brief', stats: 'Stats', settings: 'Settings', controls: 'Controls' };
+    const T = game.freeRoam
+      ? { map: 'Map', teleport: 'Teleport', stats: 'Stats', settings: 'Settings', controls: 'Controls' }
+      : { map: 'Map', brief: 'Brief', stats: 'Stats', settings: 'Settings', controls: 'Controls' };
     const show = (t) => {
       tabs.querySelectorAll('button').forEach((b) => b.classList.toggle('active', b.dataset.t === t));
       body.innerHTML = '';
@@ -254,7 +257,7 @@ export class HUD {
     for (const k in T) { const b = h('button', 'tab', tabs, T[k]); b.dataset.t = k; b.onclick = () => { game.audio?.play('ui'); show(k); }; }
     const foot = h('div', 'pause-foot', panel);
     const resume = h('button', 'btn primary', foot, 'Resume (Esc)'); resume.onclick = () => this.closeOverlay();
-    const save = h('button', 'btn', foot, 'Save game'); save.onclick = () => { if (game.missions?.active) { save.textContent = 'Can\'t save during a mission'; return; } game.save?.save(); save.textContent = 'Saved ✓'; };
+    const save = h('button', 'btn', foot, 'Save game'); save.onclick = () => { if (game.missions?.active) { save.textContent = 'Can\'t save during a mission'; return; } if (game.freeRoam) { save.textContent = 'Free roam isn\'t saved'; return; } game.save?.save(); save.textContent = 'Saved ✓'; };
     const quit = h('button', 'btn', foot, 'Quit to title'); quit.onclick = () => { location.reload(); };
     show(tab);
   }
@@ -301,6 +304,28 @@ export class HUD {
     cv.onwheel = (e) => { e.preventDefault(); view.zoom = clamp(view.zoom * (e.deltaY > 0 ? 0.85 : 1.18), 0.3, 14); draw(); };
     const setWP = (e) => { e.preventDefault(); const [x, z] = toWorld(e.offsetX, e.offsetY); this.setWaypoint(x, z); this.routeTimer = 0; this._updateRoute(true); draw(); };
     cv.oncontextmenu = setWP; cv.ondblclick = setWP;
+  }
+
+  _tab_teleport(body) {
+    const game = this.game, fr = game.freeroam;
+    const box = h('div', 'teleport', body);
+    const v = game.player.vehicle;
+    const note = !v ? 'You\'ll arrive on foot at the pavement nearest each spot.'
+      : v.def.train ? 'You\'ll step off the train first — it can\'t leave the rails.'
+      : v.def.aircraft && !v.grounded ? `Your ${v.def.name} will arrive in the air over the destination.`
+      : `Your ${v.def.name} comes with you, parked at the kerb.`;
+    h('p', 'muted', box, `${note} Set a waypoint on the map to teleport anywhere. Press <b>T</b> any time to open this list.`);
+    const groups = new Map();
+    for (const d of fr.destinations()) { if (!groups.has(d.group)) groups.set(d.group, []); groups.get(d.group).push(d); }
+    const cols = h('div', 'tp-cols', box);
+    for (const [name, list] of groups) {
+      const g = h('div', 'tp-group', cols);
+      h('h3', '', g, name);
+      for (const d of list) {
+        const b = h('button', 'tp-btn', g, d.name);
+        b.onclick = () => { game.audio?.play('ui'); this.closeOverlay(); fr.teleport(d); };
+      }
+    }
   }
 
   _tab_brief(body) {
@@ -365,7 +390,7 @@ export class HUD {
       <tr><td>A / D</td><td>Roll (bank to turn)</td></tr><tr><td>Q / E</td><td>Rudder</td></tr><tr><td>Space</td><td>Wheel brakes</td></tr><tr><td>Left / right mouse</td><td>Cannon / homing missile</td></tr><tr><td>F</td><td>Bail out (parachute)</td></tr></table>
       <h3>Helicopters</h3><table><tr><td>Space / Shift</td><td>Climb / descend</td></tr><tr><td>W / S</td><td>Fly forward / back</td></tr><tr><td>A / D</td><td>Turn</td></tr><tr><td>Q / E</td><td>Strafe</td></tr><tr><td>Left / right mouse</td><td>Minigun / rockets</td></tr></table>
       <h3>Tank</h3><table><tr><td>W / S, A / D</td><td>Drive, turn on the spot</td></tr><tr><td>Mouse / left mouse</td><td>Aim turret / fire</td></tr></table>
-      <h3>General</h3><table><tr><td>Esc / P</td><td>Pause, map & settings</td></tr><tr><td>M</td><td>Map</td></tr><tr><td>Space / Enter</td><td>Skip cutscene line</td></tr></table>
+      <h3>General</h3><table><tr><td>Esc / P</td><td>Pause, map & settings</td></tr><tr><td>M</td><td>Map</td></tr><tr><td>T</td><td>Teleport (free roam)</td></tr><tr><td>Space / Enter</td><td>Skip cutscene line</td></tr></table>
       <p class="muted">Gamepad supported (standard layout): sticks, RT/LT to drive, RB handbrake, Y enter vehicle, A sprint.</p></div></div>`;
   }
 
@@ -376,6 +401,10 @@ export class HUD {
     const input = game.input;
     if (input.hit('pause')) { if (!(this._autoPauseT && performance.now() - this._autoPauseT < 450)) this.togglePause(); }
     else if (input.hit('map') && !this.menuOpen) this.openPause('map');
+    else if (input.hit('teleport') && !this.menuOpen && game.gameplay?.state === 'playing' && !game.cutscene) {
+      if (game.freeroam?.active) this.openPause('teleport');
+      else this.help('Teleporting is a free roam feature — pick <b>Free Roam</b> on the title screen.', 4);
+    }
     if (this.menuOpen) { this._tick(dt); return; }
     if (input.hit('radio') && p.vehicle) game.audio?.radio?.next();
 
@@ -396,7 +425,7 @@ export class HUD {
       c.clearRect(0, 0, 96, 96);
       drawWeaponIcon(c, p.weapon, 96);
     }
-    this.ammo.textContent = def.type === 'melee' ? '' : def.type === 'thrown' ? `${(w.clip || 0) + (w.ammo || 0)}` : `${w.ammo}-${w.clip}`;
+    this.ammo.textContent = def.type === 'melee' ? '' : game.freeroam?.active ? '∞' : def.type === 'thrown' ? `${(w.clip || 0) + (w.ammo || 0)}` : `${w.ammo}-${w.clip}`;
     // wanted
     const police = game.police;
     const lvl = police ? police.level : 0;

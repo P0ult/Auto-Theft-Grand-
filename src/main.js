@@ -14,6 +14,7 @@ import { Missions } from './game/missions.js';
 import { STORY } from './game/story.js';
 import { SaveSystem } from './game/save.js';
 import { Gameplay, FREE_ROAM_KIT } from './game/gameplay.js';
+import { FreeRoam } from './game/freeroam.js';
 import { HUD } from './ui/hud.js';
 
 const params = new URLSearchParams(location.search);
@@ -27,6 +28,8 @@ const TIPS = [
   'Press N in a car to cycle radio stations. Radio Los Soles plays West Coast classics.',
   'Lowriders have hydraulics — press G to bounce.',
   'Gun Barn in the Market District sells weapons, ammo and body armor.',
+  'In free roam, press T to teleport to any town, station, airfield or landmark.',
+  'Catch the Sol Line at Union Station: ride it to Fern Creek and Dry Wells, or climb into the cab and drive.',
 ];
 
 function el(tag, cls, parent, html) { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; if (parent) parent.appendChild(e); return e; }
@@ -67,6 +70,7 @@ async function boot() {
   game.addSystem('audio', new Audio(game));
   game.save = new SaveSystem(game);
   game.addSystem('gameplay', new Gameplay(game));
+  game.addSystem('freeroam', new FreeRoam(game));
   game.hud = new HUD(game);
   game.pickups.refreshPackages();
   setP(0.93, 'Compiling shaders');
@@ -160,13 +164,13 @@ function startGame(game, cont, _, free = false) {
     g.hud.help('Welcome back to Los Soles.', 4);
   } else if (free) {
     p.setPosition(home.x, undefined, home.z);
-    p.money = 5000;
     for (const [w, a] of FREE_ROAM_KIT) p.giveWeapon(w, a);
     p.equip('pistol');
     g.freeRoam = true;
     g.env.setTime(17.5);
     g.missions.completed = new Set(STORY.missions.map((m) => m.id));
-    g.hud.help('Free roam: every weapon, $5000 and the whole city. Cause some chaos!', 7);
+    g.freeroam.update();
+    g.hud.help('Free roam: every weapon, unlimited cash and ammo. Press <b>T</b> to teleport anywhere. Cause some chaos!', 8);
   } else {
     p.money = 250;
     const first = STORY.missions.find((m) => m.auto && !(m.requires || []).length);

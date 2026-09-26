@@ -199,7 +199,7 @@ export class Player extends Character {
       else { this.game.audio?.play('dryfire'); this.fireCooldown = 0.3; }
       return;
     }
-    w.clip--;
+    if (!this.game.freeroam?.active) w.clip--;
     this.fireCooldown = def.rate;
     this.anim.recoil = def.recoil;
     rig.addShake(def.shake || 0.2);
@@ -213,7 +213,7 @@ export class Player extends Character {
   throwGrenade(rig) {
     const w = this.weapons.grenade;
     if (!w || w.clip + w.ammo <= 0) return;
-    if (w.clip > 0) w.clip--; else w.ammo--;
+    if (this.game.freeroam?.active) { /* unlimited */ } else if (w.clip > 0) w.clip--; else w.ammo--;
     this.fireCooldown = 1.0;
     this.yaw = rig.forwardYaw;
     const a = this.anim.play('throw');

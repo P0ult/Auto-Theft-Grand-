@@ -149,6 +149,12 @@ body.cinematic .hud-subtitles { bottom: 3.5vh; z-index: 7; }
 .ctl-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 24px; }
 .controls h3 { font-family: var(--hud-font); font-weight: 400; font-size: 26px; margin: 4px 0 6px; }
 .muted { color: #999; font-size: 13px; }
+.teleport > p { margin: 0 0 10px; }
+.tp-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 18px 22px; align-items: start; }
+.tp-group { display: flex; flex-direction: column; gap: 4px; }
+.tp-group h3 { font-family: var(--hud-font); font-weight: 400; font-size: 24px; letter-spacing: 1px; color: var(--gold); margin: 0 0 4px; }
+.tp-btn { text-align: left; background: rgba(255,255,255,0.05); color: #eee; border: 0; border-left: 3px solid transparent; padding: 7px 10px; font-size: 14px; font-weight: 600; cursor: pointer; border-radius: 2px; }
+.tp-btn:hover, .tp-btn:focus { background: rgba(232,182,76,0.18); border-left-color: var(--gold); color: #fff; outline: none; }
 
 /* ----------------------------------------------------------------- title & loading */
 .title-screen { position: fixed; inset: 0; z-index: 30; display: flex; flex-direction: column; align-items: center; justify-content: center; background: radial-gradient(ellipse at 50% 120%, #f59e3d 0%, #b8452c 28%, #4b1c3f 55%, #120d1f 80%); overflow: hidden; }

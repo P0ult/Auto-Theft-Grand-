@@ -22,6 +22,7 @@ const BINDINGS = {
   lookBehind: ['KeyB'],
   hydraulics: ['KeyG'],
   shop: ['KeyY'],
+  teleport: ['KeyT'],
 };
 
 export class Input {

@@ -24,6 +24,7 @@ export class Audio {
     if (!Ctx) return;
     const ctx = new Ctx();
     this.ctx = ctx;
+    guardAudioParams();
     this.master = ctx.createGain();
     this.master.gain.value = this.volume;
     const comp = ctx.createDynamicsCompressor();
@@ -694,3 +695,19 @@ class Radio {
 }
 
 export { STATIONS };
+
+// A stray non-finite value (a sound placed at a NaN position, say) makes Web Audio throw inside the frame
+// loop. Drop such writes instead, and report the first one so the source can be found.
+let guarded = false;
+function guardAudioParams() {
+  if (guarded || typeof AudioParam === 'undefined') return;
+  guarded = true;
+  const P = AudioParam.prototype, d = Object.getOwnPropertyDescriptor(P, 'value');
+  let warned = false;
+  const bad = () => { if (!warned) { warned = true; console.warn('audio: dropped a non-finite AudioParam value ' + new Error().stack); } };
+  if (d?.set) Object.defineProperty(P, 'value', { get: d.get, set(v) { if (Number.isFinite(v)) d.set.call(this, v); else bad(); }, configurable: true, enumerable: d.enumerable });
+  for (const k of ['setValueAtTime', 'setTargetAtTime', 'linearRampToValueAtTime', 'exponentialRampToValueAtTime']) {
+    const f = P[k];
+    if (f) P[k] = function (v, ...a) { if (Number.isFinite(v) && a.every(Number.isFinite)) return f.call(this, v, ...a); bad(); return this; };
+  }
+}
