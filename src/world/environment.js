@@ -113,6 +113,7 @@ export class Environment {
     this.rain = lerp(this.rain, this.targetRain, clamp(dt * 0.08, 0, 1));
     this.fogBoost = lerp(this.fogBoost, this.fogTarget || 0, clamp(dt * 0.05, 0, 1));
     U.uWet.value = clamp(lerp(U.uWet.value, this.rain > 0.2 ? 1 : 0, dt * (this.rain > 0.2 ? 0.05 : 0.01)), 0, 1);
+    U.uRain.value = this.rain;
     if (this.weather === 'storm' && Math.random() < dt * 0.08) this.lightning = 1;
     this.lightning = Math.max(0, this.lightning - dt * 3.5);
 

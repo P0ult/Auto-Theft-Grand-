@@ -485,7 +485,10 @@ export class City {
       fragColor: `
         {
           vec2 wp = vAtgWorld.xz;
-          ${pool ? 'atgDepth = 2.0;' : 'atgDepth = texture2D(uDepthTex, (wp - uWorldRect.xy) / uWorldRect.zw).r * 10.0;'}
+          ${pool ? 'atgDepth = 2.0;' : `vec2 duv = (wp - uWorldRect.xy) / uWorldRect.zw;
+          atgDepth = texture2D(uDepthTex, duv).r * 10.0;
+          // no sea under dry land (it could otherwise z-fight through roads laid right at sea level)
+          if (atgDepth < 0.04 && duv.x > 0.0 && duv.x < 1.0 && duv.y > 0.0 && duv.y < 1.0) discard;`}
           vec3 deep = ${pool ? 'vec3(0.02, 0.25, 0.32)' : 'vec3(0.01, 0.06, 0.08)'};
           vec3 shallow = ${pool ? 'vec3(0.1, 0.55, 0.6)' : 'vec3(0.05, 0.28, 0.27)'};
           diffuseColor.rgb = mix(shallow, deep, smoothstep(0.0, 6.0, atgDepth));
@@ -508,7 +511,8 @@ export class City {
       fragRoughness: 'roughnessFactor = mix(0.04, 0.6, atgFoam);',
     });
     const mat = std({ color: 0xffffff, roughness: 0.05, metalness: 0.0, transparent: true, opacity: 1, envMapIntensity: 1.8 }, waterExt('water', false));
-    const geo = new THREE.PlaneGeometry(40000, 40000, 1, 1);
+    // subdivided: huge single triangles interpolate depth poorly right at the shoreline
+    const geo = new THREE.PlaneGeometry(40000, 40000, 40, 40);
     geo.rotateX(-Math.PI / 2);
     const water = new THREE.Mesh(geo, mat);
     water.position.set(-2000, WATER_Y, -2000);

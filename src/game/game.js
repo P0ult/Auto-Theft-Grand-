@@ -2,7 +2,9 @@
 import * as THREE from 'three';
 import { PostFX } from '../render/postfx.js';
 import { Environment } from '../world/environment.js';
-import { CityMap } from '../world/citymap.js';
+import { CityMap, WATER_Y } from '../world/citymap.js';
+import { LAKE } from '../world/worldgen.js';
+import { U } from '../render/materials.js';
 import { CollisionWorld } from '../world/collision.js';
 import { City } from '../world/city.js';
 import { Input } from '../core/input.js';
@@ -13,10 +15,10 @@ import { VehicleManager } from './vehicles.js';
 import { clamp } from '../core/utils.js';
 
 export const QUALITY = {
-  low: { pixelRatio: 0.75, shadows: 1024, shadowSize: 60, msaa: 0, bloom: false, rays: false, peds: 18, traffic: 14, drawDist: 1400 },
-  medium: { pixelRatio: 1, shadows: 2048, shadowSize: 80, msaa: 2, bloom: true, rays: false, peds: 28, traffic: 22, drawDist: 2200 },
-  high: { pixelRatio: 1, shadows: 2048, shadowSize: 95, msaa: 4, bloom: true, rays: true, peds: 38, traffic: 28, drawDist: 3000 },
-  ultra: { pixelRatio: Math.min(2, window.devicePixelRatio || 1), shadows: 4096, shadowSize: 110, msaa: 4, bloom: true, rays: true, peds: 46, traffic: 34, drawDist: 3200 },
+  low: { pixelRatio: 0.75, shadows: 1024, shadowSize: 60, msaa: 0, bloom: false, rays: false, ssr: 0, ao: false, peds: 18, traffic: 14, drawDist: 1400 },
+  medium: { pixelRatio: 1, shadows: 2048, shadowSize: 80, msaa: 2, bloom: true, rays: false, ssr: 16, ao: false, peds: 28, traffic: 22, drawDist: 2200 },
+  high: { pixelRatio: 1, shadows: 2048, shadowSize: 95, msaa: 4, bloom: true, rays: true, ssr: 24, ao: true, peds: 38, traffic: 28, drawDist: 3000 },
+  ultra: { pixelRatio: Math.min(2, window.devicePixelRatio || 1), shadows: 4096, shadowSize: 110, msaa: 4, bloom: true, rays: true, ssr: 36, ao: true, peds: 46, traffic: 34, drawDist: 3200 },
 };
 
 export class Game {
@@ -66,7 +68,10 @@ export class Game {
     this.post.samples = q.msaa;
     this.post.bloomEnabled = q.bloom;
     this.post.raysEnabled = q.rays;
+    this._applyFx(q);
     this.post.setSize(window.innerWidth * q.pixelRatio, window.innerHeight * q.pixelRatio);
+    const wu = this.city.waterUniforms;
+    if (wu) this.post.setWater(wu.uDepthTex.value, wu.uWorldRect.value, WATER_Y, LAKE);
 
     this.input = new Input(renderer.domElement);
     this.input.sensitivity = this.settings.sensitivity;
@@ -116,9 +121,19 @@ export class Game {
     this.post.samples = q.msaa;
     this.post.bloomEnabled = q.bloom;
     this.post.raysEnabled = q.rays;
+    this._applyFx(q);
     this.resize();
     if (this.peds) this.peds.maxPeds = q.peds;
     if (this.traffic) this.traffic.maxCars = q.traffic;
+  }
+
+  // screen-space reflections & ambient occlusion: the quality preset, unless switched on / off in Settings
+  _applyFx(q = this.quality) {
+    const s = this.settings;
+    const ssr = s.reflections == null ? q.ssr > 0 : !!s.reflections;
+    this.post.ssrEnabled = ssr;
+    this.post.ssr.uniforms.uSteps.value = Math.max(q.ssr, 16);
+    this.post.aoEnabled = s.ao == null ? q.ao : !!s.ao;
   }
 
   start() {
@@ -225,6 +240,9 @@ export class Game {
     }
     const c = this.post.composite.uniforms;
     c.uExposure.value = 1.0 + env.night * 1.0;
+    this.post.time = this.time;
+    this.post.ssr.uniforms.uRain.value = U.uRain.value;
+    this.post.ssr.uniforms.uWet.value = U.uWet.value;
     c.uTime.value = this.time;
     this.post.render(this.scene, cam, new THREE.Vector2(sp.x * 0.5 + 0.5, sp.y * 0.5 + 0.5), vis * 0.45);
   }

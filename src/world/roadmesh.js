@@ -2,7 +2,7 @@
 // lines, dirt tracks), junction pads, roundabouts with planted islands, and for elevated sections
 // concrete decks, jersey barriers and pillars. Also builds the collision surfaces for decks.
 import * as THREE from 'three';
-import { std } from '../render/materials.js';
+import { std, WET_NORMAL } from '../render/materials.js';
 import { NOISE_GLSL } from './shaders.js';
 import { DECK_H } from './roadnet.js';
 import { railAt } from './railway.js';
@@ -37,8 +37,7 @@ float stripeR(float x, float c, float w, float aa) { return 1.0 - smoothstep(w -
     col = mix(vec3(0.27, 0.26, 0.24), vec3(0.42, 0.4, 0.37), stone) * (0.8 + 0.3 * n);
     col = mix(col, col * vec3(0.55, 0.5, 0.45), smoothstep(0.95, 0.55, abs(u)) * 0.6);
     col = mix(col, vec3(0.36, 0.3, 0.22) * (0.8 + 0.3 * n), smoothstep(vR.w - 1.2, vR.w, abs(u)) * 0.7);
-    col *= 1.0 - uWet * 0.3;
-    atgRough = mix(1.0, 0.45, uWet);
+    atgRough = 1.0;
   } else if (type > 4.5 && type < 5.5) {
     // dirt track with tyre ruts and gravel
     col = vec3(0.42, 0.33, 0.22) * (0.75 + 0.35 * n) * (0.85 + 0.25 * fine);
@@ -89,14 +88,15 @@ float stripeR(float x, float c, float w, float aa) { return 1.0 - smoothstep(w -
     col = mix(col, vec3(0.75, 0.62, 0.18), clamp(paintY, 0.0, 1.0));
     col = mix(col, vec3(0.8, 0.8, 0.78), clamp(paintW, 0.0, 1.0));
     float paint = clamp(paintW + paintY, 0.0, 1.0);
-    float puddle = smoothstep(0.45, 0.6, fbm3(wp * 0.12 + 2.0)) * uWet;
-    col *= 1.0 - uWet * 0.35 - puddle * 0.25;
-    atgRough = mix(mix(0.92, 0.6, paint), 0.12, clamp(uWet * 0.55 + puddle, 0.0, 1.0));
+    atgRough = mix(0.92, 0.6, paint);
   }
+  // rain: gloss, puddles (ballast drains, dirt turns to mud)
+  atgWetGround(col, atgRough, type > 6.5 ? 1.0 : (type > 4.5 && type < 5.5) ? 0.75 : 0.0);
   diffuseColor.rgb = col;
 }
 `,
   fragRoughness: 'roughnessFactor = atgRough;',
+  fragNormal: WET_NORMAL,
 };
 
 // concrete (decks, barriers, pillars, curbs): vertex colours + grime

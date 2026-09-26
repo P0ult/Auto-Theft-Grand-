@@ -2,7 +2,7 @@
 // and skirts to hide the seams between levels. A biome shader paints golden California grass, crop
 // fields with rows, forest floor, desert sand with ripples, striped mesa cliffs, rock and beaches.
 import * as THREE from 'three';
-import { std } from '../render/materials.js';
+import { std, WET_NORMAL } from '../render/materials.js';
 import { NOISE_GLSL } from './shaders.js';
 import { WORLD, CITY_RECT, regionWeights, cityDist, riverDist } from './worldgen.js';
 import { farmMask } from './countryside.js';
@@ -72,12 +72,14 @@ vec3 fields(vec2 wp, float n) {
   col = mix(col, rock, steep);
   // bare rock high up
   col = mix(col, vec3(0.5, 0.48, 0.45) * (0.8 + 0.3 * n3), smoothstep(470.0, 620.0, vAtgWorld.y) * (1.0 - steep) * 0.7);
-  col *= 1.0 - uWet * 0.22;
-  diffuseColor.rgb = col;
   atgRough = mix(0.96, 0.9, sand);
+  // rain: muddy puddles on level fields and tracks (sand and the forest floor soak it up)
+  atgWetGround(col, atgRough, clamp(0.78 + sand * 0.22 + forest * 0.22 - farm * 0.15, 0.0, 1.0));
+  diffuseColor.rgb = col;
 }
 `,
   fragRoughness: 'roughnessFactor = atgRough;',
+  fragNormal: WET_NORMAL,
 };
 
 export class TerrainMesh {

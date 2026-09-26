@@ -1,5 +1,6 @@
 // GLSL snippets for city surfaces (injected into MeshStandardMaterial via patch()).
 import { XS, ZS, HALF_ROAD, SIDEWALK_W } from './citymap.js';
+import { WET_NORMAL } from '../render/materials.js';
 
 export const NOISE_GLSL = /* glsl */`
 float h21(vec2 p) { vec3 p3 = fract(vec3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
@@ -85,14 +86,13 @@ float stripe(float x, float c, float w, float aa) { return 1.0 - smoothstep(w - 
   col = mix(col, vec3(0.75, 0.62, 0.18), clamp(paintY, 0.0, 1.0));
   col = mix(col, vec3(0.78, 0.78, 0.76), clamp(paintW, 0.0, 1.0));
   float paint = clamp(paintY + paintW, 0.0, 1.0);
-  // wet puddles
-  float puddle = smoothstep(0.45, 0.6, fbm3(wp * 0.12 + 2.0)) * uWet;
-  col *= 1.0 - uWet * 0.35 - puddle * 0.25;
-  atgRough = mix(mix(0.92, 0.6, paint), 0.12, clamp(uWet * 0.55 + puddle, 0.0, 1.0));
+  atgRough = mix(0.92, 0.6, paint);
+  atgWetGround(col, atgRough, 0.0);
   diffuseColor.rgb = col;
 }
 `,
   fragRoughness: 'roughnessFactor = atgRough;',
+  fragNormal: WET_NORMAL,
 };
 
 // ------------------------------------------------------------------ BLOCK TOPS / LOT SURFACES
@@ -198,11 +198,14 @@ float bandG(float x, float c, float w) { return step(abs(x - c), w); }
     col = vec3(0.76, 0.66, 0.48) * (0.85 + 0.1 * rip + 0.1 * n); atgRough = 1.0;
   }
   if (vGN.y < 0.5) { col = vec3(0.6, 0.59, 0.56) * (0.85 + 0.2 * n); atgRough = 0.8; } // curb faces
-  col *= 1.0 - uWet * 0.3;
+  // rain: soil and sand soak it up, hard surfaces get puddles
+  bool soft = (!pad && ((type > 0.5 && type < 2.5) || (type > 6.5 && type < 8.5))) || (pad && type > 12.5);
+  atgWetGround(col, atgRough, soft ? 0.85 : 0.1);
   diffuseColor.rgb = col;
 }
 `,
   fragRoughness: 'roughnessFactor = atgRough;',
+  fragNormal: WET_NORMAL,
 };
 
 // ------------------------------------------------------------------ BUILDINGS
@@ -265,7 +268,9 @@ vec3 roomInterior(vec2 f, vec3 V, vec3 N, float rnd, float lit, out float backDe
     float n = fbm3(wpos.xz * 0.9);
     vec3 c = mix(vec3(0.34, 0.33, 0.32), vec3(0.42, 0.4, 0.37), step(0.5, seed)) * (0.75 + 0.4 * n);
     float edge = 0.0;
-    diffuseColor.rgb = c * (1.0 - uWet * 0.3); atgRough = mix(0.95, 0.4, uWet);
+    atgRough = 0.95;
+    atgWetGround(c, atgRough, 0.15); // flat roofs pool water too
+    diffuseColor.rgb = c;
   } else {
     vec2 uv = vFac;
     vec2 cell = floor(uv);
@@ -389,6 +394,8 @@ vec3 roomInterior(vec2 f, vec3 V, vec3 N, float rnd, float lit, out float backDe
     // tv flicker
     e *= 1.0 + step(0.93, rnd2) * 0.4 * sin(uTime * 13.0 + rnd * 40.0) * nightK;
     atgEmit = e;
+    // window glass mirrors the street (screen-space reflections); lit rooms show through instead
+    atgRefl = win * (1.0 - farK * 0.6) * (glassMetal > 0.8 ? 0.8 : 0.55) * (1.0 - lit * nightK * 0.75) * (1.0 - shopSign);
   }
 }
 `,

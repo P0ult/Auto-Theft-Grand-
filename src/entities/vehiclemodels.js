@@ -61,7 +61,8 @@ export function isSharedMaterial(m) {
 
 export function bodyMaterial(color) {
   const m = new THREE.MeshPhysicalMaterial({ color, metalness: 0.55, roughness: 0.32, clearcoat: 1.0, clearcoatRoughness: 0.06, vertexColors: true });
-  return patch(m, { key: 'vbody' });
+  // clear-coated paint mirrors its surroundings (screen-space reflections), more so in the rain
+  return patch(m, { key: 'vbody', fragEnd: 'atgRefl = 0.22 + uWet * 0.18;' });
 }
 
 // profile descriptions (fractions of length for z, absolute heights for y)

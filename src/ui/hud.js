@@ -372,6 +372,14 @@ export class HUD {
     row('Mouse sensitivity', slider(g.settings.sensitivity, 0.2, 3, 0.05, (v) => { g.settings.sensitivity = v; g.input.sensitivity = v; g.save?.saveSettings(); }));
     const inv = document.createElement('input'); inv.type = 'checkbox'; inv.checked = g.settings.invertY; inv.onchange = () => { g.settings.invertY = inv.checked; g.input.invertY = inv.checked; g.save?.saveSettings(); };
     row('Invert mouse Y', inv);
+    const tog = (label, key) => {
+      const c = document.createElement('input'); c.type = 'checkbox';
+      c.checked = key === 'reflections' ? g.post.ssrEnabled : g.post.aoEnabled;
+      c.onchange = () => { g.settings[key] = c.checked; g._applyFx(); g.save?.saveSettings(); };
+      row(label, c);
+    };
+    tog('Ray-traced reflections (wet streets, glass, water)', 'reflections');
+    tog('Ambient occlusion (contact shadows)', 'ao');
     const fps = document.createElement('input'); fps.type = 'checkbox'; fps.checked = this.showFps; fps.onchange = () => { this.showFps = fps.checked; };
     row('Show FPS', fps);
     const ts = document.createElement('select');
