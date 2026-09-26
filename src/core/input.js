@@ -23,6 +23,10 @@ const BINDINGS = {
   hydraulics: ['KeyG'],
   shop: ['KeyY'],
   teleport: ['KeyT'],
+  hail: ['KeyH'],
+  passenger: ['KeyG'],
+  taxiJob: ['KeyJ'],
+  skipTrip: ['Space'],
 };
 
 export class Input {

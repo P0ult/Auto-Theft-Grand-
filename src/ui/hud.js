@@ -390,7 +390,7 @@ export class HUD {
       <tr><td>A / D</td><td>Roll (bank to turn)</td></tr><tr><td>Q / E</td><td>Rudder</td></tr><tr><td>Space</td><td>Wheel brakes</td></tr><tr><td>Left / right mouse</td><td>Cannon / homing missile</td></tr><tr><td>F</td><td>Bail out (parachute)</td></tr></table>
       <h3>Helicopters</h3><table><tr><td>Space / Shift</td><td>Climb / descend</td></tr><tr><td>W / S</td><td>Fly forward / back</td></tr><tr><td>A / D</td><td>Turn</td></tr><tr><td>Q / E</td><td>Strafe</td></tr><tr><td>Left / right mouse</td><td>Minigun / rockets</td></tr></table>
       <h3>Tank</h3><table><tr><td>W / S, A / D</td><td>Drive, turn on the spot</td></tr><tr><td>Mouse / left mouse</td><td>Aim turret / fire</td></tr></table>
-      <h3>General</h3><table><tr><td>Esc / P</td><td>Pause, map & settings</td></tr><tr><td>M</td><td>Map</td></tr><tr><td>T</td><td>Teleport (free roam)</td></tr><tr><td>Space / Enter</td><td>Skip cutscene line</td></tr></table>
+      <h3>General</h3><table><tr><td>Esc / P</td><td>Pause, map & settings</td></tr><tr><td>M</td><td>Map</td></tr><tr><td>T</td><td>Teleport (free roam)</td></tr><tr><td>H (on foot)</td><td>Whistle for a taxi</td></tr><tr><td>G (on foot)</td><td>Ride as a passenger</td></tr><tr><td>J (in a cab)</td><td>Taxi driver job on / off</td></tr><tr><td>Space (in a cab's back seat)</td><td>Skip the trip</td></tr><tr><td>Space / Enter</td><td>Skip cutscene line</td></tr></table>
       <p class="muted">Gamepad supported (standard layout): sticks, RT/LT to drive, RB handbrake, Y enter vehicle, A sprint.</p></div></div>`;
   }
 
@@ -690,6 +690,8 @@ const ICONS = {
   jet: (c) => { c.beginPath(); c.moveTo(0, -7); c.lineTo(6, 4); c.lineTo(2, 3); c.lineTo(0, 6); c.lineTo(-2, 3); c.lineTo(-6, 4); c.closePath(); c.fill(); },
   heli: (c) => { c.beginPath(); c.arc(-1, 1, 3.5, 0, Math.PI * 2); c.fill(); c.fillRect(1, 0, 6, 1.6); c.fillRect(-7, -4.5, 12, 1.4); c.fillRect(-1.5, -4, 1.4, 3); },
   tank: (c) => { c.fillRect(-6, 0, 12, 4); c.fillRect(-3, -3, 6, 3); c.fillRect(2, -2.2, 6, 1.4); },
+  taxi: (c) => { c.fillRect(-6, -1, 12, 5); c.fillRect(-3, -4, 6, 3); c.fillRect(-1.5, -7, 3, 2); },
+  person: (c) => { c.beginPath(); c.arc(0, -4, 2.6, 0, Math.PI * 2); c.fill(); c.fillRect(-3, -1, 6, 5); c.fillRect(-3, 4, 2, 3); c.fillRect(1, 4, 2, 3); },
   train: (c) => { c.fillRect(-4, -6, 8, 9); c.clearRect(-3, -5, 6, 3); c.fillRect(-5, 4, 2, 2); c.fillRect(3, 4, 2, 2); },
 };
 

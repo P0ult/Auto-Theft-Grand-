@@ -15,6 +15,7 @@ import { STORY } from './game/story.js';
 import { SaveSystem } from './game/save.js';
 import { Gameplay, FREE_ROAM_KIT } from './game/gameplay.js';
 import { FreeRoam } from './game/freeroam.js';
+import { TaxiSystem } from './game/taxi.js';
 import { HUD } from './ui/hud.js';
 
 const params = new URLSearchParams(location.search);
@@ -29,6 +30,8 @@ const TIPS = [
   'Lowriders have hydraulics — press G to bounce.',
   'Gun Barn in the Market District sells weapons, ammo and body armor.',
   'In free roam, press T to teleport to any town, station, airfield or landmark.',
+  'Press H on the pavement to whistle for a cab. In the back, Space skips the trip.',
+  'Driving a cab? Press J to pick up fares for cash.',
   'Catch the Sol Line at Union Station: ride it to Fern Creek and Dry Wells, or climb into the cab and drive.',
 ];
 
@@ -71,6 +74,7 @@ async function boot() {
   game.save = new SaveSystem(game);
   game.addSystem('gameplay', new Gameplay(game));
   game.addSystem('freeroam', new FreeRoam(game));
+  game.addSystem('taxi', new TaxiSystem(game));
   game.hud = new HUD(game);
   game.pickups.refreshPackages();
   setP(0.93, 'Compiling shaders');

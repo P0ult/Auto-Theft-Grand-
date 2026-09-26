@@ -24,6 +24,7 @@ export class RouteDriver extends LaneDriver {
     this.cruise = opts.speed ?? 22;
     this.ignoreLights = opts.ignoreLights ?? true;
     this.flee = !!opts.flee;
+    this.arriveR = opts.arriveR ?? 25;
     this.arrived = false;
     this.route = null;
     const net = this.net;
@@ -79,7 +80,7 @@ export class RouteDriver extends LaneDriver {
   }
   update(dt) {
     const v = this.veh;
-    if (!this.flee && Math.hypot(this.dest.x - v.pos.x, this.dest.z - v.pos.z) < 25) {
+    if (!this.flee && Math.hypot(this.dest.x - v.pos.x, this.dest.z - v.pos.z) < this.arriveR) {
       this.arrived = true;
       v.input.throttle = 0; v.input.brake = 1; v.input.handbrake = v.speedAbs < 1;
       return;

@@ -199,10 +199,12 @@ export class Game {
   tryEnterExit() {
     const p = this.player;
     if (this.vehicles.isBusy(p)) return;
-    if (p.vehicle) { this.vehicles.exit(p); return; }
+    if (p.vehicle) { if (this.taxi?.handleExit(p)) return; this.vehicles.exit(p); return; }
     const v = this.vehicles.nearestEnterable(p.pos, 5);
     if (v) {
       if (this.missions?.canEnterVehicle && !this.missions.canEnterVehicle(v)) return;
+      const cabSeat = this.taxi?.seatFor(v, p); // a cab you whistled for: get in the back
+      if (cabSeat != null) { this.vehicles.enter(p, v, cabSeat); return; }
       const seat = v.nearestDoor ? v.nearestDoor(p.pos).seat : 0;
       if (seat > 0 && v.occupants[seat]) { const free = [1, 2, 3].find((k) => !v.occupants[k]); if (free) return this.vehicles.enter(p, v, free); }
       this.vehicles.enter(p, v, seat);

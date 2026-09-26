@@ -154,6 +154,14 @@ body.cinematic .hud-subtitles { bottom: 3.5vh; z-index: 7; }
 .tp-group { display: flex; flex-direction: column; gap: 4px; }
 .tp-group h3 { font-family: var(--hud-font); font-weight: 400; font-size: 24px; letter-spacing: 1px; color: var(--gold); margin: 0 0 4px; }
 .tp-btn { text-align: left; background: rgba(255,255,255,0.05); color: #eee; border: 0; border-left: 3px solid transparent; padding: 7px 10px; font-size: 14px; font-weight: 600; cursor: pointer; border-radius: 2px; }
+.tp-btn .fare { float: right; font-family: var(--hud-font); font-size: 17px; letter-spacing: 1px; color: var(--money); margin-left: 10px; }
+.tp-btn .fare.dear { color: #d65454; }
+.menu-panel.taxi-pick { width: min(1000px, 94vw); }
+.hud-taxi { position: absolute; right: 24px; top: 210px; display: none; min-width: 230px; background: rgba(12,10,6,0.78); border-top: 4px solid #ffd23f; padding: 8px 14px 10px; color: #fff; text-shadow: 1px 1px 0 #000; }
+.hud-taxi .t { font-family: var(--hud-font); letter-spacing: 2px; font-size: 16px; color: #ffd23f; }
+.hud-taxi .m { font-family: var(--hud-font); font-size: 40px; line-height: 1; color: var(--money); letter-spacing: 1px; }
+.hud-taxi .d { font-size: 13px; color: #ddd; margin-top: 2px; }
+.hud-taxi .k { font-size: 12px; color: #aaa; margin-top: 6px; } .hud-taxi .k b { color: #fff; }
 .tp-btn:hover, .tp-btn:focus { background: rgba(232,182,76,0.18); border-left-color: var(--gold); color: #fff; outline: none; }
 
 /* ----------------------------------------------------------------- title & loading */

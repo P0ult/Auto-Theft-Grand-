@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import { GeoBuilder, mat4 } from '../world/geom.js';
 import { patch } from '../render/materials.js';
+import { clamp } from '../core/utils.js';
 
 // Shared materials
 let MATS = null;
@@ -374,10 +375,12 @@ export function buildVehicleModel(def, color) {
   group.add(beamMesh);
 
   const seatBase = new THREE.Vector3(0.38, seatY + 0.05 - 0.02, seatZ - 0.1);
+  // rear row: under the roof (short-roofed bodies would otherwise have heads through the back window)
+  const rearZ = clamp(seatBase.z - 0.9, cb.tr + 0.14, seatBase.z - 0.55);
   return {
     group, bodyGroup, body, bodyMat, glass: glassMesh, head, tail, lightbar, wheels,
     door: { pivot: doorPivot, mesh: doorMesh, open: 0 },
-    seats: [seatBase.clone(), seatBase.clone().setX(-0.38), seatBase.clone().setZ(seatBase.z - 0.9), seatBase.clone().set(-0.38, seatBase.y, seatBase.z - 0.9)],
+    seats: [seatBase.clone(), seatBase.clone().setX(-0.38), seatBase.clone().setZ(rearZ).setY(seatBase.y - 0.04), seatBase.clone().set(-0.38, seatBase.y - 0.04, rearZ)],
     doorPos: new THREE.Vector3(W / 2 + 0.55, 0, (dz0 + dz1) / 2 - 0.15),
     trim: trimMesh, beam: beamMesh,
   };

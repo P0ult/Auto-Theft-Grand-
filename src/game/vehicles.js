@@ -281,7 +281,8 @@ export class VehicleManager {
     if (veh.doorFor) return veh.doorFor(seat, char);
     const d = veh.model.doorPos;
     const x = seat % 2 === 0 ? d.x : -d.x;
-    const z = seat < 2 ? d.z : d.z - 0.9;
+    const S = veh.model.seats;
+    const z = seat < 2 || !S?.[2] ? d.z : d.z + (S[2].z - S[0].z);
     return veh.localToWorld(x, 0, z, new THREE.Vector3());
   }
 

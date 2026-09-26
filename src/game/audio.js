@@ -284,6 +284,11 @@ export class Audio {
         for (const fr of [311, 370, 466]) for (const d of [-2, 2]) this._tone(f, t, { f0: fr + d, dur: 1.1, vol: 0.07 * vol, type: 'sawtooth', attack: 0.06 });
         break;
       }
+      case 'whistle':
+        // two-note taxi whistle: a quick rise, then a long falling note
+        this._tone(dest, t, { f0: 1900, f1: 2900, dur: 0.16, vol: 0.12 * vol, type: 'sine', attack: 0.01 });
+        this._tone(dest, t + 0.22, { f0: 3000, f1: 2300, dur: 0.42, vol: 0.12 * vol, type: 'sine', attack: 0.02 });
+        break;
       case 'horn':
         for (const f of [392, 494]) { const o = this._tone(dest, t, { f0: f, dur: 0.5, vol: 0.18 * vol, type: 'square', attack: 0.01 }); }
         break;
