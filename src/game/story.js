@@ -1303,6 +1303,7 @@ export const STORY = {
         const pick1 = game.freeroam.roadSpot(T.x + 25, T.z + 10, false);
         const walk = game.freeroam.roadSpot(pick1.x, pick1.z, true);
         const benny = m.ped(walk.x, walk.z, { appearance: look('benny'), y: walk.y });
+        benny.health = benny.maxHealth = 300; // survives a stray blast or two in the back of the cab
         benny.setState('guard'); benny.guardFace = pick1.yaw + Math.PI / 2;
         m.blipEntity(benny, 0x4a90ff, 'person');
         m.keepAlive(benny, 'Benny is dead.');
