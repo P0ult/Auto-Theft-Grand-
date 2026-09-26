@@ -1,4 +1,4 @@
-// AUTO THEFT GRAND — storyline. 22 missions in 5 chapters.
+// AUTO THEFT GRAND — storyline. 26 missions in 6 chapters.
 // Andre "Dre" Castillo returns to Los Soles after his little brother Tino is killed.
 import * as THREE from 'three';
 import { RouteDriver, RaceDriver, MissionFail } from './missions.js';
@@ -9,6 +9,7 @@ import { copAppearance } from './police.js';
 import { GANGS } from './peds.js';
 import { WEAPONS } from './weapondefs.js';
 import { rand, randInt, pick, clamp, RNG } from '../core/utils.js';
+import { TOWNS, AIRFIELD } from '../world/worldgen.js';
 
 // ------------------------------------------------------------------ cast
 const CAST = {
@@ -21,6 +22,7 @@ const CAST = {
   maddox: { female: false, skin: 0xf1c7a5, hair: 0xb08a52, hairStyle: 'long', hat: null, shirt: 0xffffff, shirtType: 'long', pants: 0xe9d8a6, shorts: false, shoes: 0x8b5a2b, build: 0.98, height: 1.0, glasses: true, beard: true, jacketColor: 0xffffff, bandana: null, uniform: null },
   salazar: { female: false, skin: 0xc68863, hair: 0x111111, hairStyle: 'bald', hat: null, shirt: 0xc1121f, shirtType: 'jacket', jacketColor: 0x111111, pants: 0x111111, shorts: false, shoes: 0x5a0a0a, build: 1.15, height: 1.02, glasses: true, beard: true, bandana: null, uniform: null },
   chino: { female: false, skin: 0xc68863, hair: 0x111111, hairStyle: 'buzz', hat: null, shirt: 0xc1121f, shirtType: 'tank', pants: 0x1d3557, shorts: true, shoes: 0xffffff, build: 1.05, height: 1.0, glasses: true, beard: false, bandana: 0xc1121f, jacketColor: 0x111111, uniform: null },
+  elseco: { female: false, skin: 0xc68863, hair: 0x999999, hairStyle: 'short', hat: null, shirt: 0x7a1f1f, shirtType: 'jacket', jacketColor: 0xe9d8a6, pants: 0xe9d8a6, shorts: false, shoes: 0x8b5a2b, build: 1.12, height: 1.0, glasses: true, beard: true, bandana: null, uniform: null },
   benny: { female: false, skin: 0xe0ac87, hair: 0x111111, hairStyle: 'short', hat: null, shirt: 0x4a78b5, shirtType: 'long', pants: 0x6d5c43, shorts: false, shoes: 0x3b2f2a, build: 0.95, height: 0.97, glasses: true, beard: false, bandana: null, jacketColor: 0x111111, uniform: null },
   king: () => randomAppearance(new RNG((Math.random() * 1e9) | 0), { female: false, shirt: 0xf2b705, shirtType: pick(['tee', 'tank', 'jacket']), jacketColor: 0x1a1a1a, hairStyle: pick(['cap', 'buzz', 'short']), hat: 0xf2b705, bandana: Math.random() < 0.5 ? 0xf2b705 : null }),
 };
@@ -87,13 +89,13 @@ class ChaseDriver extends RouteDriver {
 }
 const LaneLike = Object.getPrototypeOf(RouteDriver.prototype);
 
-function chaseCar(m, type, x, z, yaw, gang, shooters = 1) {
-  const v = m.car(type, x, z, yaw, { color: gang === 'vipers' ? 0x9d0208 : 0x1f7a8c });
-  const drv = m.ped(x, z, { appearance: gangLook(gang), brain: 'script' });
+function chaseCar(m, type, x, z, yaw, gang, shooters = 1, lookFn = null) {
+  const v = m.car(type, x, z, yaw, { color: lookFn ? 0xc2a878 : gang === 'vipers' ? 0x9d0208 : 0x1f7a8c });
+  const drv = m.ped(x, z, { appearance: lookFn ? lookFn() : gangLook(gang), brain: 'script' });
   v.putIn(drv, 0);
   const guns = [];
   for (let k = 0; k < shooters; k++) {
-    const s = m.ped(x, z, { appearance: gangLook(gang), brain: 'script' });
+    const s = m.ped(x, z, { appearance: lookFn ? lookFn() : gangLook(gang), brain: 'script' });
     s.giveWeapon('smg', 999); s.equip('smg');
     v.putIn(s, k + 1);
     m.driveBy(s);
@@ -103,6 +105,42 @@ function chaseCar(m, type, x, z, yaw, gang, shooters = 1) {
   m.blipEntity(v, 0xff3030, 'car', true);
   return { v, drv, guns };
 }
+// Los Secos: the desert cartel out of Puerto Seco (fight as Cuervo gang members, dressed for the dust)
+function secoLook() {
+  return randomAppearance(new RNG((Math.random() * 1e9) | 0), { female: false, shirt: pick([0xc2a878, 0xe9d8a6, 0x8d6e4a]), shirtType: pick(['long', 'jacket', 'tee']), jacketColor: 0x5a4632, pants: pick([0x4e4a45, 0x6d5c43, 0x3b2f2a]), hairStyle: pick(['cap', 'short', 'buzz']), hat: 0xc2a878, bandana: Math.random() < 0.4 ? 0x7a1f1f : null, glasses: Math.random() < 0.5 });
+}
+function secos(m, pts, weapons, opts = {}) {
+  return pts.map((p, i) => {
+    const e = m.enemy(p.x, p.z, { gang: 'cuervos', weapon: weapons[i % weapons.length], guard: opts.guard ?? true, face: opts.face, health: opts.health ?? 100, appearance: secoLook(), accuracy: opts.accuracy ?? 0.4 });
+    if (p.y != null) e.setPosition(p.x, p.y, p.z);
+    return e;
+  });
+}
+// A glowing checkpoint ring in the sky for aircraft (resolves when flown through)
+function airRing(m, x, z, alt, opts = {}) {
+  const g = m.game;
+  const gy = Math.max(g.map.groundHeight(x, z), 0);
+  const y = gy + alt, R = opts.r ?? 16;
+  const mesh = new THREE.Mesh(new THREE.TorusGeometry(R, 0.9, 8, 40), new THREE.MeshBasicMaterial({ color: new THREE.Color(2.6, 1.9, 0.35), transparent: true, opacity: 0.85, depthWrite: false }));
+  mesh.position.set(x, y, z);
+  if (opts.next) mesh.rotation.y = Math.atan2(opts.next.x - x, opts.next.z - z);
+  mesh.renderOrder = 6;
+  g.scene.add(mesh);
+  const blip = { x, z, color: 0xffd23f, icon: 'flag' };
+  g.blips.add(blip);
+  m.blips.push(blip);
+  const c = new THREE.Vector3(x, y, z);
+  m.currentRing = { c };
+  if (opts.text) m.objective(opts.text);
+  const done = () => { g.scene.remove(mesh); mesh.geometry.dispose(); mesh.material.dispose(); g.blips.delete(blip); m.currentRing = null; };
+  return m.until(() => {
+    const v = m.player.vehicle;
+    const p = v ? (v.cg ? v.cg() : v.pos) : m.player.pos;
+    return p.distanceTo(c) < R * 1.15;
+  }).then(() => { done(); g.audio?.play('checkpoint'); }, (e) => { done(); throw e; });
+}
+const station = (game, key) => game.map.roadInfo?.rail?.stations.find((s) => s.key === key);
+
 function gangLook(gang) {
   const g = GANGS[gang];
   return randomAppearance(new RNG((Math.random() * 1e9) | 0), { female: false, shirt: g.color, shirtType: pick(['tee', 'tank', 'jacket']), jacketColor: 0x1a1a1a, bandana: Math.random() < 0.6 ? g.color : null, hairStyle: pick(['cap', 'buzz', 'bald']), hat: g.color });
@@ -1158,6 +1196,7 @@ export const STORY = {
     },
     {
       id: 'finale', title: 'Grand Finale', contact: 'M', requires: ['tower'], reward: 25000,
+      chapterEnd: ['CHAPTER VI', 'Out of Town'],
       log: 'Chased Voss to the Santa Luz Pier and ended him. Tino can rest. Los Soles has a new king.',
       start: (L) => ({ x: L.home.x - 3, z: L.home.z + 2 }),
       async run(m, game) {
@@ -1234,6 +1273,208 @@ export const STORY = {
         });
         mari.keep = false;
         game.hud.showCredits?.();
+      },
+    },
+    // ================================================================ CHAPTER VI — OUT OF TOWN
+    {
+      id: 'faregame', title: 'Fare Game', contact: 'M', requires: ['finale'], reward: 4000,
+      log: 'Drove a cab out to Mirador, picked up Benny the bookkeeper and got him to a boat at Port Hale with Los Secos on our tail.',
+      after: (g) => setTimeout(() => g.hud?.help('Rico\'s next job is out at <b>Dry Wells station</b>. It\'s a long way — whistle for a cab with <b>H</b> and skip the ride with <b>Space</b>.', 9), 1500),
+      start: (L) => ({ x: L.home.x - 3, z: L.home.z + 2 }),
+      async run(m, game) {
+        const L = m.L;
+        const s = { x: L.home.x - 3, z: L.home.z + 2 };
+        const mari = m.ped(s.x - 1.6, s.z - 1, { appearance: look('marisol'), invincible: true });
+        m.speakersSet({ Marisol: mari, Dre: m.player });
+        await m.cutscene(async () => {
+          m.face(mari, m.player); m.face(m.player, mari);
+          m.twoShot(m.player, mari, 1, 3.4);
+          await m.lines([
+            ['Marisol', 'Voss had partners. A cartel out of Puerto Seco. Los Secos. They want his money, and they want his bookkeeper.'],
+            ['Dre', 'Benny? The guy with the glasses?'],
+            ['Marisol', 'He\'s hiding up in Mirador. Take a cab — nobody looks twice at a cab — and get him to the boat at Port Hale.'],
+          ]);
+        });
+        const r = roadNear(L.home.x + 10, L.home.z + 24);
+        const cab = m.car('taxi', r.x, r.z, r.yaw);
+        await m.getIn(cab, 'Get in the <span class="b">cab</span>.');
+        m.keepAlive(cab, 'The cab was destroyed.');
+        const T = TOWNS.mirador;
+        const pick1 = game.freeroam.roadSpot(T.x + 25, T.z + 10, false);
+        const walk = game.freeroam.roadSpot(pick1.x, pick1.z, true);
+        const benny = m.ped(walk.x, walk.z, { appearance: look('benny'), y: walk.y });
+        benny.setState('guard'); benny.guardFace = pick1.yaw + Math.PI / 2;
+        m.blipEntity(benny, 0x4a90ff, 'person');
+        m.keepAlive(benny, 'Benny is dead.');
+        await m.goTo(pick1.x, pick1.z, { vehicle: true, radius: 6, slow: true, inCar: cab, inCarMsg: 'Benny will only get in the cab.', text: 'Pick up <span class="b">Benny</span> in <span class="y">Mirador</span>.' });
+        m.speakersSet({ Benny: benny, Dre: m.player });
+        m.follower(benny, 0);
+        await m.until(() => benny.vehicle === cab, { timeout: 12, onTimeout: 'resolve' });
+        if (benny.vehicle !== cab) cab.putIn(benny, 2);
+        await m.say('Benny', 'Drive! They\'ve been parked outside the diner all morning — tan pickup!', 3.5);
+        m.failIf(() => m.player.vehicle !== cab && !game.vehicles.isBusy(m.player) && benny.vehicle === cab, 'You left Benny behind.');
+        const back = game.freeroam.roadSpot(T.x - 120, T.z - 60, false);
+        chaseCar(m, 'hauler', back.x, back.z, back.yaw, 'cuervos', 2, secoLook);
+        setTimeout(() => { if (m.game.missions.active === m) m.hud.subtitle('They\'re shooting at a TAXI! Who shoots at a taxi?!', 'Benny', 3); }, 9000);
+        const pier = L.halePier || { x: TOWNS.hale.x + 130, z: TOWNS.hale.z };
+        const dock = game.freeroam.roadSpot(pier.x - 70, pier.z, false);
+        await m.goTo(dock.x, dock.z, { vehicle: true, radius: 7, inCar: cab, text: 'Get Benny to the boat at <span class="y">Port Hale</span>.' });
+        cab.input.brake = 1;
+        await m.say('Benny', 'I owe you, Dre. Here — Voss\'s ledger. Page forty. That\'s where the cartel\'s money goes.', 4);
+        game.vehicles.exit(benny);
+      },
+    },
+    {
+      id: 'solline', title: 'Sol Line Express', contact: 'R', requires: ['faregame'], reward: 6000,
+      log: 'Took the Los Secos gun train at Dry Wells, rammed through their roadblock and brought it into Union Station.',
+      start: (L) => { const st = L.station_dry || L.home; return { x: st.x - Math.cos(st.rot || 0) * 26, z: st.z + Math.sin(st.rot || 0) * 26 }; },
+      async run(m, game) {
+        const L = m.L;
+        const train = game.rail?.train && !game.rail.train.removed ? game.rail.train : game.rail?.spawnTrain();
+        const dry = station(game, 'dry'), fern = station(game, 'fern'), union = station(game, 'union');
+        if (!train || !dry || !union) throw new MissionFail('The Sol Line is closed today.');
+        const lm = L.station_dry;
+        // the evening gun train, held at the platform
+        train.s = dry.s + train.len / 2; train.v = 0; train.dwell = 1e9; train._atStation = dry; train.dirS = 1; train._place();
+        const s0 = { x: lm.x - Math.cos(lm.rot) * 24, z: lm.z + Math.sin(lm.rot) * 24 };
+        const rico = m.ped(s0.x + 1.5, s0.z + 1, { appearance: look('rico'), invincible: true });
+        m.speakersSet({ Rico: rico, Dre: m.player });
+        await m.cutscene(async () => {
+          m.face(rico, m.player); m.face(m.player, rico);
+          m.twoShot(m.player, rico, -1, 3.4);
+          await m.lines([
+            ['Rico', 'Benny\'s ledger checks out. Los Secos move their guns into the city on the Sol Line. That train right there.'],
+            ['Rico', 'Three of their boys on the platform. Take them out, climb in the cab up front and drive her into Union Station. I\'ll meet you there.'],
+            ['Dre', 'I\'ve never driven a train.'],
+            ['Rico', 'Push the lever forward. Try not to hit anything. Well — hit whatever they put in your way.'],
+          ]);
+        });
+        rico.setPosition(rico.pos.x, undefined, rico.pos.z - 400);
+        const tx = Math.sin(lm.rot), tz = Math.cos(lm.rot);
+        const guards = secos(m, [-22, 0, 24].map((a) => ({ x: lm.x + tx * a, z: lm.z + tz * a, y: lm.y })), ['rifle', 'shotgun', 'pistol'], { face: lm.rot + Math.PI / 2 });
+        aggroWhenNear(m, guards, 40);
+        m.player.giveWeapon('smg', 90);
+        await m.killAll(guards, 'Take out the <span class="r">cartel guards</span> on the platform.');
+        await m.getIn(train, 'Climb into the <span class="b">train cab</span> (at the front).');
+        train.dwell = 0;
+        m.failIf(() => m.player.vehicle !== train && !game.vehicles.isBusy(m.player), 'You abandoned the train.');
+        const stopT = m.timer(240, 'Los Secos got their guns back.');
+        const ub = { x: union.x, z: union.z, color: 0xffd23f, icon: 'train' };
+        game.blips.add(ub); m.blips.push(ub);
+        m.objective('Drive the train to <span class="y">Union Station</span>. Hold <b>W</b> to accelerate, <b>S</b> to brake.');
+        // the welcome party at Fern Creek: a truck on the Main Street crossing and gunmen on the platform
+        let ambushed = false;
+        const xing = game.map.roadInfo.rail.crossings.find((c) => c.kind === 'level' && c.s > (fern?.s ?? 0));
+        m.tick(() => {
+          if (ambushed || !fern || train.s < fern.s - 700) return;
+          ambushed = true;
+          if (xing) { const blk = m.car('hauler', xing.x, xing.z, Math.random() * 6, { color: 0xc2a878 }); blk.parked = true; }
+          const fl = L.station_fern;
+          const ftx = Math.sin(fl.rot), ftz = Math.cos(fl.rot);
+          secos(m, [-30, -10, 10, 30].map((a) => ({ x: fl.x + ftx * a, z: fl.z + ftz * a, y: fl.y })), ['rifle', 'smg', 'rifle', 'shotgun'], { guard: false, accuracy: 0.3 });
+          m.hud.subtitle('Rico here — they know you\'re coming. Fern Creek\'s crawling with them. Don\'t stop!', 'Rico', 4.5);
+        });
+        await m.until(() => train.centreS() > union.s - 30 && Math.abs(train.v) < 1.5, {});
+        stopT();
+        await m.say('Rico', 'Ha! Right on the platform. Two crates of rifles the cartel will never see again.', 3.5);
+        train._atStation = union; train.dwell = 14; train.dirS = -1;
+      },
+    },
+    {
+      id: 'dustoff', title: 'Dust Off', contact: 'R', requires: ['solline'], reward: 5000,
+      log: 'Flew the Skipper low through the canyons and buzzed the Los Secos compound so Rico\'s spotter could map it.',
+      start: () => ({ x: AIRFIELD.x - 30, z: AIRFIELD.z - 130 }),
+      async run(m, game) {
+        const A = AIRFIELD;
+        const rico = m.ped(A.x - 27, A.z - 128, { appearance: look('rico'), invincible: true });
+        m.speakersSet({ Rico: rico, Dre: m.player });
+        await m.cutscene(async () => {
+          m.face(rico, m.player); m.face(m.player, rico);
+          m.twoShot(m.player, rico, 1, 3.4);
+          await m.lines([
+            ['Rico', 'Their compound\'s in Puerto Seco. Walls, lookouts, the works. We need eyes on it before we hit it.'],
+            ['Rico', 'Take the Skipper. Stay low through the rings so their lookouts don\'t spot you, buzz the compound, and bring her home in one piece.'],
+          ]);
+        });
+        const plane = m.car('skipper', A.x + 230, A.z, -Math.PI / 2, { color: 0xe8e8e8 });
+        await m.getIn(plane, 'Get in the <span class="b">Skipper</span>.');
+        m.keepAlive(plane, 'The Skipper was destroyed.');
+        m.help('W / S: throttle. Pull back (mouse or ↓) to climb, A / D to roll into turns. Fly through the rings.', 8);
+        const stopT = m.timer(300, 'Their lookouts spotted you. Too slow.');
+        const route = [
+          { x: A.x - 620, z: A.z + 20, alt: 60 },
+          { x: -3700, z: 680, alt: 70 },
+          { x: -4150, z: 820, alt: 60 },
+          { x: -4000, z: 470, alt: 40, buzz: true },
+          { x: -3700, z: 180, alt: 70 },
+          { x: A.x - 420, z: A.z, alt: 45 },
+        ];
+        for (let i = 0; i < route.length; i++) {
+          const r = route[i];
+          if (r.buzz) {
+            secos(m, [[-40, 10], [30, -25], [0, 45], [55, 30]].map(([dx, dz]) => ({ x: TOWNS.seco.x + dx, z: TOWNS.seco.z + dz })), ['rifle', 'rifle', 'smg', 'rifle'], { guard: false, accuracy: 0.25 });
+          }
+          await airRing(m, r.x, r.z, r.alt, { next: route[i + 1] || A, text: r.buzz ? 'Buzz the <span class="r">Los Secos compound</span>!' : `Fly through the rings (${i + 1}/${route.length}).` });
+        }
+        await m.goTo(A.x + 40, A.z, { vehicle: true, radius: 16, slow: true, inCar: plane, text: 'Land the Skipper on the <span class="y">runway</span>.' });
+        stopT();
+        await m.say('Rico', 'Smooth. My guy got every wall and every window. Tomorrow, we go in.', 3);
+      },
+    },
+    {
+      id: 'secosunrise', title: 'Seco Sunrise', contact: 'R', requires: ['dustoff'], reward: 15000,
+      log: 'Took a Warhawk gunship to Puerto Seco at dawn, burned the Los Secos trucks and ran El Seco down in the desert.',
+      chapterEnd: ['LOS SOLES', 'Thanks for playing'],
+      start: () => ({ x: AIRFIELD.x - 30, z: AIRFIELD.z - 130 }),
+      async run(m, game) {
+        const A = AIRFIELD;
+        game.env.setTime(6.2);
+        const rico = m.ped(A.x - 27, A.z - 128, { appearance: look('rico'), invincible: true });
+        const mari = m.ped(A.x - 33, A.z - 127, { appearance: look('marisol'), invincible: true });
+        m.speakersSet({ Rico: rico, Marisol: mari, Dre: m.player });
+        await m.cutscene(async () => {
+          m.face(rico, m.player); m.face(mari, m.player); m.face(m.player, rico);
+          m.twoShot(m.player, rico, 1, 3.6);
+          await m.lines([
+            ['Marisol', 'Army base says one of their gunships is "in for maintenance". It\'s behind the hangar.'],
+            ['Rico', 'Three trucks in the compound. That\'s the money, the guns, everything. Burn them.'],
+            ['Dre', 'And El Seco?'],
+            ['Marisol', 'He\'ll run. They always run.'],
+          ]);
+        });
+        const heli = m.car('warhawk', A.x - 70, A.z - 110, 0);
+        await m.getIn(heli, 'Get in the <span class="b">Warhawk</span>.');
+        m.help('Space / Shift: climb & descend. W / S: nose down / up. A / D: turn. Left mouse: minigun, right mouse: rockets.', 9);
+        await airRing(m, TOWNS.seco.x + 260, TOWNS.seco.z - 40, 70, { r: 26, next: TOWNS.seco, text: 'Fly to <span class="y">Puerto Seco</span>.' });
+        // the compound: three trucks and the gunmen guarding them
+        const C = TOWNS.seco;
+        const trucks = [];
+        for (const [dx, dz] of [[-30, 25], [35, -20], [10, 60]]) {
+          const sp = game.freeroam.roadSpot(C.x + dx, C.z + dz, false);
+          const t = m.car('hauler', sp.x, sp.z, sp.yaw, { color: 0xc2a878 });
+          t.parked = true; t.locked = true;
+          m.blipEntity(t, 0xff3030, 'car');
+          trucks.push(t);
+        }
+        const guns = secos(m, [[-50, 0], [-20, 40], [25, 20], [50, -35], [0, -45], [60, 55], [-45, 60], [15, 90]].map(([dx, dz]) => ({ x: C.x + dx, z: C.z + dz })), ['rifle', 'rifle', 'smg', 'rpg', 'rifle', 'shotgun', 'rifle', 'rpg'], { guard: false, accuracy: 0.3 });
+        m.objective('Destroy the three <span class="r">cartel trucks</span>.');
+        await m.until(() => trucks.every((t) => t.isWrecked || t.exploded), {});
+        m.hud.subtitle('That\'s the last of their money going up. Now where\'s the old man?', 'Dre', 3);
+        // El Seco makes a run for it across the desert
+        const esc = game.freeroam.roadSpot(C.x - 80, C.z + 30, false);
+        const car = m.car('summit', esc.x, esc.z, esc.yaw, { color: 0xe9d8a6 });
+        const boss = m.ped(esc.x, esc.z, { appearance: look('elseco') });
+        car.putIn(boss, 0);
+        car.health = 1500;
+        car.ai = new RouteDriver(game, car, { x: TOWNS.dry.x, z: TOWNS.dry.z }, { speed: 24 });
+        m.blipEntity(boss, 0xff3030, 'skull');
+        m.failIf(() => !boss.dead && car.ai?.arrived, 'El Seco got away.');
+        m.objective('<span class="r">El Seco</span> is running. Stop him!');
+        await m.until(() => boss.dead);
+        for (const g2 of guns) if (!g2.dead) g2.setState('flee');
+        await m.wait(1.5);
+        await m.say('Rico', 'That\'s it, D. No more Voss, no more Secos. The whole state\'s yours.', 4);
+        await m.say('Dre', 'Tino would\'ve loved this. Bring it home.', 3);
       },
     },
   ],

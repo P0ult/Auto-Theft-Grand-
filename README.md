@@ -18,8 +18,9 @@ npm start            # or: node server.mjs
 # open http://localhost:8080
 ```
 
-You can also use `npx serve .` or `python3 -m http.server 8080`. Opening `index.html` straight from disk won't
-work, because browsers block ES modules on `file://`.
+You can also use `npx serve .` or `python3 -m http.server 8080` (single player only: multiplayer needs
+`server.mjs` or the claude.ai version). Opening `index.html` straight from disk won't work, because browsers block
+ES modules on `file://`.
 
 Chrome, Edge or Firefox with hardware acceleration turned on is recommended. If your frame rate is low, change
 **Graphics quality** in Settings (Low / Medium / High / Ultra), or add `?q=low` to the URL.
@@ -53,18 +54,55 @@ To take off, open the throttle, build speed down the runway and pull up once the
 speed. The landing gear retracts and deploys by itself. Touch down gently with the wings level: hitting the
 ground hard, nose-first or with the gear up tears the aircraft apart.
 
-Esc or P opens the pause menu: map (right-click to set a waypoint with GPS route), mission brief, stats,
-settings and controls. M opens the map directly. Standard-layout gamepads are supported.
+| Taxis, trains & more | |
+|---|---|
+| H (on foot) | Whistle for a taxi |
+| F by a cab you called | Get in the back; pick a destination (or use your map waypoint) |
+| Space (in a cab's back seat) | Skip the trip (pay the estimated fare) |
+| G (on foot) | Ride as a passenger in any car with a driver (or another player's car) |
+| J (driving a cab) | Taxi driver side job on / off |
+| F by the train | Board a carriage, or climb into the cab at the front to drive it (W / S) |
+| T (free roam) | Teleport menu |
+| / (multiplayer) | Chat |
+
+Esc or P opens the pause menu: map (right-click to set a waypoint with GPS route), mission brief (teleport in
+free roam), Online, stats, settings and controls. M opens the map directly. Standard-layout gamepads are
+supported.
+
+## Free roam
+
+Pick **Free Roam** on the title screen for the whole map with every weapon, **unlimited cash and ammo**, and a
+**Teleport** tab (or press **T**) that jumps to any town, station, airfield, the military base, city landmarks or
+your map waypoint, taking your car or aircraft along. Free roam never touches your story save.
+
+## Multiplayer
+
+Open the **Online** tab in the pause menu (or pick **Multiplayer** on the title screen). Set a name and colour,
+then join the **public world** or a **room code**: press **New room** and share the code with friends. Everyone
+sees each other's characters, cars, aircraft, gunfire and explosions, can ride in each other's cars (G), chat
+(press **/**) and, if player damage is on, fight. Each player's world keeps its own traffic and cops, and the
+longest-connected player's clock and weather are shared.
+
+- **On claude.ai:** the published version of the game uses the page's live room, so anyone with the page open
+  can join.
+- **Self-hosted:** `node server.mjs` includes a small WebSocket relay. Friends on your network open
+  `http://<your-computer>:8080` and join the same room code. Up to 16 players per room.
 
 ## Features
 
-- **World.** A GTA-style map of about 7 × 7 km: the city of Los Soles on the coast, three small towns (Fern
-  Creek, Pine Hollow and the desert town of Dry Wells), farmland, pine-forested mountains with a lake, a river
-  with bridges, and a red-rock desert with mesas. The terrain is a streamed heightfield with level of detail,
+- **World.** A GTA-style map of about 7 × 7 km: the city of Los Soles on the coast, six towns (Fern Creek, Pine
+  Hollow, the desert town of Dry Wells, lakeside Mirador, the harbour town of Port Hale with its pier, and the
+  desert crossroads of Puerto Seco), farmland, pine-forested mountains with a lake, a river with bridges, and a
+  red-rock desert with mesas. The terrain is a streamed heightfield with level of detail,
   biome shading and instanced vegetation (pines, oaks, saguaros, dead trees, boulders).
   - **Roads.** A real road graph rather than a pure grid: the elevated six-lane Sol Freeway with on/off ramps and
     diamond interchanges, winding country highways, dirt tracks, roundabouts in town and in the city, bridges
     and viaducts, and superblocks that break up the grid (a stadium, a mall, a golf club and a park).
+  - **The Sol Line.** A railway from Union Station on the edge of the city, past Fern Creek to Dry Wells, with
+    level crossings where traffic waits for the train, bridges and underpasses at the highways, and three
+    stations. The train runs the timetable on its own: ride it as a passenger, or take the cab and drive.
+  - **Taxis.** Whistle for a cab, ride with the meter running and skip the trip, or drive a cab yourself and
+    pick up fares for cash (with tips for speed and a bonus every fifth fare in a row).
   - **Fort Carver.** A walled military base in the desert with a runway, hangars, a control tower, barracks,
     helipads and a tank yard. You can steal the **Raptor** fighter jet, the **Hercules** cargo plane, the
     **Warhawk** attack helicopter, the **Mammoth** tank and army trucks. It's a restricted zone: after a
@@ -83,9 +121,18 @@ settings and controls. M opens the map directly. Standard-layout gamepads are su
   - Building windows are generated in a shader with *interior mapping* (fake 3D rooms behind the glass). At night
     they light up, along with neon shop signs.
   - Street lights cast light pools, and real point lights follow the nearest lamps. Headlights light the road.
-  - Wet roads with puddles in rain, and an animated ocean with foam where it meets the shore.
+  - **Screen-space ray-traced reflections**: wet streets, puddles, window glass, car paint and water mirror
+    the buildings, cars, people and lights around them.
+  - **Ambient occlusion** (contact shadows under cars, in corners and doorways).
+  - **Rain**: roads, lots and flat roofs fill with puddles as the ground gets wetter, dirt turns to mud, and
+    raindrops send ripples across the water. An animated ocean with foam where it meets the shore.
+  - Reflections and occlusion follow the quality preset and can be switched on or off in Settings.
+- **Models.** Characters are one smooth-skinned body each (shoulders, elbows and knees bend instead of
+  splitting), with faces (eyes, nose, lips, brows), fingers, clothing details and fabric textures. Cars have
+  slatted grilles, headlight housings with projector lenses, indicators, number plates, mirrors, wipers, panel
+  lines, door handles and detailed wheels with tyres, spokes and brake discs.
 - **Animation.** Characters use one skinned mesh each. Walk, run and sprint gaits use leg IK with planted feet,
-  including strafing and backpedalling. Characters can crouch, jump, fall, swim, sit and drive with their hands
+  including strafing and backpedalling, heel-to-toe foot roll, hip sway and leaning into turns. Characters can crouch, jump, fall, swim, sit and drive with their hands
   on the wheel. Other animations include pistol and rifle aiming (guns point at the crosshair), reloading, a
   punch combo with a kick, knife stabs, bat swings and grenade throws. Characters also flinch, cower, put their
   hands up, gesture while talking and get back up after being knocked down. A **verlet ragdoll** handles deaths
@@ -116,9 +163,11 @@ settings and controls. M opens the map directly. Standard-layout gamepads are su
   have lost you). Patrol cars route through the grid, then ram you. Cops on foot chase, shoot or arrest you
   (**BUSTED**), and a helicopter with a searchlight joins at three stars. Spray Shacks repaint your car and clear
   your wanted level.
-- **Story.** 22 missions across five chapters, with cutscenes and dialogue: races, a stealth tail, chases, a
+- **Story.** 26 missions across six chapters, with cutscenes and dialogue: races, a stealth tail, chases, a
   kidnapping rescue, a heist, drive-bys, turf wars, a mansion assault, a rooftop showdown and a finale on the
-  pier. Credits roll at the end, then free roam continues.
+  pier. After the credits, **Chapter VI: Out of Town** takes you beyond Los Soles after the desert cartel Los
+  Secos: a taxi run to Mirador and Port Hale, hijacking the Sol Line gun train, a low-level flight through the
+  canyons, and a gunship raid on Puerto Seco.
 - **WASTED / BUSTED.** The death screen follows modern GTA: slow motion, a white flash and a black-and-white
   blur while the camera drifts away from your body. The "wasted" banner lands on the hit of the stinger. In Free
   Roam you respawn with all your weapons and cash.
@@ -146,14 +195,18 @@ src/game/                 game loop, player (+ parachute), camera, vehicles, ped
                           traffic, police, military base, combat, effects, pickups & shops,
                           audio & radio, missions engine, story, save
 assets/audio/             the WASTED stinger
+src/game/                 (also) railway timetable & crossings, taxis, free roam teleport
+src/net/                  multiplayer: transports (claude.ai live room, WebSocket relay), remote players,
+                          Online tab
 src/ui/                   HUD, radar, pause menu & map
 vendor/three/             Three.js r186 (MIT), bundled
-server.mjs                zero-dependency static server
+server.mjs                zero-dependency static server + multiplayer relay
 ```
 
 ## Tips
 
-- In Free Roam you start with every weapon and $5000, and you keep them when you die.
+- In Free Roam you have every weapon with unlimited cash and ammo, and you keep them when you die.
+- Long way to a mission? Whistle for a taxi (H) and press Space to skip the ride.
 - Want to fly without the army on your tail? Take the Skipper at Fern Creek Airfield or the Skylark on the
   hospital roof.
 - Walk into the green marker at your house in Cedar Row to save.
