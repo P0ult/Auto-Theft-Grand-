@@ -28,6 +28,7 @@ const BINDINGS = {
   taxiJob: ['KeyJ'],
   skipTrip: ['Space'],
   chat: ['Slash'],
+  console: ['Backquote'],
 };
 
 export class Input {

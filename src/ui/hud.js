@@ -6,6 +6,7 @@ import { route } from '../game/gps.js';
 import { renderOnlineTab } from '../net/netui.js';
 import { formatMoney, clamp } from '../core/utils.js';
 import { VEHICLES } from '../entities/vehicledefs.js';
+import { SPAWN_GROUPS, TOGGLES } from '../game/admin.js';
 
 const h = (tag, cls, parent, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; if (parent) parent.appendChild(e); return e; };
 
@@ -248,7 +249,7 @@ export class HUD {
     const tabs = h('div', 'tabs', head);
     const body = h('div', 'pause-body', panel);
     const T = game.freeRoam
-      ? { map: 'Map', teleport: 'Teleport', online: 'Online', stats: 'Stats', settings: 'Settings', controls: 'Controls' }
+      ? { map: 'Map', teleport: 'Teleport', vehicles: 'Vehicles', admin: 'Admin', online: 'Online', stats: 'Stats', settings: 'Settings', controls: 'Controls' }
       : { map: 'Map', brief: 'Brief', online: 'Online', stats: 'Stats', settings: 'Settings', controls: 'Controls' };
     const show = (t) => {
       tabs.querySelectorAll('button').forEach((b) => b.classList.toggle('active', b.dataset.t === t));
@@ -329,6 +330,137 @@ export class HUD {
     }
   }
 
+  // free roam: spawn any vehicle (you're put in it; aircraft start flying)
+  _tab_vehicles(body) {
+    const game = this.game, adm = game.admin;
+    const box = h('div', 'teleport vehspawn', body);
+    const opts = this._spawnOpts || (this._spawnOpts = { into: true, air: true });
+    const top = h('div', 'vs-top', box);
+    h('p', 'muted', top, 'Pick a vehicle to drive it away. Online, other players see it too. Or type <b>car &lt;name&gt;</b> in the console (<b>`</b>).');
+    const row = h('div', 'vs-opts', top);
+    const chk = (label, key) => { const l = h('label', 'on-check', row); const c = h('input', '', l); c.type = 'checkbox'; c.checked = opts[key]; h('span', '', l, label); c.onchange = () => { opts[key] = c.checked; }; };
+    chk('Put me in the driver\'s seat', 'into');
+    chk('Planes & helicopters start in the air', 'air');
+    const paints = [null, 0x111111, 0xf2f2f2, 0xc1121f, 0xf77f00, 0xffd60a, 0x2dc653, 0x00b4d8, 0x1d3557, 0x7b2cbf, 0xff4fa3, 0x8d99ae];
+    const sw = h('div', 'vs-paint', top);
+    h('span', 'muted', sw, 'Paint');
+    const paintBtns = paints.map((c) => {
+      const b = h('button', 'vs-swatch' + (c == null ? ' auto' : ''), sw, c == null ? 'Stock' : '');
+      if (c != null) b.style.background = '#' + c.toString(16).padStart(6, '0');
+      b.onclick = () => { adm.color = c; paintBtns.forEach((x, i) => x.classList.toggle('on', paints[i] === adm.color)); };
+      b.classList.toggle('on', c === adm.color);
+      return b;
+    });
+    const msg = h('div', 'vs-msg', box);
+    const cols = h('div', 'tp-cols', box);
+    for (const [name, ids] of SPAWN_GROUPS) {
+      const g = h('div', 'tp-group', cols);
+      h('h3', '', g, name);
+      for (const id of ids) {
+        const d = VEHICLES[id];
+        if (!d) continue;
+        const b = h('button', 'tp-btn', g, `${d.name}<span class="fare">${Math.round((d.vMax || d.top || 40) * 2.237)} mph</span>`);
+        b.onclick = () => {
+          game.audio?.play('ui');
+          const r = adm.summon(id, { into: opts.into, air: opts.air ? undefined : false });
+          if (/\.$/.test(r) && !/^(No|Not|Vehicle spawning)/.test(r)) { this.closeOverlay(); this.help(`Spawned: <b>${r}</b>`, 3); } else msg.textContent = r;
+        };
+      }
+    }
+  }
+
+  // free roam, single player: cheats, actions, world settings
+  _tab_admin(body) {
+    const game = this.game, adm = game.admin;
+    const box = h('div', 'admin', body);
+    if (!adm.allowed) {
+      h('p', 'muted', box, game.net?.online
+        ? 'Admin tools are switched off while you\'re online — everyone in a shared world plays by the same rules. Leave multiplayer (Online tab) to use them. The vehicle spawner still works.'
+        : 'Admin tools are available in free roam.');
+      return;
+    }
+    const out = h('div', 'adm-msg', box, 'Tip: press <b>`</b> (backtick) in game to type commands — try <b>help</b>.');
+    const say = (m) => { out.innerHTML = m; game.audio?.play('ui'); };
+    const sec = (title) => { const s = h('section', 'adm-sec', box); h('h3', '', s, title); return h('div', 'adm-row', s); };
+    const tg = sec('Cheats');
+    for (const [k, label, tip] of TOGGLES) {
+      const b = h('button', 'adm-toggle' + (adm.cheats[k] ? ' on' : ''), tg, `<i></i>${label}`);
+      b.title = tip;
+      b.onclick = () => { say(adm.toggle(k)); b.classList.toggle('on', !!adm.cheats[k]); };
+    }
+    const act = sec('Actions');
+    const btn = (row, label, fn, tip) => { const b = h('button', 'btn small', row, label); if (tip) b.title = tip; b.onclick = () => say(fn()); return b; };
+    btn(act, 'Heal & armour', () => adm.heal());
+    btn(act, 'All weapons', () => adm.weapons());
+    btn(act, 'Repair vehicle', () => adm.repair());
+    btn(act, 'Flip vehicle', () => adm.flip());
+    btn(act, 'Clear the area', () => adm.clearArea(), 'Remove nearby people and traffic');
+    btn(act, 'Blow up nearby cars', () => adm.explodeNearby());
+    btn(act, 'Bodyguard', () => adm.bodyguard(), 'An armed follower');
+    btn(act, 'Send enemies', () => adm.enemies(), 'Five armed gang members come for you');
+    btn(act, 'Skydive', () => { const r = adm.skydive(); this.closeOverlay(); return r; }, 'Drop from 400 m');
+    const wr = sec('Wanted level');
+    for (let n = 0; n <= 5; n++) btn(wr, n ? '★'.repeat(n) : 'Clear', () => adm.wanted(n));
+    const tr = sec('Time of day');
+    for (const [label, hr] of [['Dawn', 6], ['Morning', 9], ['Noon', 12], ['Afternoon', 16], ['Sunset', 19.2], ['Night', 23]]) btn(tr, label, () => adm.setTime(hr));
+    const we = sec('Weather');
+    for (const w of ['clear', 'cloudy', 'rain', 'storm', 'fog']) btn(we, w[0].toUpperCase() + w.slice(1), () => adm.setWeather(w));
+    const dn = sec('Streets');
+    const seg = (row, label, key) => {
+      const wrap = h('span', 'adm-seg', row, `<b>${label}</b>`);
+      const bs = ['off', 'normal', 'heavy'].map((v) => { const b = h('button', 'btn small' + (adm[key] === v ? ' on' : ''), wrap, v[0].toUpperCase() + v.slice(1)); b.onclick = () => { adm[key] = v; bs.forEach((x, i) => x.classList.toggle('on', ['off', 'normal', 'heavy'][i] === v)); say(`${label}: ${v}.`); }; return b; });
+    };
+    seg(dn, 'Traffic', 'traffic');
+    seg(dn, 'Pedestrians', 'peds');
+  }
+
+  // the admin console (free roam): one line in, one line out
+  openConsole() {
+    const game = this.game;
+    if (!this.consoleBox) {
+      const box = h('div', 'con-box', document.body);
+      const log = h('div', 'con-log', box);
+      const row = h('div', 'con-row', box, '<span>&gt;</span>');
+      const inp = h('input', '', row); inp.maxLength = 120; inp.placeholder = 'command — type help, Enter to run, Esc to close'; inp.spellcheck = false;
+      inp.addEventListener('keydown', (e) => {
+        e.stopPropagation();
+        if (e.key === 'Enter') {
+          const line = inp.value.trim();
+          if (line) {
+            this._conHist = [...(this._conHist || []).filter((l) => l !== line), line].slice(-20); this._conIdx = this._conHist.length;
+            const r = game.admin.run(line);
+            h('div', 'cmd', log).textContent = '> ' + line;
+            if (r) h('div', '', log, r);
+            while (log.childNodes.length > 14) log.removeChild(log.firstChild);
+            log.scrollTop = log.scrollHeight;
+          }
+          inp.value = '';
+          if (!line) this.closeConsole();
+        } else if (e.key === 'Escape' || (e.key === '`' && !inp.value)) { e.preventDefault(); this.closeConsole(); }
+        else if (e.key === 'ArrowUp' && this._conHist?.length) { this._conIdx = Math.max(0, (this._conIdx ?? this._conHist.length) - 1); inp.value = this._conHist[this._conIdx]; e.preventDefault(); }
+        else if (e.key === 'ArrowDown' && this._conHist?.length) { this._conIdx = Math.min(this._conHist.length, (this._conIdx ?? 0) + 1); inp.value = this._conHist[this._conIdx] || ''; e.preventDefault(); }
+      });
+      inp.addEventListener('blur', () => this.closeConsole());
+      this.consoleBox = box; this.consoleInput = inp; this.consoleLog = log;
+      h('div', '', log, game.admin.allowed ? 'Admin console. Type <b>help</b> for commands.' : 'Vehicle spawner console (admin commands are single-player only). Try <b>car zenith</b>.');
+    }
+    if (this.consoleOpen) return;
+    this.consoleOpen = true;
+    this.consoleBox.classList.add('show');
+    this._conInputWas = game.input.enabled;
+    game.input.enabled = false;
+    game.input.keys.clear();
+    setTimeout(() => this.consoleInput.focus(), 0);
+  }
+  closeConsole() {
+    if (!this.consoleOpen) return;
+    this.consoleOpen = false;
+    this.consoleBox.classList.remove('show');
+    this.consoleInput.value = '';
+    this.consoleInput.blur();
+    this.game.input.enabled = this._conInputWas ?? true;
+  }
+
   _tab_online(body) { if (this.game.net) renderOnlineTab(this.game, body); }
 
   _tab_brief(body) {
@@ -401,7 +533,7 @@ export class HUD {
       <tr><td>A / D</td><td>Roll (bank to turn)</td></tr><tr><td>Q / E</td><td>Rudder</td></tr><tr><td>Space</td><td>Wheel brakes</td></tr><tr><td>Left / right mouse</td><td>Cannon / homing missile</td></tr><tr><td>F</td><td>Bail out (parachute)</td></tr></table>
       <h3>Helicopters</h3><table><tr><td>Space / Shift</td><td>Climb / descend</td></tr><tr><td>W / S</td><td>Fly forward / back</td></tr><tr><td>A / D</td><td>Turn</td></tr><tr><td>Q / E</td><td>Strafe</td></tr><tr><td>Left / right mouse</td><td>Minigun / rockets</td></tr></table>
       <h3>Tank</h3><table><tr><td>W / S, A / D</td><td>Drive, turn on the spot</td></tr><tr><td>Mouse / left mouse</td><td>Aim turret / fire</td></tr></table>
-      <h3>General</h3><table><tr><td>Esc / P</td><td>Pause, map & settings</td></tr><tr><td>M</td><td>Map</td></tr><tr><td>T</td><td>Teleport (free roam)</td></tr><tr><td>/</td><td>Chat (multiplayer)</td></tr><tr><td>H (on foot)</td><td>Whistle for a taxi</td></tr><tr><td>G (on foot)</td><td>Ride as a passenger</td></tr><tr><td>J (in a cab)</td><td>Taxi driver job on / off</td></tr><tr><td>Space (in a cab's back seat)</td><td>Skip the trip</td></tr><tr><td>Space / Enter</td><td>Skip cutscene line</td></tr></table>
+      <h3>General</h3><table><tr><td>Esc / P</td><td>Pause, map & settings</td></tr><tr><td>M</td><td>Map</td></tr><tr><td>T</td><td>Teleport (free roam)</td></tr><tr><td>&#96; (backtick)</td><td>Admin console (free roam)</td></tr><tr><td>/</td><td>Chat (multiplayer)</td></tr><tr><td>H (on foot)</td><td>Whistle for a taxi</td></tr><tr><td>G (on foot)</td><td>Ride as a passenger</td></tr><tr><td>J (in a cab)</td><td>Taxi driver job on / off</td></tr><tr><td>Space (in a cab's back seat)</td><td>Skip the trip</td></tr><tr><td>Space / Enter</td><td>Skip cutscene line</td></tr></table>
       <p class="muted">Gamepad supported (standard layout): sticks, RT/LT to drive, RB handbrake, Y enter vehicle, A sprint.</p></div></div>`;
   }
 
@@ -413,7 +545,10 @@ export class HUD {
     if (input.hit('pause')) { if (!(this._autoPauseT && performance.now() - this._autoPauseT < 450)) this.togglePause(); }
     else if (input.hit('map') && !this.menuOpen) this.openPause('map');
     else if (input.hit('chat') && !this.menuOpen && game.net?.online && game.gameplay?.state === 'playing') game.net.openChat();
-    else if (input.hit('teleport') && !this.menuOpen && game.gameplay?.state === 'playing' && !game.cutscene) {
+    else if (input.hit('console') && !this.menuOpen && !this.consoleOpen && game.gameplay?.state === 'playing' && !game.cutscene) {
+      if (game.freeroam?.active) this.openConsole();
+      else this.help('The admin console is a free roam feature.', 3);
+    } else if (input.hit('teleport') && !this.menuOpen && game.gameplay?.state === 'playing' && !game.cutscene) {
       if (game.freeroam?.active) this.openPause('teleport');
       else this.help('Teleporting is a free roam feature — pick <b>Free Roam</b> on the title screen.', 4);
     }

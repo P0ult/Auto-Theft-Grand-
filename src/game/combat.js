@@ -98,6 +98,11 @@ export class Combat {
 
   applyHit(hit, def, shooter, dir) {
     const game = this.game;
+    const ch = game.cheatsOn;
+    if (shooter?.isPlayer && ch && (ch.explosive || ch.oneHit)) {
+      if (ch.explosive && hit.point) this.explosion(hit.point.clone(), 3.2, 80, shooter);
+      if (ch.oneHit) def = { ...def, damage: def.damage * 10 };
+    }
     if (hit.kind === 'char') {
       const c = hit.obj;
       const wasDead = c.dead;

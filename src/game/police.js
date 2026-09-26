@@ -135,6 +135,7 @@ export class Police {
 
   // witnessed: forces at least one star
   crime(amount, pos, severe, noise = false) {
+    if (this.game.cheatsOn?.neverWanted) return;
     if (!this.enabled || this.game.player.dead) return;
     const nearCop = this.cops.some((c) => !c.dead && dist2(c.pos.x, c.pos.z, pos.x, pos.z) < (noise ? 45 : 35) ** 2);
     const witnessK = nearCop ? 1 : noise ? 0.35 : 0.6;

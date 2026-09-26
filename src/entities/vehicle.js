@@ -198,7 +198,7 @@ export class Vehicle {
       this.r *= 1 - 0.3 * h;
       this.yaw += this.r * h;
       this.pos.x += this.vel.x * h; this.pos.z += this.vel.z * h;
-      this.vy -= G * h;
+      this.vy -= G * h * (this.game.gravity ?? 1);
       this.pos.y += this.vy * h;
       return;
     }
@@ -412,6 +412,7 @@ export class Vehicle {
 
   damage(amount, source = null) {
     if (this.exploded) return;
+    if (this.game.cheatsOn?.vehGod && this.driver?.isPlayer) return;
     if (this.remote) { this.game.net?.sendVehicleHit(this, amount, source); return; } // another player's: their client decides
     this.health -= amount;
     if (source) this.lastDamager = source;
@@ -420,12 +421,14 @@ export class Vehicle {
 
   dent(wx, wy, wz, strength) {
     if (strength < 5) return;
+    if (this.game.cheatsOn?.vehGod && this.driver?.isPlayer) return;
     // deform body vertices near the impact point (copy-on-write geometry)
     const body = this.model.body;
     const inv = new THREE.Matrix4().copy(body.matrixWorld).invert();
     body.updateMatrixWorld(true);
     const lp = new THREE.Vector3(wx, wy, wz).applyMatrix4(inv);
     const pos = body.geometry.attributes.position;
+    if (!this._undented) this._undented = pos.array.slice();
     const rad = 0.9;
     const amt = Math.min(0.16, strength * 0.006);
     const cx = 0, cy = this.def.H * 0.45, cz = 0;
@@ -442,6 +445,15 @@ export class Vehicle {
       }
     }
     if (changed) { pos.needsUpdate = true; this._normalsDirty = true; }
+  }
+
+  // put the bodywork back as built (repair)
+  undent() {
+    if (!this._undented) return;
+    const pos = this.model.body.geometry.attributes.position;
+    pos.array.set(this._undented);
+    pos.needsUpdate = true;
+    this._normalsDirty = true;
   }
 
   explode() {

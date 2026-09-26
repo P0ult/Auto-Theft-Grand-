@@ -15,6 +15,7 @@ import { STORY } from './game/story.js';
 import { SaveSystem } from './game/save.js';
 import { Gameplay, FREE_ROAM_KIT } from './game/gameplay.js';
 import { FreeRoam } from './game/freeroam.js';
+import { Admin } from './game/admin.js';
 import { TaxiSystem } from './game/taxi.js';
 import { NetSystem } from './net/net.js';
 import { HUD } from './ui/hud.js';
@@ -75,6 +76,7 @@ async function boot() {
   game.save = new SaveSystem(game);
   game.addSystem('gameplay', new Gameplay(game));
   game.addSystem('freeroam', new FreeRoam(game));
+  game.addSystem('admin', new Admin(game));
   game.addSystem('taxi', new TaxiSystem(game));
   game.hud = new HUD(game);
   game.net = new NetSystem(game);

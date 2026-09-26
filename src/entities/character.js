@@ -192,7 +192,7 @@ export class Character {
     const maxDv = accel * dt;
     if (dl > maxDv) { this.vel.x += dvx / dl * maxDv; this.vel.z += dvz / dl * maxDv; }
     else { this.vel.x = tx; this.vel.z = tz; }
-    if (!this.grounded && !this.swimming) this.vel.y -= 19 * dt;
+    if (!this.grounded && !this.swimming) this.vel.y -= 19 * dt * (this.game.gravity ?? 1);
     const oldY = this.pos.y;
     this.pos.x += this.vel.x * dt;
     this.pos.z += this.vel.z * dt;

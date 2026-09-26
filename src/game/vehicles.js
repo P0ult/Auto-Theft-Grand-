@@ -250,6 +250,17 @@ export class VehicleManager {
     return true;
   }
 
+  // straight into a seat, no walk to the door (spawner, teleports)
+  seatNow(char, veh, seat = 0) {
+    if (char.vehicle) char.vehicle.takeOut(char);
+    this.seqs = this.seqs.filter((s) => s.char !== char);
+    char.ragdolling = false; char.skydive = null; char.closeChute?.();
+    veh.putIn(char, seat);
+    char.onEnteredVehicle?.(veh);
+    this.game.events.emit('enteredVehicle', char, veh);
+    return true;
+  }
+
   exit(char, opts = {}) {
     const veh = char.vehicle;
     if (!veh || this.isBusy(char)) return false;

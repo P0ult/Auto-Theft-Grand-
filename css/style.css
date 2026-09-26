@@ -126,8 +126,9 @@ body.cinematic .hud-subtitles { bottom: 3.5vh; z-index: 7; }
 .pause-head { display: flex; align-items: center; justify-content: space-between; gap: 20px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px; }
 .logo-small { font-family: var(--title-font); font-size: 30px; margin: 0; letter-spacing: 2px; color: #fff; }
 .logo-small span { color: var(--gold); }
-.tabs { display: flex; gap: 4px; }
-.tab { background: transparent; color: #bbb; border: 0; padding: 8px 16px; font-family: var(--hud-font); font-size: 24px; letter-spacing: 1.5px; cursor: pointer; border-bottom: 3px solid transparent; }
+.tabs { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 2px 4px; min-width: 0; }
+.tab { background: transparent; color: #bbb; border: 0; padding: 8px clamp(8px, 1.1vw, 16px); font-family: var(--hud-font); font-size: clamp(19px, 1.8vw, 24px); letter-spacing: 1.5px; cursor: pointer; border-bottom: 3px solid transparent; }
+.logo-small { flex: none; }
 .tab.active, .tab:hover { color: #fff; border-bottom-color: var(--gold); }
 .pause-body { min-height: 320px; padding: 14px 0; }
 .pause-foot { border-top: 1px solid rgba(255,255,255,0.1); padding-top: 8px; }
@@ -264,3 +265,39 @@ body.dead .hud-tr, body.dead .hud-radar, body.dead .hud-speedo, body.dead .hud-z
 .btn.small { padding: 4px 10px; font-size: 12px; }
 .on-log { height: 170px; overflow-y: auto; background: rgba(0,0,0,0.3); padding: 6px 8px; border-radius: 3px; font-size: 14px; display: flex; flex-direction: column; gap: 3px; overflow-wrap: anywhere; }
 .on-log .sys { color: #aaa; font-style: italic; }
+
+/* ---- free roam: vehicle spawner */
+.vehspawn .vs-top { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
+.vehspawn .vs-top p { margin: 0; }
+.vs-opts { display: flex; flex-wrap: wrap; gap: 6px 22px; }
+.vs-paint { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.vs-paint .muted { margin-right: 4px; font-size: 13px; }
+.vs-swatch { width: 26px; height: 26px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.25); cursor: pointer; padding: 0; }
+.vs-swatch.auto { width: auto; padding: 0 10px; border-radius: 13px; background: rgba(255,255,255,0.08); color: #ddd; font-size: 12px; font-weight: 700; }
+.vs-swatch.on { border-color: var(--gold); box-shadow: 0 0 0 2px rgba(232,182,76,0.45); }
+.vs-msg { min-height: 1.2em; color: #ff9a8a; font-size: 13px; margin-bottom: 6px; }
+
+/* ---- free roam: admin tools */
+.admin { display: flex; flex-direction: column; gap: 14px; }
+.adm-msg { background: rgba(232,182,76,0.12); border-left: 3px solid var(--gold); padding: 7px 12px; font-size: 14px; color: #f1e6cf; min-height: 1.3em; }
+.adm-sec h3 { font-family: var(--hud-font); font-weight: 400; font-size: 22px; letter-spacing: 1px; color: var(--gold); margin: 0 0 6px; }
+.adm-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.adm-toggle { display: inline-flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.06); color: #ddd; border: 1px solid rgba(255,255,255,0.1); padding: 7px 12px; border-radius: 3px; cursor: pointer; font-weight: 600; font-size: 13px; }
+.adm-toggle i { width: 26px; height: 14px; border-radius: 7px; background: #555; position: relative; transition: background 0.15s; }
+.adm-toggle i::after { content: ''; position: absolute; left: 2px; top: 2px; width: 10px; height: 10px; border-radius: 50%; background: #ddd; transition: left 0.15s; }
+.adm-toggle.on { border-color: rgba(108,255,138,0.45); color: #fff; }
+.adm-toggle.on i { background: #3fbf5f; }
+.adm-toggle.on i::after { left: 14px; }
+.adm-seg { display: inline-flex; align-items: center; gap: 4px; margin-right: 18px; }
+.adm-seg b { font-size: 13px; color: #bbb; margin-right: 4px; }
+.adm-row .btn.small.on { background: var(--gold); color: #111; }
+
+/* ---- admin console */
+.con-box { position: fixed; left: 24px; bottom: 256px; z-index: 17; display: none; flex-direction: column; gap: 4px; width: min(560px, calc(100vw - 48px)); }
+.con-box.show { display: flex; }
+.con-log { max-height: 240px; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; font-size: 13px; color: #d8d8d8; }
+.con-log div { background: rgba(0,0,0,0.6); padding: 3px 9px; border-radius: 3px; width: fit-content; max-width: 100%; }
+.con-log .cmd { color: var(--gold); font-family: ui-monospace, Menlo, Consolas, monospace; }
+.con-row { display: flex; align-items: center; gap: 8px; background: rgba(0,0,0,0.8); padding: 6px 10px; border-radius: 4px; border-left: 3px solid #6cff8a; }
+.con-row span { font-family: ui-monospace, Menlo, Consolas, monospace; color: #6cff8a; font-weight: 700; }
+.con-row input { flex: 1; background: transparent; border: 0; color: #fff; font-size: 15px; outline: none; font-family: ui-monospace, Menlo, Consolas, monospace; }

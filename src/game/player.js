@@ -25,7 +25,7 @@ export class Player extends Character {
     this.reloading = 0;
     this.enterRequest = false;
     this.maxArmor = 100;
-    this.onHardLanding = (v) => this.takeDamage((v - 13) * 6, { type: 'fall' });
+    this.onHardLanding = (v) => { if (!this.game.cheatsOn?.superJump) this.takeDamage((v - 13) * 6, { type: 'fall' }); };
   }
 
   control(dt, input, rig) {
@@ -53,6 +53,7 @@ export class Player extends Character {
     if (this.aiming) speed = 2.6;
     if (this.crouching) speed = 1.8;
     if (this.swimming) speed = this.sprinting ? 3.8 : 2.4;
+    if (this.game.cheatsOn?.superRun && !this.aiming && !this.swimming) speed *= 2;
     if (this.anim.busy && this.anim.action && ['jab', 'cross', 'kick', 'stab', 'swing', 'getup'].includes(this.anim.action.name)) speed *= 0.25;
     this.moveTarget.set(dx * speed, dz * speed);
     // under canopy: glide forward when hands-off, Space opens the chute in free fall
@@ -70,7 +71,7 @@ export class Player extends Character {
       this.yaw = dampAngle(this.yaw, Math.atan2(dx, dz), this.sprinting ? 8 : 11, dt);
     }
 
-    if (input.hit('jump') && !this.aiming) this.jump();
+    if (input.hit('jump') && !this.aiming) this.jump(this.game.cheatsOn?.superJump ? 17 : undefined);
 
     // weapon switching
     if (input.hit('nextWeapon') || input.mouse.wheel > 0) this.cycleWeapon(1);
