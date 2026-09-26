@@ -27,6 +27,7 @@ const BINDINGS = {
   passenger: ['KeyG'],
   taxiJob: ['KeyJ'],
   skipTrip: ['Space'],
+  chat: ['Slash'],
 };
 
 export class Input {
@@ -46,6 +47,7 @@ export class Input {
     this.onPointerLockChange = null;
 
     window.addEventListener('keydown', (e) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return; // typing (chat, names)
       if (e.repeat) { if (this.enabled && !e.metaKey) this._maybePrevent(e); return; }
       this.keys.add(e.code);
       this.pressed.add(e.code);

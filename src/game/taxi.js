@@ -37,7 +37,7 @@ export class TaxiSystem {
   }
 
   isCab(v) { return !!v?.def?.taxi; }
-  _aiDriven(v) { return !!(v && v.driver && !v.driver.isPlayer && !v.driver.dead && !v.isWrecked && !v.removed); }
+  _aiDriven(v) { return !!(v && !v.remote && v.driver && !v.driver.isPlayer && !v.driver.remote && !v.driver.dead && !v.isWrecked && !v.removed); }
   get _ctl() { const g = this.game; return g.input.enabled && !g.cutscene && !g.player.dead && g.gameplay?.state === 'playing' && !g.hud?.menuOpen; }
 
   // ------------------------------------------------------------------ frame
@@ -162,7 +162,21 @@ export class TaxiSystem {
   enterAsPassenger() {
     const g = this.game, p = g.player;
     if (g.vehicles.isBusy(p)) return;
-    const v = g.vehicles.nearestEnterable(p.pos, 5.5);
+    let v = g.vehicles.nearestEnterable(p.pos, 5.5);
+    // another player's vehicle: hop in as their passenger
+    let best = 5.5 * 5.5;
+    for (const o of g.vehicles.list) {
+      if (!o.remote || o.exploded) continue;
+      const d = (o.pos.x - p.pos.x) ** 2 + (o.pos.z - p.pos.z) ** 2 - (o.hz * o.hz);
+      if (d < best) { best = d; v = o; }
+    }
+    if (v?.remote) {
+      const n = v.model?.seats?.length || 2;
+      const seat = [1, 2, 3].find((s) => s < n && !v.occupants[s]);
+      if (seat == null) { g.hud?.help('No room in there.', 2); return; }
+      g.vehicles.enter(p, v, seat, { force: true });
+      return;
+    }
     if (!v || v.def.aircraft || v.def.train || v.def.tank) return;
     if (g.missions?.canEnterVehicle && !g.missions.canEnterVehicle(v)) return;
     if (!v.driver || v.driver.isPlayer) { g.tryEnterExit(); return; }

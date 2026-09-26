@@ -409,6 +409,7 @@ export class Vehicle {
 
   damage(amount, source = null) {
     if (this.exploded) return;
+    if (this.remote) { this.game.net?.sendVehicleHit(this, amount, source); return; } // another player's: their client decides
     this.health -= amount;
     if (source) this.lastDamager = source;
     this.game.events?.emit('vehicleDamaged', this, amount, source);

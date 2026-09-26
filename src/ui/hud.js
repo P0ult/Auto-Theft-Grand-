@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { buildMapImage, MAP_EXTENT, drawMapLayers } from './mapimage.js';
 import { WEAPONS, WEAPON_ORDER } from '../game/weapondefs.js';
 import { route } from '../game/gps.js';
+import { renderOnlineTab } from '../net/netui.js';
 import { formatMoney, clamp } from '../core/utils.js';
 import { VEHICLES } from '../entities/vehicledefs.js';
 
@@ -247,8 +248,8 @@ export class HUD {
     const tabs = h('div', 'tabs', head);
     const body = h('div', 'pause-body', panel);
     const T = game.freeRoam
-      ? { map: 'Map', teleport: 'Teleport', stats: 'Stats', settings: 'Settings', controls: 'Controls' }
-      : { map: 'Map', brief: 'Brief', stats: 'Stats', settings: 'Settings', controls: 'Controls' };
+      ? { map: 'Map', teleport: 'Teleport', online: 'Online', stats: 'Stats', settings: 'Settings', controls: 'Controls' }
+      : { map: 'Map', brief: 'Brief', online: 'Online', stats: 'Stats', settings: 'Settings', controls: 'Controls' };
     const show = (t) => {
       tabs.querySelectorAll('button').forEach((b) => b.classList.toggle('active', b.dataset.t === t));
       body.innerHTML = '';
@@ -328,6 +329,8 @@ export class HUD {
     }
   }
 
+  _tab_online(body) { if (this.game.net) renderOnlineTab(this.game, body); }
+
   _tab_brief(body) {
     const m = this.game.missions;
     const box = h('div', 'brief', body);
@@ -390,7 +393,7 @@ export class HUD {
       <tr><td>A / D</td><td>Roll (bank to turn)</td></tr><tr><td>Q / E</td><td>Rudder</td></tr><tr><td>Space</td><td>Wheel brakes</td></tr><tr><td>Left / right mouse</td><td>Cannon / homing missile</td></tr><tr><td>F</td><td>Bail out (parachute)</td></tr></table>
       <h3>Helicopters</h3><table><tr><td>Space / Shift</td><td>Climb / descend</td></tr><tr><td>W / S</td><td>Fly forward / back</td></tr><tr><td>A / D</td><td>Turn</td></tr><tr><td>Q / E</td><td>Strafe</td></tr><tr><td>Left / right mouse</td><td>Minigun / rockets</td></tr></table>
       <h3>Tank</h3><table><tr><td>W / S, A / D</td><td>Drive, turn on the spot</td></tr><tr><td>Mouse / left mouse</td><td>Aim turret / fire</td></tr></table>
-      <h3>General</h3><table><tr><td>Esc / P</td><td>Pause, map & settings</td></tr><tr><td>M</td><td>Map</td></tr><tr><td>T</td><td>Teleport (free roam)</td></tr><tr><td>H (on foot)</td><td>Whistle for a taxi</td></tr><tr><td>G (on foot)</td><td>Ride as a passenger</td></tr><tr><td>J (in a cab)</td><td>Taxi driver job on / off</td></tr><tr><td>Space (in a cab's back seat)</td><td>Skip the trip</td></tr><tr><td>Space / Enter</td><td>Skip cutscene line</td></tr></table>
+      <h3>General</h3><table><tr><td>Esc / P</td><td>Pause, map & settings</td></tr><tr><td>M</td><td>Map</td></tr><tr><td>T</td><td>Teleport (free roam)</td></tr><tr><td>/</td><td>Chat (multiplayer)</td></tr><tr><td>H (on foot)</td><td>Whistle for a taxi</td></tr><tr><td>G (on foot)</td><td>Ride as a passenger</td></tr><tr><td>J (in a cab)</td><td>Taxi driver job on / off</td></tr><tr><td>Space (in a cab's back seat)</td><td>Skip the trip</td></tr><tr><td>Space / Enter</td><td>Skip cutscene line</td></tr></table>
       <p class="muted">Gamepad supported (standard layout): sticks, RT/LT to drive, RB handbrake, Y enter vehicle, A sprint.</p></div></div>`;
   }
 
@@ -401,6 +404,7 @@ export class HUD {
     const input = game.input;
     if (input.hit('pause')) { if (!(this._autoPauseT && performance.now() - this._autoPauseT < 450)) this.togglePause(); }
     else if (input.hit('map') && !this.menuOpen) this.openPause('map');
+    else if (input.hit('chat') && !this.menuOpen && game.net?.online && game.gameplay?.state === 'playing') game.net.openChat();
     else if (input.hit('teleport') && !this.menuOpen && game.gameplay?.state === 'playing' && !game.cutscene) {
       if (game.freeroam?.active) this.openPause('teleport');
       else this.help('Teleporting is a free roam feature — pick <b>Free Roam</b> on the title screen.', 4);

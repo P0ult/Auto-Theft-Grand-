@@ -16,6 +16,7 @@ import { SaveSystem } from './game/save.js';
 import { Gameplay, FREE_ROAM_KIT } from './game/gameplay.js';
 import { FreeRoam } from './game/freeroam.js';
 import { TaxiSystem } from './game/taxi.js';
+import { NetSystem } from './net/net.js';
 import { HUD } from './ui/hud.js';
 
 const params = new URLSearchParams(location.search);
@@ -76,6 +77,8 @@ async function boot() {
   game.addSystem('freeroam', new FreeRoam(game));
   game.addSystem('taxi', new TaxiSystem(game));
   game.hud = new HUD(game);
+  game.net = new NetSystem(game);
+  game.net.detect();
   game.pickups.refreshPackages();
   setP(0.93, 'Compiling shaders');
   game.input.enabled = false;
@@ -94,6 +97,7 @@ async function boot() {
       for (let i = 0; i < n; i++) {
         game.input.pollGamepad();
         if (!game.paused) game.update(dt * game.timeScale, dt);
+        game.net?.tick(dt);
         game.hud.update(dt);
         game.input.endFrame();
       }
@@ -106,6 +110,7 @@ async function boot() {
 
   if (params.get('autostart') === 'new') return startGame(game, false, null);
   if (params.get('autostart') === 'free') return startGame(game, false, null, true);
+  if (params.get('autostart') === 'multi') { startGame(game, false, null, true); if (params.get('room') != null) game.net.connect(params.get('room')); return; }
   showTitle(game);
 }
 
@@ -123,6 +128,7 @@ function showTitle(game) {
   else if (info) bCont.title = `${info.progress} missions complete`;
   const bNew = el('button', '', menu, 'New Game');
   const bFree = el('button', '', menu, 'Free Roam');
+  const bMulti = el('button', '', menu, 'Multiplayer');
   const bSet = el('button', '', menu, 'Settings');
   const bCtl = el('button', '', menu, 'Controls');
   el('div', 'title-foot', t, 'WASD + Mouse · Gamepad supported · Best in Chrome/Edge with hardware acceleration · An original parody inspired by open-world crime classics');
@@ -140,6 +146,7 @@ function showTitle(game) {
     go(false);
   };
   bFree.onclick = () => go(false, true);
+  bMulti.onclick = () => { go(false, true); setTimeout(() => game.hud.openPause('online'), 250); };
   bSet.onclick = () => { game.audio.init(); game.hud.openPause('settings'); game.paused = false; };
   bCtl.onclick = () => { game.hud.openPause('controls'); game.paused = false; };
   (hasSave ? bCont : bNew).focus();

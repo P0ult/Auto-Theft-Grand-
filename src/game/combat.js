@@ -87,6 +87,7 @@ export class Combat {
       const hit = this.raycast(muzzle.x, muzzle.y, muzzle.z, d.x, d.y, d.z, def.range, shooter);
       const end = hit ? hit.point : muzzle.clone().addScaledVector(d, Math.min(def.range, dist + 30));
       if (i < 3) game.effects.tracers.add(muzzle, end);
+      if (i === 0) game.net?.onShot(shooter, def, muzzle, end);
       if (hit) { anyHit = true; this.applyHit(hit, def, shooter, d); }
     }
     game.effects.muzzleFlash(muzzle, base, def.id === 'shotgun');
@@ -174,6 +175,8 @@ export class Combat {
     const game = this.game;
     game.effects.explosion(pos, radius * 0.75);
     game.audio?.playAt('explosion', pos, 1);
+    if (this.visualOnly) return; // another player's vehicle blowing up: their client deals the damage
+    game.net?.onExplosion(pos, radius, source);
     const pd = game.player.vehicle ? game.player.vehicle.pos : game.player.pos;
     const dp = pos.distanceTo(pd);
     game.rig.addShake(clamp(1.2 - dp / 60, 0, 1.2));

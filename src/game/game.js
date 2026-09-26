@@ -94,6 +94,7 @@ export class Game {
   allCharacters() {
     const list = [this.player];
     if (this.peds) for (const p of this.peds.list) list.push(p);
+    if (this.net) for (const a of this.net.avatarList) list.push(a);
     return list;
   }
 
@@ -140,6 +141,7 @@ export class Game {
     input.pollGamepad();
     const sdt = this.paused ? 0 : dt * this.timeScale;
     if (!this.paused) this.update(sdt, dt);
+    this.net?.tick(dt);
     this.hud?.update(dt);
     this.render(dt);
     input.endFrame();

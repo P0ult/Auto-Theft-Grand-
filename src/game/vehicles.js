@@ -37,9 +37,9 @@ export class VehicleManager {
     const list = this.list;
     // AI for vehicles not driven by the traffic or police systems (mission cars)
     for (const v of list) {
-      if (v.ai && !v.traffic && !v.policeUnit && v.driver && !v.driver.isPlayer && !v.driver.dead && !v.isWrecked) v.ai.update(dt);
+      if (v.ai && !v.traffic && !v.policeUnit && !v.remote && v.driver && !v.driver.isPlayer && !v.driver.dead && !v.isWrecked) v.ai.update(dt);
     }
-    for (const v of list) v.update(dt);
+    for (const v of list) if (!v.remote) v.update(dt); // other players' vehicles are posed by the net system
     // vehicle vs vehicle
     for (let i = 0; i < list.length; i++) {
       const A = list[i];
