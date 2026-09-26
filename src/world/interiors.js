@@ -127,7 +127,7 @@ function furniture(it, box) {
     // ammo shelving down both sides, armour case, pegboard racks on the back wall
     box(-H + 0.25, 2, -H + 0.85, D - 4.2, 0, 2.2, 'shelf'); add('shelf', { u0: -H + 0.25, w0: 2, u1: -H + 0.85, w1: D - 4.2, h: 2.2, face: 1 });
     box(H - 0.85, 2, H - 0.25, D - 4.2, 0, 2.2, 'shelf'); add('shelf', { u0: H - 0.85, w0: 2, u1: H - 0.25, w1: D - 4.2, h: 2.2, face: -1 });
-    box(-2.2, 3.4, 2.2, 4.4, 0, 1.0, 'case'); add('case', { u0: -2.2, w0: 3.4, u1: 2.2, w1: 4.4 });
+    box(3.4, 3.2, 7.4, 4.2, 0, 1.0, 'case'); add('case', { u0: 3.4, w0: 3.2, u1: 7.4, w1: 4.2 }); // (clear of the way to the counter)
   } else if (L.extra === 'burger') {
     // kitchen line along the back wall
     box(-9, D - 1.1, 9, D - 0.25, 0, 1.0, 'kitchen'); add('kitchen', {});

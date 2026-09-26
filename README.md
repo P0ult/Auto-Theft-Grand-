@@ -63,10 +63,11 @@ ground hard, nose-first or with the gear up tears the aircraft apart.
 | J (driving a cab) | Taxi driver side job on / off |
 | F by the train | Board a carriage, or climb into the cab at the front to drive it (W / S) |
 | T (free roam) | Teleport menu |
+| ` (backtick, free roam) | Admin console (type `help`) |
 | / (multiplayer) | Chat |
 
-Esc or P opens the pause menu: map (right-click to set a waypoint with GPS route), mission brief (teleport in
-free roam), Online, stats, settings and controls. M opens the map directly. Standard-layout gamepads are
+Esc or P opens the pause menu: map (right-click to set a waypoint with GPS route), mission brief (in free
+roam: Teleport, Vehicles and Admin instead), Online, stats, settings and controls. M opens the map directly. Standard-layout gamepads are
 supported.
 
 ## Free roam
@@ -75,13 +76,26 @@ Pick **Free Roam** on the title screen for the whole map with every weapon, **un
 **Teleport** tab (or press **T**) that jumps to any town, station, airfield, the military base, city landmarks or
 your map waypoint, taking your car or aircraft along. Free roam never touches your story save.
 
+- **Vehicles tab:** spawn any car, truck, army vehicle, tank, plane, jet or helicopter, with a paint job, and
+  you're put straight in the driver's seat. Planes and helicopters can start in the air. This works online too.
+- **Admin tab** (single player only): god mode, a bulletproof vehicle, never wanted, super jump, super speed,
+  endless sprint, moon gravity, explosive bullets, one-hit kills, freeze time, slow motion and a street riot.
+  There are also buttons to heal, get every weapon, repair or flip your vehicle, clear the area, blow up nearby
+  cars, call a bodyguard, send enemies, or skydive from 400 m. You can set the wanted level, time of day,
+  weather and traffic / pedestrian density too.
+- **Admin console:** press **`** (backtick) and type commands: `help`, `god`, `car zenith`, `wanted 3`,
+  `time 22`, `weather storm`, `tp beach`, `traffic heavy`, `gravity`, `boom` and more.
+
 ## Multiplayer
 
 Open the **Online** tab in the pause menu (or pick **Multiplayer** on the title screen). Set a name and colour,
 then join the **public world** or a **room code**: press **New room** and share the code with friends. Everyone
 sees each other's characters, cars, aircraft, gunfire and explosions, can ride in each other's cars (G), chat
-(press **/**) and, if player damage is on, fight. Each player's world keeps its own traffic and cops, and the
-longest-connected player's clock and weather are shared.
+(press **/**) and, if player damage is on, fight.
+
+It's one shared world: everyone near each other sees the **same pedestrians, traffic and police**, so you can
+shoot, run over or carjack NPCs that another player's game is running. The **trains** run to the same
+timetable for everyone, and the longest-connected player's clock and weather are shared.
 
 - **On claude.ai:** the published version of the game uses the page's live room, so anyone with the page open
   can join.
@@ -100,7 +114,9 @@ longest-connected player's clock and weather are shared.
     and viaducts, and superblocks that break up the grid (a stadium, a mall, a golf club and a park).
   - **The Sol Line.** A railway from Union Station on the edge of the city, past Fern Creek to Dry Wells, with
     level crossings where traffic waits for the train, bridges and underpasses at the highways, and three
-    stations. The train runs the timetable on its own: ride it as a passenger, or take the cab and drive.
+    stations. A passenger train and a long freight train (box cars, tankers, hoppers and containers) run the
+    line all day and pass each other on the loop at Fern Creek. Ride the passenger train, or take either cab and
+    drive.
   - **Taxis.** Whistle for a cab, ride with the meter running and skip the trip, or drive a cab yourself and
     pick up fares for cash (with tips for speed and a bonus every fifth fare in a row).
   - **Fort Carver.** A walled military base in the desert with a runway, hangars, a control tower, barracks,
@@ -120,7 +136,8 @@ longest-connected player's clock and weather are shared.
   - Height fog that glows toward the sun. Shadows follow the player. Sky reflections on car paint and glass.
   - Building windows are generated in a shader with *interior mapping* (fake 3D rooms behind the glass). At night
     they light up, along with neon shop signs.
-  - Street lights cast light pools, and real point lights follow the nearest lamps. Headlights light the road.
+  - Street lights cast wide warm pools of light, with glowing halos and soft light cones (stronger in the
+    rain). Real point lights follow the nearest lamps. Headlights light the road.
   - **Screen-space ray-traced reflections**: wet streets, puddles, window glass, car paint and water mirror
     the buildings, cars, people and lights around them.
   - **Ambient occlusion** (contact shadows under cars, in corners and doorways).
@@ -154,10 +171,15 @@ longest-connected player's clock and weather are shared.
 - **Combat.** Fists, knife, bat, pistol, SMG, shotgun, assault rifle, rocket launcher and grenades. Headshots,
   tracers, muzzle flashes, blood, bullet holes, scorch marks and bodies that pile up. You can punch, stab, shoot
   or run people over.
+- **Walk-in shops.** The **Gun Barn**, **Big Bun Burgers** and **Ray's Liquor** are real interiors: gun racks and
+  display cases, a diner with a kitchen line and menu board, aisles of shelves and drinks fridges. The clerk behind
+  the counter serves you when you step up to the marker. Point a gun at them and the burger bar or liquor store
+  empties the till (and calls the cops), while the Gun Barn's owner reaches for his shotgun. Kill the clerk and
+  the shop stays shut until you've been gone a while.
 - **Living city.**
   - Pedestrians walk the sidewalks, cross at crosswalks, chat, flee gunfire, cower, fight back and shout.
-  - Traffic follows lanes, obeys the same traffic-light cycle the signals display, brakes for pedestrians and
-    honks at you.
+  - Traffic follows lanes, obeys the same traffic-light cycle the signals display, brakes for pedestrians,
+    honks at you and steers around wrecks and stalled cars.
   - Gangs hold their turf: the Cedar Row Kings are friendly, while the Vipers and Los Cuervos are hostile.
 - **Police.** Five-star wanted levels with witnesses and line-of-sight evasion (the stars flash while the cops
   have lost you). Patrol cars route through the grid, then ram you. Cops on foot chase, shoot or arrest you
@@ -174,8 +196,7 @@ longest-connected player's clock and weather are shared.
 - **Extras**
   - HUD in the style of the era: clock, weapon and ammo, health and armor, money, wanted stars.
   - A rotating radar with blips and a GPS route.
-  - Zone and vehicle names, a Gun Barn shop, burger joint, safehouse saving, 30 hidden packages and a stats
-    screen.
+  - Zone and vehicle names, safehouse saving, 30 hidden packages and a stats screen.
   - Three procedurally composed radio stations (West Coast G-funk, synthwave, slow jams).
   - Synthesized sound effects with city reverb.
 
@@ -195,9 +216,11 @@ src/game/                 game loop, player (+ parachute), camera, vehicles, ped
                           traffic, police, military base, combat, effects, pickups & shops,
                           audio & radio, missions engine, story, save
 assets/audio/             the WASTED stinger
-src/game/                 (also) railway timetable & crossings, taxis, free roam teleport
+src/game/                 (also) railway timetable, signalling & crossings, taxis, free roam teleport,
+                          admin tools & vehicle spawner, shopkeepers
+src/world/interiors.js    walk-in shop interiors (layout, colliders, meshes)
 src/net/                  multiplayer: transports (claude.ai live room, WebSocket relay), remote players,
-                          Online tab
+                          shared NPCs / traffic / trains, Online tab
 src/ui/                   HUD, radar, pause menu & map
 vendor/three/             Three.js r186 (MIT), bundled
 server.mjs                zero-dependency static server + multiplayer relay
@@ -205,7 +228,9 @@ server.mjs                zero-dependency static server + multiplayer relay
 
 ## Tips
 
-- In Free Roam you have every weapon with unlimited cash and ammo, and you keep them when you die.
+- In Free Roam you have every weapon with unlimited cash and ammo, and you keep them when you die. Press ` for
+  the admin console.
+- Short of cash in the story? Rob Ray's Liquor — but have a getaway car ready.
 - Long way to a mission? Whistle for a taxi (H) and press Space to skip the ride.
 - Want to fly without the army on your tail? Take the Skipper at Fern Creek Airfield or the Skylark on the
   hospital roof.
