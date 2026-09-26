@@ -582,12 +582,15 @@ export class Traffic {
     const alive = this.cars.filter((c) => !c.removed);
     this.cars = alive;
     const airborne = game.player.vehicle?.def.aircraft && game.player.vehicle.altitude > 40;
-    if (this.spawnTimer <= 0 && alive.length < this.maxCars * this.density() && !game.disableAmbient && !airborne) { this.spawnTimer = 0.3; this._trySpawn(); }
+    // online: other players' traffic nearby counts towards ours (so crowds don't double where players meet)
+    const npc = game.net?.online ? game.net.npc : null;
+    const near = npc ? alive.filter((c) => (c.pos.x - p.x) ** 2 + (c.pos.z - p.z) ** 2 < 300 * 300).length + npc.proxyCarsNear(p.x, p.z, 300) : alive.length;
+    if (this.spawnTimer <= 0 && near < this.maxCars * this.density() && !game.disableAmbient && !airborne) { this.spawnTimer = 0.3; this._trySpawn(); }
     for (const v of alive) {
       if (v.ai && v.driver && !v.driver.isPlayer && !v.driver.dead) v.ai.update(dt);
       else if (v.driver?.isPlayer || !v.driver) { v.ai = null; v.traffic = false; }
       const d2 = dist2(v.pos.x, v.pos.z, p.x, p.z);
-      if ((d2 > 320 * 320 || (v.isWrecked && d2 > 100 * 100)) && !v.persistent && game.player.vehicle !== v) {
+      if ((d2 > 320 * 320 || (v.isWrecked && d2 > 100 * 100)) && !v.persistent && game.player.vehicle !== v && !(npc && npc.peersNear(v.pos.x, v.pos.z, v.isWrecked ? 100 : 320))) {
         this._despawn(v);
       } else if (v.ai && !v.persistent && ((v.ai.jam > 18 && d2 > 35 * 35) || v.ai.jam > 60) && !game.peds._inView(v.pos.x, v.pos.z)) this._despawn(v);
     }

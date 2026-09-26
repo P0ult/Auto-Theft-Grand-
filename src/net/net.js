@@ -10,6 +10,7 @@
 import * as THREE from 'three';
 import { RoomTransport, WsTransport, cleanCode } from './transports.js';
 import { RemoteAvatar, sanitizeAppearance } from './avatar.js';
+import { NpcSync } from './npcsync.js';
 import { VEHICLES } from '../entities/vehicledefs.js';
 import { WEAPONS } from '../game/weapondefs.js';
 import { clamp, lerp, wrapAngle } from '../core/utils.js';
@@ -57,6 +58,7 @@ export class NetSystem {
     this.name = cleanText(s.name, 16) || `Player${100 + ((Math.random() * 900) | 0)}`;
     this.color = Number.isInteger(s.color) ? s.color % PLAYER_COLORS.length : (Math.random() * PLAYER_COLORS.length) | 0;
     this.pvp = s.pvp ?? true;
+    this.npc = new NpcSync(this);
     this._dom();
   }
 
@@ -94,6 +96,7 @@ export class NetSystem {
       return false;
     }
     t.onPeer = (id, st, guest) => this._onPeer(id, st, guest);
+    t.onWorld = (id, n) => this.npc.onWorld(this.peers.get(id), n);
     t.onLeft = (id) => this._removePeer(id, true);
     t.onStatus = (ok) => { this.linkUp = ok; this.onChange?.(); };
     try { await t.join(code); } catch (e) {
@@ -120,6 +123,7 @@ export class NetSystem {
     if (this.status === 'online' && !quiet) this._sys('You left multiplayer.');
     this.status = 'offline';
     this.game.env.weatherLocked = false;
+    for (const t of [this.game.rail?.train, this.game.rail?.freight]) if (t) t.netTarget = null;
     this.onChange?.();
   }
 
@@ -160,6 +164,7 @@ export class NetSystem {
     if (!this.online || !v.remoteOwner) return;
     const p = this.game.player;
     if (source !== p && source !== p.vehicle && source?.driver !== p) return;
+    if (v.npcRemote) { this.npc.sendCarHit(v, dmg); return; }
     const P = this.peers.get(v.remoteOwner);
     if (!P || !P.st.pvp) return;
     this._emit('vh', v.remoteOwner, r1(dmg));
@@ -267,6 +272,7 @@ export class NetSystem {
     if (av.vehicle) { const v = av.vehicle; v.takeOut(av); }
     av.remove();
     if (P.veh) this._releaseProxy(P.veh);
+    this.npc.clearPeer(P);
     g.blips.delete(P.blip);
     P.tag?.remove();
     if (announce) { this._sys(`<b style="color:${hex(P.color)}">${esc(P.name)}</b> left.`); this.onChange?.(); }
@@ -304,6 +310,8 @@ export class NetSystem {
         if (!me || e[2] !== me || !this.pvp) continue;
         const v = g.player.vehicle;
         if (v && g.player.seat === 0 && !v.remoteOwner) v.damage(clamp(num(e[3]), 0, 2000), P.avatar);
+      } else if (k === 'nh' || k === 'nv' || k === 'tk') {
+        this.npc.onMoment(P, e);
       } else if (k === 'ch') {
         const text = cleanText(e[2], 140);
         if (text) this._pushChat({ name: P.name, color: P.color, text: esc(text) });
@@ -338,6 +346,8 @@ export class NetSystem {
     // draw everyone else
     const now = performance.now();
     for (const P of this.peers.values()) this._pose(P, now, dt);
+    this.npc.send(dt);
+    this.npc.update(dt);
     this._syncClock(dt);
     this._tags();
   }

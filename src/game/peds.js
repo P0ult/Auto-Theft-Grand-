@@ -452,7 +452,8 @@ export class PedManager {
     // spawn
     this.spawnTimer -= dt;
     const ambientCount = this.list.filter((p) => !p.persistent && p.brain !== 'cop' && !p.vehicle).length;
-    const target = Math.floor(this.maxPeds * this.density());
+    const npc = game.net?.online ? game.net.npc : null;
+    const target = Math.floor(this.maxPeds * this.density()) - (npc ? npc.proxyPedsNear(pp.x, pp.z, 150) : 0);
     if (this.spawnTimer <= 0 && ambientCount < target && !game.disableAmbient) {
       this.spawnTimer = 0.25;
       this._spawnAmbient();
@@ -469,7 +470,7 @@ export class PedManager {
       const cx = p.ragdolling ? p.ragdoll.pos[0] : p.pos.x, cz = p.ragdolling ? p.ragdoll.pos[2] : p.pos.z;
       const d2 = dist2(cx, cz, pp.x, pp.z);
       if (!p.persistent && !p.vehicle) {
-        if (d2 > 150 * 150 || (p.dead && game.time - p.deathTime > 60 && d2 > 40 * 40)) { this.remove(p); continue; }
+        if ((d2 > 150 * 150 || (p.dead && game.time - p.deathTime > 60 && d2 > 40 * 40)) && !(npc && npc.peersNear(cx, cz, p.dead ? 40 : 150))) { this.remove(p); continue; }
       }
       if (p.vehicle) { p.root.visible = !p.hiddenInVehicle; p.update(dt); continue; }
       sphere.center.set(cx, (p.ragdolling ? p.ragdoll.pos[1] : p.pos.y) + 0.9, cz);

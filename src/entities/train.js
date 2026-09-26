@@ -291,6 +291,21 @@ export class Train extends Vehicle {
     const L = this.rail.length;
     const drv = this.driver;
     let accel = 0;
+    // online: follow the host's timetable (or whoever is at this train's controls)
+    const nt = this.netTarget;
+    if (nt && !drv?.isPlayer) {
+      let ds = nt.s - this.s;
+      if (Math.abs(ds) > 150) { this.s = nt.s; ds = 0; }
+      this.v = nt.v + clamp(ds, -20, 20) * 1.2;
+      this.dirS = nt.dirS;
+      this.dwell = nt.dwell;
+      nt.s += nt.v * dt;
+      this.s = clamp(this.s + this.v * dt, this.len + 2, L - 2);
+      this._place();
+      this._contacts(dt);
+      this.wheelRot += this.v * dt / 0.46;
+      return;
+    }
     if (drv?.isPlayer) {
       const inp = this.input;
       if (inp.throttle > 0) accel = 0.9 * inp.throttle * (this.v < -0.2 ? 2.2 : 1);

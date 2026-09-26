@@ -231,7 +231,7 @@ export class VehicleManager {
   nearestEnterable(pos, maxDist = 4.5) {
     let best = null, bd = maxDist * maxDist;
     for (const v of this.list) {
-      if (v.isWrecked || v.removed || v.locked) continue;
+      if (v.isWrecked || v.removed || (v.locked && !v.npcRemote)) continue;
       const dp = v.nearestDoor ? v.nearestDoor(pos) : v.doorWorld(_a);
       const d = dist2(pos.x, pos.z, dp.x, dp.z);
       const dc = v.nearestDoor ? Infinity : dist2(pos.x, pos.z, v.pos.x, v.pos.z);

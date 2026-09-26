@@ -99,7 +99,7 @@ export class Game {
   allCharacters() {
     const list = [this.player];
     if (this.peds) for (const p of this.peds.list) list.push(p);
-    if (this.net) for (const a of this.net.avatarList) list.push(a);
+    if (this.net) { for (const a of this.net.avatarList) list.push(a); if (this.net.npc) for (const q of this.net.npc.pedList) list.push(q); }
     return list;
   }
 
@@ -220,6 +220,7 @@ export class Game {
     const v = this.vehicles.nearestEnterable(p.pos, 5);
     if (v) {
       if (this.missions?.canEnterVehicle && !this.missions.canEnterVehicle(v)) return;
+      if (v.npcRemote) this.net?.npc?.takeCar(v); // another player's traffic: it's ours now
       const cabSeat = this.taxi?.seatFor(v, p); // a cab you whistled for: get in the back
       if (cabSeat != null) { this.vehicles.enter(p, v, cabSeat); return; }
       const seat = v.nearestDoor ? v.nearestDoor(p.pos).seat : 0;

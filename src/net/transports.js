@@ -16,7 +16,8 @@ export class RoomTransport {
     this.kind = 'room';
     this.label = 'claude.ai live room';
     this.unsubs = [];
-    this.onPeer = null; this.onLeft = null; this.onStatus = null;
+    this.w = null;          // the world room: shared NPCs travel in its presence (a second 4 KiB)
+    this.onPeer = null; this.onLeft = null; this.onStatus = null; this.onWorld = null;
   }
 
   static async probe(timeoutMs = 10000) {
@@ -42,6 +43,16 @@ export class RoomTransport {
     this.unsubs.push(r.onConnection((ok) => { if (this.r === r) this.onStatus?.(ok); }, () => this.onStatus?.(false)));
     // everyone already here
     for (const p of r.peers()) if (seen(p)) this.onPeer?.(p.peer, p.presence.g, p.guest);
+    // the world channel (shared pedestrians and traffic); multiplayer still works without it
+    try {
+      const w = await this.lobby.join(ROOM_PREFIX + (name || 'public') + '-w');
+      if (this.r === r) {
+        this.w = w;
+        const fw = (p) => { if (p && !p.sameTab && p.presence && 'n' in p.presence) this.onWorld?.(p.peer, p.presence.n); };
+        this.unsubs.push(w.onPeers((ch) => { if (this.w !== w) return; for (const p of [...ch.joined, ...ch.updated]) fw(p); }, () => {}));
+        for (const p of w.peers()) fw(p);
+      } else w.leave().catch(() => {});
+    } catch { /* no world room: players still see each other */ }
     return true;
   }
 
@@ -50,11 +61,17 @@ export class RoomTransport {
     this.r.presence({ g: state }).catch(() => {});
   }
 
+  sendWorld(n) {
+    if (!this.w) return;
+    this.w.presence({ n }).catch(() => {});
+  }
+
   async leave() {
     for (const u of this.unsubs) { try { u(); } catch { /* already gone */ } }
     this.unsubs = [];
-    const r = this.r;
-    this.r = null;
+    const r = this.r, w = this.w;
+    this.r = null; this.w = null;
+    if (w) { try { await w.leave(); } catch { /* ignore */ } }
     if (!r) return;
     try { if (r === this.lobby) await r.presence({ g: null }); else await r.leave(); } catch { /* ignore */ }
   }
@@ -71,7 +88,7 @@ export class WsTransport {
     this.label = 'local server';
     this.id = null;
     this.room = null;
-    this.onPeer = null; this.onLeft = null; this.onStatus = null;
+    this.onPeer = null; this.onLeft = null; this.onStatus = null; this.onWorld = null;
     this._closing = false;
   }
 
@@ -114,11 +131,12 @@ export class WsTransport {
       this.id = m.id;
       this._hello?.(true);
       this.onStatus?.(true);
-      for (const p of m.peers || []) if (p.d && p.d.g) this.onPeer?.(p.id, p.d.g, false);
+      for (const p of m.peers || []) { if (p.d && p.d.g) this.onPeer?.(p.id, p.d.g, false); if (p.d && 'n' in p.d) this.onWorld?.(p.id, p.d.n); }
     } else if (m.t === 'full') this._hello?.(false, 'That room is full (16 players).');
     else if (m.t === 's' && m.d) {
       if (m.d.g === null) this.onLeft?.(m.id);
       else if (m.d.g) this.onPeer?.(m.id, m.d.g, false);
+      if ('n' in m.d) this.onWorld?.(m.id, m.d.n);
     } else if (m.t === 'left') this.onLeft?.(m.id);
   }
 
@@ -136,6 +154,10 @@ export class WsTransport {
 
   send(state) {
     if (this.ws?.readyState === 1) this.ws.send(JSON.stringify({ t: 's', d: { g: state } }));
+  }
+
+  sendWorld(n) {
+    if (this.ws?.readyState === 1) this.ws.send(JSON.stringify({ t: 's', d: { n } }));
   }
 
   async leave() {
