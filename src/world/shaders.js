@@ -425,7 +425,7 @@ float sigOn(float code, float t) {
 }
 `,
   fragEmissive: `
-  totalEmissiveRadiance += vGlow * (0.02 + uStreetLights * 1.0);
+  totalEmissiveRadiance += vGlow * (0.02 + uStreetLights * 2.6);
   if (vSig > 0.5) {
     float on = sigOn(vSig, uTime + vPhase);
     totalEmissiveRadiance += diffuseColor.rgb * on * 6.0;

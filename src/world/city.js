@@ -688,22 +688,68 @@ export class City {
       uniforms: { uStreetLights: U.uStreetLights, uWet: U.uWet },
       vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(position, 1.0); }`,
       fragmentShader: `varying vec2 vUv; uniform float uStreetLights; uniform float uWet;
-        void main(){ float d = length(vUv - 0.5) * 2.0; float a = pow(max(0.0, 1.0 - d), 2.2); gl_FragColor = vec4(vec3(1.0, 0.72, 0.4) * a * uStreetLights * (0.55 + uWet * 0.5), 1.0); }`,
+        void main(){ float d = length(vUv - 0.5) * 2.0; float f = max(0.0, 1.0 - d);
+          float a = pow(f, 1.6) * 0.7 + pow(f, 5.0) * 0.8;
+          gl_FragColor = vec4(vec3(1.0, 0.74, 0.42) * a * uStreetLights * (1.05 + uWet * 0.8), 1.0); }`,
       transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
       polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -8,
     });
     const im = new THREE.InstancedMesh(geo, mat, lamps.length);
     const m = new THREE.Matrix4();
-    lamps.forEach((l, i) => { m.makeScale(15, 1, 15); m.setPosition(l[0], (this.map.groundHeight(l[0], l[1]) || 0) + 0.03, l[1]); im.setMatrixAt(i, m); });
+    lamps.forEach((l, i) => { m.makeScale(24, 1, 24); m.setPosition(l[0], (this.map.groundHeight(l[0], l[1]) || 0) + 0.03, l[1]); im.setMatrixAt(i, m); });
     im.frustumCulled = false;
     im.renderOrder = 2;
     im.name = 'lightpools';
     this.root.add(im);
     this.lightPools = im;
+
+    // halos round the lamp heads (camera-facing, additive; they carry the lamps' glow into the distance)
+    const hm = new THREE.Matrix4();
+    const haloGeo = new THREE.PlaneGeometry(1, 1);
+    const haloMat = new THREE.ShaderMaterial({
+      uniforms: { uStreetLights: U.uStreetLights, uWet: U.uWet },
+      vertexShader: `varying vec2 vUv; varying float vFade;
+        void main(){ vUv = uv; vec4 c = modelViewMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0);
+          float d = -c.z; float size = 2.6 + d * 0.012; vFade = clamp(1.0 - d / 1400.0, 0.0, 1.0);
+          c.xy += position.xy * size; gl_Position = projectionMatrix * c; }`,
+      fragmentShader: `varying vec2 vUv; varying float vFade; uniform float uStreetLights; uniform float uWet;
+        void main(){ float d = length(vUv - 0.5) * 2.0; float f = max(0.0, 1.0 - d);
+          float a = pow(f, 2.5) * 0.9 + pow(f, 12.0) * 2.5;
+          gl_FragColor = vec4(vec3(1.0, 0.8, 0.52) * a * uStreetLights * vFade * (1.0 + uWet * 0.6), 1.0); }`,
+      transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+    });
+    const halos = new THREE.InstancedMesh(haloGeo, haloMat, lamps.length);
+    lamps.forEach((l, i) => { hm.makeTranslation(l[0], l[2] + 7.86, l[1]); halos.setMatrixAt(i, hm); });
+    halos.frustumCulled = false;
+    halos.renderOrder = 3;
+    halos.name = 'lamphalos';
+    this.root.add(halos);
+    // soft cones of light under each lamp (stronger in rain)
+    const coneGeo = new THREE.CylinderGeometry(0.28, 3.6, 7.7, 14, 1, true);
+    coneGeo.translate(0, -7.7 / 2, 0);
+    const coneMat = new THREE.ShaderMaterial({
+      uniforms: { uStreetLights: U.uStreetLights, uWet: U.uWet },
+      vertexShader: `varying float vY; varying float vEdge;
+        void main(){ vY = -position.y / 7.7; vec4 mv = modelViewMatrix * instanceMatrix * vec4(position, 1.0);
+          vec3 n = normalize(normalMatrix * mat3(instanceMatrix) * normal); vEdge = abs(dot(n, normalize(-mv.xyz)));
+          gl_Position = projectionMatrix * mv; }`,
+      fragmentShader: `varying float vY; varying float vEdge; uniform float uStreetLights; uniform float uWet;
+        void main(){ float a = (1.0 - vY) * (1.0 - vY) * pow(vEdge, 1.5) * (0.07 + uWet * 0.1);
+          gl_FragColor = vec4(vec3(1.0, 0.78, 0.48) * a * uStreetLights, 1.0); }`,
+      transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
+    });
+    const cones = new THREE.InstancedMesh(coneGeo, coneMat, lamps.length);
+    lamps.forEach((l, i) => { hm.makeTranslation(l[0], l[2] + 7.9, l[1]); cones.setMatrixAt(i, hm); });
+    cones.renderOrder = 3;
+    cones.name = 'lampcones';
+    cones.computeBoundingSphere();
+    this.root.add(cones);
+    this.lampFx = [halos, cones];
+
     // a few real point lights that follow the nearest street lamps at night
     this.lampLights = [];
-    for (let i = 0; i < 4; i++) {
-      const l = new THREE.PointLight(0xffc27a, 0, 26, 1.7);
+    for (let i = 0; i < 6; i++) {
+      const l = new THREE.PointLight(0xffc27a, 0, 34, 1.6);
       l.position.set(0, -100, 0);
       this.root.add(l);
       this.lampLights.push(l);
@@ -764,12 +810,13 @@ export class City {
       const near = [];
       for (const l of this.lampPositions) {
         const d = (l[0] - camPos.x) ** 2 + (l[1] - camPos.z) ** 2;
-        if (d > 90 * 90) continue;
+        if (d > 110 * 110) continue;
         near.push([d, l]);
       }
       near.sort((a, b) => a[0] - b[0]);
       this.lampLights.forEach((L, i) => { const n = near[i]; if (n) L.position.set(n[1][0], n[1][2] + 7.6, n[1][1]); else L.position.set(0, -100, 0); });
     }
-    for (const L of this.lampLights) L.intensity = sl * 55;
+    for (const L of this.lampLights) L.intensity = sl * 140;
+    if (this.lampFx) for (const m of this.lampFx) m.visible = sl > 0.01;
   }
 }
