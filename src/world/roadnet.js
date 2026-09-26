@@ -146,6 +146,24 @@ export function solveProfile(pts, terrain, opts = {}) {
     for (let i = 1; i < n; i++) if (!fixed[i]) { const ds = cum[i] - cum[i - 1]; y[i] = clamp(y[i], y[i - 1] - g * ds, y[i - 1] + g * ds); }
     for (let i = n - 2; i >= 0; i--) if (!fixed[i]) { const ds = cum[i + 1] - cum[i]; y[i] = clamp(y[i], y[i + 1] - g * ds, y[i + 1] + g * ds); }
   }
+  // Two fixed heights the grade can't join (a clearance pin too close to a fixed section) would leave a
+  // step: give the pin up a little and spread what's left over the neighbours as a steeper stretch.
+  // Hard-fixed sections (opts.fixed) never move; pins may.
+  const hard = new Uint8Array(n);
+  if (opts.fixed) for (let i = 0; i < n; i++) if (opts.fixed(pts[i][0], pts[i][1], cum[i]) != null) hard[i] = 1;
+  const gMax = g * 1.45;
+  for (let it = 0; it < 400; it++) {
+    let bad = false;
+    for (let i = 1; i < n; i++) {
+      const ds = cum[i] - cum[i - 1], dy = y[i] - y[i - 1];
+      if (Math.abs(dy) <= gMax * ds) continue;
+      bad = true;
+      const ex = (Math.abs(dy) - gMax * ds) * Math.sign(dy);
+      if (hard[i] && hard[i - 1]) continue;
+      if (hard[i]) y[i - 1] += ex; else if (hard[i - 1]) y[i] -= ex; else { y[i - 1] += ex / 2; y[i] -= ex / 2; }
+    }
+    if (!bad) break;
+  }
   return { y, cum };
 }
 function nearestIndex(cum, s) {
@@ -429,6 +447,9 @@ export function shapeTerrain(net, hf, groundAt, opts = {}) {
   const avgY = (e) => { let s = 0; for (let i = 0; i < e.n; i++) s += e.p[i * 3 + 1]; return s / e.n; };
   edges.sort((a, b) => avgY(b) - avgY(a));
   const h = hf.h, st = hf.step;
+  // the lowest road through any cell wins its core: a road never buries another passing under it
+  // (the upper one becomes a bridge there instead)
+  const low = new Float32Array(h.length).fill(Infinity);
   for (const e of edges) {
     const p = e.p;
     // decide per point: deck (bridge) or ground-hugging (flatten the terrain)
@@ -460,7 +481,7 @@ export function shapeTerrain(net, hf, groundAt, opts = {}) {
         // cuts only lower, fills only raise (so crossing roads don't bury each other)
         const cur = h[k];
         const nv = cur + (ty - cur) * w;
-        if (d <= core) h[k] = ty; else h[k] = nv;
+        if (d <= core) { h[k] = ty; if (ty < low[k]) low[k] = ty; } else h[k] = nv;
       });
     }
   }
@@ -472,6 +493,7 @@ export function shapeTerrain(net, hf, groundAt, opts = {}) {
     if (!r) continue;
     hf.pad({ x: n.x, z: n.z, r, y: n.y - 0.07, blend: 16 });
   }
+  for (let k = 0; k < h.length; k++) if (low[k] < h[k]) h[k] = low[k];
   // final deck flags against the shaped terrain
   for (const e of edges) {
     const p = e.p;

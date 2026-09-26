@@ -335,13 +335,15 @@ export function buildRoadNetwork(C, hf) {
     const e = atStart ? sideRoad.edges[0] : sideRoad.edges[sideRoad.edges.length - 1];
     const endNode = atStart ? net.nodes[e.a] : net.nodes[e.b];
     retarget(net, e, endNode, n);
+    easeToJunction(e, atStart, n.y);
   };
   joinTo(fernN, fs1); joinTo(fernS, fs2); joinTo(fernS, fs3);
   info.towns.fern.roads.push(fs1, fs2, fs3);
   // farm tracks
   const farm1 = road([[-2680, -1100], [-2900, -1180], [-3100, -1100]], 'dirt', { start: net.nodes[fernN.edges[fernN.edges.length - 1].b], name: 'Farm Track' });
-  const farm2 = road([[-2230, -60], [-2250, -380], [-2180, -700], [-2100, -1000]], 'dirt', { name: 'River Track' });
-  joinTo(fernE, farm2);
+  // up the west bank of the river, leaving Main Street north of the freeway (not across it)
+  const farm2 = road([[-2556, -770], [-2430, -752], [-2300, -748], [-2205, -800], [-2150, -900], [-2100, -1000]], 'dirt', { name: 'River Track' });
+  joinTo(fernN, farm2);
 
   // ------------------------------------------------------------------ Dry Wells + base road
   const dryE = road(R.dryE.ctrl, 'road', { start: rbDry, end: jDw, name: 'Main Street' });
@@ -381,6 +383,7 @@ export function buildRoadNetwork(C, hf) {
     const cliff = road([[rbHale.x - 20, rbHale.z], [950, -975], [900, -1000], [860, -1040]], 'road', { start: rbHale, name: 'Cliff Street', maxGrade: 0.14 });
     const quay = road([[1020, -1060], [1035, -1000], [1040, -950]], 'road', { name: 'Quay Street' });
     joinTo(bay, quay, true);
+    joinTo(harbor, quay, false);
     info.towns.hale = { center: rbHale, roads: [harbor, cliff, quay, bay] };
   }
 
@@ -437,6 +440,21 @@ export function removeEdge(net, e) {
   for (const arr of net.grid.values()) for (let i = arr.length - 1; i >= 0; i--) if (arr[i].e === e) arr.splice(i, 1);
 }
 // move one end of an edge from node `from` to node `to` (used to hook side streets onto a new junction)
+// A side road's profile is solved on its own: ease its end to the height of the junction it joins
+// (over a distance long enough to keep a sensible grade) so it doesn't meet the main road in a step.
+function easeToJunction(e, atStart, y) {
+  const n = e.n, i0 = atStart ? 0 : n - 1;
+  const dy = y - e.p[i0 * 3 + 1];
+  if (Math.abs(dy) < 0.02) return;
+  const D = Math.min(e.len * 0.9, Math.max(30, Math.abs(dy) / 0.07));
+  for (let i = 0; i < n; i++) {
+    const d = atStart ? e.cum[i] : e.len - e.cum[i];
+    if (d >= D) continue;
+    const t = 1 - d / D;
+    e.p[i * 3 + 1] += dy * t * t * (3 - 2 * t);
+  }
+}
+
 function retarget(net, e, from, to) {
   if (e.a === from.id) e.a = to.id; else if (e.b === from.id) e.b = to.id; else return;
   const i = from.e.indexOf(e.id); if (i >= 0) from.e.splice(i, 1);

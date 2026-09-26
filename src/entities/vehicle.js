@@ -109,7 +109,10 @@ export class Vehicle {
     char.ragdolling = false;
     const s = this.model.seats[seat];
     this.model.bodyGroup.add(char.root);
-    char.root.position.set(s.x, s.y - 0.52 * (char.appearance.height || 1) + 0.52, s.z);
+    // hips a set height above the seat point, whatever the character's size (models without a seatHip
+    // were laid out for hips 0.52 above the seat)
+    const h = char.appearance.height || 1;
+    char.root.position.set(s.x, s.y + (this.model.seatHip ?? 0.52) - (char.anim.hipH - 0.46) * h, s.z);
     char.root.rotation.set(0, 0, 0);
     char.yaw = this.yaw;
     if (char.weaponMesh && char.weaponDef.type !== 'gun') char.weaponMesh.visible = false;

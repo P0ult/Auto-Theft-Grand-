@@ -317,7 +317,9 @@ export function buildVehicleModel(def, color) {
   trim.addGeometry(new THREE.CylinderGeometry(0.045, 0.045, 0.25, 8), mat4(-W * 0.3, c + 0.08, -L / 2, Math.PI / 2));
   // interior
   col(0x2a2622);
-  const seatY = Math.max(c + 0.25, yb(cb.bf) - 0.45);
+  // seats low enough that a seated adult's head clears the roof (hips ~0.12 above the cushion base,
+  // head top ~0.9 above the hips)
+  const seatY = clamp(yTop - 1.02, c + 0.08, Math.max(c + 0.25, yb(cb.bf) - 0.45));
   const seatZ = (cb.bf + cb.br) / 2 + 0.25;
   trim.box(0.08, seatY, seatZ - 0.35, 0.68, seatY + 0.18, seatZ + 0.15, { top: true });
   trim.box(-0.68, seatY, seatZ - 0.35, -0.08, seatY + 0.18, seatZ + 0.15, { top: true });
@@ -480,6 +482,7 @@ export function buildVehicleModel(def, color) {
   return {
     group, bodyGroup, body, bodyMat, glass: glassMesh, head, tail, lightbar, wheels,
     door: { pivot: doorPivot, mesh: doorMesh, open: 0 },
+    seatHip: 0.09, // character hips sit this far above a seat point (sunk a little into the cushion)
     seats: [seatBase.clone(), seatBase.clone().setX(-0.38), seatBase.clone().setZ(rearZ).setY(seatBase.y - 0.04), seatBase.clone().set(-0.38, seatBase.y - 0.04, rearZ)],
     doorPos: new THREE.Vector3(W / 2 + 0.55, 0, (dz0 + dz1) / 2 - 0.15),
     trim: trimMesh, beam: beamMesh,

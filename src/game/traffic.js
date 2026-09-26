@@ -97,6 +97,11 @@ export class LaneDriver {
     this.stuck = 0;
     this.impatient = 0;
     this.wait = 0;
+    this.jam = 0;          // seconds barely moving while not held by a signal / junction
+    this.queued = false;   // blocked by a car that is itself waiting in line
+    this.waitingLight = false;
+    this.bypass = null;    // {v, side, t}: steering around something that isn't going to move
+    this.bypassT = 0;
     if (start) this._start(start); else if (start !== false) this.resnap();
   }
 
@@ -266,19 +271,21 @@ export class LaneDriver {
     const v = this.veh;
     const fx = Math.sin(v.yaw), fz = Math.cos(v.yaw);
     let best = maxD;
-    const check = (x, z, y, rad) => {
+    this._obsObj = null;
+    const check = (x, z, y, rad, obj) => {
       if (Math.abs(y - v.pos.y) > 3.5) return;
       const dx = x - v.pos.x, dz = z - v.pos.z;
       const along = dx * fx + dz * fz;
       if (along < 0 || along > maxD + v.hz) return;
       const lat = Math.abs(dx * fz - dz * fx);
       const allowed = v.hx + rad + 0.25;
-      if (lat < allowed) best = Math.min(best, along - v.hz - rad);
+      if (lat < allowed && along - v.hz - rad < best) { best = along - v.hz - rad; this._obsObj = obj || null; }
     };
+    const skip = this.bypass?.v;
     for (const o of this.game.vehicles.list) {
-      if (o === v || o.removed) continue;
+      if (o === v || o.removed || o === skip) continue;
       if (Math.abs(o.pos.x - v.pos.x) > maxD + 8 || Math.abs(o.pos.z - v.pos.z) > maxD + 8) continue;
-      check(o.pos.x, o.pos.z, o.pos.y, Math.min(o.hx, o.hz));
+      check(o.pos.x, o.pos.z, o.pos.y, Math.min(o.hx, o.hz), o);
     }
     const pl = this.game.player;
     if (!pl.vehicle) check(pl.pos.x, pl.pos.z, pl.pos.y, 0.5);
@@ -375,11 +382,13 @@ export class LaneDriver {
     // curves
     desired = Math.min(desired, this._curveLimit(28 + Math.max(0, speed) * 2.2));
     // junction control at the end of our lane
+    this.waitingLight = false;
     if (cur.kind === 'lane') {
       const remain = cur.len - this.s;
       const cap = this._junctionControl(cur, remain, speed);
       desired = Math.min(desired, cap);
       if (cap < 0.5 && Math.abs(speed) < 0.6) this.wait += dt; else if (cap > 5) this.wait = 0;
+      this.waitingLight = cap < 2;
     }
     // obstacles
     let obs = this._obstacleAhead(22 + Math.max(0, speed) * 1.2);
@@ -390,7 +399,15 @@ export class LaneDriver {
     // steering toward a point ahead on the path
     const look = 5 + Math.abs(speed) * 0.45;
     const T = this._pointAhead(look, _t3);
-    const [lx, lz] = v.worldToLocal(T[0], T[2]);
+    let tx = T[0], tz = T[2];
+    if (this.bypass) {
+      // swing out beside the obstruction: aim at a point offset sideways from the lane
+      const b = this.bypass;
+      const hx = Math.sin(v.yaw), hz = Math.cos(v.yaw);
+      tx += -hz * b.side * 3.3; tz += hx * b.side * 3.3;
+      desired = Math.min(desired, 6);
+    }
+    const [lx, lz] = v.worldToLocal(tx, tz);
     const ang = Math.atan2(lx, Math.max(0.5, lz));
     inp.steer = clamp(ang / (v.def.steer * 0.8), -1, 1);
     inp.handbrake = false;
@@ -416,9 +433,38 @@ export class LaneDriver {
       if (n > 1) { this.blockedTime = 0; this._start({ e: cur.e, dir: cur.dir, lane: (cur.lane + 1) % n }); }
     }
     this.honkTimer -= dt;
-    // stuck detection (e.g. after collisions)
-    if (Math.abs(speed) < 0.5 && desired > 3) this.stuck += dt; else this.stuck = 0;
-    if (this.stuck > 3) { inp.brake = 1; inp.throttle = 0; inp.steer = -inp.steer; if (this.stuck > 5) this.stuck = 0; }
+    // in a queue (behind someone waiting at a light / junction, or behind a queue): just wait
+    const ob = this._obsObj, oa = ob?.ai;
+    this.queued = obs < 6 && !!oa && oa !== this && (oa.waitingLight || oa.queued) && !ob.isWrecked;
+    // jammed: barely moving and not because of a signal. Stationary obstruction ahead (a wreck, an
+    // abandoned car, a car that's stuck itself): after a few seconds drive round it.
+    if (Math.abs(speed) < 1 && !this.waitingLight && !this.queued) this.jam += dt; else this.jam = Math.max(0, this.jam - dt * 2);
+    const dead = ob && (ob.isWrecked || !ob.driver || ob.driver.dead || (ob.driver.isPlayer && ob.speedAbs < 0.5) || (oa && (oa.jam > 4 || oa.stuck > 1.5)));
+    if (!this.bypass && obs < 7 && ob && ob.speedAbs < 0.6 && dead && !this.queued) this.bypassT += dt; else if (!this.bypass) this.bypassT = Math.max(0, this.bypassT - dt);
+    if (this.bypassT > 2.5 && !this.bypass) {
+      // pass on the side with room: toward the oncoming lane on two-way roads, else whichever side the car is less in the way
+      const lanesRight = cur.kind === 'lane' ? (cur.dir === 0 ? cur.e.lanesF : cur.e.lanesB) : 1;
+      const twoWay = cur.kind === 'lane' && cur.e.lanesF > 0 && cur.e.lanesB > 0;
+      const [olx] = v.worldToLocal(ob.pos.x, ob.pos.z);
+      let side = olx > 0 ? -1 : 1;
+      if (twoWay && lanesRight === 1) side = -1;
+      else if (cur.kind === 'lane' && lanesRight > 1) side = cur.lane === 0 ? 1 : -1;
+      this.bypass = { v: ob, side, t: 0 };
+      this.bypassT = 0;
+    }
+    if (this.bypass) {
+      const b = this.bypass;
+      b.t += dt;
+      const [, blz] = v.worldToLocal(b.v.pos.x, b.v.pos.z);
+      if (b.v.removed || blz < -(v.hz + b.v.hz + 2) || b.t > 9) this.bypass = null;
+    }
+    // stuck detection (e.g. after collisions): back up, steering the other way, then carry on
+    if (Math.abs(speed) < 0.5 && desired > 3) this.stuck += dt; else if (!(this.stuck > 3)) this.stuck = 0;
+    if (this.stuck > 3) {
+      inp.brake = 1; inp.throttle = 0; inp.handbrake = false; inp.steer = -inp.steer;
+      if (this.stuck > 5) { this.stuck = 0; this.resnap(); }
+      else this.stuck += dt;
+    }
     // pushed far off the route, or knocked off a viaduct / ramp onto the ground below: find the nearest lane again
     if (Math.abs(T[1] - v.pos.y) > 4 && !v.airborne) this.offLevel = (this.offLevel || 0) + dt; else this.offLevel = 0;
     if (this._lat > 14 || this.offLevel > 1.2) { this.offLevel = 0; this.resnap(); }
@@ -543,7 +589,7 @@ export class Traffic {
       const d2 = dist2(v.pos.x, v.pos.z, p.x, p.z);
       if ((d2 > 320 * 320 || (v.isWrecked && d2 > 100 * 100)) && !v.persistent && game.player.vehicle !== v) {
         this._despawn(v);
-      } else if (v.ai && v.ai.stuck > 0 && v.ai.blockedTime > 25 && !game.peds._inView(v.pos.x, v.pos.z) && d2 > 50 * 50) this._despawn(v);
+      } else if (v.ai && !v.persistent && ((v.ai.jam > 18 && d2 > 35 * 35) || v.ai.jam > 60) && !game.peds._inView(v.pos.x, v.pos.z)) this._despawn(v);
     }
   }
 

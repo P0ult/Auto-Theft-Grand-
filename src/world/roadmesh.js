@@ -256,6 +256,7 @@ export class RoadMeshes {
         // deck / embankment sides + barriers
         const deck = prev.r.deck && r.deck;
         if (deck) this._deckSegment(c.conc, e, prev, cur);
+        else if (this._sags(prev, cur)) this._deckEnd(c.conc, e, prev, cur);
         const bL = e.barrierL && (e.type === 'freeway' || deck) , bR = (e.barrierR && deck) || (e.type === 'freeway' && e.barrierR && deck);
         const noB = (s) => (e.noBarrierA && s < e.noBarrierA) || (e.noBarrierB && s > e.len - e.noBarrierB);
         // ramps merge into / diverge from the freeway on their left: keep that side open along the taper
@@ -390,6 +391,34 @@ export class RoadMeshes {
         const len = Math.hypot(qx - px, qz - pz);
         this.collision.addOBox({ cx: cx - n[0] * 0.3, cz: cz - n[2] * 0.3, hx: 0.3, hz: len / 2 + 0.05, yaw: Math.atan2(qx - px, qz - pz), minY: Math.min(g0, g1), maxY: Math.min(p.r.y, q.r.y) - 0.35, type: 'wall' });
       }
+    }
+  }
+
+  // Does the ground fall away under this stretch of road? (where a bridge lands, or the terrain dips
+  // between two ground-level points) — then the ribbon needs a drivable surface of its own.
+  _sags(p, q) {
+    for (let k = 0; k <= 4; k++) {
+      const t = k / 4;
+      for (const [x0, z0, y0, x1, z1, y1] of [[p.lx, p.lz, p.yl, q.lx, q.lz, q.yl], [p.r.x, p.r.z, p.r.y, q.r.x, q.r.z, q.r.y], [p.Rx, p.Rz, p.yr, q.Rx, q.Rz, q.yr]]) {
+        if (this.ground(x0 + (x1 - x0) * t, z0 + (z1 - z0) * t) < y0 + (y1 - y0) * t - 0.2) return true;
+      }
+    }
+    return false;
+  }
+
+  // Where a deck lands on the ground: the surface, plus abutment walls down to the ground at the sides.
+  _deckEnd(A, e, p, q) {
+    this.decks.push({ ax: p.r.x, az: p.r.z, ay: p.r.y, bx: q.r.x, bz: q.r.z, by: q.r.y, hl: e.wL + 0.1, hr: e.wR + 0.1, edge: e });
+    const col = [0.45, 0.44, 0.42];
+    for (const side of [-1, 1]) {
+      const px = side < 0 ? p.lx : p.Rx, pz = side < 0 ? p.lz : p.Rz, qx = side < 0 ? q.lx : q.Rx, qz = side < 0 ? q.lz : q.Rz;
+      const y0 = side < 0 ? p.yl : p.yr, y1 = side < 0 ? q.yl : q.yr;
+      const g0 = this.ground(px, pz) - 0.3, g1 = this.ground(qx, qz) - 0.3;
+      if (g0 > y0 - 0.3 && g1 > y1 - 0.3) continue;
+      const nx = side * -p.r.tz, nz = side * p.r.tx;
+      const a = A.v(px, y0, pz, nx, 0, nz, 0, y0, col), b = A.v(qx, y1, qz, nx, 0, nz, 1, y1, col);
+      const c = A.v(qx, Math.min(g1, y1 - 0.2), qz, nx, 0, nz, 1, g1, col), d = A.v(px, Math.min(g0, y0 - 0.2), pz, nx, 0, nz, 0, g0, col);
+      if (side < 0) A.quad(a, d, c, b); else A.quad(a, b, c, d);
     }
   }
 

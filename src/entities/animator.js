@@ -387,16 +387,28 @@ export class Animator {
     }
 
     // cower / hands up (upper body)
+    // (in a seat there's a roof overhead: duck down behind the dash / show palms at chest height)
     if (w.cower > 0.01) {
       const k = w.cower;
-      this.mix(B.lUpperArm, -2.3, -0.3, 0.7, k); this.mix(B.rUpperArm, -2.3, 0.3, -0.7, k);
-      this.mix(B.lForearm, -2.0, 0, 0, k); this.mix(B.rForearm, -2.0, 0, 0, k);
-      this.mix(B.head, 0.5, 0, 0, k);
+      if (s.sit) {
+        this.mix(B.spine, 0.35, 0, 0, k); this.mix(B.chest, 0.3, 0, 0, k); this.mix(B.head, 0.45, 0, 0, k);
+        this.mix(B.lUpperArm, -1.45, -0.2, 0.35, k); this.mix(B.rUpperArm, -1.45, 0.2, -0.35, k);
+        this.mix(B.lForearm, -2.1, 0, 0, k); this.mix(B.rForearm, -2.1, 0, 0, k);
+      } else {
+        this.mix(B.lUpperArm, -2.3, -0.3, 0.7, k); this.mix(B.rUpperArm, -2.3, 0.3, -0.7, k);
+        this.mix(B.lForearm, -2.0, 0, 0, k); this.mix(B.rForearm, -2.0, 0, 0, k);
+        this.mix(B.head, 0.5, 0, 0, k);
+      }
     }
     if (w.hands > 0.01) {
       const k = w.hands;
-      this.mix(B.lUpperArm, -0.2, 0, 2.6, k); this.mix(B.rUpperArm, -0.2, 0, -2.6, k);
-      this.mix(B.lForearm, -0.3, 0, 0, k); this.mix(B.rForearm, -0.3, 0, 0, k);
+      if (s.sit) {
+        this.mix(B.lUpperArm, -0.9, 0, 0.45, k); this.mix(B.rUpperArm, -0.9, 0, -0.45, k);
+        this.mix(B.lForearm, -1.5, 0, 0, k); this.mix(B.rForearm, -1.5, 0, 0, k);
+      } else {
+        this.mix(B.lUpperArm, -0.2, 0, 2.6, k); this.mix(B.rUpperArm, -0.2, 0, -2.6, k);
+        this.mix(B.lForearm, -0.3, 0, 0, k); this.mix(B.rForearm, -0.3, 0, 0, k);
+      }
     }
     if (w.talk > 0.01 && !this.busy) {
       const k = w.talk;
