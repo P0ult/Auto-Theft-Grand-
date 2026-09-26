@@ -382,7 +382,9 @@ export class LaneDriver {
       if (cap < 0.5 && Math.abs(speed) < 0.6) this.wait += dt; else if (cap > 5) this.wait = 0;
     }
     // obstacles
-    const obs = this._obstacleAhead(22 + Math.max(0, speed) * 1.2);
+    let obs = this._obstacleAhead(22 + Math.max(0, speed) * 1.2);
+    // level crossings close while a train is near
+    if (this.game.rail) obs = Math.min(obs, this.game.rail.crossingAhead(v.pos.x, v.pos.z, Math.sin(v.yaw), Math.cos(v.yaw), 20 + Math.max(0, speed) * 1.5));
     if (obs < 20 + speed) desired = Math.min(desired, Math.max(0, (obs - 2.5) * 0.9));
     if (obs < 2.5) desired = 0;
     // steering toward a point ahead on the path

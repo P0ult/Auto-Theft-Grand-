@@ -3,6 +3,7 @@
 // highways, winding hill roads, town streets with roundabouts, dirt tracks and the base access road.
 import { RoadNet, RT, catmull, cumLen, pointAt, tangentAt, offsetLine, project, intersect, solveProfile, resample } from './roadnet.js';
 import { TOWNS, BASE, AIRFIELD, coastZ, fbmN } from './worldgen.js';
+import { buildRailway } from './railway.js';
 import { clamp, lerp, smoothstep } from '../core/utils.js';
 
 // grid segments removed to form super-blocks: 'h:i,j' = E-W street ZS[j] between XS[i] and XS[i+1];
@@ -24,10 +25,10 @@ export const ROUTES = (() => {
   const cityW = [-830, 540], cityN = [15, -770], cityE = [870, -455];
   const jDw = [-3700, -2480];
   return {
-    coast: { type: 'highway', ends: [0, 'pine'], ctrl: [[cityW[0] - 10, cityW[1]], [-950, 545], [-1100, 560], [-1250, 520], [-1360, 400], [-1400, 220], [-1380, 60], [-1350, -60], [-1330, -200], [-1300, -450], [-1290, -700], [-1330, -950], [-1420, -1200], [-1520, -1450], [-1560, -1640], [-1330, -1720], [-1230, -1900], [-1150, -2100], [-950, -2250], [-650, -2330], [T.pine.x - 25, T.pine.z]] },
+    coast: { type: 'highway', ends: [0, 'pine'], ctrl: [[cityW[0] - 10, cityW[1]], [-950, 545], [-1100, 560], [-1250, 520], [-1360, 400], [-1400, 220], [-1380, 60], [-1350, -60], [-1330, -200], [-1300, -450], [-1290, -700], [-1330, -950], [-1420, -1200], [-1520, -1450], [-1560, -1640], [-1380, -1700], [T.mirador.x, T.mirador.z], [-1180, -1980], [-1150, -2100], [-950, -2250], [-650, -2330], [T.pine.x - 25, T.pine.z]] },
     fernN: { type: 'road', ends: ['fern', null], ctrl: [[T.fern.x, T.fern.z - 25], [-2525, -400], [-2520, -560], [-2540, -700], [-2600, -900], [-2680, -1100]] },
     vista: { type: 'road', ends: [0, 'pine'], grade: 0.1, ctrl: [[cityN[0], cityN[1] - 10], [30, -830], [70, -900], [95, -1000], [40, -1120], [-80, -1200], [-60, -1320], [80, -1430], [45, -1560], [-110, -1700], [-200, -1900], [-260, -2100], [T.pine.x, T.pine.z + 23]] },
-    bay: { type: 'highway', ends: [0, 'pine'], ctrl: [[cityE[0] + 10, cityE[1]], [950, -520], [1000, -700], [1010, -950], [990, -1250], [950, -1550], [880, -1850], [720, -2100], [450, -2280], [150, -2345], [T.pine.x + 23, T.pine.z]] },
+    bay: { type: 'highway', ends: [0, 'pine'], ctrl: [[cityE[0] + 10, cityE[1]], [950, -520], [1000, -700], [T.hale.x, T.hale.z], [990, -1250], [950, -1550], [880, -1850], [720, -2100], [450, -2280], [150, -2345], [T.pine.x + 23, T.pine.z]] },
     freeway: { type: 'freeway', ends: ['dry', 0], grade: 0.04, width: 30, ctrl: [jDw, [-3665, -2330], [-3560, -1900], [-3380, -1480], [-3120, -1080], [-2830, -770], [-2520, -560], [-2300, -400], [-2100, -230], [-1860, -150], [-1600, -100], [-1350, -60], [-1180, -25], [-1000, 4], [-880, 10], [-840, 10], [-600, 10], [-300, 10], [-100, 10], [15, 10]] },
     fernS: { type: 'road', ends: ['fern', null], ctrl: [[T.fern.x, T.fern.z + 25], [-2530, -60], [-2560, 150], [-2590, 380], [-2620, coastZ(-2620) - 60]] },
     fernW: { type: 'road', ends: ['fern', null], ctrl: [[T.fern.x - 25, T.fern.z], [-2700, -230], [-2850, -150], [-2955, 40], [AIRFIELD.x - 40, AIRFIELD.z - 55]] },
@@ -35,6 +36,8 @@ export const ROUTES = (() => {
     dryE: { type: 'road', ends: ['dry', null], ctrl: [[T.dry.x + 25, T.dry.z], [-3780, -2480], jDw] },
     dryE2: { type: 'road', ends: [null, null], ctrl: [jDw, [-3550, -2470], [-3350, -2500], [-3150, -2560]] },
     dryW: { type: 'road', ends: ['dry', null], ctrl: [[T.dry.x - 25, T.dry.z], [-3980, -2470], [-4200, -2450], [-4500, -2380], [-4800, -2300]] },
+    costa: { type: 'road', ends: [null, 'seco'], ctrl: [[AIRFIELD.x - 40, AIRFIELD.z - 55], [-3150, 320], [-3400, 390], [-3700, 440], [T.seco.x + 22, T.seco.z]] },
+    seco: { type: 'highway', ends: ['seco', null], ctrl: [[T.seco.x, T.seco.z - 22], [-4020, 200], [-4100, -300], [-4180, -900], [-4150, -1450], [-4080, -1900], [-4150, -2250], [-4200, -2445]] },
     baseRd: { type: 'highway', ends: ['dry', 'base'], ctrl: [[T.dry.x, T.dry.z + 25], [-3875, -2650], [-3900, -2900], [-3960, -3250], [-3930, -3600], [-3800, -3860], [-3700, -3960], [-3720, BASE.gateZ], [BASE.maxX - 2, BASE.gateZ]] },
   };
 })();
@@ -98,7 +101,7 @@ export function buildRoadNetwork(C, hf) {
       const pr = project(pts, cum, sp.x, sp.z);
       const s = sp.s ?? pr.s;
       const k = nearestIdx(cum, s);
-      const node = sp.node || net.addNode(pts[k][0], pts[k][1], pts[k][2], { kind: sp.kind || 'x', r: sp.r ?? 8, name: sp.name, sig: sp.sig ?? null });
+      const node = sp.node || net.addNode(pts[k][0], pts[k][1], pts[k][2], { kind: sp.kind || 'x', r: sp.r ?? 8, rbR: sp.rbR ?? 0, name: sp.name, sig: sp.sig ?? null });
       if (sp.node) { /* existing node keeps its own position */ }
       stops.push({ s: cum[k], node, k });
     }
@@ -126,10 +129,10 @@ export function buildRoadNetwork(C, hf) {
   // ------------------------------------------------------------------ crossroads (built before the freeway)
   const cityW = G[0][13], cityN = G[9][0], cityE = G[18][3];
   const R = ROUTES;
-  const coast = road(R.coast.ctrl, 'highway', { start: cityW, end: rbPine, name: 'Coast Highway', splits: [{ x: -1398, z: 250, name: 'Farm Road jct', r: 9 }] });
+  const coast = road(R.coast.ctrl, 'highway', { start: cityW, end: rbPine, name: 'Coast Highway', splits: [{ x: -1398, z: 250, name: 'Farm Road jct', r: 9 }, { x: TOWNS.mirador.x, z: TOWNS.mirador.z, kind: 'rb', rbR: 15, r: 23, name: 'Mirador' }] });
   const fernN = road(R.fernN.ctrl, 'road', { start: rbFern, name: 'Main Street' });
   const vista = road(R.vista.ctrl, 'road', { start: cityN, end: rbPine, name: 'Vistawood Drive', maxGrade: 0.11 });
-  const bay = road(R.bay.ctrl, 'highway', { start: cityE, end: rbPine, name: 'Bayshore Road' });
+  const bay = road(R.bay.ctrl, 'highway', { start: cityE, end: rbPine, name: 'Bayshore Road', splits: [{ x: TOWNS.hale.x, z: TOWNS.hale.z, kind: 'rb', rbR: 15, r: 23, name: 'Port Hale' }] });
 
   // ------------------------------------------------------------------ freeway centerline + profile
   const fwCtrl = R.freeway.ctrl;
@@ -358,6 +361,46 @@ export function buildRoadNetwork(C, hf) {
   const pineS1 = road([[-300, -2250], [-200, -2260], [-110, -2240]], 'road', { name: 'Cedar Lane' });
   joinTo(vista, pineS1, true);
   info.towns.pine = { center: rbPine, roads: [pineN, pineS1, coast, vista, bay] };
+
+  // ------------------------------------------------------------------ Mirador (lake town on the Coast Highway)
+  const rbMir = net.nodes.find((q) => q.name === 'Mirador' && q.kind === 'rb');
+  if (rbMir) {
+    info.rbs.push(rbMir);
+    const lakeDr = road([[rbMir.x - 18, rbMir.z + 12], [-1300, -1760], [-1330, -1830], [-1320, -1900], [-1280, -1960]], 'road', { start: rbMir, name: 'Lakeshore Drive' });
+    const summit = road([[rbMir.x + 20, rbMir.z - 4], [-1150, -1805], [-1070, -1830], [-990, -1840]], 'road', { start: rbMir, name: 'Summit Road', maxGrade: 0.13 });
+    const pier = road([[-1310, -1880], [-1250, -1880], [-1215, -1905]], 'road', { name: 'Marina Way' });
+    joinTo(lakeDr, pier, true);
+    info.towns.mirador = { center: rbMir, roads: [lakeDr, summit, pier] };
+  }
+
+  // ------------------------------------------------------------------ Port Hale (harbour on Bayshore Road)
+  const rbHale = net.nodes.find((q) => q.name === 'Port Hale' && q.kind === 'rb');
+  if (rbHale) {
+    info.rbs.push(rbHale);
+    const harbor = road([[rbHale.x + 20, rbHale.z], [1040, -950], [1062, -945]], 'road', { start: rbHale, name: 'Harbor Road' });
+    const cliff = road([[rbHale.x - 20, rbHale.z], [950, -975], [900, -1000], [860, -1040]], 'road', { start: rbHale, name: 'Cliff Street', maxGrade: 0.14 });
+    const quay = road([[1020, -1060], [1035, -1000], [1040, -950]], 'road', { name: 'Quay Street' });
+    joinTo(bay, quay, true);
+    info.towns.hale = { center: rbHale, roads: [harbor, cliff, quay, bay] };
+  }
+
+  // ------------------------------------------------------------------ Puerto Seco (desert bluff town on the south coast)
+  const rbSeco = mk(TOWNS.seco.x, TOWNS.seco.z, { kind: 'rb', rbR: 16, r: 24, name: 'Puerto Seco' });
+  info.rbs.push(rbSeco);
+  {
+    const airEnd = net.nodes[fernW.edges[fernW.edges.length - 1].b];
+    const costa = road(R.costa.ctrl, 'road', { start: airEnd, end: rbSeco, name: 'Costa Road' });
+    const seco = road(R.seco.ctrl, 'highway', { start: rbSeco, name: 'Seco Highway' });
+    joinTo(dryW, seco, false);
+    const mayor = road([[rbSeco.x, rbSeco.z + 22], [-3995, 560], [-3990, 650]], 'road', { start: rbSeco, name: 'Calle Mayor' });
+    const sol = road([[rbSeco.x - 22, rbSeco.z], [-4110, 480], [-4220, 505]], 'road', { start: rbSeco, name: 'Calle del Sol' });
+    const mar = road([[-4110, 480], [-4120, 580], [-4100, 660]], 'road', { name: 'Calle del Mar' });
+    joinTo(sol, mar, true);
+    info.towns.seco = { center: rbSeco, roads: [costa, seco, mayor, sol, mar] };
+  }
+
+  // ------------------------------------------------------------------ Sol Line railway
+  buildRailway(net, info, fwC, fwCum, terrain, hf);
 
   // ------------------------------------------------------------------ base interior roads
   const bY = hf.sample((BASE.minX + BASE.maxX) / 2, (BASE.minZ + BASE.maxZ) / 2);

@@ -277,6 +277,12 @@ export class Audio {
         this._noiseHit(dest, t, { dur: 0.08, vol: 0.5 * vol, freq: 900, type: 'lowpass' });
         break;
       case 'locked': this._tone(dest, t, { f0: 300, dur: 0.08, vol: 0.2 * vol, type: 'square' }); break;
+      case 'trainhorn': {
+        // three-chime air horn, a little detuned
+        const f = this.ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 1500; f.connect(dest);
+        for (const fr of [311, 370, 466]) for (const d of [-2, 2]) this._tone(f, t, { f0: fr + d, dur: 1.1, vol: 0.07 * vol, type: 'sawtooth', attack: 0.06 });
+        break;
+      }
       case 'horn':
         for (const f of [392, 494]) { const o = this._tone(dest, t, { f0: f, dur: 0.5, vol: 0.18 * vol, type: 'square', attack: 0.01 }); }
         break;

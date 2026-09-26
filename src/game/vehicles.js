@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import { Vehicle } from '../entities/vehicle.js';
 import { vehicleClass } from '../entities/aircraft.js';
+import { Train } from '../entities/train.js';
 import { VEHICLES, TRAFFIC_POOL } from '../entities/vehicledefs.js';
 import { RNG, clamp, dist2, hash2 } from '../core/utils.js';
 
@@ -20,7 +21,7 @@ export class VehicleManager {
   }
 
   spawn(id, x, z, yaw, opts = {}) {
-    const Cls = vehicleClass(VEHICLES[id]) || Vehicle;
+    const Cls = VEHICLES[id].train ? Train : vehicleClass(VEHICLES[id]) || Vehicle;
     const v = new Cls(this.game, id, { x, z, yaw, ...opts });
     this.list.push(v);
     return v;
@@ -231,9 +232,9 @@ export class VehicleManager {
     let best = null, bd = maxDist * maxDist;
     for (const v of this.list) {
       if (v.isWrecked || v.removed || v.locked) continue;
-      const dp = v.doorWorld(_a);
+      const dp = v.nearestDoor ? v.nearestDoor(pos) : v.doorWorld(_a);
       const d = dist2(pos.x, pos.z, dp.x, dp.z);
-      const dc = dist2(pos.x, pos.z, v.pos.x, v.pos.z);
+      const dc = v.nearestDoor ? Infinity : dist2(pos.x, pos.z, v.pos.x, v.pos.z);
       const dd = Math.min(d, dc * 0.8);
       if (dd < bd && Math.abs(v.pos.y - pos.y) < 2) { bd = dd; best = v; }
     }
@@ -276,7 +277,8 @@ export class VehicleManager {
     return true;
   }
 
-  _doorTarget(veh, seat) {
+  _doorTarget(veh, seat, char = null) {
+    if (veh.doorFor) return veh.doorFor(seat, char);
     const d = veh.model.doorPos;
     const x = seat % 2 === 0 ? d.x : -d.x;
     const z = seat < 2 ? d.z : d.z - 0.9;
@@ -291,7 +293,7 @@ export class VehicleManager {
     if (s.type === 'enter') {
       if (veh.isWrecked) return true;
       if (s.phase === 'approach') {
-        const tp = this._doorTarget(veh, s.seat);
+        const tp = this._doorTarget(veh, s.seat, char);
         const dx = tp.x - char.pos.x, dz = tp.z - char.pos.z;
         const d = Math.hypot(dx, dz);
         if (d < 0.35 || s.t > 2.5) {

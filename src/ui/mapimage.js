@@ -103,6 +103,14 @@ function drawRoads(g, map, X, Z, sx, city) {
       g.stroke();
     }
   }
+  // railway: dark line with white ties
+  const rail = map.roadInfo?.rail;
+  if (rail) {
+    const path = () => { g.beginPath(); rail.pts.forEach((p, i) => { const x = X(p[0]), y = Z(p[1]); if (i) g.lineTo(x, y); else g.moveTo(x, y); }); };
+    const w = Math.max(1.6, 4 * sx * 1.6);
+    path(); g.strokeStyle = 'rgba(25,25,28,0.95)'; g.lineWidth = w; g.stroke();
+    path(); g.setLineDash([Math.max(1, w * 0.5), Math.max(2, w)]); g.strokeStyle = 'rgba(235,235,235,0.9)'; g.lineWidth = w * 0.55; g.stroke(); g.setLineDash([]);
+  }
 }
 
 function polyBuilding(g, b, X, Z, sx, sz, col) {

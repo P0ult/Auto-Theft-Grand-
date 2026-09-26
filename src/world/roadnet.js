@@ -12,6 +12,7 @@ export const RT = {
   highway: { lanes: [1, 1], laneW: 3.6, off0: 0.12, wL: 5.5, wR: 5.5, speed: 24, mark: 3, cls: 2 },
   road: { lanes: [1, 1], laneW: 3.3, off0: 0.1, wL: 4.5, wR: 4.5, speed: 15, mark: 4, cls: 1 },
   dirt: { lanes: [1, 1], laneW: 2.8, off0: 0.0, wL: 3.4, wR: 3.4, speed: 11, mark: 5, cls: 0 },
+  rail: { lanes: [0, 0], laneW: 0, off0: 0, wL: 3.3, wR: 3.3, speed: 0, mark: 7, cls: -1 },
 };
 export const DECK_H = 1.3;           // deck thickness below the road surface
 export const DECK_MIN = 3.2;         // road this far above the ground is a bridge / viaduct
@@ -341,8 +342,9 @@ export class RoadNet {
 
   // ------------------------------------------------------------------ routing (A*)
   route(fromX, fromZ, toX, toZ, opts = {}) {
-    const start = this.closest(fromX, fromZ, opts.filter);
-    const goal = this.closest(toX, toZ, opts.filter);
+    const drivable = (e) => e.type !== 'rail' && (!opts.filter || opts.filter(e));
+    const start = this.closest(fromX, fromZ, drivable);
+    const goal = this.closest(toX, toZ, drivable);
     if (!start || !goal) return null;
     const nodes = this.nodes;
     // seed with both ends of the start edge
@@ -421,7 +423,7 @@ export class RoadNet {
 // Roads cut into hills and sit on embankments; where a road runs high above the ground it becomes a
 // bridge / viaduct (deck flag). City roads above street level are always decks (the city isn't
 // part of the heightfield). groundAt(x,z) returns the non-heightfield ground (city) or null.
-const FILL_MAX_BY_TYPE = { freeway: 7.5, ramp: 6.5, highway: 7.5, road: 6.5, dirt: 16 };
+const FILL_MAX_BY_TYPE = { freeway: 7.5, ramp: 6.5, highway: 7.5, road: 6.5, dirt: 16, rail: 9 };
 export function shapeTerrain(net, hf, groundAt, opts = {}) {
   const edges = net.edges.filter((e) => !e.removed && !e.grid);
   const avgY = (e) => { let s = 0; for (let i = 0; i < e.n; i++) s += e.p[i * 3 + 1]; return s / e.n; };

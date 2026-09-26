@@ -203,7 +203,9 @@ export class Game {
     const v = this.vehicles.nearestEnterable(p.pos, 5);
     if (v) {
       if (this.missions?.canEnterVehicle && !this.missions.canEnterVehicle(v)) return;
-      this.vehicles.enter(p, v, 0);
+      const seat = v.nearestDoor ? v.nearestDoor(p.pos).seat : 0;
+      if (seat > 0 && v.occupants[seat]) { const free = [1, 2, 3].find((k) => !v.occupants[k]); if (free) return this.vehicles.enter(p, v, free); }
+      this.vehicles.enter(p, v, seat);
     }
   }
 

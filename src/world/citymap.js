@@ -247,7 +247,7 @@ export class CityMap {
     // terrain first (roads follow it), with flat pads for the towns, the base and the airstrip
     this.hf = new Heightfield();
     const pads = [
-      ...Object.entries(TOWNS).map(([k, t]) => ({ key: k, x: t.x, z: t.z, r: t.r, blend: 140 })),
+      ...Object.entries(TOWNS).map(([k, t]) => ({ key: k, x: t.x, z: t.z, r: t.padR ?? t.r, blend: 140, keepSea: true })),
       { key: 'base', minX: BASE.minX, maxX: BASE.maxX, minZ: BASE.minZ, maxZ: BASE.maxZ, blend: 160 },
       { key: 'air', minX: AIRFIELD.x - 60, maxX: AIRFIELD.x + 60, minZ: AIRFIELD.z - AIRFIELD.len / 2 - 20, maxZ: AIRFIELD.z + AIRFIELD.len / 2 + 20, blend: 80 },
     ];

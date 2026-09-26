@@ -264,6 +264,44 @@ export function postGeo(h = 4.6) {
   put(gb, box(0.35, h, 0.35), 0xd9d9d9, mat4(0, h / 2, 0));
   return gb.build();
 }
+// Small fishing boat: pointed hull (red below the waterline), white topsides, wheelhouse, mast.
+// Bow toward +z; y = 0 is the keel, the waterline sits at about 0.6.
+export function boatGeo() {
+  const gb = builder();
+  const hull = (w, len, y0, h, col) => {
+    const sh = new THREE.Shape();
+    sh.moveTo(-w, -len / 2); sh.lineTo(w, -len / 2); sh.lineTo(w * 1.02, len * 0.18); sh.quadraticCurveTo(w * 0.9, len * 0.42, 0, len / 2);
+    sh.quadraticCurveTo(-w * 0.9, len * 0.42, -w * 1.02, len * 0.18); sh.lineTo(-w, -len / 2);
+    const g = new THREE.ExtrudeGeometry(sh, { depth: h, bevelEnabled: false, curveSegments: 6 });
+    g.rotateX(-Math.PI / 2); g.scale(1, 1, -1); g.translate(0, y0, 0);
+    put(gb, g, col, new THREE.Matrix4());
+  };
+  hull(1.15, 8.5, 0, 0.65, 0xa8322a);
+  hull(1.3, 9.0, 0.65, 0.75, 0xf2f0ea);
+  put(gb, box(2.5, 0.08, 7.6), 0x8a6a48, mat4(0, 1.36, -0.3));
+  put(gb, box(1.7, 1.7, 2.0), 0xf5f5f0, mat4(0, 2.25, 0.6));
+  put(gb, box(1.75, 0.1, 2.2), 0x2d4e6e, mat4(0, 3.12, 0.6));
+  put(gb, box(1.72, 0.5, 0.05), 0x1a2630, mat4(0, 2.6, 1.61));
+  put(gb, cyl(0.06, 0.07, 5.5, 6), 0xcccccc, mat4(0, 3.8, -1.2));
+  put(gb, cyl(0.04, 0.04, 3.2, 5), 0xcccccc, mat4(0, 4.2, -2.6, Math.PI / 2 - 0.3, 0, 0));
+  put(gb, box(0.4, 0.4, 0.4), 0xff7a1a, mat4(0.9, 1.6, -3.2));
+  put(gb, box(0.4, 0.4, 0.4), 0xff7a1a, mat4(-0.9, 1.6, -2.6));
+  return gb.build();
+}
+// Railway crossbuck: white X boards with red trim on a post, twin red lamps and a bell
+export function crossbuckGeo() {
+  const gb = builder();
+  put(gb, cyl(0.07, 0.08, 4.2, 8), 0xdedede, mat4(0, 2.1, 0));
+  for (const a of [0.75, -0.75]) put(gb, box(1.9, 0.26, 0.04), 0xf2f2f2, mat4(0, 3.7, 0.06, 0, 0, a));
+  for (const a of [0.75, -0.75]) put(gb, box(1.95, 0.05, 0.03), 0xb01b1b, mat4(0, 3.7, 0.075, 0, 0, a));
+  put(gb, box(1.3, 0.1, 0.1), 0x222222, mat4(0, 2.65, 0.05));
+  for (const x of [-0.55, 0.55]) {
+    put(gb, cyl(0.2, 0.2, 0.16, 12).rotateX(Math.PI / 2), 0x151515, mat4(x, 2.65, 0.12));
+    put(gb, cyl(0.14, 0.14, 0.05, 12).rotateX(Math.PI / 2), 0x8a1010, mat4(x, 2.65, 0.21), [1.2, 0.05, 0.02]);
+  }
+  put(gb, sph(0.14, 8, 6), 0x303030, mat4(0, 4.35, 0));
+  return gb.build();
+}
 export function haybaleGeo() {
   const gb = builder();
   put(gb, cyl(0.75, 0.75, 1.2, 14), 0xc9a54a, mat4(0, 0.75, 0, 0, 0, Math.PI / 2));

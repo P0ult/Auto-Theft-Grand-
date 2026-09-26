@@ -29,6 +29,7 @@ export function populateCountryside(map) {
   for (const [key, t] of Object.entries(map.roadInfo.towns)) town(ctx, key, t);
   farms(ctx);
   airfield(ctx);
+  railStations(ctx);
   base(ctx);
   powerLines(ctx);
   vegetation(ctx);
@@ -68,6 +69,7 @@ function canPlace(ctx, r, opts = {}) {
     if (map.roads.onRoad(x, z, opts.roadMargin ?? 1.5)) return false;
     const h = hf.sample(x, z);
     if (h < 0.4) return false;
+    if (Math.hypot(x - LAKE.x, z - LAKE.z) < LAKE.r + 10) return false;
     lo = Math.min(lo, h); hi = Math.max(hi, h);
   }
   // also check along the edges for roads
@@ -110,6 +112,21 @@ const TOWN_STYLE = {
     houses: () => ({ style: 3, roof: 'flat', floors: [1, 1], tint: [[0.95, 0.78, 0.6], [0.9, 0.72, 0.55], [1, 0.85, 0.7], [0.85, 0.65, 0.5], [0.95, 0.9, 0.8]] }),
     shops: [['MOTEL', 'Desert Rose Motel'], ['CANTINA', 'Cantina Los Muertos'], ['TRADING POST', 'Trading Post'], ['GUNS', 'Dry Wells Guns & Ammo']],
   },
+  mirador: {
+    district: 'lake',
+    houses: () => ({ style: 2, roof: 'gable', floors: [1, 2], tint: [[0.86, 0.74, 0.58], [0.95, 0.93, 0.88], [0.72, 0.6, 0.48], [0.8, 0.86, 0.9], [0.9, 0.82, 0.7]] }),
+    shops: [['MARINA', 'Mirador Marina'], ['LAKEVIEW HOTEL', 'Lakeview Hotel'], ['BOAT RENTAL', 'Mirador Boat Rental'], ['ICE CREAM', 'Two Scoops'], ['BAR & GRILL', 'The Loon Bar & Grill']],
+  },
+  hale: {
+    district: 'harbor',
+    houses: () => ({ style: 3, roof: 'gable', floors: [1, 2], tint: [[0.55, 0.72, 0.85], [0.9, 0.35, 0.3], [0.95, 0.85, 0.45], [0.95, 0.95, 0.93], [0.45, 0.62, 0.55], [0.85, 0.6, 0.45]] }),
+    shops: [['FISH MARKET', 'Hale Fish Market'], ['THE ANCHOR', 'The Anchor Pub'], ['OYSTER BAR', 'Pearl Oyster Bar'], ['CHANDLERY', 'Hale Chandlery'], ['BAIT SHOP', 'Hooked Bait Shop']],
+  },
+  seco: {
+    district: 'seco',
+    houses: () => ({ style: 3, roof: 'flat', floors: [1, 2], tint: [[1, 0.97, 0.9], [0.97, 0.9, 0.78], [0.95, 0.8, 0.62], [0.85, 0.92, 0.95], [1, 0.88, 0.8]] }),
+    shops: [['LA SIRENA', 'Cantina La Sirena'], ['TACOS', 'Tacos El Faro'], ['SURF SHOP', 'Seco Surf'], ['HOTEL DEL MAR', 'Hotel del Mar'], ['MERCADO', 'Mercado Seco']],
+  },
 };
 
 function town(ctx, key, t) {
@@ -123,7 +140,7 @@ function town(ctx, key, t) {
   const edges = new Set();
   for (const r of t.roads) for (const e of r.edges) if (!e.removed) edges.add(e);
   // include every non-grid edge that passes through the town
-  for (const e of net.edgesIn(T.x - T.r, T.z - T.r, T.x + T.r, T.z + T.r)) if (!e.grid && e.type !== 'freeway' && e.type !== 'ramp') edges.add(e);
+  for (const e of net.edgesIn(T.x - T.r, T.z - T.r, T.x + T.r, T.z + T.r)) if (!e.grid && e.type !== 'freeway' && e.type !== 'ramp' && e.type !== 'rail') edges.add(e);
   const tmp = [0, 0, 0, 0, 0];
   let gasDone = false;
   for (const e of edges) {
@@ -161,7 +178,7 @@ function town(ctx, key, t) {
       const core = dCenter < T.r * 0.45;
       const side = rng.chance(0.5) ? 1 : -1;
       for (const sd of [side, -side]) {
-        const shop = core && rng.chance(0.55) && shopIdx < S.shops.length;
+        const shop = core && rng.chance(key === 'hale' || key === 'mirador' ? 0.7 : 0.55) && shopIdx < S.shops.length;
         const gas = !gasDone && dCenter > T.r * 0.4 && e.T.cls >= 1 && rng.chance(0.25);
         const w = gas ? 26 : shop ? rng.range(14, 20) : rng.range(9, 13);
         const dpt = gas ? 22 : shop ? rng.range(12, 16) : rng.range(8, 11);
@@ -196,6 +213,8 @@ function town(ctx, key, t) {
       s += rng.range(18, 26);
     }
   }
+  if (key === 'hale') harborPier(ctx, T);
+  if (key === 'mirador') lakeDocks(ctx);
   // link walk nodes near the roundabout into a loop
   const ids = area.nodeIds;
   for (let k = 0; k < ids.length; k++) {
@@ -207,6 +226,29 @@ function town(ctx, key, t) {
   }
   // drop orphan nodes from the spawn list
   area.nodeIds = ids.filter((id) => walk[id].links.length);
+}
+
+// Port Hale: a timber fishing pier out into the bay, with a few boats tied up
+function harborPier(ctx, T) {
+  const { map, hf } = ctx;
+  // walk east from the end of Harbor Road until the sea
+  let x = 1062, z = -945;
+  while (x < 1400 && hf.sample(x, z) > 1.5) x += 4;
+  const x0 = x - 12, x1 = x + 90;
+  map._addBuilding(null, x0, z - 3.5, x1, z + 3.5, 0.5, 4, { y0: 2.1, tint: [0.45, 0.33, 0.22], seed: 0.2, roof: 'flat', kind: 'pier', name: 'Hale Pier' }).district = 'harbor';
+  for (let px = x0 + 6; px < x1; px += 10) for (const side of [-1, 1]) map.props.push({ type: 'post', x: px, z: z + side * 3.2, rot: 0, y: -2, h: 4.7 });
+  const boats = [[x + 25, z + 12], [x + 50, z - 13], [x + 72, z + 12]];
+  for (const [bx, bz] of boats) map.props.push({ type: 'boat', x: bx, z: bz, rot: Math.PI / 2 + (bx % 3) * 0.1, y: -1.2 });
+  map.landmarks.halePier = { x: x + 40, z, y: 2.6 };
+}
+// Mirador: floating docks on the lake below the marina
+function lakeDocks(ctx) {
+  const { map } = ctx;
+  const y = LAKE.y + 0.5;
+  for (const [cx, cz, len] of [[-1300, -1880, 34], [-1305, -1935, 26]]) {
+    map._addBuilding(null, cx - len, cz - 2, cx, cz + 2, 0.35, 4, { y0: y - 0.35, tint: [0.5, 0.38, 0.26], seed: 0.4, roof: 'flat', kind: 'pier' }).district = 'lake';
+    map.props.push({ type: 'boat', x: cx - len * 0.6, z: cz + 5, rot: Math.PI / 2, y: LAKE.y - 0.45, scale: 0.6 });
+  }
 }
 
 function gasStation(ctx, r, front, district) {
@@ -265,6 +307,44 @@ function farms(ctx) {
     }
     map.parkingSpots.push({ x: house.cx - rx * 9 + c.tx * 9, z: house.cz - rz * 9 + c.tz * 9, rot: yaw, district: 'country', driveway: true, rural: true });
     made++;
+  }
+}
+
+// ------------------------------------------------------------------ Sol Line stations & level crossings
+function railStations(ctx) {
+  const { map, hf } = ctx;
+  const rail = map.roadInfo.rail;
+  if (!rail) return;
+  map.landmarks.stations = [];
+  for (const st of rail.stations) {
+    const rx = -st.tz, rz = st.tx;
+    const big = st.key === 'union';
+    const hx = big ? 9 : 6, hz = big ? 26 : 11;
+    const off = 6.75 + 3 + hx;
+    const r = { cx: st.x + rx * off, cz: st.z + rz * off, hx, hz, yaw: st.yaw };
+    if (canPlace(ctx, r, { margin: 0.5, maxDrop: 6, roadMargin: 0.5 })) {
+      addBld(ctx, r, big ? 12 : 6.5, big ? 0 : 5, { tint: big ? [0.9, 0.84, 0.72] : [0.85, 0.72, 0.58], roof: big ? 'flat' : 'gable', floorH: big ? 6 : 6.5, name: st.name, sign: st.name.toUpperCase(), front: [-rx, -rz], district: 'station' });
+    }
+    // forecourt parking behind the station
+    for (let k = -2; k <= 2; k++) map.parkingSpots.push({ x: r.cx + rx * (hx + 6) + st.tx * k * 4, z: r.cz + rz * (hx + 6) + st.tz * k * 4, rot: st.yaw + Math.PI / 2, district: 'station', lot: true });
+    const lm = { key: st.key, name: st.name, s: st.s, x: st.x + rx * 4.25, z: st.z + rz * 4.25, y: st.y + 1.05, rot: st.yaw };
+    map.landmarks.stations.push(lm);
+    map.landmarks['station_' + st.key] = lm;
+  }
+  for (const c of rail.crossings) {
+    if (c.kind !== 'level') continue;
+    const e = c.edge;
+    // a crossbuck on each side of the road, next to the track
+    const t = [0, 0, 0, 0, 0];
+    const pr = e.p;
+    let best = 0, bd = Infinity;
+    for (let i = 0; i < e.n; i++) { const d = Math.hypot(pr[i * 3] - c.x, pr[i * 3 + 2] - c.z); if (d < bd) { bd = d; best = i; } }
+    map.roads.at(e, e.cum[best], t);
+    for (const side of [-1, 1]) {
+      const off = (side < 0 ? e.wL : e.wR) + 1.4;
+      const x = c.x - t[4] * off * side + t[3] * 5 * side, z = c.z + t[3] * off * side + t[4] * 5 * side;
+      map.props.push({ type: 'crossbuck', x, z, rot: Math.atan2(t[3], t[4]) + (side > 0 ? Math.PI : 0), y: hf.sample(x, z) });
+    }
   }
 }
 

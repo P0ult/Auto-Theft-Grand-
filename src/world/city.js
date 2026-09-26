@@ -393,6 +393,8 @@ export class City {
       boothbar: { parts: [[P.boothbarGeo(), 'prop']], r: 1.6, h: 3, breakable: false },
       sandbags: { parts: [[P.sandbagsGeo(), 'prop']], r: 0.9, h: 1.1, breakable: false },
       powerpole: { parts: [[P.powerpoleGeo(), 'prop']], r: 0.25, h: 11, breakable: true, mass: 1.4 },
+      boat: { parts: [[P.boatGeo(), 'prop']], r: 1.4, h: 3.2, breakable: false },
+      crossbuck: { parts: [[P.crossbuckGeo(), 'prop']], r: 0.15, h: 4.3, breakable: true, mass: 0.8 },
     };
     for (let v = 0; v < 3; v++) {
       const g = P.palmGeos(v);

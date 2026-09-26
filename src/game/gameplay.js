@@ -37,6 +37,7 @@ export class Gameplay {
         const guns = v.def.weapons ? (kind === 'jet' ? ' · <b>LMB</b> cannon · <b>RMB</b> homing missile' : kind === 'heli' ? ' · <b>LMB</b> minigun · <b>RMB</b> rockets' : '') : '';
         if (kind === 'plane' || kind === 'jet') g.hud.help(`<b>W/S</b> throttle · <b>Mouse</b> or <b>↑↓</b> pitch (↓ pulls up) · <b>A/D</b> roll · <b>Q/E</b> rudder · <b>Space</b> brakes${guns} · <b>F</b> bail out. Build speed on the runway, then pull up.`, 12);
         else if (kind === 'heli') g.hud.help(`<b>Space</b> climb · <b>Shift</b> descend · <b>W/S</b> nose down/up · <b>A/D</b> turn · <b>Q/E</b> strafe · <b>Mouse</b> camera${guns} · <b>F</b> bail out. Wait for the rotor to spin up.`, 12);
+        else if (kind === 'train') g.hud.help(v.driver === c ? '<b>W</b> throttle · <b>S</b> brake / reverse · <b>H</b> horn · <b>F</b> climb out. The line runs from Dry Wells to Union Station.' : 'Riding the Sol Line. Sit back, or press <b>F</b> to get off (best at a station).', 9);
         else if (kind === 'tank') g.hud.help('<b>W/S</b> drive · <b>A/D</b> turn on the spot · <b>Mouse</b> aim the turret · <b>LMB</b> fire the cannon · drive straight over cars.', 10);
       } else if (!kind && !this.hinted.drive) { this.hinted.drive = true; g.hud.help('<b>W</b> accelerate · <b>S</b> brake/reverse · <b>Space</b> handbrake · <b>N</b> radio · <b>V</b> camera · <b>F</b> exit', 7); }
     });

@@ -5,10 +5,11 @@ import * as THREE from 'three';
 import { std } from '../render/materials.js';
 import { NOISE_GLSL } from './shaders.js';
 import { DECK_H } from './roadnet.js';
+import { railAt } from './railway.js';
 import { clamp, lerp } from '../core/utils.js';
 
 const CHUNK = 400;
-const MARK = { freeway: 1, ramp: 2, highway: 3, road: 4, dirt: 5, junction: 6, street: 0 };
+const MARK = { freeway: 1, ramp: 2, highway: 3, road: 4, dirt: 5, junction: 6, street: 0, rail: 7 };
 
 export const ROADNET_EXT = {
   key: 'roadnet',
@@ -30,7 +31,15 @@ float stripeR(float x, float c, float w, float aa) { return 1.0 - smoothstep(w -
   float aa = fwidth(u) * 0.9 + 0.01;
   vec3 col;
   float paintW = 0.0, paintY = 0.0;
-  if (type > 4.5 && type < 5.5) {
+  if (type > 6.5) {
+    // railway ballast: grey crushed stone, darker oily strip between the rails, sloped shoulders
+    float stone = vn2(wp * 9.0) * 0.6 + vn2(wp * 23.0) * 0.4;
+    col = mix(vec3(0.27, 0.26, 0.24), vec3(0.42, 0.4, 0.37), stone) * (0.8 + 0.3 * n);
+    col = mix(col, col * vec3(0.55, 0.5, 0.45), smoothstep(0.95, 0.55, abs(u)) * 0.6);
+    col = mix(col, vec3(0.36, 0.3, 0.22) * (0.8 + 0.3 * n), smoothstep(vR.w - 1.2, vR.w, abs(u)) * 0.7);
+    col *= 1.0 - uWet * 0.3;
+    atgRough = mix(1.0, 0.45, uWet);
+  } else if (type > 4.5 && type < 5.5) {
     // dirt track with tyre ruts and gravel
     col = vec3(0.42, 0.33, 0.22) * (0.75 + 0.35 * n) * (0.85 + 0.25 * fine);
     float rut = stripeR(abs(u), 1.0, 0.35, 0.3) * 0.25;
@@ -188,6 +197,7 @@ export class RoadMeshes {
       if (c.road.n) { const m = new THREE.Mesh(c.road.build(), this.roadMat); m.receiveShadow = true; m.name = 'roads'; this.root.add(m); }
       if (c.conc.n) { const m = new THREE.Mesh(c.conc.build(), this.concMat); m.receiveShadow = true; m.castShadow = true; m.name = 'decks'; this.root.add(m); }
     }
+    if (this.map.roadInfo?.rail) this._railway(this.map.roadInfo.rail);
     // collision: deck surfaces for vehicles / characters
     for (const d of this.decks) this.collision.addDeck(d);
   }
@@ -221,7 +231,9 @@ export class RoadMeshes {
       rows[k].tx = dx / l; rows[k].tz = dz / l;
     }
     const wL = e.wL, wR = e.wR;
-    const lift = 0.035;
+    const rail = e.type === 'rail';
+    const lift = rail ? 0.005 : 0.035; // roads win where they cross the ballast
+    const inCross = (s) => rail && e.crossings && e.crossings.some((c) => Math.abs(s - c.s) < c.halfW);
     // ribbon in pieces per chunk
     let prev = null;
     for (const r of rows) {
@@ -236,9 +248,11 @@ export class RoadMeshes {
         const c = this.chunk((prev.r.x + r.x) / 2, (prev.r.z + r.z) / 2);
         const A = c.road;
         const a = [type, e.len, flags, Math.max(wL, wR)];
-        const i0 = A.v(prev.lx, prev.yl, prev.lz, 0, 1, 0, -wL, prev.r.s, a), i1 = A.v(prev.Rx, prev.yr, prev.Rz, 0, 1, 0, wR, prev.r.s, a);
-        const i2 = A.v(cur.Rx, cur.yr, cur.Rz, 0, 1, 0, wR, r.s, a), i3 = A.v(cur.lx, cur.yl, cur.lz, 0, 1, 0, -wL, r.s, a);
-        A.quad(i0, i1, i2, i3);
+        if (!inCross((prev.r.s + r.s) / 2)) {
+          const i0 = A.v(prev.lx, prev.yl, prev.lz, 0, 1, 0, -wL, prev.r.s, a), i1 = A.v(prev.Rx, prev.yr, prev.Rz, 0, 1, 0, wR, prev.r.s, a);
+          const i2 = A.v(cur.Rx, cur.yr, cur.Rz, 0, 1, 0, wR, r.s, a), i3 = A.v(cur.lx, cur.yl, cur.lz, 0, 1, 0, -wL, r.s, a);
+          A.quad(i0, i1, i2, i3);
+        }
         // deck / embankment sides + barriers
         const deck = prev.r.deck && r.deck;
         if (deck) this._deckSegment(c.conc, e, prev, cur);
@@ -265,6 +279,79 @@ export class RoadMeshes {
       if (this.map.isOnRoadNet && this.map.isOnRoadNet(x, z, 1.5, e)) continue;
       acc = 0;
       this._pillar(this.chunk(x, z).conc, e, b, g);
+    }
+  }
+
+  // Sleepers (instanced), steel rails, station platforms with shelters (with collision)
+  _railway(rail) {
+    const L = rail.length, G = 0.7175;
+    const inCross = (s) => rail.crossings.some((c) => c.kind === 'level' && Math.abs(s - c.s) < c.halfW - 1);
+    // sleepers
+    const sleeperGeo = new THREE.BoxGeometry(2.6, 0.16, 0.26);
+    const sleeperMat = std({ color: 0x4d443c, roughness: 0.95 }, { key: 'sleeper' });
+    const per = new Map();
+    const t = [0, 0, 0, 0, 0, 0];
+    for (let s = 0.4; s < L; s += 0.68) {
+      if (inCross(s)) continue;
+      railAt(rail, s, t);
+      const k = Math.floor(t[0] / 512) + ',' + Math.floor(t[2] / 512);
+      if (!per.has(k)) per.set(k, []);
+      per.get(k).push(t[0], t[1] + 0.12, t[2], Math.atan2(t[3], t[4]));
+    }
+    const m = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(1, 1, 1), p = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0);
+    for (const arr of per.values()) {
+      const im = new THREE.InstancedMesh(sleeperGeo, sleeperMat, arr.length / 4);
+      for (let i = 0; i < arr.length; i += 4) { q.setFromAxisAngle(up, arr[i + 3]); p.set(arr[i], arr[i + 1], arr[i + 2]); m.compose(p, q, sc); im.setMatrixAt(i / 4, m); }
+      im.receiveShadow = true;
+      im.computeBoundingSphere();
+      im.name = 'sleepers';
+      this.root.add(im);
+    }
+    // rails: head + web as three strips each, chunked
+    const railMat = std({ color: 0x8c8782, metalness: 0.85, roughness: 0.32 }, { key: 'rail' });
+    const chunks = new Map();
+    const pts = rail.pts;
+    for (let i = 0; i < pts.length - 1; i++) {
+      const a = pts[i], b = pts[i + 1];
+      const k = Math.floor(a[0] / 512) + ',' + Math.floor(a[1] / 512);
+      if (!chunks.has(k)) chunks.set(k, new Acc(false));
+      const A = chunks.get(k);
+      const ta = tan(pts, i), tb = tan(pts, i + 1);
+      for (const side of [-1, 1]) {
+        const ax = a[0] - ta[1] * G * side, az = a[1] + ta[0] * G * side, bx = b[0] - tb[1] * G * side, bz = b[1] + tb[0] * G * side;
+        const y0a = a[2] + 0.2, y0b = b[2] + 0.2, y1a = a[2] + 0.36, y1b = b[2] + 0.36, w = 0.036;
+        const nx = -ta[1], nz = ta[0];
+        const col = [0.55, 0.52, 0.5], top = [0.82, 0.8, 0.78];
+        // top (polished)
+        let i0 = A.v(ax - nx * w, y1a, az - nz * w, 0, 1, 0, 0, 0, top), i1 = A.v(ax + nx * w, y1a, az + nz * w, 0, 1, 0, 0, 0, top);
+        let i2 = A.v(bx + nx * w, y1b, bz + nz * w, 0, 1, 0, 0, 0, top), i3 = A.v(bx - nx * w, y1b, bz - nz * w, 0, 1, 0, 0, 0, top);
+        A.quad(i0, i1, i2, i3);
+        for (const sd of [-1, 1]) {
+          const ox = nx * w * sd, oz = nz * w * sd;
+          i0 = A.v(ax + ox, y0a, az + oz, nx * sd, 0, nz * sd, 0, 0, col); i1 = A.v(bx + ox, y0b, bz + oz, nx * sd, 0, nz * sd, 0, 0, col);
+          i2 = A.v(bx + ox, y1b, bz + oz, nx * sd, 0, nz * sd, 0, 0, col); i3 = A.v(ax + ox, y1a, az + oz, nx * sd, 0, nz * sd, 0, 0, col);
+          A.quad(i0, i1, i2, i3);
+        }
+      }
+    }
+    for (const A of chunks.values()) { const mesh = new THREE.Mesh(A.build(), railMat); mesh.receiveShadow = true; mesh.name = 'rails'; this.root.add(mesh); }
+    // platforms (right of increasing s), with a yellow safety line and a shelter
+    for (const st of rail.stations) {
+      const rx = -st.tz, rz = st.tx, yaw = st.yaw;
+      const cx = st.x + rx * 4.25, cz = st.z + rz * 4.25;
+      const A = this.chunk(cx, cz).conc;
+      const top = st.y + 1.05;
+      box(A, cx, cz, 2.5, 56, yaw, st.y - 0.6, top, [0.58, 0.57, 0.54], true);
+      box(A, st.x + rx * 2.1, st.z + rz * 2.1, 0.14, 56, yaw, top - 0.004, top + 0.004, [0.85, 0.7, 0.12], true);
+      this.collision.addOBox({ cx, cz, hx: 2.5, hz: 56, yaw, minY: st.y - 1, maxY: top, type: 'platform' });
+      // shelter: four posts and a roof
+      for (const [lx, lz] of [[-1.6, -9], [1.6, -9], [-1.6, 9], [1.6, 9]]) {
+        const px = cx + lx * Math.cos(yaw) + lz * Math.sin(yaw), pz = cz - lx * Math.sin(yaw) + lz * Math.cos(yaw);
+        box(A, px, pz, 0.09, 0.09, yaw, top, top + 3.1, [0.3, 0.32, 0.34]);
+        this.collision.addOBox({ cx: px, cz: pz, hx: 0.12, hz: 0.12, yaw, minY: top, maxY: top + 3.1, type: 'post' });
+      }
+      box(A, cx, cz, 2.3, 10.5, yaw, top + 3.1, top + 3.3, [0.42, 0.44, 0.46], true);
+      st.platform = { x: cx, z: cz, y: top, yaw };
     }
   }
 
@@ -425,6 +512,11 @@ function box(A, cx, cz, hx, hz, yaw, y0, y1, col, top = false) {
   }
 }
 
+function tan(pts, i) {
+  const a = pts[Math.max(0, i - 1)], b = pts[Math.min(pts.length - 1, i + 1)];
+  const dx = b[0] - a[0], dz = b[1] - a[1], l = Math.hypot(dx, dz) || 1;
+  return [dx / l, dz / l];
+}
 function idxAt(cum, s) {
   let lo = 0, hi = cum.length - 1;
   while (hi - lo > 1) { const m = (lo + hi) >> 1; if (cum[m] <= s) lo = m; else hi = m; }

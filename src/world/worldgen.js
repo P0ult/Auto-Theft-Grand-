@@ -15,6 +15,10 @@ export const TOWNS = {
   fern: { name: 'Fern Creek', x: -2520, z: -240, r: 330 },
   pine: { name: 'Pine Hollow', x: -300, z: -2330, r: 240 },
   dry: { name: 'Dry Wells', x: -3860, z: -2480, r: 300 },
+  // padR: radius of the flattened ground (smaller than the town where the lake / hills crowd it)
+  mirador: { name: 'Mirador', x: -1240, z: -1790, r: 175, padR: 80 },
+  hale: { name: 'Port Hale', x: 1000, z: -960, r: 170, padR: 95 },
+  seco: { name: 'Puerto Seco', x: -4000, z: 470, r: 215, padR: 170 },
 };
 export const BASE = { name: 'Fort Carver', minX: -5320, maxX: -3820, minZ: -4760, maxZ: -3860, gateZ: -4060 };
 export const AIRFIELD = { name: 'Fern Creek Airfield', x: -2960, z: 330, len: 560, yaw: Math.PI / 2 };
@@ -173,9 +177,10 @@ export function landHeight(x, z) {
     const cz = coastZ(x);
     if (z > cz - 220) {
       const t = smoothstep(cz - 220, cz, z);
-      const cliff = fbmN(x * 0.004, 5.5, 2) > 0.58;
-      h = lerp(h, cliff ? Math.max(h * 0.8, 8) : 1.2, t);
-      if (z > cz) h = Math.min(h, 1.0 - (z - cz) * (cliff ? 0.4 : 0.045));
+      // cliffs vs beach, blended (a hard switch left stair-stepped walls along the shore)
+      const cliff = smoothstep(0.53, 0.66, fbmN(x * 0.004, 5.5, 2));
+      h = lerp(h, lerp(1.2, Math.max(h * 0.8, 8), cliff), t);
+      if (z > cz) h = Math.min(h, 1.0 - (z - cz) * lerp(0.045, 0.4, cliff));
     }
   }
   if (z < -250) {
@@ -311,7 +316,9 @@ export class Heightfield {
       const y = p.y ?? this.sample(p.x, p.z);
       this.forRect(p.x - p.r - blend, p.z - p.r - blend, p.x + p.r + blend, p.z + p.r + blend, (k, x, z) => {
         const d = Math.hypot(x - p.x, z - p.z);
-        const t = smoothstep(p.r + blend, p.r, d);
+        let t = smoothstep(p.r + blend, p.r, d);
+        // keepSea: fade out over low shore so a coastal town never pushes new land into the sea
+        if (p.keepSea) t *= smoothstep(-1, 14, h[k]);
         h[k] = lerp(h[k], y, t);
       });
       p.y = y;

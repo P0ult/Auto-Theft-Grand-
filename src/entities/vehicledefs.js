@@ -72,6 +72,11 @@ export const VEHICLES = {
     wheelbase: 5, track: 3, wheelR: 0.5, clearance: 0.5, force: 1, grip: 1, drive: 'awd', steer: 0.5, brake: 1, rarity: 0,
     camDist: 14, camHeight: 4.2, military: true, weapons: true, health: 3000, bulletMul: 0.05, blastMul: 0.35, colors: [0x4f5a36],
   },
+  // ------------------------------------------------ Sol Line train (locomotive; carriages follow)
+  train: {
+    name: 'Sol Line Express', kind: 'train', train: true, L: 17, W: 3, H: 4.5, mass: 110000, top: 32, wheelbase: 12, track: 1.4, wheelR: 0.46, clearance: 0.9,
+    force: 1, grip: 1, drive: 'awd', steer: 0, brake: 1, rarity: 0, camDist: 24, camHeight: 6, colors: [0x1d4e89, 0x8c1c13, 0x2a6041],
+  },
   // ------------------------------------------------ aircraft
   skipper: {
     name: 'Skipper', kind: 'plane', aircraft: true, L: 8.4, W: 11, H: 2.9, colW: 1.3, mass: 1100, rarity: 0, health: 700,

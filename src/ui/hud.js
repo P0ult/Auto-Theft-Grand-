@@ -661,6 +661,7 @@ const ICONS = {
   jet: (c) => { c.beginPath(); c.moveTo(0, -7); c.lineTo(6, 4); c.lineTo(2, 3); c.lineTo(0, 6); c.lineTo(-2, 3); c.lineTo(-6, 4); c.closePath(); c.fill(); },
   heli: (c) => { c.beginPath(); c.arc(-1, 1, 3.5, 0, Math.PI * 2); c.fill(); c.fillRect(1, 0, 6, 1.6); c.fillRect(-7, -4.5, 12, 1.4); c.fillRect(-1.5, -4, 1.4, 3); },
   tank: (c) => { c.fillRect(-6, 0, 12, 4); c.fillRect(-3, -3, 6, 3); c.fillRect(2, -2.2, 6, 1.4); },
+  train: (c) => { c.fillRect(-4, -6, 8, 9); c.clearRect(-3, -5, 6, 3); c.fillRect(-5, 4, 2, 2); c.fillRect(3, 4, 2, 2); },
 };
 
 export function drawWeaponIcon(c, id, size) {
