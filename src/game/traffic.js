@@ -502,7 +502,10 @@ export class Traffic {
     const P = sampleOn(p, s0, [0, 0, 0]), Q = sampleOn(p, s0 + 2, [0, 0, 0]);
     const yaw = Math.atan2(Q[0] - P[0], Q[2] - P[2]);
     const type = opts.type || this.pickType(game.map.districtAt(P[0], P[2]));
-    const v = game.vehicles.spawn(type, P[0], P[2], yaw, opts);
+    // on the road surface (a bridge deck, not the ground under it)
+    const y = game.collision.surfaceHeight(P[0], P[2], P[1] + 0.6);
+    const v = game.vehicles.spawn(type, P[0], P[2], yaw, { y, ...opts });
+    v.lastGroundY = y;
     const driver = game.peds.spawnPed(P[0], P[2], { persistent: false });
     v.putIn(driver, 0);
     v.ai = new LaneDriver(game, v, start);
