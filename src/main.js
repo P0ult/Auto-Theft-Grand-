@@ -16,6 +16,7 @@ import { SaveSystem } from './game/save.js';
 import { Gameplay, FREE_ROAM_KIT } from './game/gameplay.js';
 import { FreeRoam } from './game/freeroam.js';
 import { Admin } from './game/admin.js';
+import { ShopSystem } from './game/shops.js';
 import { TaxiSystem } from './game/taxi.js';
 import { NetSystem } from './net/net.js';
 import { HUD } from './ui/hud.js';
@@ -69,6 +70,7 @@ async function boot() {
   game.addSystem('pickups', new Pickups(game));
   game.addSystem('military', new Military(game));
   game.addSystem('rail', new RailSystem(game));
+  game.addSystem('shops', new ShopSystem(game));
   setP(0.88, 'Writing the story');
   await tick();
   game.addSystem('missions', new Missions(game, STORY));

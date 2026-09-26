@@ -10,6 +10,7 @@ import { CITY, CURB_H, WATER_Y, XS, ZS, WORLD } from './citymap.js';
 import { RNG, clamp } from '../core/utils.js';
 import { buildLandmarks } from './landmarks.js';
 import { TerrainMesh } from './terrainmesh.js';
+import { buildInteriorMesh, doorwayPieces } from './interiors.js';
 import { RoadMeshes } from './roadmesh.js';
 import { Vegetation } from './vegetation.js';
 import { LAKE } from './worldgen.js';
@@ -57,6 +58,7 @@ export class City {
     this._roads();
     this._ground();
     this._buildings();
+    this._interiors();
     this._fences();
     this._props();
     this._containers();
@@ -69,6 +71,15 @@ export class City {
     this._signs();
     this.landmarks = buildLandmarks(this, this.map);
     this._finalizeChunks();
+  }
+
+  // walk-in shops (their rooms, stock and shopkeeper spots are laid out by the map), lit by one light
+  // that follows whichever shop the camera is near
+  _interiors() {
+    for (const it of this.map.interiors || []) this.root.add(buildInteriorMesh(it));
+    this.interiorLight = new THREE.PointLight(0xfff0dc, 0, 20, 1.3);
+    this.interiorLight.position.set(0, -200, 0);
+    this.root.add(this.interiorLight);
   }
 
   _materials() {
@@ -175,9 +186,13 @@ export class City {
       const v0 = 0, v1 = h / fH;
       gb.set('aB', b.style, b.seed, 0, ground);
       const { x0, z0, x1, z1, y0, y1 } = b;
-      // walls (u in cells, v in floors)
-      gb.quad([x1, y0, z0], [x0, y0, z0], [x0, y1, z0], [x1, y1, z0], [0, 0, -1], [0, v0], [nx, v0], [nx, v1], [0, v1]);
-      gb.quad([x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1], [0, 0, 1], [0, v0], [nx, v0], [nx, v1], [0, v1]);
+      // walls (u in cells, v in floors); a walk-in shop's front has its doorway cut out
+      const front = b.shop?.front;
+      const V = (y) => (y - y0) / fH, U0 = (x) => (x1 - x) / (x1 - x0) * nx, U1 = (x) => (x - x0) / (x1 - x0) * nx;
+      if (front === 'z0') for (const [xa, xb, ya, yb] of doorwayPieces(b)) gb.quad([xb, ya, z0], [xa, ya, z0], [xa, yb, z0], [xb, yb, z0], [0, 0, -1], [U0(xb), V(ya)], [U0(xa), V(ya)], [U0(xa), V(yb)], [U0(xb), V(yb)]);
+      else gb.quad([x1, y0, z0], [x0, y0, z0], [x0, y1, z0], [x1, y1, z0], [0, 0, -1], [0, v0], [nx, v0], [nx, v1], [0, v1]);
+      if (front === 'z1') for (const [xa, xb, ya, yb] of doorwayPieces(b)) gb.quad([xa, ya, z1], [xb, ya, z1], [xb, yb, z1], [xa, yb, z1], [0, 0, 1], [U1(xa), V(ya)], [U1(xb), V(ya)], [U1(xb), V(yb)], [U1(xa), V(yb)]);
+      else gb.quad([x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1], [0, 0, 1], [0, v0], [nx, v0], [nx, v1], [0, v1]);
       gb.quad([x0, y0, z0], [x0, y0, z1], [x0, y1, z1], [x0, y1, z0], [-1, 0, 0], [0, v0], [nz, v0], [nz, v1], [0, v1]);
       gb.quad([x1, y0, z1], [x1, y0, z0], [x1, y1, z0], [x1, y1, z1], [1, 0, 0], [0, v0], [nz, v0], [nz, v1], [0, v1]);
       if (b.roof === 'gable') {
@@ -803,6 +818,12 @@ export class City {
       this.beaconMat.color.setRGB(8 * on, 0.3 * on, 0.2 * on);
     }
     if (this.landmarks) this.landmarks.update(dt, night);
+    if (this.interiorLight) {
+      let best = null, bd = 45 * 45;
+      for (const it of this.map.interiors || []) { const d = (it.center.x - camPos.x) ** 2 + (it.center.z - camPos.z) ** 2; if (d < bd) { bd = d; best = it; } }
+      if (best) { this.interiorLight.position.set(best.light.x, best.light.y, best.light.z); this.interiorLight.intensity = 24; }
+      else this.interiorLight.intensity = 0;
+    }
     this._lampTimer -= dt;
     const sl = U.uStreetLights.value;
     if (this._lampTimer <= 0 && this.lampPositions) {

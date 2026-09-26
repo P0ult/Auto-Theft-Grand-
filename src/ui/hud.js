@@ -204,6 +204,41 @@ export class HUD {
     this.menuOpen = 'shop';
   }
 
+  // a small shop menu: items [{name, desc, price, use(player, game) -> optional message}]
+  openStore(title, sub, items) {
+    const game = this.game;
+    if (game.player.vehicle) return;
+    game.paused = true;
+    game.input.exitLock();
+    const o = this.overlay;
+    let note = '';
+    const render = () => {
+      const p = game.player;
+      o.innerHTML = '';
+      o.className = 'hud-overlay show';
+      const panel = h('div', 'menu-panel shop', o);
+      h('h2', '', panel, `${title} <small>${sub}</small>`);
+      h('div', 'shop-money', panel, `Cash: <b>${formatMoney(p.money)}</b>${note ? ` <span class="muted">— ${note}</span>` : ''}`);
+      const list = h('div', 'shop-list', panel);
+      for (const it of items) {
+        const row = h('div', 'shop-item', list);
+        h('div', 'shop-name', row, `${it.name}<small>${it.desc}</small>`);
+        const buy = h('button', 'btn', row, `Buy $${it.price}`);
+        buy.onclick = () => {
+          if (p.money < it.price) { game.audio?.play('locked'); buy.textContent = 'Not enough cash'; return; }
+          p.money -= it.price;
+          game.audio?.play('cash');
+          note = it.use(p, game) || `${it.name} bought.`;
+          render();
+        };
+      }
+      const close = h('button', 'btn primary', panel, 'Leave (Esc)');
+      close.onclick = () => this.closeOverlay();
+    };
+    render();
+    this.menuOpen = 'shop';
+  }
+
   promptSave() {
     const game = this.game;
     if (game.missions?.active) { this.help('You can\'t save during a mission.'); return; }

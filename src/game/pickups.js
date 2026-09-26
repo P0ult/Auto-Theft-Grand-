@@ -162,14 +162,11 @@ export class Pickups {
     }
     this.packages = [];
     // services
-    const gs = L.gunshop;
-    this.services.push(this.addMarker(gs.x, gs.z, { color: 0xff5a36, radius: 1.2, icon: 'gun', label: 'Gun Barn', footOnly: true, onEnter: () => game.hud?.openShop() }));
+    // (the Gun Barn, Big Bun Burgers and Ray's Liquor are served at their counters: see shops.js)
     for (const key of ['spray', 'spray2']) {
       const s = L[key];
       this.services.push(this.addMarker(s.x, s.z, { color: 0x6df0ff, radius: 3.5, height: 2.5, icon: 'spray', label: 'Spray Shack', vehicleOnly: true, arrow: false, onEnter: () => this.spray() }));
     }
-    const bb = L.burger;
-    this.services.push(this.addMarker(bb.x, bb.z, { color: 0xffd166, radius: 1.1, icon: 'burger', label: 'Big Bun Burgers', footOnly: true, onEnter: () => this.eat() }));
     const hm = L.home;
     this.saveMarker = this.addMarker(hm.door.x, hm.door.z + 1.2, { color: 0x6cff6c, radius: 1.0, icon: 'house', label: 'Safehouse (save)', footOnly: true, onEnter: () => game.hud?.promptSave() });
     this.services.push(this.saveMarker);

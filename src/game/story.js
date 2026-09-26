@@ -404,7 +404,7 @@ export const STORY = {
         const gs = L.gunshop;
         m.gps(gs.x, gs.z);
         m.objective('Go to the <span class="r">Gun Barn</span> in the Market District and buy a <b>pistol</b>.');
-        m.help('Walk into the red marker to shop. Buy the <b>9mm Pistol</b>.', 8);
+        m.help('Walk in and step up to the counter (the red marker) to shop. Buy the <b>9mm Pistol</b>.', 8);
         await m.until(() => !!m.player.weapons.pistol);
         m.gpsOff();
         m.help('Hold <b>right mouse</b> to aim, <b>left mouse</b> to shoot, <b>R</b> to reload. Headshots are deadly.', 9);

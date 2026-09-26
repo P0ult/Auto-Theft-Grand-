@@ -1,6 +1,7 @@
 // Deterministic layout of the city of Los Soles: road grid, districts, blocks, lots, buildings,
 // terrain height, water, sidewalk & lane graphs and story landmarks. Pure data (no rendering).
 import { RNG, clamp, smoothstep, fbm, lerp } from '../core/utils.js';
+import { planInteriors } from './interiors.js';
 import { WORLD as WORLD_BOUNDS, Heightfield, landHeight, TOWNS, BASE, AIRFIELD, LAKE, cityDist, regionWeights, riverDist } from './worldgen.js';
 import { buildRoadNetwork, REMOVED_SEGMENTS, SUPERBLOCKS, CITY_ROUNDABOUTS, ROUTES } from './roadlayout.js';
 import { shapeTerrain } from './roadnet.js';
@@ -346,7 +347,7 @@ export class CityMap {
       x0, z0, x1, z1, y0: opts.y0 ?? CURB_H, y1: (opts.y0 ?? CURB_H) + height, style, rot: opts.rot || 0, base: opts.base ?? null,
       tint: opts.tint ?? [1, 1, 1], seed: opts.seed ?? Math.random(), roof: opts.roof || 'flat',
       district: b ? b.district : 'midtown', kind: opts.kind || 'building', floorH: opts.floorH || (style === 4 ? 6 : 3.4),
-      cell: opts.cell || 3.2, name: opts.name, sign: opts.sign, noCollide: opts.noCollide,
+      cell: opts.cell || 3.2, name: opts.name, sign: opts.sign, noCollide: opts.noCollide || !!opts.shop, shop: opts.shop || null,
     };
     this.buildings.push(bld);
     return bld;
@@ -705,7 +706,7 @@ export class CityMap {
       case 'gunshop': {
         this._perimeter(b, rng, { depth: [16, 20], width: [14, 22], floors: [2, 6], styles: [2, 5, 0], tint: () => warm });
         // replace first building name
-        const shop = this._addBuilding(b, ix0 + 2, iz1 - 14, ix0 + 20, iz1 - 2, 6, 5, { tint: [0.6, 0.6, 0.55], seed: 0.77, roof: 'flat', name: 'Gun Barn', sign: 'GUN BARN', noCollide: false });
+        const shop = this._addBuilding(b, ix0 + 2, iz1 - 14, ix0 + 20, iz1 - 2, 6, 5, { tint: [0.6, 0.6, 0.55], seed: 0.77, roof: 'flat', name: 'Gun Barn', sign: 'GUN BARN', shop: { key: 'gunshop', front: 'z1' } });
         this.buildings = this.buildings.filter((x) => x === shop || !(x.x0 < ix0 + 21 && x.x1 > ix0 + 1 && x.z1 > iz1 - 15 && x.z0 < iz1 - 1 && x.district === b.district && x.y0 < 1));
         this.landmarks.gunshop = { x: ix0 + 11, z: iz1 + 1.5 };
         break;
@@ -729,8 +730,8 @@ export class CityMap {
         this.buildings = this.buildings.filter((x) => !(x.x1 > bx0 - 2 && x.z0 < iz0 + 32 && x.district === b.district && x.x0 < ix1 && x.z1 > iz0 && x.z1 < (iz0 + iz1) / 2 + 1));
         this.fences = this.fences.filter((f) => !(f.x1 > bx0 - 2 && f.z0 < iz0 + 32 && f.x0 < ix1 && f.z1 > iz0 - 1));
         this.lotSurfaces.push({ x0: bx0 - 2, z0: iz0, x1: ix1, z1: iz0 + 32, type: 'asphalt' });
-        this._addBuilding(b, bx0 + 4, iz0 + 8, ix1 - 4, iz0 + 22, 5, 5, { tint: [1, 0.85, 0.5], seed: 0.9, roof: 'flat', floorH: 5, name: 'Big Bun Burgers', sign: 'BIG BUN' });
-        this.landmarks.burger = { x: bx0 + 13, z: iz0 + 5 };
+        this._addBuilding(b, bx0 + 4, iz0 + 8, ix1 - 4, iz0 + 22, 5, 5, { tint: [1, 0.85, 0.5], seed: 0.9, roof: 'flat', floorH: 5, name: 'Big Bun Burgers', sign: 'BIG BUN', shop: { key: 'burger', front: 'z0' } });
+        this.landmarks.burger = { x: (bx0 + 4 + ix1 - 4) / 2, z: iz0 + 5 };
         break;
       }
       case 'tower': {
@@ -780,7 +781,7 @@ export class CityMap {
         this.props = this.props.filter((pr) => !(pr.x > sx0 - 1 && pr.x < sx1 + 1 && pr.z > iz0 - 1 && pr.z < mid - 0.2));
         this.parkingSpots = this.parkingSpots.filter((pr) => !(pr.x > sx0 - 1 && pr.x < sx1 + 1 && pr.z > iz0 - 1 && pr.z < mid - 0.2));
         this.lotSurfaces.push({ x0: sx0, z0: iz0, x1: sx1, z1: mid - 0.2, type: 'asphalt' });
-        this._addBuilding(b, cx - 11, iz0 + 9, cx + 11, iz0 + 21, 5, 5, { tint: [0.95, 0.88, 0.7], seed: 0.83, roof: 'ac', floorH: 5, name: "Ray's Liquor", sign: 'LIQUOR' });
+        this._addBuilding(b, cx - 11, iz0 + 9, cx + 11, iz0 + 21, 5, 5, { tint: [0.95, 0.88, 0.7], seed: 0.83, roof: 'ac', floorH: 5, name: "Ray's Liquor", sign: 'LIQUOR', shop: { key: 'liquor', front: 'z0' } });
         this.props.push({ type: 'trashcan', x: cx + 12, z: iz0 + 8, rot: 0 });
         this.props.push({ type: 'phonebooth', x: cx - 12.2, z: iz0 + 7.5, rot: 0 });
         this.landmarks.liquor = { x: cx, z: iz0 - 1 };
@@ -919,5 +920,7 @@ export class CityMap {
       const cy = c.y ?? 0;
       this.colliders.push({ minX: c.x - (ch ? hz : hx), maxX: c.x + (ch ? hz : hx), minZ: c.z - (ch ? hx : hz), maxZ: c.z + (ch ? hx : hz), minY: cy + c.level * 2.6, maxY: cy + (c.level + 1) * 2.6 + CURB_H, type: 'container' });
     }
+    // walk-in shops: walls with a doorway, counters, shelves
+    planInteriors(this);
   }
 }
