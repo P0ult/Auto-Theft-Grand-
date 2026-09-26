@@ -1337,6 +1337,7 @@ export const STORY = {
         const lm = L.station_dry;
         // the evening gun train, held at the platform
         train.s = dry.s + train.len / 2; train.v = 0; train.dwell = 1e9; train._atStation = dry; train.dirS = 1; train._place();
+        game.rail.clearLineFor(train); // the freight waits in the Fern Creek loop
         const s0 = { x: lm.x - Math.cos(lm.rot) * 24, z: lm.z + Math.sin(lm.rot) * 24 };
         const rico = m.ped(s0.x + 1.5, s0.z + 1, { appearance: look('rico'), invincible: true });
         m.speakersSet({ Rico: rico, Dre: m.player });
@@ -1379,6 +1380,7 @@ export const STORY = {
         stopT();
         await m.say('Rico', 'Ha! Right on the platform. Two crates of rifles the cartel will never see again.', 3.5);
         train._atStation = union; train.dwell = 14; train.dirS = -1;
+        game.rail.releaseLine();
       },
     },
     {

@@ -413,6 +413,7 @@ class Ctx {
     game.police.enabled = true;
     game.missions.maxWanted = null;
     game.missions.noBust = false;
+    if (game.rail?.held) game.rail.releaseLine();
   }
 }
 

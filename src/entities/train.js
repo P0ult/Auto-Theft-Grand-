@@ -1,4 +1,5 @@
-// The Sol Line train: a diesel locomotive and three passenger carriages running on the railway polyline.
+// Sol Line trains: a diesel locomotive and three passenger carriages (or a string of freight wagons)
+// running on the railway polyline, on the main line or the passing loop at Fern Creek.
 // It runs station to station on its own (accelerate, brake to the platform, dwell, reverse at the
 // termini); climb into the cab to drive it yourself (W / S), or board a carriage at a platform and ride.
 // The locomotive is a Vehicle (enter / exit / HUD / camera); the carriages are followers whose
@@ -7,10 +8,10 @@ import * as THREE from 'three';
 import { Vehicle } from './vehicle.js';
 import { vehicleMaterials, bodyMaterial } from './vehiclemodels.js';
 import { GeoBuilder, mat4 } from '../world/geom.js';
-import { railAt } from '../world/railway.js';
+import { railAtTrack } from '../world/railway.js';
 import { clamp, damp } from '../core/utils.js';
 
-const LOCO_L = 17, CAR_L = 20.5, GAP = 1.2, NCARS = 3;
+const LOCO_L = 17, CAR_L = 20.5, WAG_L = 14.5, GAP = 1.2, NCARS = 3;
 const _t = [0, 0, 0, 0, 0, 0];
 const _v = new THREE.Vector3();
 
@@ -126,6 +127,67 @@ function carriageModel(color) {
   return { group: g, meshes: [b, t, gl] };
 }
 
+// freight wagons: box car, tank car, hopper, container flat
+const CONTAINER = [[0.72, 0.16, 0.12], [0.12, 0.3, 0.55], [0.15, 0.45, 0.22], [0.85, 0.5, 0.1], [0.55, 0.56, 0.58], [0.6, 0.1, 0.35]];
+function wagonModel(type, seed) {
+  const M = vehicleMaterials();
+  const g = new THREE.Group();
+  const body = new GeoBuilder(), trim = new GeoBuilder();
+  const z0 = -WAG_L / 2, z1 = WAG_L / 2, W = 1.45;
+  trim.set('color', 0.13, 0.13, 0.14);
+  trim.box(-1.35, 0.95, z0 + 0.3, 1.35, 1.25, z1 - 0.3);
+  bogie(trim, z0 + 2.4); bogie(trim, z1 - 2.4);
+  // couplers
+  trim.box(-0.15, 0.95, z0 - 0.6, 0.15, 1.15, z0 + 0.3); trim.box(-0.15, 0.95, z1 - 0.3, 0.15, 1.15, z1 + 0.6);
+  const rnd = (k) => { const x = Math.sin(seed * 12.9898 + k * 78.233) * 43758.5453; return x - Math.floor(x); };
+  if (type === 'box') {
+    const c = [[0.45, 0.2, 0.12], [0.3, 0.32, 0.35], [0.55, 0.42, 0.2]][Math.floor(rnd(1) * 3)];
+    body.set('color', ...c);
+    body.box(-W, 1.25, z0 + 0.2, W, 4.0, z1 - 0.2, { top: true });
+    body.set('color', c[0] * 0.75, c[1] * 0.75, c[2] * 0.75);
+    for (let z = z0 + 1.2; z < z1 - 0.8; z += 1.1) for (const x of [-W - 0.02, W + 0.02]) body.box(x - 0.02, 1.3, z - 0.05, x + 0.02, 3.95, z + 0.05);
+    body.set('color', c[0] * 0.6, c[1] * 0.6, c[2] * 0.6);
+    for (const x of [-W - 0.03, W + 0.03]) body.box(x - 0.02, 1.35, -1.2, x + 0.02, 3.7, 1.2);
+    body.set('color', 0.28, 0.28, 0.3);
+    body.box(-W - 0.05, 4.0, z0 + 0.15, W + 0.05, 4.12, z1 - 0.15, { top: true });
+  } else if (type === 'tank') {
+    const c = rnd(2) < 0.5 ? [0.1, 0.1, 0.11] : [0.72, 0.73, 0.75];
+    body.set('color', ...c);
+    body.addGeometry(new THREE.CylinderGeometry(1.35, 1.35, WAG_L - 1.6, 20), mat4(0, 2.65, 0, Math.PI / 2, 0, 0));
+    for (const z of [z0 + 0.8, z1 - 0.8]) body.addGeometry(new THREE.SphereGeometry(1.35, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2), mat4(0, 2.65, z, z > 0 ? Math.PI / 2 : -Math.PI / 2, 0, 0, 1, 0.35, 1));
+    body.set('color', c[0] * 0.8 + 0.05, c[1] * 0.8 + 0.05, c[2] * 0.8 + 0.05);
+    body.addGeometry(new THREE.CylinderGeometry(0.45, 0.45, 0.35, 12), mat4(0, 4.05, 0));
+    trim.set('color', 0.85, 0.7, 0.15);
+    for (const x of [-1.2, 1.2]) trim.box(x - 0.03, 1.5, z0 + 1, x + 0.03, 1.56, z1 - 1);
+  } else if (type === 'hopper') {
+    const c = [0.42, 0.44, 0.45];
+    body.set('color', ...c);
+    body.box(-W, 1.9, z0 + 0.3, W, 3.8, z1 - 0.3, { top: false });
+    for (const z of [z0 + 3.5, 0, z1 - 3.5]) body.addGeometry(new THREE.ConeGeometry(1.1, 0.8, 4, 1), mat4(0, 1.55, z, Math.PI, Math.PI / 4, 0));
+    body.set('color', 0.08, 0.07, 0.07);
+    body.box(-W + 0.1, 3.5, z0 + 0.4, W - 0.1, 3.72, z1 - 0.4, { top: true });
+    body.set('color', c[0] * 0.8, c[1] * 0.8, c[2] * 0.8);
+    for (let z = z0 + 1; z < z1 - 0.6; z += 1.6) for (const x of [-W - 0.02, W + 0.02]) body.box(x - 0.03, 1.95, z - 0.06, x + 0.03, 3.75, z + 0.06);
+  } else {
+    // flat car with a 40 ft container
+    trim.set('color', 0.2, 0.2, 0.21);
+    trim.box(-1.4, 1.25, z0 + 0.2, 1.4, 1.4, z1 - 0.2, { top: true });
+    const c = CONTAINER[Math.floor(rnd(3) * CONTAINER.length)];
+    body.set('color', ...c);
+    body.box(-1.22, 1.4, -6.1, 1.22, 4.0, 6.1, { top: true });
+    body.set('color', c[0] * 0.78, c[1] * 0.78, c[2] * 0.78);
+    for (let z = -5.7; z < 5.8; z += 0.55) for (const x of [-1.24, 1.24]) body.box(x - 0.02, 1.5, z - 0.05, x + 0.02, 3.9, z + 0.05);
+    body.set('color', 0.9, 0.9, 0.9);
+    for (const x of [-1.26, 1.26]) body.box(x - 0.01, 3.3, -4, x + 0.01, 3.6, -1.5);
+  }
+  const b = new THREE.Mesh(body.build(), bodyMaterial(0xffffff));
+  const t = new THREE.Mesh(trim.build(), M.trim);
+  b.castShadow = true; b.receiveShadow = true; t.castShadow = true;
+  g.add(b, t);
+  g.rotation.order = 'YXZ';
+  return { group: g, meshes: [b, t] };
+}
+
 // ------------------------------------------------------------------ the train
 export class Train extends Vehicle {
   buildModel(d, color) { return locoModel(color); }
@@ -133,23 +195,36 @@ export class Train extends Vehicle {
   setup(opts) {
     this.rail = this.game.map.roadInfo.rail;
     const L = this.rail.length;
-    this.len = LOCO_L + NCARS * (CAR_L + GAP) + GAP;
+    this.freight = !!this.def.freight;
+    this.track = opts.track ?? (this.freight ? 1 : 0);   // 1: takes the passing loop at Fern Creek
+    this.cruise = this.freight ? 17 : 24;
+    this.stopKeys = this.freight ? ['dry', 'union'] : null; // freight only stops at the ends of the line
+    // consist: passenger carriages, or a string of freight wagons
+    const kinds = [];
+    if (this.freight) {
+      const n = opts.wagons ?? 6;
+      const types = ['box', 'tank', 'flat', 'hopper', 'flat', 'box', 'tank', 'flat'];
+      for (let k = 0; k < n; k++) kinds.push({ type: types[(k + (opts.seed || 0)) % types.length], len: WAG_L });
+    } else for (let k = 0; k < NCARS; k++) kinds.push({ type: 'coach', len: CAR_L });
+    this.len = LOCO_L + kinds.reduce((a, k) => a + k.len + GAP, 0) + GAP;
     this.s = clamp(opts.s ?? L * 0.5, this.len, L - 1);   // arc length of the locomotive's nose
     this.v = 0;                  // speed along +s
     this.dirS = opts.dirS ?? -1; // which way the autopilot is heading
     this.dwell = opts.dwell ?? 12;
+    this.limitLo = -Infinity; this.limitHi = Infinity; // signals: how far the nose / tail may go (set by the rail system)
+    this.hold = false;
     this.hx = 1.5; this.hz = LOCO_L / 2;
     this.I = this.mass * (LOCO_L * LOCO_L) / 12;
     this.maxHealth = this.health = 1e9;
     this.cars = [];
-    for (let k = 0; k < NCARS; k++) {
-      const c = carriageModel(this.color);
+    kinds.forEach((k, i) => {
+      const c = k.type === 'coach' ? carriageModel(this.color) : wagonModel(k.type, i * 3.7 + (opts.seed || 0));
       this.game.scene.add(c.group);
-      this.cars.push({ ...c, pos: new THREE.Vector3(), yaw: 0 });
-    }
+      this.cars.push({ ...c, pos: new THREE.Vector3(), yaw: 0, len: k.len, coach: k.type === 'coach' });
+    });
     // lightweight stand-ins so the vehicle manager's contact code can treat each carriage like a car
     this.proxies = this.cars.map((c) => ({
-      pos: c.pos, vel: new THREE.Vector3(), r: 0, yaw: 0, hx: 1.5, hz: CAR_L / 2, mass: 2e6, I: 1e9, driver: null, def: { name: 'Carriage', police: false },
+      pos: c.pos, vel: new THREE.Vector3(), r: 0, yaw: 0, hx: 1.5, hz: c.len / 2, mass: 2e6, I: 1e9, driver: null, def: { name: c.coach ? 'Carriage' : 'Wagon', police: false },
       lastHit: 0, bodyYV: 0, damage() {}, dent() {},
       worldToLocal(x, z) { const s = Math.sin(this.yaw), co = Math.cos(this.yaw), dx = x - this.pos.x, dz = z - this.pos.z; return [dx * co - dz * s, dx * s + dz * co]; },
     }));
@@ -180,6 +255,7 @@ export class Train extends Vehicle {
     const s = Math.sin(this.yaw), c = Math.cos(this.yaw);
     for (const side of [-1, 1]) out.push({ x: this.pos.x + side * 2.2 * c + (LOCO_L / 2 - 3.4) * s, z: this.pos.z - side * 2.2 * s + (LOCO_L / 2 - 3.4) * c, seat: 0 });
     this.cars.forEach((car, k) => {
+      if (!car.coach) return;
       const sn = Math.sin(car.yaw), cs = Math.cos(car.yaw);
       for (const side of [-1, 1]) for (const lz of [-CAR_L / 2 + 2.6, CAR_L / 2 - 2.6]) out.push({ x: car.pos.x + side * 2.3 * cs + lz * sn, z: car.pos.z - side * 2.3 * sn + lz * cs, seat: 1 + Math.min(2, k) });
     });
@@ -239,11 +315,13 @@ export class Train extends Vehicle {
 
   // Station-to-station timetable: brake to stop with the train centred on the platform, dwell, carry on.
   _autopilot(dt) {
-    const sts = this.stations;
+    const sts = this.stopKeys ? this.stations.filter((st) => this.stopKeys.includes(st.key)) : this.stations;
     if (!sts.length) return 0;
     const c = this.centreS();
     if (this.dwell > 0) {
       this.dwell -= dt;
+      // the line ahead isn't clear yet: wait at the platform
+      if (this.dwell <= 0 && this.hold && !this._reversing(sts, c)) this.dwell = 0.5;
       if (this.dwell <= 0) {
         this._lastStation = this._atStation;
         this._atStation = null;
@@ -257,24 +335,33 @@ export class Train extends Vehicle {
     const ahead = sts.filter((st) => st !== this._lastStation && (st.s - c) * this.dirS > -4).sort((a, b) => Math.abs(a.s - c) - Math.abs(b.s - c));
     if (!ahead.length) { this.dirS = -this.dirS; this._lastStation = null; return 0; }
     const target = ahead[0];
-    const signed = (target.s - c) * this.dirS; // distance still to go (negative = overshot)
+    let signed = (target.s - c) * this.dirS; // distance still to go (negative = overshot)
     const vDir = this.v * this.dirS;
-    if (Math.abs(signed) < 2 && Math.abs(this.v) < 1.6) {
+    // a signal short of the station: stop at it and wait for the line to clear
+    const lead = this.dirS > 0 ? this.s : this.s - this.len;
+    const toSig = this.dirS > 0 ? this.limitHi - lead : lead - this.limitLo;
+    if (toSig < signed) {
+      if (toSig < 1.5 && Math.abs(this.v) < 1.2) { this.v = 0; return 0; }
+      signed = Math.max(0, toSig);
+    } else if (Math.abs(signed) < 2 && Math.abs(this.v) < 1.6) {
       this.v = 0; this.dwell = 16; this._atStation = target; this._lastStation = target;
       this.game.events?.emit('trainArrived', this, target);
       return 0;
     }
-    // speed along the braking curve (0.8 m/s2), proportional control toward it
+    // speed along the braking curve (0.8 m/s2), proportional control toward it (a freight train brakes later)
     const vTarget = signed > 0 ? Math.min(this.cruise ?? 24, Math.sqrt(2 * 0.8 * Math.max(0, signed - 0.3))) : -Math.min(2, Math.sqrt(-signed));
     const a = clamp((vTarget - vDir) * 1.4, -1.6, 0.7);
     return a * this.dirS;
   }
 
+  // at a terminus the next move is back the way we came (no station further on)
+  _reversing(sts, c) { return !sts.some((st) => st !== this._atStation && (st.s - c) * this.dirS > 5); }
+
   _place() {
-    const r = this.rail;
+    const r = this.rail, tr = this.track;
     // locomotive: its centre is half a loco length behind the nose (+s is the nose direction)
-    railAt(r, this.s - LOCO_L / 2, _t);
-    const yF = railAt(r, this.s - 2, [0, 0, 0, 0, 0, 0])[1], yB = railAt(r, this.s - LOCO_L + 2, [0, 0, 0, 0, 0, 0])[1];
+    railAtTrack(r, this.s - LOCO_L / 2, tr, _t);
+    const yF = railAtTrack(r, this.s - 2, tr, [0, 0, 0, 0, 0, 0])[1], yB = railAtTrack(r, this.s - LOCO_L + 2, tr, [0, 0, 0, 0, 0, 0])[1];
     this.pos.set(_t[0], _t[1] + 0.36, _t[2]);
     this.yaw = Math.atan2(_t[3], _t[4]);
     this.pitch = Math.atan2(yF - yB, LOCO_L - 4);
@@ -282,16 +369,17 @@ export class Train extends Vehicle {
     this.r = 0;
     let s = this.s - LOCO_L - GAP;
     this.cars.forEach((car, k) => {
-      const sc = s - CAR_L / 2;
-      railAt(r, sc, _t);
-      const y0 = railAt(r, sc + CAR_L / 2 - 3, [0, 0, 0, 0, 0, 0])[1], y1 = railAt(r, sc - CAR_L / 2 + 3, [0, 0, 0, 0, 0, 0])[1];
+      const CL = car.len;
+      const sc = s - CL / 2;
+      railAtTrack(r, sc, tr, _t);
+      const y0 = railAtTrack(r, sc + CL / 2 - 3, tr, [0, 0, 0, 0, 0, 0])[1], y1 = railAtTrack(r, sc - CL / 2 + 3, tr, [0, 0, 0, 0, 0, 0])[1];
       car.pos.set(_t[0], _t[1] + 0.36, _t[2]);
       car.yaw = Math.atan2(_t[3], _t[4]);
       car.group.position.copy(car.pos);
-      car.group.rotation.set(-Math.atan2(y0 - y1, CAR_L - 6), car.yaw, 0);
+      car.group.rotation.set(-Math.atan2(y0 - y1, CL - 6), car.yaw, 0);
       const px = this.proxies[k];
       px.yaw = car.yaw; px.vel.set(_t[3] * this.v, 0, _t[4] * this.v);
-      s -= CAR_L + GAP;
+      s -= CL + GAP;
     });
   }
 

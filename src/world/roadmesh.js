@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { std, WET_NORMAL } from '../render/materials.js';
 import { NOISE_GLSL } from './shaders.js';
 import { DECK_H } from './roadnet.js';
-import { railAt } from './railway.js';
+import { railAt, railAtTrack, loopOffsetAt } from './railway.js';
 import { clamp, lerp } from '../core/utils.js';
 
 const CHUNK = 400;
@@ -292,13 +292,19 @@ export class RoadMeshes {
     const sleeperMat = std({ color: 0x4d443c, roughness: 0.95 }, { key: 'sleeper' });
     const per = new Map();
     const t = [0, 0, 0, 0, 0, 0];
-    for (let s = 0.4; s < L; s += 0.68) {
-      if (inCross(s)) continue;
-      railAt(rail, s, t);
+    const sleeper = () => {
       const k = Math.floor(t[0] / 512) + ',' + Math.floor(t[2] / 512);
       if (!per.has(k)) per.set(k, []);
       per.get(k).push(t[0], t[1] + 0.12, t[2], Math.atan2(t[3], t[4]));
+    };
+    for (let s = 0.4; s < L; s += 0.68) {
+      if (inCross(s)) continue;
+      railAt(rail, s, t);
+      sleeper();
     }
+    // the passing loop's own sleepers once it has pulled clear of the main line's
+    const loop = rail.loop;
+    if (loop) for (let s = loop.s0 + 0.2; s < loop.s1; s += 0.68) { if (Math.abs(loopOffsetAt(loop, s)) < 2.7) continue; railAtTrack(rail, s, 1, t); sleeper(); }
     const m = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(1, 1, 1), p = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0);
     for (const arr of per.values()) {
       const im = new THREE.InstancedMesh(sleeperGeo, sleeperMat, arr.length / 4);
@@ -311,7 +317,7 @@ export class RoadMeshes {
     // rails: head + web as three strips each, chunked
     const railMat = std({ color: 0x8c8782, metalness: 0.85, roughness: 0.32 }, { key: 'rail' });
     const chunks = new Map();
-    const pts = rail.pts;
+    const drawRails = (pts) => {
     for (let i = 0; i < pts.length - 1; i++) {
       const a = pts[i], b = pts[i + 1];
       const k = Math.floor(a[0] / 512) + ',' + Math.floor(a[1] / 512);
@@ -334,6 +340,13 @@ export class RoadMeshes {
           A.quad(i0, i1, i2, i3);
         }
       }
+    }
+    };
+    drawRails(rail.pts);
+    if (loop) {
+      const lp = [];
+      for (let s = loop.s0; s <= loop.s1 + 0.01; s += 2) { railAtTrack(rail, Math.min(s, loop.s1), 1, t); lp.push([t[0], t[2], t[1]]); }
+      drawRails(lp);
     }
     for (const A of chunks.values()) { const mesh = new THREE.Mesh(A.build(), railMat); mesh.receiveShadow = true; mesh.name = 'rails'; this.root.add(mesh); }
     // platforms (right of increasing s), with a yellow safety line and a shelter

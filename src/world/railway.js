@@ -113,7 +113,26 @@ export function buildRailway(net, info, fwC, fwCum, terrain, hf) {
     const sA = cum[cuts[q]], sB = cum[cuts[q + 1]];
     e.crossings = crossings.filter((c) => c.kind === 'level' && c.s >= sA - 1 && c.s <= sB + 1).map((c) => ({ s: c.s - sA, halfW: c.halfW }));
   }
-  const rail = { pts, cum, length: L, stations, crossings, edges, nodes: ends };
+  // ---------------------------------------------------------------- passing loop at Fern Creek
+  // A second track on the far side from the platform, so two trains can pass mid-line (the rest of the
+  // line is single track: a train may only enter it once the other has cleared it).
+  let l0 = mid.s - 240, l1 = mid.s + 125;
+  for (const c of crossings) { if (c.s >= mid.s && c.s - 45 < l1) l1 = c.s - 45; if (c.s < mid.s && c.s + 45 > l0) l0 = c.s + 45; }
+  const loop = { s0: l0, s1: l1, taper: 55, off: -4.6 };
+  loop.m0 = loop.s0 + loop.taper; loop.m1 = loop.s1 - loop.taper;
+  // its ballast / terrain / building clearance come from a (non-routing) rail edge along the offset line
+  const loopPts = [];
+  for (let sl = l0; sl <= l1 + 0.01; sl += 4) {
+    const q = pointAt(pts2, cum, sl), [tx, tz] = tangentXZ(pts2, cum, sl), o = loopOffsetAt(loop, sl);
+    loopPts.push([q[0] - tz * o, q[1] + tx * o, interpY(cum, y, sl)]);
+  }
+  const la = net.addNode(loopPts[0][0], loopPts[0][1], loopPts[0][2], { kind: 'via', r: 0, name: 'Fern Creek loop', rail: true });
+  const lb = net.addNode(loopPts[loopPts.length - 1][0], loopPts[loopPts.length - 1][1], loopPts[loopPts.length - 1][2], { kind: 'via', r: 0, name: 'Fern Creek loop', rail: true });
+  const le = net.addEdge(la, lb, loopPts, 'rail', { name: 'Sol Line (Fern Creek loop)', wL: 4.2, wR: 2.2 });
+  le.rail = true; le.loop = true;
+  loop.edge = le;
+
+  const rail = { pts, cum, length: L, stations, crossings, edges, nodes: ends, loop };
   info.rail = rail;
   return rail;
 }
@@ -130,6 +149,34 @@ function tangentXZ(pts, cum, s) {
 }
 
 // Position along the line: [x, y, z, tx, tz, grade]
+function interpY(cum, y, s) {
+  const i = nearest(cum, s);
+  const j = cum[i] > s ? Math.max(0, i - 1) : Math.min(cum.length - 1, i + 1);
+  if (i === j) return y[i];
+  const t = (s - cum[i]) / (cum[j] - cum[i]);
+  return y[i] + (y[j] - y[i]) * t;
+}
+
+// lateral offset of the passing-loop track from the main line at arc length s (0 where they're joined)
+export function loopOffsetAt(loop, s) {
+  if (!loop || s <= loop.s0 || s >= loop.s1) return 0;
+  return loop.off * smoothstep(loop.s0, loop.s0 + loop.taper, s) * (1 - smoothstep(loop.s1 - loop.taper, loop.s1, s));
+}
+
+// railAt on a given track: 0 = main line, 1 = the passing loop (joins the main line at its ends)
+export function railAtTrack(rail, s, track, out = [0, 0, 0, 0, 0, 0]) {
+  railAt(rail, s, out);
+  if (!track || !rail.loop) return out;
+  const o = loopOffsetAt(rail.loop, s);
+  const d = loopOffsetAt(rail.loop, s + 1) - o;
+  if (!o && !d) return out;
+  const tx = out[3], tz = out[4];
+  out[0] += -tz * o; out[2] += tx * o;
+  const nx = tx - tz * d, nz = tz + tx * d, l = Math.hypot(nx, nz) || 1;
+  out[3] = nx / l; out[4] = nz / l;
+  return out;
+}
+
 export function railAt(rail, s, out = [0, 0, 0, 0, 0, 0]) {
   const { pts, cum } = rail;
   const L = cum[cum.length - 1];
