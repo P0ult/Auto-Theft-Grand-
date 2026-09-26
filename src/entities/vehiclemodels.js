@@ -121,6 +121,8 @@ function topAt(top, z) {
   return top[top.length - 1][1];
 }
 
+const v3 = (x, y, z) => new THREE.Vector3(x, y, z);
+function beamGB(gb, a, b, t) { beam(gb, a, b, t); }
 function beam(gb, a, b, t) {
   const d = new THREE.Vector3().subVectors(b, a);
   const len = d.length();
@@ -171,6 +173,7 @@ export function buildVehicleModel(def, color) {
   }
   bodyGeo.setAttribute('color', new THREE.BufferAttribute(bcol, 3));
   bodyGeo.computeVertexNormals();
+  bodyGeo.computeBoundingBox();
 
   const bodyParts = new GeoBuilder({ position: 3, normal: 3, uv: 2, color: 3 });
   bodyParts.addGeometry(bodyGeo, new THREE.Matrix4());
@@ -244,17 +247,71 @@ export function buildVehicleModel(def, color) {
   col(chrome ? 0xd0d0d0 : 0x222222);
   trim.box(-W / 2 + 0.05, c + 0.05, L / 2 - 0.02, W / 2 - 0.05, c + 0.28, L / 2 + 0.07, { top: true });
   trim.box(-W / 2 + 0.05, c + 0.05, -L / 2 - 0.07, W / 2 - 0.05, c + 0.28, -L / 2 + 0.02, { top: true });
-  col(0x111111);
   const fy = topAt(top, L / 2 - 0.03);
-  trim.box(-W * 0.22, c + 0.3, L / 2 - 0.02, W * 0.22, Math.max(c + 0.45, fy - 0.1), L / 2 + 0.03, { top: true });
-  col(0xeeeeee);
-  trim.box(-0.26, c + 0.1, L / 2 + 0.07, 0.26, c + 0.23, L / 2 + 0.09, { top: false });
-  trim.box(-0.26, c + 0.32, -L / 2 - 0.09, 0.26, c + 0.45, -L / 2 - 0.07, { top: false });
-  // mirrors
-  col(0x222222);
+  // grille: frame, dark mesh and horizontal slats
+  {
+    const gx = W * 0.22, gy0 = c + 0.3, gy1 = Math.max(c + 0.45, fy - 0.1), gz = L / 2 - 0.02;
+    col(chrome ? 0xcfcfcf : 0x1c1c1c);
+    trim.box(-gx - 0.03, gy0 - 0.03, gz, gx + 0.03, gy1 + 0.03, gz + 0.035, { top: true });
+    col(0x070707);
+    trim.box(-gx, gy0, gz + 0.03, gx, gy1, gz + 0.04, { top: false });
+    col(chrome ? 0xd8d8d8 : 0x2e2e2e);
+    const n = Math.max(3, Math.round((gy1 - gy0) / 0.05));
+    for (let i = 1; i < n; i++) { const y = gy0 + (gy1 - gy0) * i / n; trim.box(-gx, y - 0.008, gz + 0.03, gx, y + 0.008, gz + 0.055, { top: true }); }
+    // lower air intake in the bumper
+    col(0x080808);
+    trim.box(-W * 0.3, c + 0.08, L / 2 + 0.06, W * 0.3, c + 0.17, L / 2 + 0.075, { top: false });
+  }
+  // number plates: white with dark lettering
+  for (const [pz, py, sgn] of [[L / 2 + 0.075, c + 0.105, 1], [-L / 2 - 0.075, c + 0.325, -1]]) {
+    col(0xeeeeee);
+    trim.box(-0.26, py, pz - (sgn > 0 ? 0 : 0.015), 0.26, py + 0.13, pz + (sgn > 0 ? 0.015 : 0), { top: false });
+    col(0x1b2a55);
+    for (let k = 0; k < 6; k++) { const x = -0.2 + k * 0.08 + (k > 2 ? 0.02 : 0); trim.box(x - 0.022, py + 0.03, pz + sgn * 0.016 - 0.003, x + 0.022, py + 0.1, pz + sgn * 0.016 + 0.003, { top: false }); }
+  }
+  // mirrors: a stalk, a rounded housing and the mirror glass
   const my = yb(cb.bf) + 0.12;
-  trim.box(W / 2 - 0.02, my, cb.bf - 0.25, W / 2 + 0.16, my + 0.1, cb.bf - 0.12, { top: true });
-  trim.box(-W / 2 - 0.16, my, cb.bf - 0.25, -W / 2 + 0.02, my + 0.1, cb.bf - 0.12, { top: true });
+  for (const sgn of [1, -1]) {
+    col(0x1e1e1e);
+    trim.box(sgn > 0 ? W / 2 - 0.04 : -W / 2 - 0.06, my + 0.02, cb.bf - 0.2, sgn > 0 ? W / 2 + 0.06 : -W / 2 + 0.04, my + 0.05, cb.bf - 0.16, { top: true });
+    trim.addGeometry(new THREE.SphereGeometry(0.075, 10, 6), mat4(sgn * (W / 2 + 0.12), my + 0.06, cb.bf - 0.2, 0, 0, 0, 1.0, 0.72, 0.5));
+    col(0xb8c0c8);
+    trim.box(sgn * (W / 2 + 0.12) - 0.065, my + 0.02, cb.bf - 0.245, sgn * (W / 2 + 0.12) + 0.065, my + 0.1, cb.bf - 0.232, { top: false });
+  }
+  // wipers resting at the base of the windscreen
+  col(0x0c0c0c);
+  for (const x0 of [-0.55, 0.05]) beamGB(trim, v3(x0, yb(cb.bf) + 0.03, cb.bf - 0.06), v3(x0 + 0.48, yb(cb.bf) + 0.05, cb.bf - 0.11), 0.018);
+  // panel lines: doors (and rear doors on four-door bodies), hood and boot lid, with door handles
+  {
+    const sx = bodyGeo.boundingBox.max.x + 0.002;
+    const seam = (z, y0, y1) => { for (const s of [1, -1]) trim.box(s * sx - 0.004, y0, z - 0.005, s * sx + 0.004, y1, z + 0.005, { top: false }); };
+    const dzf = cb.bf - 0.05, dzr = Math.max(cb.br + 0.2, cb.bf - 1.25);
+    const fourDoor = ['sedan', 'suv'].includes(def.body || 'sedan') && !def.police && (cb.bf - cb.br) > 1.9;
+    const sill = c + 0.14;
+    col(0x0b0b0b);
+    seam(dzf, sill, yb(dzf) - 0.03);
+    seam(dzr, sill, yb(dzr) - 0.03);
+    if (fourDoor) seam(Math.max(cb.br + 0.25, dzr - 0.95), sill, yb(dzr - 0.95) - 0.03);
+    // door handles
+    col(chrome ? 0xd0d0d0 : 0x1a1a1a);
+    for (const s of [1, -1]) {
+      trim.box(s * sx - 0.012, yb(dzr) - 0.16, dzr + 0.12, s * sx + 0.012, yb(dzr) - 0.13, dzr + 0.25, { top: true });
+      if (fourDoor) { const z = Math.max(cb.br + 0.25, dzr - 0.95); trim.box(s * sx - 0.012, yb(z) - 0.16, z + 0.12, s * sx + 0.012, yb(z) - 0.13, z + 0.25, { top: true }); }
+    }
+    // hood & boot seams follow the top line
+    col(0x0b0b0b);
+    const lineOnTop = (x, z0, z1) => {
+      const n = 6;
+      for (let i = 0; i < n; i++) {
+        const za = z0 + (z1 - z0) * i / n, zb = z0 + (z1 - z0) * (i + 1) / n;
+        beamGB(trim, v3(x, topAt(top, za) + 0.004, za), v3(x, topAt(top, zb) + 0.004, zb), 0.009);
+      }
+    };
+    const hoodEnd = L / 2 - 0.2;
+    if (cb.bf < hoodEnd - 0.3) for (const s of [1, -1]) lineOnTop(s * (W / 2 - 0.16), cb.bf + 0.08, hoodEnd);
+    const bootStart = -L / 2 + 0.22;
+    if (!pr.cargo && !pr.bed && cb.br > bootStart + 0.3) for (const s of [1, -1]) lineOnTop(s * (W / 2 - 0.2), bootStart, cb.br - 0.08);
+  }
   // exhaust
   col(0x777777);
   trim.addGeometry(new THREE.CylinderGeometry(0.045, 0.045, 0.25, 8), mat4(-W * 0.3, c + 0.08, -L / 2, Math.PI / 2));
@@ -284,6 +341,26 @@ export function buildVehicleModel(def, color) {
   hl.box(-W / 2 + 0.1, hy, L / 2 - 0.02, -W / 2 + 0.42, hy + 0.13, L / 2 + 0.035, { top: true });
   const head = new THREE.Mesh(hl.build(), M.headOff);
   bodyGroup.add(head);
+  {
+    // housings, twin projector lenses and amber indicators around the headlights
+    const hgb = new GeoBuilder({ position: 3, normal: 3, uv: 2, color: 3 });
+    const hc = (hex) => { const cc = new THREE.Color(hex); hgb.set('color', cc.r, cc.g, cc.b); };
+    for (const s of [1, -1]) {
+      const x0 = s > 0 ? W / 2 - 0.44 : -W / 2 + 0.08, x1 = s > 0 ? W / 2 - 0.08 : -W / 2 + 0.44;
+      hc(0x151515); hgb.box(x0 - 0.015, hy - 0.015, L / 2 - 0.03, x1 + 0.015, hy + 0.145, L / 2 + 0.02, { top: true });
+      hc(0x9a9a9a);
+      for (const k of [0.3, 0.7]) hgb.addGeometry(new THREE.CylinderGeometry(0.038, 0.038, 0.012, 12), mat4(x0 + (x1 - x0) * k, hy + 0.065, L / 2 + 0.036, Math.PI / 2));
+      hc(0xff8a00);
+      hgb.box(s > 0 ? x1 - 0.06 : x0, hy - 0.05, L / 2 - 0.0, s > 0 ? x1 : x0 + 0.06, hy - 0.015, L / 2 + 0.03, { top: true });
+      // reverse light beside each tail light
+      hc(0xe8e8e8);
+      const tx0 = s > 0 ? W / 2 - 0.55 : -W / 2 + 0.45, tx1 = tx0 + 0.1;
+      const tyy = topAt(top, -L / 2 + 0.03) - 0.2;
+      hgb.box(tx0, tyy + 0.02, -L / 2 - 0.03, tx1, tyy + 0.12, -L / 2 + 0.01, { top: true });
+    }
+    const hm = new THREE.Mesh(hgb.build(), M.trim);
+    bodyGroup.add(hm);
+  }
   const tl = new GeoBuilder({ position: 3, normal: 3, uv: 2 });
   const ty = topAt(top, -L / 2 + 0.03) - 0.2;
   tl.box(W / 2 - 0.45, ty, -L / 2 - 0.035, W / 2 - 0.08, ty + 0.14, -L / 2 + 0.02, { top: true });
@@ -341,18 +418,40 @@ export function buildVehicleModel(def, color) {
   const wheels = [];
   const wgb = new GeoBuilder({ position: 3, normal: 3, uv: 2, color: 3 });
   const tireW = def.body === 'truck' ? 0.32 : 0.24;
-  wgb.set('color', 0.06, 0.06, 0.06);
-  wgb.addGeometry(new THREE.CylinderGeometry(R, R, tireW, 20, 1), mat4(0, 0, 0, 0, 0, Math.PI / 2));
-  wgb.addGeometry(new THREE.TorusGeometry(R - 0.035, 0.04, 6, 20), mat4(tireW / 2 - 0.01, 0, 0, 0, Math.PI / 2, 0));
+  // tyre: rounded shoulders (lathe profile), tread grooves
+  {
+    const pts = [];
+    const hwT = tireW / 2, rIn = R * 0.64;
+    pts.push(new THREE.Vector2(rIn, -hwT + 0.01));
+    for (let i = 0; i <= 6; i++) { const a = -Math.PI / 2 + (i / 6) * Math.PI / 2; pts.push(new THREE.Vector2(R - 0.05 + Math.cos(a) * 0.05, -hwT + 0.05 + Math.sin(a) * 0.05)); }
+    for (let i = 0; i <= 6; i++) { const a = (i / 6) * Math.PI / 2; pts.push(new THREE.Vector2(R - 0.05 + Math.cos(a) * 0.05, hwT - 0.05 + Math.sin(a) * 0.05)); }
+    pts.push(new THREE.Vector2(rIn, hwT - 0.01));
+    const tyre = new THREE.LatheGeometry(pts, 28);
+    wgb.set('color', 0.055, 0.055, 0.058);
+    wgb.addGeometry(tyre, mat4(0, 0, 0, 0, 0, Math.PI / 2));
+    wgb.set('color', 0.02, 0.02, 0.02);
+    for (const g of [-0.3, 0.3]) wgb.addGeometry(new THREE.TorusGeometry(R + 0.001, 0.008, 3, 28), mat4(g * tireW, 0, 0, 0, Math.PI / 2, 0));
+  }
   const rimCol = def.body === 'lowrider' ? [0.85, 0.85, 0.85] : def.body === 'super' || def.body === 'coupe' ? [0.25, 0.25, 0.27] : [0.6, 0.6, 0.62];
   if (def.body === 'lowrider') { wgb.set('color', 0.9, 0.9, 0.9); wgb.addGeometry(new THREE.CylinderGeometry(R - 0.03, R - 0.03, tireW + 0.005, 20, 1, true), mat4(0, 0, 0, 0, 0, Math.PI / 2, 0.98, 0.3, 0.98)); }
+  // brake disc & caliper (behind the spokes)
+  wgb.set('color', 0.32, 0.32, 0.33);
+  wgb.addGeometry(new THREE.CylinderGeometry(R * 0.55, R * 0.55, 0.02, 18), mat4(tireW * 0.1, 0, 0, 0, 0, Math.PI / 2));
+  // dished rim: outer lip, recessed face, spokes, hub cap and lug nuts
   wgb.set('color', ...rimCol);
-  wgb.addGeometry(new THREE.CylinderGeometry(R * 0.66, R * 0.66, tireW + 0.02, 16), mat4(0, 0, 0, 0, 0, Math.PI / 2));
-  wgb.set('color', rimCol[0] * 0.5, rimCol[1] * 0.5, rimCol[2] * 0.5);
-  for (let k = 0; k < 5; k++) {
-    const a = k / 5 * Math.PI * 2;
-    wgb.addGeometry(new THREE.BoxGeometry(0.03, R * 1.2, 0.07), mat4(tireW / 2 + 0.012, 0, 0, a, 0, 0));
+  wgb.addGeometry(new THREE.TorusGeometry(R * 0.645, 0.018, 6, 24), mat4(tireW / 2 - 0.005, 0, 0, 0, Math.PI / 2, 0));
+  wgb.addGeometry(new THREE.CylinderGeometry(R * 0.64, R * 0.64, 0.02, 20, 1, true), mat4(tireW / 2 - 0.02, 0, 0, 0, 0, Math.PI / 2));
+  wgb.set('color', rimCol[0] * 0.35, rimCol[1] * 0.35, rimCol[2] * 0.35);
+  wgb.addGeometry(new THREE.CylinderGeometry(R * 0.62, R * 0.62, 0.01, 20), mat4(tireW / 2 - 0.045, 0, 0, 0, 0, Math.PI / 2));
+  wgb.set('color', ...rimCol);
+  const nSp = def.body === 'super' ? 10 : def.body === 'suv' || def.body === 'pickup' || def.body === 'truck' ? 6 : 5;
+  for (let k = 0; k < nSp; k++) {
+    const a = k / nSp * Math.PI * 2;
+    wgb.addGeometry(new THREE.BoxGeometry(0.035, R * 0.5, def.body === 'super' ? 0.03 : 0.055), new THREE.Matrix4().makeRotationX(a).multiply(mat4(tireW / 2 - 0.018, R * 0.36, 0, 0, 0, 0.18)));
   }
+  wgb.addGeometry(new THREE.CylinderGeometry(R * 0.17, R * 0.2, 0.05, 14), mat4(tireW / 2 - 0.01, 0, 0, 0, 0, Math.PI / 2));
+  wgb.set('color', rimCol[0] * 0.55, rimCol[1] * 0.55, rimCol[2] * 0.55);
+  for (let k = 0; k < 5; k++) { const a = k / 5 * Math.PI * 2 + 0.3; wgb.addGeometry(new THREE.CylinderGeometry(0.011, 0.011, 0.02, 6), mat4(tireW / 2 + 0.016, Math.cos(a) * R * 0.1, Math.sin(a) * R * 0.1, 0, 0, Math.PI / 2)); }
   const wheelGeo = wgb.build();
   const wy = R;
   for (const [x, z, front] of [[def.track / 2, zf, true], [-def.track / 2, zf, true], [def.track / 2, zr, false], [-def.track / 2, zr, false]]) {

@@ -139,8 +139,12 @@ export class Character {
       return;
     }
     this.physics(dt);
+    // turn rate (for leaning into turns)
+    const dy = this._lastYaw == null ? 0 : wrapAngle(this.yaw - this._lastYaw);
+    this._lastYaw = this.yaw;
     this.root.rotation.y = this.yaw;
     const st = this.animState;
+    st.turn = dt > 0 ? dy / dt : 0;
     const hs = Math.hypot(this.vel.x, this.vel.z);
     st.speed = hs;
     st.moveAngle = hs > 0.2 ? wrapAngle(Math.atan2(this.vel.x, this.vel.z) - this.yaw) : 0;

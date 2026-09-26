@@ -80,6 +80,9 @@ export class Animator {
     this.recoil = 0;
     this.blendFrom = null;
     this.blendT = 0;
+    this.prevSpeed = 0;
+    this.accel = 0;
+    this.turn = 0;
   }
 
   play(name, speed = 1) {
@@ -148,6 +151,10 @@ export class Animator {
     this.hipsRot[0] = this.hipsRot[1] = this.hipsRot[2] = 0;
 
     const speed = s.speed || 0;
+    // acceleration and turning (for leaning into them)
+    this.accel = damp(this.accel, clamp((speed - this.prevSpeed) / Math.max(dt, 1e-3), -12, 12), 6, dt);
+    this.prevSpeed = speed;
+    this.turn = damp(this.turn, clamp(s.turn || 0, -6, 6), 8, dt);
     // gait weights
     const tw = { idle: 0, walk: 0, run: 0, sprint: 0 };
     if (speed < 0.15) tw.idle = 1;
@@ -177,12 +184,17 @@ export class Animator {
     const mA = s.moveAngle || 0;
     const mx = Math.sin(mA), mz = Math.cos(mA);
 
-    // hips
+    // hips: bob, sway, and a slight roll toward the standing leg (idle: slow weight shifts)
     const bob = gp.bob * Math.pow(Math.sin(TAU * ph * 2 - Math.PI / 2) * 0.5 + 0.5, 1.0) * moving;
     this.hipsOff[1] = -gp.drop - bob - w.crouch * 0.42;
-    this.hipsOff[0] = -Math.cos(TAU * ph) * 0.018 * w.walk + Math.sin(this.time * 0.7) * 0.008 * w.idle;
+    const shift = Math.sin(this.time * 0.37) * Math.sin(this.time * 0.13 + 1.3);
+    this.hipsOff[0] = -Math.cos(TAU * ph) * 0.018 * w.walk + (Math.sin(this.time * 0.7) * 0.006 + shift * 0.012) * w.idle;
     const hipYaw = -gp.hipYaw * Math.sin(TAU * ph) * moving;
-    this.set(B.hips, 0, hipYaw * mz, 0);
+    const hipRoll = Math.cos(TAU * ph) * (0.05 * w.walk + 0.035 * w.run + 0.02 * w.sprint) + shift * 0.035 * w.idle;
+    // lean into turns (a runner banks) and into acceleration / braking
+    const bank = clamp(-this.turn * speed * 0.018, -0.22, 0.22) * moving;
+    const accLean = clamp(this.accel * 0.018, -0.12, 0.16) * moving;
+    this.set(B.hips, accLean * 0.4, hipYaw * mz, hipRoll + bank);
 
     // legs via IK: foot trajectories
     for (let side = 0; side < 2; side++) {
@@ -202,27 +214,47 @@ export class Animator {
       const tx = lateral + fz * mx, tz = fz * mz;
       const off = this.thighOff[side];
       const hipY = this.hipH + this.hipsOff[1] + off[1];
-      const ankleH = 0.06 + fy;
+      // heel-toe roll: toes up at heel strike, heel rises as the toes push off, toes lead into the swing
+      let roll = 0, heel = 0;
+      if (moving > 0.05 && D < 0.999) {
+        if (p < D) {
+          const q = p / D;
+          roll = -0.22 * (1 - smoothstep(0, 0.18, q)) + 0.55 * smoothstep(0.62, 1, q);
+          heel = 0.05 * smoothstep(0.62, 1, q);
+        } else {
+          const q = (p - D) / (1 - D);
+          roll = lerp(0.55, -0.22, smoothstep(0, 0.9, q));
+        }
+        roll *= moving * (mz >= 0 ? 1 : 0.4) * (1 - w.crouch * 0.5);
+        heel *= moving * (mz >= 0 ? 1 : 0.3);
+      }
+      const ankleH = 0.06 + fy + heel;
       this.legIK(side, tx - off[0] - this.hipsOff[0], ankleH - hipY, tz + (w.crouch * 0.12));
-      // counter hip yaw on thighs
-      this.add(side === 0 ? B.lThigh : B.rThigh, 0, -hipYaw * mz, 0);
+      this.add(side === 0 ? B.lFoot : B.rFoot, roll, 0, 0);
+      // counter hip yaw & roll on thighs
+      this.add(side === 0 ? B.lThigh : B.rThigh, 0, -hipYaw * mz, -hipRoll * 0.8);
     }
 
     // torso
     const s1 = Math.sin(TAU * ph);
-    const lean = gp.lean * (mz >= 0 ? 1 : -0.4) + w.crouch * 0.3;
-    this.set(B.spine, lean * 0.5 + 0.015 * Math.sin(this.time * 1.9) * w.idle, gp.chestYaw * s1 * 0.4 * moving * mz, 0);
-    this.set(B.chest, lean * 0.5 + 0.02 * Math.sin(this.time * 1.9) * w.idle, gp.chestYaw * s1 * 0.6 * moving * mz, 0);
-    this.set(B.neck, -lean * 0.3, 0, 0);
-    this.set(B.head, -lean * 0.4 + 0.02 * Math.sin(this.time * 0.9) * w.idle, -hipYaw * 0.5, 0);
-    // arms swing opposite legs
+    const lean = gp.lean * (mz >= 0 ? 1 : -0.4) + w.crouch * 0.3 + accLean;
+    const breathe = Math.sin(this.time * 1.9) * (0.018 * w.idle + 0.01 * moving);
+    // chest rolls against the pelvis; idle glances around now and then
+    const glance = w.idle * (Math.sin(this.time * 0.23) * Math.sin(this.time * 0.61 + 2.0)) * 0.45;
+    this.set(B.spine, lean * 0.5 + breathe * 0.6, gp.chestYaw * s1 * 0.4 * moving * mz, -hipRoll * 0.5 - bank * 0.3);
+    this.set(B.chest, lean * 0.5 + breathe, gp.chestYaw * s1 * 0.6 * moving * mz, -hipRoll * 0.4 - bank * 0.2);
+    this.set(B.neck, -lean * 0.3, glance * 0.35, hipRoll * 0.3);
+    this.set(B.head, -lean * 0.4 + 0.02 * Math.sin(this.time * 0.9) * w.idle, -hipYaw * 0.5 + glance * 0.65, bank * 0.4 + hipRoll * 0.3);
+    // arms swing opposite legs (a little across the body when running), forearms lag behind the upper arm
     const aA = gp.armA * moving;
-    this.set(B.lUpperArm, aA * s1 + 0.04, 0, 0.09 + w.run * 0.05);
-    this.set(B.rUpperArm, -aA * s1 + 0.04, 0, -0.09 - w.run * 0.05);
-    this.set(B.lForearm, -(gp.elbow + gp.elbowSw * Math.max(0, -s1) * moving), 0, 0);
-    this.set(B.rForearm, -(gp.elbow + gp.elbowSw * Math.max(0, s1) * moving), 0, 0);
-    this.set(B.lHand, 0, 0, 0.1);
-    this.set(B.rHand, 0, 0, -0.1);
+    const cross = (0.12 * w.run + 0.18 * w.sprint);
+    const s2 = Math.sin(TAU * ph - 0.35);
+    this.set(B.lUpperArm, aA * s1 + 0.04 - breathe * 0.3, -cross * Math.max(0, -s1), 0.09 + w.run * 0.05 + breathe * 0.4);
+    this.set(B.rUpperArm, -aA * s1 + 0.04 - breathe * 0.3, cross * Math.max(0, s1), -0.09 - w.run * 0.05 - breathe * 0.4);
+    this.set(B.lForearm, -(gp.elbow + gp.elbowSw * Math.max(0, -s2) * moving), 0.08 * moving, 0);
+    this.set(B.rForearm, -(gp.elbow + gp.elbowSw * Math.max(0, s2) * moving), -0.08 * moving, 0);
+    this.set(B.lHand, 0.08 * Math.sin(TAU * ph - 0.8) * moving, 0, 0.1);
+    this.set(B.rHand, -0.08 * Math.sin(TAU * ph - 0.8) * moving, 0, -0.1);
 
     // carrying a rifle (not aiming): hold across the body
     if (w.rifle > 0.01 && !s.sit && !s.swim) {
