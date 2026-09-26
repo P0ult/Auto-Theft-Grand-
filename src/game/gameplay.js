@@ -137,6 +137,18 @@ export class Gameplay {
       p.anim.action = null;
       p.anim.beginBlend(0.01);
       p.animState.handsUp = false;
+      // a clean slate: no leftover fall speed, parachute or swim, and a few seconds' grace
+      p.vel.set(0, 0, 0); p.skydive = null; p.closeChute?.(); p.swimming = false; p.crouching = false; p.aiming = false; p.downTime = 0;
+      p.protectUntil = g.time + 4;
+      // nobody is still gunning for you: attackers lose interest and angered gangs cool down
+      if (g.peds) {
+        g.peds.gangAggro = { vipers: true, cuervos: false, kings: false, army: false };
+        for (const q of g.peds.list) {
+          if (q.dead || q.removed || q.brain === 'script' || q.brain === 'cop') continue;
+          if (q.threat === p || q.state === 'attack') { q.threat = null; q.setState(q.gang ? 'guard' : 'wander'); }
+        }
+      }
+      g.shops?.calmDown?.();
       p.setPosition(spot.x, undefined, spot.z);
       p.setYaw(spot.rot);
       p.root.visible = true;

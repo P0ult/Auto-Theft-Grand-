@@ -50,6 +50,11 @@ export class ShopSystem {
     }
   }
 
+  // after a respawn: a clerk who was shooting at you goes back behind the counter
+  calmDown() {
+    for (const s of this.shops) if (s.state === 'hostile' && s.clerk && !s.clerk.dead) { this.game.peds.remove(s.clerk); s.clerk = null; s.state = 'closed'; }
+  }
+
   shopAt(x, z) { return this.shops.find((s) => s.it.inside(x, z)) || null; }
 
   // the player stepped up to the counter

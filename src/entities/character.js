@@ -249,6 +249,7 @@ export class Character {
   takeDamage(amount, info = {}) {
     if (this.dead) return false;
     if (this.invincible) return false;
+    if (this.protectUntil && this.game.time < this.protectUntil) return false; // just respawned
     let dmg = amount;
     if (info.part === 'head') dmg *= info.headMul ?? 4;
     if (info.part === 'limb') dmg *= 0.7;
