@@ -2,7 +2,8 @@
 // terrain height, water, sidewalk & lane graphs and story landmarks. Pure data (no rendering).
 import { RNG, clamp, smoothstep, fbm, lerp } from '../core/utils.js';
 import { planInteriors } from './interiors.js';
-import { WORLD as WORLD_BOUNDS, Heightfield, landHeight, TOWNS, BASE, AIRFIELD, LAKE, cityDist, regionWeights, riverDist } from './worldgen.js';
+import { WORLD as WORLD_BOUNDS, Heightfield, landHeight, TOWNS, BASE, AIRFIELD, LAKE, cityDist, regionWeights, riverDist, NCITY, ncEdgeDist } from './worldgen.js';
+import { ncDistrict } from './northcity.js';
 import { buildRoadNetwork, REMOVED_SEGMENTS, SUPERBLOCKS, CITY_ROUNDABOUTS, ROUTES } from './roadlayout.js';
 import { shapeTerrain } from './roadnet.js';
 import { populateCountryside } from './countryside.js';
@@ -40,6 +41,15 @@ export const DISTRICTS = {
   forest: { name: 'Pinewood Forest', color: '#4f6b3a' },
   desert: { name: 'Tierra Seca Desert', color: '#c9ad7a' },
   base: { name: 'Fort Carver', color: '#8a8d73' },
+  // San Aurelio
+  aurcentro: { name: 'Centro', color: '#8f96a6' },
+  aurharbor: { name: 'Harborside', color: '#8c8a86' },
+  aurmission: { name: 'Mission', color: '#a0907c' },
+  aurcathedral: { name: 'Cathedral Hill', color: '#9a918a' },
+  aurnorth: { name: 'Northgate', color: '#958f88' },
+  aurheights: { name: 'Aurelio Heights', color: '#9aa08a' },
+  aurbay: { name: 'Bayview', color: '#a39a86' },
+  aurelio: { name: 'San Aurelio', color: '#99948c' },
 };
 
 function districtFor(cx, cz) {
@@ -143,6 +153,8 @@ export class CityMap {
     const b = this.blockAt(x, z);
     if (b) return b.district;
     if (cityDist(x, z) > 700) {
+      const nd = ncDistrict(x, z);
+      if (nd) return nd.key;
       if (x > BASE.minX - 100 && x < BASE.maxX + 100 && z > BASE.minZ - 100 && z < BASE.maxZ + 100) return 'base';
       const w = regionWeights(x, z);
       return w.desert > 0.5 ? 'desert' : w.mountain > 0.5 ? 'forest' : 'country';
@@ -172,6 +184,10 @@ export class CityMap {
       if (x > CITY.maxX + 60 && z < -250) return 'Bayshore';
     }
     if (dC >= 700) {
+      const nd = ncDistrict(x, z);
+      if (nd) return nd.key === 'aurcentro' ? 'San Aurelio' : nd.name;
+      const ne = ncEdgeDist(x, z);
+      if (ne < 700) return x > NCITY.x + 380 && this.terrainHeight(x, z) < 5.5 ? 'Aurelio Beach' : 'Aurelio Hills';
       if (riverDist(x, z) < 90) return 'Rio Verde';
       if (Math.hypot(x + 900, z + 3250) < 700) return 'Mount Cedro';
       const w = regionWeights(x, z);
@@ -252,7 +268,7 @@ export class CityMap {
     // terrain first (roads follow it), with flat pads for the towns, the base and the airstrip
     this.hf = new Heightfield();
     const pads = [
-      ...Object.entries(TOWNS).map(([k, t]) => ({ key: k, x: t.x, z: t.z, r: t.padR ?? t.r, blend: 140, keepSea: true })),
+      ...Object.entries(TOWNS).map(([k, t]) => ({ key: k, x: t.x, z: t.z, r: t.padR ?? t.r, y: t.padY, blend: 140, keepSea: true })),
       { key: 'base', minX: BASE.minX, maxX: BASE.maxX, minZ: BASE.minZ, maxZ: BASE.maxZ, blend: 160 },
       { key: 'air', minX: AIRFIELD.x - 60, maxX: AIRFIELD.x + 60, minZ: AIRFIELD.z - AIRFIELD.len / 2 - 20, maxZ: AIRFIELD.z + AIRFIELD.len / 2 + 20, blend: 80 },
       ...skateparkPads(),

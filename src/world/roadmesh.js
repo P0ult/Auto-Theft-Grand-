@@ -9,7 +9,7 @@ import { railAt, railAtTrack, loopOffsetAt } from './railway.js';
 import { clamp, lerp } from '../core/utils.js';
 
 const CHUNK = 400;
-const MARK = { freeway: 1, ramp: 2, highway: 3, road: 4, dirt: 5, junction: 6, street: 0, rail: 7 };
+const MARK = { freeway: 1, ramp: 2, highway: 3, road: 4, dirt: 5, junction: 6, street: 0, rail: 7, avenue: 8 };
 
 export const ROADNET_EXT = {
   key: 'roadnet',
@@ -31,7 +31,7 @@ float stripeR(float x, float c, float w, float aa) { return 1.0 - smoothstep(w -
   float aa = fwidth(u) * 0.9 + 0.01;
   vec3 col;
   float paintW = 0.0, paintY = 0.0;
-  if (type > 6.5) {
+  if (type > 6.5 && type < 7.5) {
     // railway ballast: grey crushed stone, darker oily strip between the rails, sloped shoulders
     float stone = vn2(wp * 9.0) * 0.6 + vn2(wp * 23.0) * 0.4;
     col = mix(vec3(0.27, 0.26, 0.24), vec3(0.42, 0.4, 0.37), stone) * (0.8 + 0.3 * n);
@@ -49,8 +49,15 @@ float stripeR(float x, float c, float w, float aa) { return 1.0 - smoothstep(w -
     atgRough = 1.0;
   } else {
     col = vec3(0.09, 0.09, 0.095) * (0.72 + 0.45 * n) * (0.9 + 0.2 * fine);
-    if (type > 5.5) {
+    if (type > 5.5 && type < 6.5) {
       col *= 0.97;
+    } else if (type > 7.5) {
+      // city avenue: double yellow centre, dashed lane dividers, white edge lines
+      paintY += stripeR(u, 0.15, 0.07, aa) + stripeR(u, -0.15, 0.07, aa);
+      paintW += stripeR(abs(u), 3.55, 0.07, aa) * step(0.55, fract(v / 9.0));
+      paintW += stripeR(abs(u), 6.9, 0.08, aa);
+      float track = stripeR(abs(u), 1.9 - 0.8, 0.35, 0.4) + stripeR(abs(u), 1.9 + 0.8, 0.35, 0.4) + stripeR(abs(u), 5.2 - 0.8, 0.35, 0.4) + stripeR(abs(u), 5.2 + 0.8, 0.35, 0.4);
+      col *= 1.0 - track * 0.08;
     } else if (type < 1.5) {
       // freeway carriageway: lanes at u = -3.7..0..+3.7 (left edge yellow, divider dashed, right edge white)
       paintY += stripeR(u, -3.72, 0.08, aa);
@@ -77,8 +84,15 @@ float stripeR(float x, float c, float w, float aa) { return 1.0 - smoothstep(w -
     float flags = vR.z;
     float atStart = mod(flags, 2.0), atEnd = step(1.5, mod(flags, 4.0));
     float fromEnd = len - v;
-    paintW += atEnd * step(0.3, u) * step(u, 3.6) * step(0.4, fromEnd) * step(fromEnd, 0.95);
-    paintW += atStart * step(-3.6, u) * step(u, -0.3) * step(0.4, v) * step(v, 0.95);
+    float uMax = min(vR.w - 0.5, 7.0);
+    paintW += atEnd * step(0.3, u) * step(u, uMax) * step(0.4, fromEnd) * step(fromEnd, 0.95);
+    paintW += atStart * step(-uMax, u) * step(u, -0.3) * step(0.4, v) * step(v, 0.95);
+    // zebra crossings at city junctions (flag bits 4: at start, 8: at end), stop line behind them
+    float zA = step(3.5, mod(flags, 8.0)), zB = step(7.5, mod(flags, 16.0));
+    float zeb = step(0.5, fract(u / 1.3 + 0.25)) * step(abs(u), vR.w - 0.6);
+    paintW += zeb * (zA * step(1.0, v) * step(v, 4.2) + zB * step(1.0, fromEnd) * step(fromEnd, 4.2));
+    paintW += zB * step(0.3, u) * step(u, uMax) * step(4.9, fromEnd) * step(fromEnd, 5.4);
+    paintW += zA * step(-uMax, u) * step(u, -0.3) * step(4.9, v) * step(v, 5.4);
     float wear = smoothstep(0.25, 0.7, vn2(wp * 1.3 + 5.0)) * 0.55 + 0.45;
     paintW *= wear; paintY *= wear;
     float patchN = smoothstep(0.62, 0.66, vn2(wp * 0.08 + 13.0));
@@ -91,7 +105,7 @@ float stripeR(float x, float c, float w, float aa) { return 1.0 - smoothstep(w -
     atgRough = mix(0.92, 0.6, paint);
   }
   // rain: gloss, puddles (ballast drains, dirt turns to mud)
-  atgWetGround(col, atgRough, type > 6.5 ? 1.0 : (type > 4.5 && type < 5.5) ? 0.75 : 0.0);
+  atgWetGround(col, atgRough, (type > 6.5 && type < 7.5) ? 1.0 : (type > 4.5 && type < 5.5) ? 0.75 : 0.0);
   diffuseColor.rgb = col;
 }
 `,
@@ -192,6 +206,7 @@ export class RoadMeshes {
     for (const n of net.nodes) if (!n.dead && n.e.length && !n.grid && !n.city) {
       if (n.kind === 'x' && n.e.length > 1) this._junction(n);
       else if (n.kind === 'rb') this._roundabout(n);
+      if (n.ncity) this._pavementCorners(n);
     }
     // mini roundabouts in the city grid: just the planted island (the street plane paints the ring)
     for (const n of net.nodes) if (n.grid && n.kind === 'rb') this._island(n.x, n.z, 0.03, 5.6, true);
@@ -213,8 +228,13 @@ export class RoadMeshes {
     // stop-line flags: minor road meeting a node of a higher class
     const na = net.nodes[e.a], nb = net.nodes[e.b];
     let flags = 0;
-    if (na.kind === 'x' && !na.city && na.maxCls > e.T.cls) flags |= 1;
-    if (nb.kind === 'x' && !nb.city && nb.maxCls > e.T.cls) flags |= 2;
+    if (e.ncity) {
+      if (na.kind === 'x' && na.e.length > 2) flags |= 4;
+      if (nb.kind === 'x' && nb.e.length > 2) flags |= 8;
+    } else {
+      if (na.kind === 'x' && !na.city && na.maxCls > e.T.cls) flags |= 1;
+      if (nb.kind === 'x' && !nb.city && nb.maxCls > e.T.cls) flags |= 2;
+    }
     // stations to emit: trimmed ends + interior points
     const st = [s0];
     for (let i = 1; i < n - 1; i++) if (e.cum[i] > s0 + 0.3 && e.cum[i] < s1 - 0.3) st.push(e.cum[i]);
@@ -268,6 +288,7 @@ export class RoadMeshes {
       }
       prev = cur;
     }
+    if (e.walk) this._pavements(e);
     // pillars under deck runs
     let acc = 14;
     for (let k = 1; k < rows.length; k++) {
@@ -495,6 +516,119 @@ export class RoadMeshes {
     const c = A.v(n.x, y, n.z, 0, 1, 0, 0, 0, a);
     const ids = hull.map((p) => A.v(p[0], y, p[1], 0, 1, 0, p[0] - n.x, p[1] - n.z, a));
     for (let k = 0; k < ids.length; k++) A.idx.push(c, ids[(k + 1) % ids.length], ids[k]);
+  }
+
+  // ---------------------------------------------------------------- San Aurelio's raised pavements
+  // A kerbed concrete strip each side of a city street (walkable decks for people and wheels), corner
+  // pieces round each junction, and a ring round each roundabout with gaps where the streets come in.
+  _pvStart(e, atA) {
+    const n = this.net.nodes[atA ? e.a : e.b];
+    return n.kind === 'rb' ? n.rbR + 5.4 + e.walk : n.kind === 'x' && n.e.length > 1 ? n.r : 0;
+  }
+  _pavements(e) {
+    const net = this.net, W = e.walk, TOP = 0.12;
+    const s0 = this._pvStart(e, true), s1 = e.len - this._pvStart(e, false);
+    if (s1 - s0 < 0.5) return;
+    const st = [s0];
+    for (let i = 1; i < e.n - 1; i++) if (e.cum[i] > s0 + 0.3 && e.cum[i] < s1 - 0.3) st.push(e.cum[i]);
+    st.push(s1);
+    const tmp = [0, 0, 0, 0, 0];
+    const rows = st.map((s) => { net.at(e, s, tmp); return { s, x: tmp[0], y: tmp[1] + 0.035, z: tmp[2], tx: tmp[3], tz: tmp[4] }; });
+    for (let k = 1; k < rows.length - 1; k++) { const a = rows[k - 1], b = rows[k + 1], dx = b.x - a.x, dz = b.z - a.z, l = Math.hypot(dx, dz) || 1; rows[k].tx = dx / l; rows[k].tz = dz / l; }
+    for (const side of [-1, 1]) {
+      const w = side < 0 ? e.wL : e.wR;
+      const pts = rows.map((r) => { const rx = -r.tz * side, rz = r.tx * side; return { r, rx, rz, ix: r.x + rx * w, iz: r.z + rz * w, ox: r.x + rx * (w + W), oz: r.z + rz * (w + W), y: r.y }; });
+      for (let k = 1; k < pts.length; k++) {
+        const a = pts[k - 1], b = pts[k];
+        this._pvQuad(this.chunk((a.r.x + b.r.x) / 2, (a.r.z + b.r.z) / 2).conc, a, b, TOP);
+      }
+      // walkable decks, ~12 m apiece
+      let k0 = 0;
+      for (let k = 1; k < pts.length; k++) {
+        if (k < pts.length - 1 && pts[k].r.s - pts[k0].r.s < 12) continue;
+        const a = pts[k0], b = pts[k];
+        const ax = (a.ix + a.ox) / 2, az = (a.iz + a.oz) / 2, bx = (b.ix + b.ox) / 2, bz = (b.iz + b.oz) / 2;
+        if (Math.hypot(bx - ax, bz - az) > 0.5) this.decks.push({ ax, az, ay: a.y + TOP, bx, bz, by: b.y + TOP, hl: W / 2 + 0.05, hr: W / 2 + 0.05, pavement: true });
+        k0 = k;
+      }
+    }
+  }
+  // one piece of pavement: top, the kerb face towards the road and a skirt down to the ground behind
+  _pvQuad(A, a, b, TOP) {
+    const col = [0.64, 0.63, 0.6], kerb = [0.78, 0.77, 0.74];
+    A.quad(A.v(a.ix, a.y + TOP, a.iz, 0, 1, 0, 0, 0, col), A.v(a.ox, a.y + TOP, a.oz, 0, 1, 0, 0, 0, col), A.v(b.ox, b.y + TOP, b.oz, 0, 1, 0, 0, 0, col), A.v(b.ix, b.y + TOP, b.iz, 0, 1, 0, 0, 0, col));
+    const nx = -a.rx, nz = -a.rz;
+    A.quad(A.v(a.ix, a.y - 0.03, a.iz, nx, 0, nz, 0, 0, kerb), A.v(b.ix, b.y - 0.03, b.iz, nx, 0, nz, 0, 0, kerb), A.v(b.ix, b.y + TOP, b.iz, nx, 0, nz, 0, 0, kerb), A.v(a.ix, a.y + TOP, a.iz, nx, 0, nz, 0, 0, kerb));
+    A.quad(A.v(a.ox, a.y - 0.5, a.oz, -nx, 0, -nz, 0, 0, col), A.v(a.ox, a.y + TOP, a.oz, -nx, 0, -nz, 0, 0, col), A.v(b.ox, b.y + TOP, b.oz, -nx, 0, -nz, 0, 0, col), A.v(b.ox, b.y - 0.5, b.oz, -nx, 0, -nz, 0, 0, col));
+  }
+  _pavementCorners(n) {
+    const net = this.net, TOP = 0.12, y = n.y + 0.035;
+    const tmp = [0, 0, 0, 0, 0];
+    const arms = [];
+    for (const eid of n.e) {
+      const e = net.edges[eid];
+      if (e.removed || !e.walk) continue;
+      const atA = e.a === n.id;
+      const s = this._pvStart(e, atA);
+      net.at(e, atA ? Math.min(s, e.len) : Math.max(0, e.len - s), tmp);
+      let dx = tmp[3], dz = tmp[4];
+      if (!atA) { dx = -dx; dz = -dz; }
+      // sides as seen leaving the node: left = (dz, -dx)... pick by angle below
+      const px = -dz, pz = dx; // one perpendicular
+      const w = Math.max(e.wL, e.wR), W = e.walk;
+      const mk = (sg) => ({ ix: tmp[0] + px * w * sg, iz: tmp[2] + pz * w * sg, ox: tmp[0] + px * (w + W) * sg, oz: tmp[2] + pz * (w + W) * sg });
+      arms.push({ a: Math.atan2(tmp[2] - n.z, tmp[0] - n.x), dir: Math.atan2(dz, dx), p: mk(1), m: mk(-1), W, w, x: tmp[0], z: tmp[2], dx, dz });
+    }
+    if (!arms.length) return;
+    arms.sort((p, q) => p.dir - q.dir);
+    const A = this.chunk(n.x, n.z).conc;
+    if (n.kind === 'rb') { this._pavementRing(A, n, arms, y, TOP); return; }
+    if (arms.length < 2) return;
+    const col = [0.64, 0.63, 0.6], kerb = [0.78, 0.77, 0.74];
+    for (let k = 0; k < arms.length; k++) {
+      const a = arms[k], b = arms[(k + 1) % arms.length];
+      // the side of arm a facing b (larger angle) and the side of b facing a
+      const ang = (q) => Math.atan2(q.iz - n.z, q.ix - n.x);
+      const wrapD = (x) => { while (x < -Math.PI) x += Math.PI * 2; while (x > Math.PI) x -= Math.PI * 2; return x; };
+      const sa = wrapD(ang(a.p) - a.dir) > 0 ? a.p : a.m, sb = wrapD(ang(b.p) - b.dir) < 0 ? b.p : b.m;
+      let gap = b.dir - a.dir; if (k === arms.length - 1) gap += Math.PI * 2;
+      if (arms.length === 1 || gap < 0.05) continue;
+      // outer corner: out along the bisector so the kerb line rounds the corner
+      const mid = a.dir + gap / 2, R = Math.hypot(sa.ox - n.x, sa.oz - n.z);
+      const cx = n.x + Math.cos(mid) * R * (gap > Math.PI * 0.9 ? 0.3 : 1), cz = n.z + Math.sin(mid) * R * (gap > Math.PI * 0.9 ? 0.3 : 1);
+      const t0 = A.v(sa.ix, y + TOP, sa.iz, 0, 1, 0, 0, 0, col), t1 = A.v(sa.ox, y + TOP, sa.oz, 0, 1, 0, 0, 0, col), t2 = A.v(cx, y + TOP, cz, 0, 1, 0, 0, 0, col);
+      const t3 = A.v(sb.ox, y + TOP, sb.oz, 0, 1, 0, 0, 0, col), t4 = A.v(sb.ix, y + TOP, sb.iz, 0, 1, 0, 0, 0, col);
+      if (gap < Math.PI * 0.9) { A.quad(t0, t1, t2, t4); A.quad(t4, t2, t3, t3); }
+      else A.quad(t0, t1, t3, t4);
+      // kerb face along the junction's edge
+      let nx = n.x - (sa.ix + sb.ix) / 2, nz = n.z - (sa.iz + sb.iz) / 2; const l = Math.hypot(nx, nz) || 1; nx /= l; nz /= l;
+      A.quad(A.v(sa.ix, y - 0.03, sa.iz, nx, 0, nz, 0, 0, kerb), A.v(sb.ix, y - 0.03, sb.iz, nx, 0, nz, 0, 0, kerb), A.v(sb.ix, y + TOP, sb.iz, nx, 0, nz, 0, 0, kerb), A.v(sa.ix, y + TOP, sa.iz, nx, 0, nz, 0, 0, kerb));
+      const ax = (sa.ix + sa.ox) / 2, az = (sa.iz + sa.oz) / 2, bx = (sb.ix + sb.ox) / 2, bz = (sb.iz + sb.oz) / 2;
+      if (Math.hypot(bx - ax, bz - az) > 0.5) this.decks.push({ ax, az, ay: y + TOP, bx, bz, by: y + TOP, hl: a.W / 2 + 0.3, hr: a.W / 2 + 0.3, pavement: true });
+    }
+  }
+  _pavementRing(A, n, arms, y, TOP) {
+    const R0 = n.rbR + 5.4, W = Math.max(...arms.map((a) => a.W)), R1 = R0 + W;
+    const col = [0.64, 0.63, 0.6], kerb = [0.78, 0.77, 0.74];
+    // angular extent of each street's carriageway where it crosses the ring
+    const gaps = arms.map((a) => { const h = Math.asin(Math.min(0.99, a.w / R0)) + 0.02; return [a.dir - h, a.dir + h, a]; });
+    for (let k = 0; k < gaps.length; k++) {
+      const g0 = gaps[k], g1 = gaps[(k + 1) % gaps.length];
+      const a0 = g0[1]; let a1 = g1[0]; if (k === gaps.length - 1) a1 += Math.PI * 2;
+      if (a1 - a0 < 0.02) continue;
+      const seg = Math.max(2, Math.ceil((a1 - a0) * R1 / 3));
+      let prev = null;
+      for (let q = 0; q <= seg; q++) {
+        const t = a0 + (a1 - a0) * q / seg, c = Math.cos(t), s = Math.sin(t);
+        const cur = { ix: n.x + c * R0, iz: n.z + s * R0, ox: n.x + c * R1, oz: n.z + s * R1, y, rx: c, rz: s };
+        if (prev) this._pvQuad(A, prev, cur, TOP);
+        prev = cur;
+      }
+      for (let q = 0; q < seg; q += 3) {
+        const ta = a0 + (a1 - a0) * q / seg, tb = a0 + (a1 - a0) * Math.min(seg, q + 3) / seg, Rm = (R0 + R1) / 2;
+        this.decks.push({ ax: n.x + Math.cos(ta) * Rm, az: n.z + Math.sin(ta) * Rm, ay: y + TOP, bx: n.x + Math.cos(tb) * Rm, bz: n.z + Math.sin(tb) * Rm, by: y + TOP, hl: W / 2 + 0.2, hr: W / 2 + 0.2, pavement: true });
+      }
+    }
   }
 
   _roundabout(n) {

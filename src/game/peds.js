@@ -326,7 +326,7 @@ export class PedManager {
     const o = {};
     switch (district) {
       case 'beach': o.shorts = rng.chance(0.7); o.shirtType = rng.pick(['tank', 'tee', 'tee']); o.glasses = rng.chance(0.4); break;
-      case 'downtown': if (rng.chance(0.5)) { o.shirtType = 'jacket'; o.jacketColor = rng.pick([0x222222, 0x2b2d42, 0x3d405b, 0x555555]); o.shirt = 0xf2f2f2; o.pants = o.jacketColor; o.shoes = 0x111111; } break;
+      case 'downtown': case 'aurcentro': if (rng.chance(0.5)) { o.shirtType = 'jacket'; o.jacketColor = rng.pick([0x222222, 0x2b2d42, 0x3d405b, 0x555555]); o.shirt = 0xf2f2f2; o.pants = o.jacketColor; o.shoes = 0x111111; } break;
       case 'hills': o.shirtType = rng.pick(['long', 'jacket', 'tee']); o.glasses = rng.chance(0.5); o.shirt = rng.pick([0xffffff, 0xe9d8a6, 0xa8dadc, 0xffc8dd]); break;
       case 'docks': o.shirtType = rng.pick(['long', 'jacket']); o.jacketColor = rng.pick([0xff8800, 0x2a4d69]); o.hairStyle = 'cap'; o.hat = rng.pick([0xffcc00, 0x333333]); o.female = rng.chance(0.1); break;
       default: break;
@@ -401,7 +401,7 @@ export class PedManager {
     const night = h < 6 || h > 22 ? 0.45 : h < 8 || h > 20 ? 0.75 : 1;
     const rain = 1 - game.env.rain * 0.5;
     const d = game.map.districtAt(game.player.pos.x, game.player.pos.z);
-    const dm = { downtown: 1.2, beach: 1.15, midtown: 1.1, hood: 0.9, corona: 0.9, westside: 0.9, docks: 0.55, hills: 0.4 }[d] || 1;
+    const dm = { downtown: 1.2, beach: 1.15, midtown: 1.1, hood: 0.9, corona: 0.9, westside: 0.9, docks: 0.55, hills: 0.4, aurcentro: 1.25, aurharbor: 1.1, aurmission: 1.1, aurcathedral: 1.05, aurnorth: 1.0, aurheights: 0.85, aurbay: 0.9 }[d] || 1;
     return clamp(night * rain * dm, 0.2, 1.3);
   }
 

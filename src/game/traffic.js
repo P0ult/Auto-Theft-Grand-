@@ -642,7 +642,7 @@ export class Traffic {
     if (!this._ignoreView && game.peds._inView(smp.x, smp.z) && d2 < 140 * 140) return;
     for (const v of game.vehicles.list) if (dist2(v.pos.x, v.pos.z, smp.x, smp.z) < 12 * 12 && Math.abs(v.pos.y - smp.y) < 4) return;
     // quieter out in the country
-    const rural = !game.map.isOnCityStreet(smp.x, smp.z, 4) && smp.start.e.type !== 'freeway';
+    const rural = !game.map.isOnCityStreet(smp.x, smp.z, 4) && smp.start.e.type !== 'freeway' && !smp.start.e.ncity;
     if (rural && Math.random() < 0.45) return;
     this.spawnCar(smp.start, smp.s0);
   }

@@ -4,6 +4,7 @@
 import { RoadNet, RT, catmull, cumLen, pointAt, tangentAt, offsetLine, project, intersect, solveProfile, resample } from './roadnet.js';
 import { TOWNS, BASE, AIRFIELD, coastZ, fbmN } from './worldgen.js';
 import { buildRailway } from './railway.js';
+import { buildNorthCity, ncRoutes } from './northcity.js';
 import { clamp, lerp, smoothstep } from '../core/utils.js';
 
 // grid segments removed to form super-blocks: 'h:i,j' = E-W street ZS[j] between XS[i] and XS[i+1];
@@ -39,6 +40,7 @@ export const ROUTES = (() => {
     costa: { type: 'road', ends: [null, 'seco'], ctrl: [[AIRFIELD.x - 40, AIRFIELD.z - 55], [-3150, 320], [-3400, 390], [-3700, 440], [T.seco.x + 22, T.seco.z]] },
     seco: { type: 'highway', ends: ['seco', null], ctrl: [[T.seco.x, T.seco.z - 22], [-4020, 200], [-4100, -300], [-4180, -900], [-4150, -1450], [-4080, -1900], [-4150, -2250], [-4200, -2445]] },
     baseRd: { type: 'highway', ends: ['dry', 'base'], ctrl: [[T.dry.x, T.dry.z - 25], [-3875, -2650], [-3900, -2900], [-3960, -3250], [-3930, -3600], [-3800, -3860], [-3700, -3960], [-3720, BASE.gateZ], [BASE.maxX - 2, BASE.gateZ]] },
+    ...(({ aurelio, ridgeRd, timberRd }) => ({ aurelio, ridgeRd, timberRd }))(ncRoutes()),
   };
 })();
 
@@ -434,6 +436,43 @@ export function buildRoadNetwork(C, hf) {
     const mar = road([[-4110, 480], [-4120, 580], [-4100, 660]], 'road', { name: 'Calle del Mar' });
     joinTo(sol, mar, true);
     info.towns.seco = { center: rbSeco, roads: [costa, seco, mayor, sol, mar] };
+  }
+
+  // ------------------------------------------------------------------ San Aurelio and the north-east
+  {
+    const nc = buildNorthCity(net, info);
+    const NR = ncRoutes();
+    const T = TOWNS;
+    // Aurelio Highway: off Bayshore Road, up the coast through Gull Bay into the city from the south-east
+    const jA = splitAtPoint(bay, [880, -1850], 'Aurelio Hwy jct');
+    const hwy = road(NR.aurelio.ctrl.slice(0, -1), 'highway', { start: jA, end: nc.ends.bay, name: 'Aurelio Highway', splits: [{ x: T.gull.x, z: T.gull.z, kind: 'rb', rbR: 15, r: 23, name: 'Gull Bay' }] });
+    // Ridge Road: off Bayshore Road near Pine Hollow, over the pass through Cedar Ridge, in from the south-west
+    const jR = splitAtPoint(bay, [300, -2322], 'Ridge Road jct');
+    const ridge = road(NR.ridgeRd.ctrl.slice(0, -1), 'road', { start: jR, end: nc.ends.ridge, name: 'Ridge Road', maxGrade: 0.11, splits: [{ x: T.ridge.x, z: T.ridge.z, kind: 'rb', rbR: 15, r: 23, name: 'Cedar Ridge' }] });
+    // Timber Road: west out of the city, up to the logging town of Timberline
+    const rbTimber = mk(T.timber.x, T.timber.z, { kind: 'rb', rbR: 15, r: 23, name: 'Timberline' });
+    const timber = road(NR.timberRd.ctrl.slice(1, -1).concat([[rbTimber.x + 23, rbTimber.z]]), 'road', { start: nc.ends.timber, end: rbTimber, name: 'Timber Road', maxGrade: 0.11 });
+    // Harbor Drive along the beach, both ways from the end of Avenida del Mar, rejoining the highway south of town
+    const he = nc.ends.harbor;
+    const harborN = road([[he.x + 14, he.z - 30], [he.x + 22, he.z - 150], [he.x + 20, he.z - 290], [he.x + 2, he.z - 400]], 'road', { start: he, name: 'Harbor Drive' });
+    const harborS = road([[he.x + 14, he.z + 30], [he.x + 16, he.z + 170], [he.x + 6, he.z + 340], [he.x - 30, he.z + 500], [he.x - 80, he.z + 580]], 'road', { start: he, name: 'Harbor Drive' });
+    joinTo(hwy, harborS, false);
+    const rbGull = net.nodes.find((q) => q.name === 'Gull Bay' && q.kind === 'rb');
+    const rbRidge = net.nodes.find((q) => q.name === 'Cedar Ridge' && q.kind === 'rb');
+    info.rbs.push(rbGull, rbRidge, rbTimber);
+    const gBeach = road([[rbGull.x + 23, rbGull.z], [1100, -2768], [1150, -2790]], 'road', { start: rbGull, name: 'Beach Road' });
+    const gLane = road([[rbGull.x - 23, rbGull.z], [950, -2748], [880, -2715]], 'road', { start: rbGull, name: 'Gull Lane' });
+    const gDock = road([[1100, -2768], [1105, -2700], [1120, -2650]], 'road', { name: 'Dock Street' });
+    joinTo(gBeach, gDock, true);
+    info.towns.gull = { center: rbGull, roads: [hwy, gBeach, gLane, gDock] };
+    const rSummit = road([[rbRidge.x - 23, rbRidge.z], [-120, -3188], [-210, -3172]], 'road', { start: rbRidge, name: 'Summit Lane', maxGrade: 0.13 });
+    const rLodge = road([[rbRidge.x + 23, rbRidge.z], [45, -3192], [130, -3165]], 'road', { start: rbRidge, name: 'Lodge Road', maxGrade: 0.13 });
+    info.towns.ridge = { center: rbRidge, roads: [ridge, rSummit, rLodge] };
+    const tMill = road([[rbTimber.x, rbTimber.z + 23], [-648, -4300], [-670, -4215]], 'road', { start: rbTimber, name: 'Mill Road', maxGrade: 0.13 });
+    const tLake = road([[rbTimber.x, rbTimber.z - 23], [-630, -4470], [-610, -4550]], 'road', { start: rbTimber, name: 'Lake Road', maxGrade: 0.13 });
+    const tLog = road([[rbTimber.x - 23, rbTimber.z], [-760, -4400], [-900, -4440], [-1060, -4420]], 'dirt', { start: rbTimber, name: 'Logging Road', maxGrade: 0.2 });
+    info.towns.timber = { center: rbTimber, roads: [timber, tMill, tLake, tLog] };
+    info.ncity.roads = { hwy, ridge, timber, harborN, harborS };
   }
 
   // ------------------------------------------------------------------ Sol Line railway

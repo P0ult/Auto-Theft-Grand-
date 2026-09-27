@@ -19,7 +19,75 @@ export const TOWNS = {
   mirador: { name: 'Mirador', x: -1240, z: -1790, r: 175, padR: 80 },
   hale: { name: 'Port Hale', x: 1000, z: -960, r: 170, padR: 95 },
   seco: { name: 'Puerto Seco', x: -4000, z: 470, r: 215, padR: 170 },
+  // up in the north-east, around San Aurelio
+  gull: { name: 'Gull Bay', x: 972, z: -2760, r: 190, padR: 115, padY: 8 },
+  ridge: { name: 'Cedar Ridge', x: -40, z: -3180, r: 185, padR: 115, padY: 44 },
+  timber: { name: 'Timberline', x: -640, z: -4390, r: 190, padR: 120, padY: 46 },
 };
+
+// San Aurelio: the second city, on a coastal plain in the north-east hemmed in by the forest mountains. Its
+// streets aren't a grid: three wobbly ring roads round a central plaza, crossed by curving avenues.
+export const NCITY = { key: 'aurelio', name: 'San Aurelio', x: 420, z: -4060, y: 6, rings: [135, 292, 468] };
+export function ncRingR(k, th) {
+  const R = NCITY.rings[k];
+  return R * (1 + 0.085 * Math.sin(2 * th + 0.7 + k * 0.45) + 0.055 * Math.sin(3 * th + 1.9 * k) + 0.035 * Math.sin(5 * th + k * 2.3));
+}
+// Valleys the roads out of San Aurelio follow (the mountains round it are far too steep otherwise): the
+// coastal shelf north of Bayshore that the Aurelio Highway and Gull Bay sit on, Cedar Valley over to Pine
+// Hollow, and Timber Valley west to the logging town. A polyline, the floor height at each end, the floor's
+// half width and how steeply the valley sides rise.
+let _valleys = null;
+function neValleys() {
+  if (_valleys) return _valleys;
+  const shelf = [];
+  for (let z = -2050; z >= -3760; z -= 110) shelf.push([coastX(z) - 265 + (z > -2300 ? (z + 2300) * 0.55 : 0), z]);
+  const mk = (pts, y0, y1, w, slope, yAt) => {
+    const cum = [0];
+    for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
+    let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+    for (const [x, z] of pts) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); z0 = Math.min(z0, z); z1 = Math.max(z1, z); }
+    const pad = w + 400;
+    return { pts, cum, L: cum[cum.length - 1], y0, y1, w, slope, yAt, box: [x0 - pad, z0 - pad, x1 + pad, z1 + pad] };
+  };
+  _valleys = [
+    // (the shelf: level, dropping to Bayshore Road's height at its south end)
+    mk(shelf, 8, 8, 175, 0.32, (s, L) => lerp(66, 8, smoothstep(0, 420, s))),
+    mk([[300, -2322], [262, -2560], [160, -2830], [-40, -3180], [-10, -3420], [60, -3620], [100, -3700]], 108, 6, 85, 0.42),
+    mk([[-150, -4070], [-330, -4190], [-490, -4300], [-640, -4390], [-800, -4420]], 6, 52, 80, 0.45),
+  ];
+  return _valleys;
+}
+function valleyFloor(V, x, z) {
+  if (x < V.box[0] || x > V.box[2] || z < V.box[1] || z > V.box[3]) return Infinity;
+  let best = Infinity, bs = 0;
+  const P = V.pts;
+  for (let i = 0; i < P.length - 1; i++) {
+    const ax = P[i][0], az = P[i][1], dx = P[i + 1][0] - ax, dz = P[i + 1][1] - az, L2 = dx * dx + dz * dz || 1;
+    const t = clamp(((x - ax) * dx + (z - az) * dz) / L2, 0, 1);
+    const d = Math.hypot(x - ax - dx * t, z - az - dz * t);
+    if (d < best) { best = d; bs = V.cum[i] + Math.sqrt(L2) * t; }
+  }
+  const floor = V.yAt ? V.yAt(bs, V.L) : lerp(V.y0, V.y1, bs / V.L);
+  const dd = Math.max(0, best - V.w);
+  return floor + dd * V.slope + dd * dd * 0.0006;
+}
+export function neValleyFloor(x, z) {
+  if (x < -1300 || z > -1900) return Infinity;
+  let f = Infinity;
+  for (const V of neValleys()) f = Math.min(f, valleyFloor(V, x, z));
+  return f;
+}
+
+// how far outside the built-up area a point is (negative inside)
+export function ncEdgeDist(x, z) {
+  const dx = x - NCITY.x, dz = z - NCITY.z;
+  return Math.hypot(dx, dz) - (ncRingR(2, Math.atan2(dz, dx)) + 75);
+}
+// 1 in the city, fading to 0 in the hills around it
+export function ncUrban(x, z) {
+  if (Math.abs(x - NCITY.x) > 1400 || Math.abs(z - NCITY.z) > 1400) return 0;
+  return 1 - smoothstep(0, 260, ncEdgeDist(x, z));
+}
 export const BASE = { name: 'Fort Carver', minX: -5320, maxX: -3820, minZ: -4760, maxZ: -3860, gateZ: -4060 };
 export const AIRFIELD = { name: 'Fern Creek Airfield', x: -2960, z: 330, len: 560, yaw: Math.PI / 2 };
 export const RIVER = [[-1640, -1720], [-1760, -1400], [-1830, -1100], [-1960, -800], [-2010, -560], [-2140, -330], [-2130, -80], [-2050, 150], [-2110, 400], [-2190, 640], [-2230, 900], [-2260, 1400]];
@@ -91,7 +159,7 @@ export function regionWeights(x, z) {
   // domain-warped borders so the regions don't meet along straight lines
   const wx = x + (fbmN(x * 0.0009, z * 0.0009, 2) - 0.5) * 700, wz = z + (fbmN(x * 0.0009 + 9, z * 0.0009 - 4, 2) - 0.5) * 700;
   const d = clamp(smoothstep(-2750, -3350, wx) + smoothstep(-3200, -3800, wz) * smoothstep(-1900, -2500, wx), 0, 1);
-  const m = clamp(smoothstep(-1650, -2300, wz) * (1 - smoothstep(-2300, -2900, wx)), 0, 1) * (1 - d);
+  const m = clamp(smoothstep(-1650, -2300, wz) * (1 - smoothstep(-2300, -2900, wx)), 0, 1) * (1 - d) * (1 - ncUrban(x, z));
   return { desert: d, mountain: m, country: Math.max(0, 1 - d - m) };
 }
 export function biomeAt(x, z) {
@@ -156,6 +224,25 @@ export function landHeight(x, z) {
 
   // hills ringing the city: Vistawood (north), Red Canyon (west), coastal hills (north-east)
   if (dC < 1250) h = lerp(cityRing(x, z, dC), h, smoothstep(420, 1150, dC));
+
+  // San Aurelio's plain: dead flat in the city, rising into the hills round it, and running out level to the
+  // beach on the east side
+  {
+    const ne = ncEdgeDist(x, z);
+    if (ne < 1300) {
+      const th = Math.atan2(z - NCITY.z, x - NCITY.x);
+      const east = smoothstep(0.1, 0.75, Math.cos(th));
+      const t = smoothstep(0, 380 + east * 900, ne);
+      const hill = east > 0 ? lerp(h, Math.min(h, NCITY.y + 14 * t), east) : h;
+      h = ne <= 0 ? NCITY.y : lerp(NCITY.y, hill, t * t * (3 - 2 * t));
+    }
+  }
+
+  // the valleys out of it
+  {
+    const vf = neValleyFloor(x, z);
+    if (vf < h) h = vf;
+  }
 
   // lake up in the hills: a basin around LAKE.y (water plane added by the renderer)
   const dl = Math.hypot(x - LAKE.x, z - LAKE.z);

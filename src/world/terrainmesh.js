@@ -4,7 +4,7 @@
 import * as THREE from 'three';
 import { std, WET_NORMAL } from '../render/materials.js';
 import { NOISE_GLSL } from './shaders.js';
-import { WORLD, CITY_RECT, regionWeights, cityDist, riverDist } from './worldgen.js';
+import { WORLD, CITY_RECT, regionWeights, cityDist, riverDist, ncEdgeDist, NCITY, coastX } from './worldgen.js';
 import { farmMask } from './countryside.js';
 import { clamp, smoothstep } from '../core/utils.js';
 
@@ -44,7 +44,7 @@ vec3 fields(vec2 wp, float n) {
   float n = fbm3(wp * 0.05);
   float n2 = vn2(wp * 0.9);
   float n3 = fbm3(wp * 0.35);
-  float farm = vT.x, sand = vT.y, forest = vT.z, beach = vT.w;
+  float farm = max(vT.x, 0.0), urb = clamp(-vT.x, 0.0, 1.0), sand = vT.y, forest = vT.z, beach = vT.w;
   vec3 base = diffuseColor.rgb;
   // grass: golden / green mix
   vec3 grass = mix(vec3(0.26, 0.3, 0.11), vec3(0.46, 0.39, 0.18), smoothstep(0.35, 0.7, n)) * (0.8 + 0.35 * n3) * (0.9 + 0.2 * n2);
@@ -63,6 +63,15 @@ vec3 fields(vec2 wp, float n) {
   // beach sand, darker when wet by the water line
   vec3 bs = mix(vec3(0.66, 0.56, 0.4), vec3(0.5, 0.42, 0.3), smoothstep(1.2, 0.2, vAtgWorld.y));
   col = mix(col, bs * (0.92 + 0.12 * n3), beach);
+  // city ground: worn concrete slabs and paving
+  if (urb > 0.01) {
+    vec2 sl = fract(wp / vec2(3.1, 2.3));
+    float joint = max(smoothstep(0.035, 0.0, min(sl.x, 1.0 - sl.x)), smoothstep(0.05, 0.0, min(sl.y, 1.0 - sl.y)));
+    vec3 pv = mix(vec3(0.3, 0.295, 0.28), vec3(0.38, 0.37, 0.345), smoothstep(0.3, 0.7, n3)) * (0.88 + 0.2 * n2);
+    pv = mix(pv, vec3(0.2, 0.195, 0.185), joint * 0.5);
+    pv = mix(pv, vec3(0.33, 0.36, 0.2), smoothstep(0.62, 0.8, n) * 0.4);
+    col = mix(col, pv, urb);
+  }
   // rock on steep slopes (mesa cliffs get red strata)
   vec3 wn = normalize(vTN);
   float steep = smoothstep(0.78, 0.55, wn.y);
@@ -114,11 +123,16 @@ export class TerrainMesh {
     const w = regionWeights(x, z);
     const farm = farmMask(x, z);
     const dC = cityDist(x, z);
-    const beachZone = (z > CITY_RECT.maxZ && x < 480 && x > -1100 && h < 4.5) || (h < 2.2 && dC > 300 && riverDist(x, z) > 60);
-    const beach = beachZone ? smoothstep(4.5, 1.5, h) : 0;
+    const ne = z < -1900 && x > -1300 ? ncEdgeDist(x, z) : 1e9;
+    const auBeach = z < -2000 && x > NCITY.x + 300 && x > coastX(z) - 200 && h < 7;
+    const beachZone = (z > CITY_RECT.maxZ && x < 480 && x > -1100 && h < 4.5) || (h < 2.2 && dC > 300 && riverDist(x, z) > 60) || auBeach;
+    const beach = beachZone ? (auBeach ? smoothstep(coastX(z) - 200, coastX(z) - 150, x) : smoothstep(4.5, 1.5, h)) : 0;
     // base tint: greener in the ring hills near the coast, drier inland
     const dry = clamp(0.5 + 0.5 * Math.sin(x * 0.0021) * Math.cos(z * 0.0017), 0, 1);
     const col = [0.36 + dry * 0.12, 0.38 + dry * 0.05, 0.17 + dry * 0.02];
+    // San Aurelio: paved ground (passed as a negative farm weight)
+    const urb = ne < 200 ? 1 - smoothstep(-15, 45, ne) : 0;
+    if (urb > 0.001) return { col, t: [-Math.min(1, urb * 1.6), w.desert, w.mountain * (h < 520 ? 1 : 0.6), beach * (1 - urb)] };
     return { col, t: [farm, w.desert, w.mountain * (h < 520 ? 1 : 0.6), beach] };
   }
 

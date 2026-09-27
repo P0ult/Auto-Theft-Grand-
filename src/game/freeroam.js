@@ -58,7 +58,15 @@ export class FreeRoam {
     add(city, 'Santa Luz Skatepark', L.skate_santaluz?.x, L.skate_santaluz?.z - 15, { foot: true, exactVeh: true });
     add(city, 'Santa Luz Marina', L.marina?.x, L.marina?.z, { foot: true, yaw: 0 });
     add(city, 'Docks', L.docksQuay?.x, L.docksQuay?.z);
+    add(city, L.cargoShip?.name || 'Cargo ship', L.cargoShip?.x - 3, L.cargoShip?.z - 4, { foot: true, exactVeh: true, yaw: 0 });
     add(city, 'Warehouses', L.warehouse?.x, L.warehouse?.z);
+
+    const nc = 'San Aurelio';
+    add(nc, 'Plaza de Aurelio', L.aurelio?.x, L.aurelio?.z, { foot: true });
+    add(nc, 'Cathedral of San Aurelio', L.aurCathedral?.x, L.aurCathedral?.z);
+    add(nc, 'Bayview Park', L.aurPark?.x, L.aurPark?.z, { foot: true });
+    add(nc, 'Aurelio Arena', L.aurArena?.x, L.aurArena?.z);
+    add(nc, 'Harbor Drive', L.aurHarbor?.x, L.aurHarbor?.z);
 
     const towns = 'Towns';
     for (const t of Object.values(TOWNS)) add(towns, t.name, t.x, t.z);

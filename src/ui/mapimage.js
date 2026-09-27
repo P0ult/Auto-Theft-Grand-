@@ -1,7 +1,7 @@
 // Renders the map used by the radar and the pause-menu map: a whole-state layer (terrain, water,
 // fields, highways, towns, the base) and a sharper city layer drawn on top of it.
 import { XS, ZS, HALF_ROAD, CITY, WATER_Y, DISTRICTS } from '../world/citymap.js';
-import { WORLD, TOWNS, BASE, AIRFIELD, LAKE, regionWeights } from '../world/worldgen.js';
+import { WORLD, TOWNS, BASE, AIRFIELD, LAKE, regionWeights, NCITY, ncUrban } from '../world/worldgen.js';
 import { farmMask } from '../world/countryside.js';
 
 export const MAP_EXTENT = WORLD;
@@ -19,7 +19,9 @@ export function buildMapImage(map, size = 2048) {
   labels.push({ name: 'Santa Luz Pier', x: (P.x0 + P.x1) / 2, z: P.z1 - 80 }, { name: 'Mount Vista', x: 0, z: -1250 }, { name: 'Red Canyon', x: -1250, z: -250 }, { name: 'Pacific Ocean', x: -1500, z: 1150 });
   for (const t of Object.values(TOWNS)) labels.push({ name: t.name, x: t.x, z: t.z - t.r - 40, big: true });
   labels.push({ name: 'Fort Carver', x: (BASE.minX + BASE.maxX) / 2, z: BASE.minZ - 50, big: true }, { name: 'Tierra Seca Desert', x: -4600, z: -1500 }, { name: 'Pinewood Forest', x: -300, z: -3500 },
-    { name: 'Mount Cedro', x: -900, z: -3250 }, { name: 'Verde County', x: -2400, z: 450 }, { name: 'Lake Mirador', x: LAKE.x, z: LAKE.z }, { name: 'Bayshore', x: 1050, z: -1300 }, { name: AIRFIELD.name, x: AIRFIELD.x - 120, z: AIRFIELD.z + 80 });
+    { name: 'Mount Cedro', x: -900, z: -3250 }, { name: NCITY.name, x: NCITY.x, z: NCITY.z - 560, big: true }, { name: 'Aurelio Beach', x: NCITY.x + 780, z: NCITY.z + 60 },
+    { name: 'Cedar Valley', x: 120, z: -2700 }, { name: 'Centro', x: NCITY.x, z: NCITY.z + 90 }, { name: 'Harborside', x: NCITY.x + 240, z: NCITY.z - 30 }, { name: 'Cathedral Hill', x: NCITY.x - 250, z: NCITY.z + 60 },
+    { name: 'Mission', x: NCITY.x + 20, z: NCITY.z + 250 }, { name: 'Northgate', x: NCITY.x + 20, z: NCITY.z - 250 }, { name: 'Verde County', x: -2400, z: 450 }, { name: 'Lake Mirador', x: LAKE.x, z: LAKE.z }, { name: 'Bayshore', x: 1050, z: -1300 }, { name: AIRFIELD.name, x: AIRFIELD.x - 120, z: AIRFIELD.z + 80 });
   return { ...world, city, labels };
 }
 
@@ -58,6 +60,8 @@ function worldLayer(map, size) {
         b = 76 * w.country + 58 * w.mountain + 120 * w.desert;
         if (fm > 0.3) { r = r * 0.6 + 170 * 0.4; gg = gg * 0.6 + 160 * 0.4; b = b * 0.6 + 70 * 0.4; }
         if (h < 2.2 && w.desert < 0.5) { r = 214; gg = 196; b = 146; }
+        const urb = ncUrban(x, z);
+        if (urb > 0) { const k = Math.min(1, urb * 1.6); r = r * (1 - k) + 150 * k; gg = gg * (1 - k) + 148 * k; b = b * (1 - k) + 142 * k; }
         const hx = hf.sample(x + px, z) - h, hz = hf.sample(x, z + px) - h;
         const shade = Math.max(0.55, Math.min(1.25, 1 - (hx + hz) / px * 0.9));
         const alt = Math.min(1, Math.max(0, (h - 250) / 400));
@@ -89,7 +93,7 @@ function worldLayer(map, size) {
 }
 
 function drawRoads(g, map, X, Z, sx, city) {
-  const style = { freeway: ['#e0a340', 9], ramp: ['#e0b050', 5], highway: ['#e8e2d0', 8], road: ['#e8e6de', 6.5], dirt: ['#a58a64', 4] };
+  const style = { freeway: ['#e0a340', 9], ramp: ['#e0b050', 5], highway: ['#e8e2d0', 8], avenue: ['#f2f0e8', 9], road: ['#e8e6de', 6.5], dirt: ['#a58a64', 4] };
   g.lineCap = 'round'; g.lineJoin = 'round';
   for (const pass of [0, 1]) {
     for (const e of map.roads.edges) {

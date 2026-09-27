@@ -3,7 +3,8 @@
 // Creek airfield, the Fort Carver military base, power lines along the highways and the vegetation
 // scatter (pine forests, oak hills, desert cacti & rocks).
 import { RNG, clamp, lerp, smoothstep, hash2 } from '../core/utils.js';
-import { TOWNS, BASE, AIRFIELD, LAKE, regionWeights, cityDist, riverDist, scatter, fbmN } from './worldgen.js';
+import { TOWNS, BASE, AIRFIELD, LAKE, regionWeights, cityDist, riverDist, scatter, fbmN, ncEdgeDist, coastX } from './worldgen.js';
+import { populateNorthCity } from './northcity.js';
 
 export function farmMask(x, z) {
   const w = regionWeights(x, z);
@@ -15,6 +16,7 @@ export function farmMask(x, z) {
   for (const t of Object.values(TOWNS)) m *= smoothstep(t.r * 0.9, t.r * 1.4, Math.hypot(x - t.x, z - t.z));
   m *= smoothstep(60, 140, riverDist(x, z));
   m *= smoothstep(LAKE.r + 60, LAKE.r + 200, Math.hypot(x - LAKE.x, z - LAKE.z));
+  if (m > 0) m *= smoothstep(200, 450, ncEdgeDist(x, z));
   return m;
 }
 
@@ -27,6 +29,7 @@ export function populateCountryside(map) {
   const ctx = { map, rng, hf: map.hf, net: map.roads, footprints: [] };
   // existing city footprints are irrelevant out here; track what we place to avoid overlaps
   for (const [key, t] of Object.entries(map.roadInfo.towns)) town(ctx, key, t);
+  populateNorthCity(ctx);
   farms(ctx);
   airfield(ctx);
   railStations(ctx);
@@ -121,6 +124,21 @@ const TOWN_STYLE = {
     district: 'harbor',
     houses: () => ({ style: 3, roof: 'gable', floors: [1, 2], tint: [[0.55, 0.72, 0.85], [0.9, 0.35, 0.3], [0.95, 0.85, 0.45], [0.95, 0.95, 0.93], [0.45, 0.62, 0.55], [0.85, 0.6, 0.45]] }),
     shops: [['FISH MARKET', 'Hale Fish Market'], ['THE ANCHOR', 'The Anchor Pub'], ['OYSTER BAR', 'Pearl Oyster Bar'], ['CHANDLERY', 'Hale Chandlery'], ['BAIT SHOP', 'Hooked Bait Shop']],
+  },
+  gull: {
+    district: 'gull',
+    houses: () => ({ style: 3, roof: 'gable', floors: [1, 2], tint: [[0.95, 0.95, 0.92], [0.6, 0.78, 0.9], [0.95, 0.88, 0.6], [0.85, 0.55, 0.5], [0.7, 0.85, 0.8]] }),
+    shops: [['SURF & SAND', 'Gull Bay Surf Shop'], ['CLAM SHACK', 'The Clam Shack'], ['MOTEL', 'Seagull Motel'], ['ICE CREAM', 'Salt & Sugar'], ['BAIT', 'Gull Bay Bait']],
+  },
+  ridge: {
+    district: 'ridge',
+    houses: () => ({ style: 2, roof: 'gable', floors: [1, 2], tint: [[0.8, 0.62, 0.48], [0.68, 0.55, 0.42], [0.9, 0.85, 0.75], [0.6, 0.5, 0.42]] }),
+    shops: [['RIDGE INN', 'Cedar Ridge Inn'], ['OUTFITTERS', 'Summit Outfitters'], ['DINER', 'Pass Diner'], ['GAS & GO', 'Ridge Gas & Go']],
+  },
+  timber: {
+    district: 'forest',
+    houses: () => ({ style: 2, roof: 'gable', floors: [1, 2], tint: [[0.7, 0.5, 0.36], [0.58, 0.44, 0.33], [0.66, 0.56, 0.44], [0.5, 0.38, 0.3], [0.78, 0.66, 0.5]] }),
+    shops: [['SAWMILL', 'Timberline Sawmill Co.'], ['TAVERN', 'The Axe & Anvil'], ['LUMBER', 'Northwoods Lumber'], ['GENERAL STORE', 'Timberline General']],
   },
   seco: {
     district: 'seco',
@@ -461,6 +479,8 @@ function vegetation(ctx) {
   }
   const blocked = (x, z, r) => {
     if (cityDist(x, z) < 12) return true;
+    if (ncEdgeDist(x, z) < 15) return true;
+    if (z < -2000 && x > 300 && x > coastX(z) - 230) return true; // the Aurelio beaches
     if (net.onRoad(x, z, r + 2)) return true;
     const arr = FG.get(Math.floor(x / fc) * 7919 + Math.floor(z / fc));
     if (arr) for (const f of arr) if (Math.abs(f.cx - x) < f.hx + f.hz + r + 3 && Math.abs(f.cz - z) < f.hx + f.hz + r + 3) return true;
