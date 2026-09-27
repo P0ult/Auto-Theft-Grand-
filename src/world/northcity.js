@@ -350,7 +350,12 @@ export function populateNorthCity(ctx) {
   // ---- pavements: walk graph, lamps, trees, bins, hydrants, bus stops
   const walk = map.walkNodes;
   const areaCells = new Map();
-  const cellOf = (x, z) => { const k = Math.floor(x / 140) + ',' + Math.floor(z / 140); let a = areaCells.get(k); if (!a) areaCells.set(k, a = { district: 'aurelio', nodeIds: [], name: C.name, x: (Math.floor(x / 140) + 0.5) * 140, z: (Math.floor(z / 140) + 0.5) * 140, r: 100, town: true }); return a; };
+  const cellOf = (x, z) => {
+    const k = Math.floor(x / 140) + ',' + Math.floor(z / 140);
+    let a = areaCells.get(k);
+    if (!a) { const cx = (Math.floor(x / 140) + 0.5) * 140, cz = (Math.floor(z / 140) + 0.5) * 140; areaCells.set(k, a = { district: ncDistrict(cx, cz)?.key || 'aurelio', nodeIds: [], name: C.name, x: cx, z: cz, r: 100, town: true }); }
+    return a;
+  };
   const endNodes = new Map(); // node id -> [{wid, e}]
   const yWalk = y0 + 0.12;
   for (const e of nc.edges) {

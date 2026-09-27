@@ -11,9 +11,15 @@ export const GANGS = {
   cuervos: { name: 'Los Cuervos', color: 0x1f7a8c, district: 'docks', friendly: false, weapons: ['pistol', 'smg', 'shotgun'] },
   // Fort Carver garrison: only hostile once the base is on alert (see military.js)
   army: { name: 'Army', color: 0x556b2f, district: 'base', friendly: false, weapons: ['rifle'], aggroOnly: true, range: 70 },
+  // San Aurelio's dock mob: Vincent Castell's Harbor Saints (pea coats and flat caps), out of Harborside
+  saints: { name: 'Harbor Saints', color: 0x1d3557, district: 'aurharbor', friendly: false, weapons: ['pistol', 'smg', 'shotgun', 'knife'] },
   // the MV Pacific Star's crew and security: only hostile once the ship is alerted (see shipraid.js)
   crew: { name: 'Ship Crew', color: 0xff8c1a, district: 'ship', friendly: false, weapons: ['pistol'], aggroOnly: true, range: 55 },
-};
+};// the Harbor Saints' look (also used for mission enemies)
+export function saintLook(rng = new RNG((Math.random() * 1e9) | 0)) {
+  return randomAppearance(rng, { female: rng.chance(0.08), shirt: rng.pick([0xf2f2f2, 0xdfe6ee, 0x9aa7b5]), shirtType: 'jacket', jacketColor: rng.pick([0x1d3557, 0x14213d, 0x22223b, 0x2b2d42]), pants: rng.pick([0x1a1a1a, 0x2b2d42, 0x3d405b]), hairStyle: rng.pick(['cap', 'short', 'buzz', 'cap']), hat: rng.pick([0x14213d, 0x3d3d3d]), glasses: rng.chance(0.35), beard: rng.chance(0.4), shoes: 0x111111 });
+}
+
 
 const LINES = {
   bump: ['Watch it!', 'Hey!', 'Excuse you!', 'You blind?', 'Move!'],
@@ -295,7 +301,7 @@ export class PedManager {
     this.list = [];
     this.maxPeds = game.quality?.peds ?? 36;
     this.spawnTimer = 0;
-    this.gangAggro = { vipers: true, cuervos: false, kings: false, army: false, crew: false };
+    this.gangAggro = { vipers: true, cuervos: false, kings: false, army: false, crew: false, saints: false };
     this.frustum = new THREE.Frustum();
     this._m = new THREE.Matrix4();
     this.bodies = 0;
@@ -310,6 +316,7 @@ export class PedManager {
     const rng = new RNG((Math.random() * 1e9) | 0);
     let app;
     if (opts.appearance) app = opts.appearance;
+    else if (opts.gang === 'saints') app = saintLook(rng);
     else if (opts.gang) {
       const g = GANGS[opts.gang];
       app = randomAppearance(rng, { female: rng.chance(0.15), shirt: g.color, shirtType: rng.pick(['tee', 'tank', 'jacket', 'long']), jacketColor: 0x1a1a1a, bandana: rng.chance(0.5) ? g.color : null, hairStyle: rng.pick(['cap', 'buzz', 'short', 'bald']), hat: g.color });

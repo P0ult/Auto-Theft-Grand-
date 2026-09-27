@@ -1,4 +1,4 @@
-// AUTO THEFT GRAND — storyline. 26 missions in 6 chapters.
+// AUTO THEFT GRAND — storyline. 35 missions in 8 chapters (chapters VII-VIII, San Aurelio, are in story_north.js).
 // Andre "Dre" Castillo returns to Los Soles after his little brother Tino is killed.
 import * as THREE from 'three';
 import { RouteDriver, RaceDriver, MissionFail } from './missions.js';
@@ -10,6 +10,7 @@ import { GANGS } from './peds.js';
 import { WEAPONS } from './weapondefs.js';
 import { rand, randInt, pick, clamp, RNG } from '../core/utils.js';
 import { TOWNS, AIRFIELD } from '../world/worldgen.js';
+import { northMissions } from './story_north.js';
 
 // ------------------------------------------------------------------ cast
 const CAST = {
@@ -1427,7 +1428,8 @@ export const STORY = {
     {
       id: 'secosunrise', title: 'Seco Sunrise', contact: 'R', requires: ['dustoff'], reward: 15000,
       log: 'Took a Warhawk gunship to Puerto Seco at dawn, burned the Los Secos trucks and ran El Seco down in the desert.',
-      chapterEnd: ['LOS SOLES', 'Thanks for playing'],
+      chapterEnd: ['CHAPTER VII', 'San Aurelio'],
+      after: (g) => setTimeout(() => g.hud?.help('Marisol has news from up north. Meet her at the <b>safehouse</b>.', 7), 1500),
       start: () => ({ x: AIRFIELD.x - 30, z: AIRFIELD.z - 130 }),
       async run(m, game) {
         const A = AIRFIELD;
@@ -1480,5 +1482,6 @@ export const STORY = {
         await m.say('Dre', 'Tino would\'ve loved this. Bring it home.', 3);
       },
     },
+    ...northMissions({ look, chaseCar, fadeTeleport, crewSupport, aggroWhenNear }),
   ],
 };

@@ -211,6 +211,7 @@ export class Skateboard extends Bike {
       this.game.hud?.bigMessage(this.trickName, 'hint', 1.4, `+$${cash}`);
       this.game.audio?.play('cash', 0.4);
       this.game.stats && (this.game.stats.tricks = (this.game.stats.tricks || 0) + 1);
+      this.game.events?.emit('skateTrick', this.trickName, cash, this);
     }
     this.game.audio?.playAt('clink', this.pos, 1);
     this.flip = 0; this.shove = 0; this.flipV = 0; this.shoveV = 0; this.trickName = null; this._flipDone = 0; this._shoveDone = false;

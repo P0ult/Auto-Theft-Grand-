@@ -3,7 +3,7 @@
 // after you when you're wanted out on the water (they ram, and the bow gunner opens up).
 import * as THREE from 'three';
 import { WATER_Y, CITY } from '../world/citymap.js';
-import { LAKE } from '../world/worldgen.js';
+import { LAKE, NCITY, coastX } from '../world/worldgen.js';
 import { Part } from '../entities/loft.js';
 import { patch } from '../render/materials.js';
 import { clamp, rand, pick, dist2 } from '../core/utils.js';
@@ -86,11 +86,22 @@ export class BoatSystem {
         { x: -1318, z: -1860, yaw: Math.PI / 2, types: ['jetski'] }, { x: -1316, z: -1910, yaw: Math.PI / 2, types: ['jetski'] },
       ]);
     }
+    // San Aurelio: a pontoon out from Aurelio Beach
+    {
+      const z = NCITY.z + 40, cx = coastX(z);
+      pontoon(g, cx + 14, z - 1.6, cx + 84, z + 1.6, WATER_Y + 0.6);
+      m('Aurelio Marina', cx + 50, z, [
+        { x: cx + 50, z: z - 4.4, yaw: Math.PI / 2, types: ['speedboat', 'jetski'] }, { x: cx + 70, z: z - 4.6, yaw: Math.PI / 2, types: ['cruiser', 'speedboat'] },
+        { x: cx + 56, z: z + 4.3, yaw: Math.PI / 2, types: ['jetski', 'dinghy'] }, { x: cx + 76, z: z + 4.6, yaw: Math.PI / 2, types: ['policeboat'], police: true },
+      ]);
+      L.aurMarina = { x: cx + 4, z, name: 'Aurelio Marina', pontoon: { x0: cx + 14, x1: cx + 84, z } };
+    }
     // cruising routes (loops out at sea and on the lake)
     this.routes = [
       { name: 'santaluz', lake: false, types: ['speedboat', 'cruiser', 'dinghy'], n: 2, pts: [[-600, 880], [-200, 940], [300, 900], [700, 1020], [300, 1150], [-300, 1100], [-800, 1000]] },
       { name: 'beach', lake: false, types: ['jetski'], n: 2, pts: [[-320, 765], [-120, 790], [40, 775], [-60, 835], [-260, 820]] },
       { name: 'coast', lake: false, types: ['speedboat', 'cruiser'], n: 1, pts: [[1050, 500], [1150, 0], [1300, -500], [1350, -1000], [1250, -1400], [1400, -900], [1300, 200]] },
+      { name: 'aurelio', lake: false, types: ['speedboat', 'cruiser', 'jetski'], n: 2, pts: [[1420, -3300], [1480, -3800], [1430, -4300], [1540, -4550], [1565, -4000], [1545, -3500]] },
       { name: 'lake', lake: true, types: ['dinghy', 'jetski'], n: 1, pts: [[-1400, -1800], [-1520, -1760], [-1620, -1880], [-1520, -2020], [-1380, -1960]] },
     ].map((r) => ({ ...r, pts: r.pts.filter(([x, z]) => this._deep(x, z, 2)), boats: [] })).filter((r) => r.pts.length >= 3);
   }

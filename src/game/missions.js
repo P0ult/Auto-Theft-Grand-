@@ -329,7 +329,7 @@ class Ctx {
 
   // ---------------------------------------------------------------- objectives
   async goTo(x, z, opts = {}) {
-    const m = this.marker(x, z, { radius: opts.radius ?? (opts.vehicle ? 4 : 1.6), color: opts.color ?? 0xffd23f, label: opts.label, vehicleOnly: !!opts.vehicle, footOnly: !!opts.onFoot, icon: 'dot', height: opts.height });
+    const m = this.marker(x, z, { radius: opts.radius ?? (opts.vehicle ? 4 : 1.6), color: opts.color ?? 0xffd23f, label: opts.label, vehicleOnly: !!opts.vehicle, footOnly: !!opts.onFoot, icon: 'dot', height: opts.height, y: opts.y });
     if (opts.text) this.objective(opts.text);
     this.gps(x, z);
     let entered = false;
