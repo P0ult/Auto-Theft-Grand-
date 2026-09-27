@@ -317,16 +317,16 @@ export class LaneDriver {
     if (remain > 30) return 99;
     const vlist = game.vehicles.list;
     if (n.kind === 'rb') {
-      // give way to traffic already circulating and coming towards our entry
+      // give way to traffic already circulating towards our entry, and never pull in where someone is sitting
+      // in the ring at our merge point (that's how a roundabout locks solid). Traffic circulates with
+      // decreasing angle; we join the ring about 0.45 rad downstream of our approach.
       const ta = Math.atan2(cur.pts[cur.pts.length - 1][2] - n.z, cur.pts[cur.pts.length - 1][0] - n.x);
       for (const o of vlist) {
-        if (o === this.veh || o.removed || o.speedAbs < 0.5) continue;
+        if (o === this.veh || o.removed) continue;
         const d = Math.hypot(o.pos.x - n.x, o.pos.z - n.z);
-        if (d < n.rbR - 4 || d > n.rbR + 4) continue;
-        let da = Math.atan2(o.pos.z - n.z, o.pos.x - n.x) - ta;
-        while (da < 0) da += Math.PI * 2;
-        while (da > Math.PI * 2) da -= Math.PI * 2;
-        if (da < 1.5) return Math.max(0, (remain - 0.5) * 0.6);
+        if (d < n.rbR - 4.5 || d > n.rbR + 4.5) continue;
+        const da = wrapAngle(Math.atan2(o.pos.z - n.z, o.pos.x - n.x) - ta);
+        if ((o.speedAbs >= 0.5 && da > -0.2 && da < 1.5) || (da > -0.95 && da < 0.35)) return Math.max(0, (remain - 0.5) * 0.6);
       }
       return 11;
     }

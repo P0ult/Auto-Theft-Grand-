@@ -38,7 +38,7 @@ export const ROUTES = (() => {
     dryW: { type: 'road', ends: ['dry', null], ctrl: [[T.dry.x - 25, T.dry.z], [-3980, -2470], [-4200, -2450], [-4500, -2380], [-4800, -2300]] },
     costa: { type: 'road', ends: [null, 'seco'], ctrl: [[AIRFIELD.x - 40, AIRFIELD.z - 55], [-3150, 320], [-3400, 390], [-3700, 440], [T.seco.x + 22, T.seco.z]] },
     seco: { type: 'highway', ends: ['seco', null], ctrl: [[T.seco.x, T.seco.z - 22], [-4020, 200], [-4100, -300], [-4180, -900], [-4150, -1450], [-4080, -1900], [-4150, -2250], [-4200, -2445]] },
-    baseRd: { type: 'highway', ends: ['dry', 'base'], ctrl: [[T.dry.x, T.dry.z + 25], [-3875, -2650], [-3900, -2900], [-3960, -3250], [-3930, -3600], [-3800, -3860], [-3700, -3960], [-3720, BASE.gateZ], [BASE.maxX - 2, BASE.gateZ]] },
+    baseRd: { type: 'highway', ends: ['dry', 'base'], ctrl: [[T.dry.x, T.dry.z - 25], [-3875, -2650], [-3900, -2900], [-3960, -3250], [-3930, -3600], [-3800, -3860], [-3700, -3960], [-3720, BASE.gateZ], [BASE.maxX - 2, BASE.gateZ]] },
   };
 })();
 
@@ -351,7 +351,9 @@ export function buildRoadNetwork(C, hf) {
   const dryW = road(R.dryW.ctrl, 'road', { start: rbDry, name: 'Main Street' });
   const baseGate = mk(BASE.maxX - 2, BASE.gateZ, { kind: 'x', r: 8, name: 'Fort Carver gate' });
   const baseRd = road(R.baseRd.ctrl, 'highway', { start: rbDry, end: baseGate, name: 'Carver Road' });
-  const dryN = road([[rbDry.x, rbDry.z - 25], [-3860, -2330], [-3780, -2150], [-3600, -2050]], 'dirt', { start: rbDry, name: 'Mesa Track' });
+  // (both roads leave the roundabout on the side they head off to: starting on the far side ran them straight
+  // through the island, head-on into the circulating traffic)
+  const dryN = road([[rbDry.x, rbDry.z + 25], [-3860, -2330], [-3780, -2150], [-3600, -2050]], 'dirt', { start: rbDry, name: 'Mesa Track' });
   const dryS1 = road([[-3860, -2600], [-3960, -2610], [-4050, -2580]], 'road', { name: 'Adobe Street' });
   joinTo(baseRd, dryS1);
   info.towns.dry = { center: rbDry, roads: [dryE, dryW, baseRd, dryN, dryS1] };
