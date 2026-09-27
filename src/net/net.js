@@ -19,7 +19,7 @@ export const PLAYER_COLORS = [0x4cc9f0, 0xf72585, 0x80ed99, 0xffd166, 0xff7b00, 
 const SEND_HZ = 12;
 const DELAY = 150;            // ms of interpolation delay
 const EVENT_KEEP = 1600;      // ms a moment stays in the log (spans several sends)
-const PROTO = 1;
+const PROTO = 2; // (bump when the vehicle catalogue changes: types travel as indices)
 const SKEY = 'atg_net_v1';
 
 const r1 = (x) => Math.round(x * 10) / 10, r2 = (x) => Math.round(x * 100) / 100, r3 = (x) => Math.round(x * 1000) / 1000;
@@ -191,7 +191,7 @@ export class NetSystem {
       v: PROTO, n: this.name, c: this.color, j: this.joinedAt, pvp: this.pvp ? 1 : 0, ap: p.appearance,
       m: g.freeRoam ? 'f' : 's', pz: g.paused ? 1 : 0,
       p: [r2(pos.x), r2(pos.y), r2(pos.z)], y: r3(p.yaw), vl: [r1(p.vel.x), r1(p.vel.y), r1(p.vel.z)],
-      a: [r2(a.speed), r2(a.moveAngle), a.grounded ? 1 : 0, p.aiming ? 1 : 0, r2(p.aimPitch || 0), a.crouch ? 1 : 0, a.swim ? 1 : 0, a.handsUp ? 1 : 0, p.chute ? 1 : 0, r1(a.vy || 0)],
+      a: [r2(a.speed), r2(a.moveAngle), a.grounded ? 1 : 0, p.aiming ? 1 : 0, r2(p.aimPitch || 0), a.crouch ? 1 : 0, a.swim ? 1 : 0, a.handsUp ? 1 : 0, p.chute ? 1 : 0, r1(a.vy || 0), p.vehicle && p.aiming ? r3(p.aimYaw || 0) : 0],
       w: p.weapon, ac: act ? [act.name, this.actN] : null,
       hp: Math.round(p.health), ar: Math.round(p.armor), d: p.dead ? 1 : 0, rg: p.ragdolling ? 1 : 0, wl: g.police?.level | 0,
       vh: v ? this._vehState(v, p.seat) : null,
@@ -380,7 +380,8 @@ export class NetSystem {
     const vs = st.vh && typeof st.vh === 'object' ? st.vh : null;
     if (vs && !vs.tr) this._poseVehicle(P, vs, a.vh, b.vh, kk, ext, dt);
     else if (av.vehicle) { const v = av.vehicle; v.takeOut(av); }
-    if (!vs && P.veh) { this._releaseProxy(P.veh); P.oldVeh = P.veh; P.veh = null; }
+    if (!vs && P.veh) { this._parkProxy(P, P.veh); P.oldVeh = P.veh; P.veh = null; }
+    if (av.vehicle && av.vehicle.removed) { av.vehicle = null; av.seat = -1; this.game.scene.add(av.root); }
     if (!av.vehicle) {
       // on foot (or riding the train: shown where they are)
       const down = !!(st.rg || st.d);
@@ -392,7 +393,12 @@ export class NetSystem {
       s.crouch = !!A[5]; s.swim = !!A[6]; s.handsUp = !!A[7]; s.vy = num(A[9]);
       av.aiming = !!A[3]; av.aimPitch = s.aimPitch; av.swimming = !!A[6]; av.crouching = !!A[5];
       av.vel.set(vl[0], vl[1], vl[2]);
-    } else av.setDown(false, !!st.d);
+    } else {
+      av.setDown(false, !!st.d);
+      // drive-bys: aiming from a seat (a passenger leans out of the window)
+      const A = Array.isArray(st.a) ? st.a : [];
+      av.aiming = !!A[3]; av.aimPitch = clamp(num(A[4]), -1.5, 1.5); av.aimYaw = av.aiming ? num(A[10]) : null;
+    }
     av.setWeapon(typeof st.w === 'string' ? st.w : 'fist');
     av.animState.weapon = av.holdType;
     if (Array.isArray(st.ac) && st.ac[1] !== P.actN) { P.actN = st.ac[1]; if (typeof st.ac[0] === 'string' && !av.ragdolling) av.anim.play(st.ac[0]); }
@@ -417,11 +423,18 @@ export class NetSystem {
     if (!VEHICLES[vs.t] || !vec3(vs.p)) return;
     let v = P.veh;
     if (!v || v.removed || v.type !== vs.t || (v.exploded && !vs.x)) {
-      if (v) this._releaseProxy(v);
-      // they got back into the car they left here? use it again
-      const o = P.oldVeh;
-      if (o && !o.removed && o.type === vs.t && !o.driver && Math.hypot(o.pos.x - vs.p[0], o.pos.z - vs.p[2]) < 10) v = o;
-      else v = this.game.vehicles.spawn(vs.t, vs.p[0], vs.p[2], num(vs.y), { color: Number.isInteger(vs.c) ? vs.c : undefined, y: vs.p[1], persistent: true });
+      if (v) this._parkProxy(P, v);
+      // the car they got into is usually one we already show: the one they left here, or one of their parked
+      // or traffic cars we draw as a stand-in. Take that over rather than spawning a second copy.
+      const near = (o) => o && !o.removed && o.type === vs.t && Math.hypot(o.pos.x - vs.p[0], o.pos.z - vs.p[2]) < 9 && !o.occupants.some((c) => c && (c.isPlayer || (c.remote && !c.npcProxy)));
+      let cand = near(P.oldVeh) ? P.oldVeh : null;
+      if (!cand && P.npc) for (const s of P.npc.cars.values()) if (near(s)) { cand = s; break; }
+      if (cand) {
+        v = cand;
+        if (P.npc) for (const [id, s] of P.npc.cars) if (s === v) { P.npc.cars.delete(id); v.netId = id; } // (their NPC record for it now means "being driven")
+        for (const o of [...v.occupants]) if (o?.npcProxy) { v.takeOut(o); this.npc._dropPed(o); }
+        v.npcRemote = false; v.parkedOf = null;
+      } else v = this.game.vehicles.spawn(vs.t, vs.p[0], vs.p[2], num(vs.y), { color: Number.isInteger(vs.c) ? vs.c : undefined, y: vs.p[1], persistent: true });
       v.remote = true;
       v.remoteOwner = P.id;
       v.persistent = true;
@@ -482,9 +495,18 @@ export class NetSystem {
   }
 
   // A stand-in its owner has left: it becomes an ordinary parked car in our world
+  // they got out: keep showing the car where they left it until they share it as one of their parked cars
+  _parkProxy(P, v) {
+    for (const o of [...v.occupants]) if (o && o.remote) { v.takeOut(o); if (o.npcProxy) this.npc._dropPed(o); }
+    v.netT = null; v.vel.set(0, 0, 0);
+    if (v.quat) { v.grounded = true; v.power = 0; }
+    v.parkedOf = P.id; v.parkedT = performance.now();
+  }
+
   _releaseProxy(v) {
     for (let i = 0; i < v.occupants.length; i++) { const o = v.occupants[i]; if (o && o.remote) v.takeOut(o); }
     v.remote = false; v.remoteOwner = null; v.locked = false; v.persistent = false; v.netT = null;
+    v.netId = 0; v.npcRemote = false; v.parkedOf = null; // (a peer's id means nothing to us)
     if (v._mass0) v.mass = v._mass0;
     v.vel.set(0, 0, 0);
     if (v.quat) { v.grounded = true; v.power = 0; }

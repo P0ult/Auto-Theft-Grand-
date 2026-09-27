@@ -10,6 +10,7 @@ import { buildAircraftModel } from './aircraftmodels.js';
 import { vehicleMaterials } from './vehiclemodels.js';
 import { WATER_Y } from '../world/citymap.js';
 import { clamp, damp, wrapAngle, sign } from '../core/utils.js';
+import { Bike } from './bikes.js';
 
 const G = 9.81;
 const X = new THREE.Vector3(1, 0, 0), Y = new THREE.Vector3(0, 1, 0), Z = new THREE.Vector3(0, 0, 1);
@@ -531,8 +532,8 @@ export class Heli extends AirVehicle {
     // attitude: tilt the rotor disc; hands off = the auto-hover gently brakes the drift
     const sy = Math.sin(this.yaw), cy = Math.cos(this.yaw);
     const vFwd = this.vel.x * sy + this.vel.z * cy, vLeft = this.vel.x * cy - this.vel.z * sy;
-    let tP = c.pitch ? c.pitch * maxT : clamp(-vFwd * 0.03, -0.2, 0.2);
-    let tR = c.roll ? c.roll * maxT * 0.8 : clamp(vLeft * 0.04, -0.2, 0.2);
+    let tP = c.pitch ? c.pitch * maxT : clamp(-vFwd * 0.05, -0.3, 0.3);
+    let tR = c.roll ? c.roll * maxT * 0.8 : clamp(vLeft * 0.06, -0.3, 0.3);
     if (this.grounded) { tP = 0; tR = 0; }
     if (!alive) { tP = 0.15; tR = 0.2; }
     this.tiltP = damp(this.tiltP, tP, 2.4, h);
@@ -548,6 +549,12 @@ export class Heli extends AirVehicle {
     _a.y -= G;
     const kd = G * Math.tan(maxT) / d.vMax;
     _a.x -= this.vel.x * kd; _a.z -= this.vel.z * kd;
+    if (alive && !this.grounded) {
+      // arcade handling: sideways slip bleeds off (the tail weathervanes the airframe into the airflow, so a
+      // turn carries the speed round with it), and with the stick centred the auto-hover also holds position
+      if (!c.roll) { const k = 1.3 + Math.min(1, Math.abs(vFwd) / 20) * 1.2; _a.x -= cy * vLeft * k; _a.z += sy * vLeft * k; }
+      if (!c.pitch && !c.roll) { _a.x -= this.vel.x * 0.5; _a.z -= this.vel.z * 0.5; }
+    }
     _a.y -= this.vel.y * (1.1 * this.spool + 0.05);
     this.vel.addScaledVector(_a, h);
     const fl = this._floor();
@@ -759,6 +766,7 @@ export class Tank extends Vehicle {
 }
 
 export function vehicleClass(def) {
+  if (def.bike) return Bike;
   if (def.kind === 'plane' || def.kind === 'jet') return Plane;
   if (def.kind === 'heli') return Heli;
   if (def.kind === 'tank') return Tank;

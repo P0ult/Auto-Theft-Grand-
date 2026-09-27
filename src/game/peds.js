@@ -255,7 +255,7 @@ export class Ped extends Character {
     // get in the leader's car
     if (L.vehicle && !this.vehicle && !game.vehicles.isBusy(this)) {
       const v = L.vehicle;
-      const free = [1, 2, 3].find((s) => !v.occupants[s]);
+      const free = [1, 2, 3].find((s) => s < (v.model?.seats?.length || 2) && !v.occupants[s]);
       if (free && dist2(this.pos.x, this.pos.z, v.pos.x, v.pos.z) < 30 * 30) { game.vehicles.enter(this, v, free, { force: true }); return; }
     }
     if (!L.vehicle && this.vehicle) { game.vehicles.exit(this); return; }

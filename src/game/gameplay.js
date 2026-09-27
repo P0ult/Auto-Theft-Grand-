@@ -39,7 +39,10 @@ export class Gameplay {
         else if (kind === 'heli') g.hud.help(`<b>Space</b> climb · <b>Shift</b> descend · <b>W/S</b> nose down/up · <b>A/D</b> turn · <b>Q/E</b> strafe · <b>Mouse</b> camera${guns} · <b>F</b> bail out. Wait for the rotor to spin up.`, 12);
         else if (kind === 'train') g.hud.help(v.driver === c ? '<b>W</b> throttle · <b>S</b> brake / reverse · <b>H</b> horn · <b>F</b> climb out. The line runs from Dry Wells to Union Station.' : 'Riding the Sol Line. Sit back, or press <b>F</b> to get off (best at a station).', 9);
         else if (kind === 'tank') g.hud.help('<b>W/S</b> drive · <b>A/D</b> turn on the spot · <b>Mouse</b> aim the turret · <b>LMB</b> fire the cannon · drive straight over cars.', 10);
-      } else if (!kind && !this.hinted.drive) { this.hinted.drive = true; g.hud.help('<b>W</b> accelerate · <b>S</b> brake/reverse · <b>Space</b> handbrake · <b>N</b> radio · <b>V</b> camera · <b>F</b> exit', 7); }
+      } else if (v.def.bike && !this.hinted.bike) {
+        this.hinted.bike = true;
+        g.hud.help(v.def.pedal ? '<b>W</b> pedal · <b>S</b> brake · <b>A/D</b> steer · <b>F</b> get off. Hit something hard and you\'ll go over the bars.' : '<b>W</b> throttle · <b>S</b> brake · <b>A/D</b> steer · <b>Space</b> handbrake · <b>F</b> get off. Crash hard and you\'re thrown off.', 8);
+      } else if (!kind && !v.def.bike && !this.hinted.drive) { this.hinted.drive = true; g.hud.help('<b>W</b> accelerate · <b>S</b> brake/reverse · <b>Space</b> handbrake · <b>N</b> radio · <b>V</b> camera · <b>F</b> exit', 7); }
     });
     ev.on('vehicleExploded', (v) => { if (v.lastDamager === g.player || g.player.vehicle === v) g.stats.carsDestroyed++; });
     ev.on('pedRunOver', (c, v) => { if (v.driver === g.player) g.stats.runOver++; });

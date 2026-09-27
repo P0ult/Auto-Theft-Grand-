@@ -308,15 +308,36 @@ export class Animator {
       const save = this.P.slice();
       for (let side = 0; side < 2; side++) {
         const off = this.thighOff[side];
-        const hipY = this.hipH - 0.46 + off[1];
-        this.legIK(side, (side === 0 ? 1 : -1) * 0.13 - off[0], 0.12 - hipY, 0.5);
+        const f = s.bike && s.feet ? s.feet[side] : null;
+        if (f) this.legIK(side, f[0] - off[0], f[1] - off[1], f[2] - off[2]); // astride: pegs / pedals (hip-relative)
+        else {
+          const hipY = this.hipH - 0.46 + off[1];
+          this.legIK(side, (side === 0 ? 1 : -1) * 0.13 - off[0], 0.12 - hipY, 0.5);
+        }
       }
       // blend legs from saved to sitting
       for (const b of [B.lThigh, B.lShin, B.lFoot, B.rThigh, B.rShin, B.rFoot]) {
         for (let c = 0; c < 3; c++) { const i = b * 3 + c; P[i] = lerp(save[i], P[i], k); }
       }
-      this.mix(B.spine, -0.12, 0, 0, k); this.mix(B.chest, -0.06, 0, 0, k); this.mix(B.head, 0.1, (s.lookYaw || 0) * 0.6, 0, k);
       const steer = s.steer || 0;
+      if (s.bike) {
+        // hunched over the bars (a sport bike most), head up to see the road; a pillion holds on behind
+        const pill = s.bike === 'pillion', moto = s.bike === 'moto';
+        this.mix(B.spine, pill ? 0.18 : moto ? 0.42 : 0.3, 0, 0, k);
+        this.mix(B.chest, pill ? 0.08 : moto ? 0.24 : 0.16, 0, 0, k);
+        this.mix(B.head, pill ? -0.15 : -0.55, (s.lookYaw || 0) * 0.5, 0, k);
+        if (pill) {
+          this.mix(B.lUpperArm, -0.75, -0.2, 0.35, k); this.mix(B.lForearm, -1.1, 0, 0, k);
+          this.mix(B.rUpperArm, -0.75, 0.2, -0.35, k); this.mix(B.rForearm, -1.1, 0, 0, k);
+        } else {
+          // reach for the grips; the bars swing with the steering
+          const st = clamp(steer, -0.6, 0.6);
+          this.mix(B.lUpperArm, -0.95 + st * 0.3, -0.15, 0.32, k); this.mix(B.lForearm, -0.45 - st * 0.25, 0, 0, k);
+          this.mix(B.rUpperArm, -0.95 - st * 0.3, 0.15, -0.32, k); this.mix(B.rForearm, -0.45 + st * 0.25, 0, 0, k);
+          this.mix(B.lHand, -0.2, 0, 0.3, k); this.mix(B.rHand, -0.2, 0, -0.3, k);
+        }
+      } else {
+      this.mix(B.spine, -0.12, 0, 0, k); this.mix(B.chest, -0.06, 0, 0, k); this.mix(B.head, 0.1, (s.lookYaw || 0) * 0.6, 0, k);
       if (s.sit === 1) {
         this.mix(B.lUpperArm, -0.95 + steer * 0.35, -0.25, 0.25, k); this.mix(B.lForearm, -0.75 - steer * 0.2, 0, 0, k);
         this.mix(B.rUpperArm, -0.95 - steer * 0.35, 0.25, -0.25, k); this.mix(B.rForearm, -0.75 + steer * 0.2, 0, 0, k);
@@ -325,12 +346,15 @@ export class Animator {
         this.mix(B.lUpperArm, -0.35, 0, 0.1, k); this.mix(B.lForearm, -0.9, 0, 0, k);
         this.mix(B.rUpperArm, -0.35, 0, -0.1, k); this.mix(B.rForearm, -0.9, 0, 0, k);
       }
+      }
     }
 
     // aiming weapons
     if (w.aim > 0.01) {
       const k = w.aim;
       const pitch = s.aimPitch || 0;
+      // (on a bike the upper body turns to the target, the legs stay on the pegs)
+      if (s.sit && s.aimTwist) { this.add(B.spine, 0, s.aimTwist * 0.45 * k, 0); this.add(B.chest, 0, s.aimTwist * 0.4 * k, 0); }
       const rec = this.recoil;
       if (s.weapon === 'pistol') {
         this.mix(B.rUpperArm, -Math.PI / 2 - pitch - rec * 0.35, 0.3, 0, k);

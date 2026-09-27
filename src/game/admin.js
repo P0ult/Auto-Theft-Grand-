@@ -8,6 +8,7 @@ import { clamp } from '../core/utils.js';
 // what the spawner offers, by group (trains need their rails, so they're left out)
 export const SPAWN_GROUPS = [
   ['Cars', ['meridian', 'kestrel', 'brawler', 'zenith', 'bouncer', 'summit', 'taxi']],
+  ['Bikes', ['razor', 'trail', 'bmx', 'roadbike']],
   ['Work & emergency', ['hauler', 'parcel', 'boxer', 'police']],
   ['Military', ['ranger', 'barracks', 'mammoth']],
   ['Aircraft', ['skipper', 'skylark', 'hercules', 'warhawk', 'raptor']],

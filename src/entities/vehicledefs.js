@@ -55,6 +55,27 @@ export const VEHICLES = {
     mass: 5200, force: 20000, top: 32, grip: 0.85, drive: 'rwd', steer: 0.5, brake: 30000, rarity: 2, camDist: 12, camHeight: 3.2,
     colors: [0xffffff, 0x1d3557, 0x9b2226],
   },
+  // ------------------------------------------------ two-wheelers (car physics on a narrow track; see bikes.js)
+  razor: {
+    name: 'Razor 600', body: 'sport', bike: 'moto', L: 2.1, W: 0.72, H: 1.2, wheelbase: 1.42, track: 0.3, wheelR: 0.31, clearance: 0.14,
+    mass: 330, force: 3100, top: 64, grip: 1.15, drive: 'rwd', steer: 0.55, brake: 3900, rarity: 2, camDist: 5.4, camHeight: 1.55, health: 600,
+    colors: [0xd00000, 0x111111, 0x0077b6, 0xffffff, 0x2dc653, 0xff9f1c],
+  },
+  trail: {
+    name: 'Trailblazer', body: 'dirt', bike: 'moto', offroad: true, L: 2.15, W: 0.8, H: 1.25, wheelbase: 1.46, track: 0.3, wheelR: 0.36, clearance: 0.3,
+    mass: 300, force: 2500, top: 45, grip: 1.05, drive: 'rwd', steer: 0.62, brake: 3300, rarity: 1, camDist: 5.4, camHeight: 1.6, health: 550,
+    colors: [0xff6b00, 0xf7d000, 0x1b4dd8, 0x2e7d32, 0xffffff],
+  },
+  bmx: {
+    name: 'BMX', body: 'bmx', bike: 'bicycle', pedal: true, L: 1.65, W: 0.62, H: 1.1, wheelbase: 0.98, track: 0.25, wheelR: 0.3, clearance: 0.2,
+    mass: 95, force: 440, top: 10.5, grip: 1.0, drive: 'rwd', steer: 0.75, brake: 900, rarity: 0, camDist: 4.6, camHeight: 1.45, health: 300,
+    colors: [0x00b4d8, 0xef233c, 0x111111, 0xffd60a, 0x80ed99],
+  },
+  roadbike: {
+    name: 'Road Bike', body: 'road', bike: 'bicycle', pedal: true, L: 1.75, W: 0.6, H: 1.1, wheelbase: 1.02, track: 0.25, wheelR: 0.34, clearance: 0.22,
+    mass: 100, force: 480, top: 14, grip: 1.0, drive: 'rwd', steer: 0.62, brake: 950, rarity: 0, camDist: 4.8, camHeight: 1.5, health: 300,
+    colors: [0xe63946, 0x1d3557, 0xf1faee, 0x2a9d8f, 0x111111],
+  },
   // ------------------------------------------------ military ground vehicles (car physics)
   ranger: {
     name: 'Ranger', body: 'suv', L: 4.7, W: 2.05, H: 1.95, wheelbase: 2.85, track: 1.75, wheelR: 0.44, clearance: 0.42,
@@ -108,3 +129,4 @@ export const VEHICLES = {
 };
 
 export const TRAFFIC_POOL = Object.entries(VEHICLES).filter(([, d]) => d.rarity > 0).map(([id, d]) => [id, d.rarity]);
+export const BIKES = Object.keys(VEHICLES).filter((id) => VEHICLES[id].bike);

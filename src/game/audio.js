@@ -524,7 +524,7 @@ export class Audio {
     const flying = pv && pv.def.aircraft;
     if (flying) this._airUpdate(pv, t);
     else if (this.air) this.air.out.gain.setTargetAtTime(0, t, 0.3);
-    if (pv && !pv.isWrecked && !flying) {
+    if (pv && !pv.isWrecked && !flying && !pv.def.pedal) {
       const sp = Math.abs(pv.speed);
       const top = pv.def.top;
       // fake gearbox
@@ -537,7 +537,7 @@ export class Audio {
       if (pv.airborne) rpm = Math.max(rpm, 5000 * pv.input.throttle + 1500);
       V.rpm += (rpm - V.rpm) * Math.min(1, dt * 8);
       const heavy = pv.def.mass > 2000 ? 0.7 : 1;
-      const base = (V.rpm / 60) * 0.5 * heavy * (pv.def.body === 'super' ? 1.3 : pv.def.body === 'muscle' ? 0.8 : 1);
+      const base = (V.rpm / 60) * 0.5 * heavy * (pv.def.bike ? 1.75 : pv.def.body === 'super' ? 1.3 : pv.def.body === 'muscle' ? 0.8 : 1);
       V.o1.frequency.setTargetAtTime(base, t, 0.03);
       V.o2.frequency.setTargetAtTime(base * 0.5, t, 0.03);
       V.o3.frequency.setTargetAtTime(base * 0.25, t, 0.03);
@@ -572,7 +572,7 @@ export class Audio {
     if (!pv && night > 0.6 && this.cricketT <= 0) { this.cricketT = rand(0.8, 2.5); this._chirp(true); }
     if (env.lightning > 0.95 && !this._thunderLock) { this._thunderLock = true; setTimeout(() => { this.play('thunder', 0.8); this._thunderLock = false; }, rand(300, 2500)); }
     // radio only while in a vehicle
-    this.radio?.update(dt, !!pv && this.radioOn);
+    this.radio?.update(dt, !!pv && !pv.def.bike && this.radioOn); // (no radio on a bike)
   }
 }
 

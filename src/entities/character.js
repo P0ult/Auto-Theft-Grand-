@@ -121,13 +121,16 @@ export class Character {
     const act = this.anim.action;
     if (act && !act.hitDone && act.hitTime >= 0 && act.t >= act.hitTime) { act.hitDone = true; act.onHit?.(); }
     if (this.vehicle) {
-      this.animState.sit = this.seat === 0 ? 1 : 2;
+      this._seatState(this.animState);
       this.animState.speed = 0;
       this.animState.grounded = true;
       this.animState.swim = false;
       this.animState.aim = this.aiming && this.weaponDef.type === 'gun';
+      this.animState.aimPitch = this.aimPitch || 0;
       this.animState.weapon = this.holdType;
+      this._leanOut(dt);
       this.anim.update(dt, this.animState);
+      this._orientWeapon();
       return;
     }
     this.animState.sit = 0;
@@ -162,6 +165,50 @@ export class Character {
     if (this.weaponMesh) this.weaponMesh.visible = !this.swimming;
     this.anim.update(dt, st);
     this._orientWeapon();
+  }
+
+  // what the seat asks of the body: a chair, or astride a bike (feet on the pegs / pedals, hands on the grips)
+  _seatState(st) {
+    const v = this.vehicle;
+    st.sit = this.seat === 0 ? 1 : 2;
+    if (v?.def.bike) {
+      st.bike = this.seat === 0 ? v.def.bike : 'pillion';
+      st.feet = v.feetFor?.(this.seat) || null;
+      st.grips = this.seat === 0 ? v.gripsFor?.() : null;
+      st.steer = v.steerAngle || 0;
+    } else st.bike = null;
+  }
+
+  // A passenger aiming a gun climbs half out of the window: sits on the door frame, turned towards the target
+  // (anywhere on their side of the car, round to the front and back), and shoots over the roof.
+  _leanOut(dt) {
+    const v = this.vehicle, seat = v.model.seats?.[this.seat];
+    if (!seat) return;
+    if (!this._seatPos) this._seatPos = this.root.position.clone();
+    if (v.def.bike) {
+      // nothing to lean out of: twist at the waist towards the target instead
+      const aim = this.aiming && this.animState.aim;
+      this.leanK = aim ? 1 : 0;
+      const ay = this.aimYaw ?? (this.aimDir ? Math.atan2(this.aimDir.x, this.aimDir.z) : v.yaw);
+      this.animState.aimTwist = aim ? clamp(wrapAngle(ay - v.yaw), -1.7, 1.7) : 0;
+      return;
+    }
+    this.animState.aimTwist = 0;
+    const want = this.aiming && this.seat > 0 && this.animState.aim && !v.def.kind ? 1 : 0;
+    this.leanK = (this.leanK || 0) + (want - (this.leanK || 0)) * (1 - Math.exp(-9 * dt));
+    const k = this.leanK < 0.002 ? 0 : this.leanK;
+    const side = seat.x >= 0 ? 1 : -1; // which window: the side of the car the seat is on
+    let rel = 0;
+    if (k) {
+      const ay = this.aimYaw ?? (this.aimDir ? Math.atan2(this.aimDir.x, this.aimDir.z) : v.yaw);
+      // (local yaw that faces straight out of this window is side * PI/2; keep within ~110 degrees of it)
+      const out = side * Math.PI / 2;
+      rel = out + clamp(wrapAngle(ay - v.yaw - out), -1.95, 1.95);
+    }
+    const e = k * k * (3 - 2 * k);
+    this.root.position.set(this._seatPos.x + side * 0.62 * e, this._seatPos.y + 0.42 * e, this._seatPos.z - 0.05 * e);
+    this.root.rotation.set(0, rel * e, -side * 0.12 * e);
+    this.leaning = e > 0.5;
   }
 
   // While aiming, point the gun straight at the aim target (the arm pose only approximates it).

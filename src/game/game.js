@@ -21,6 +21,7 @@ export const QUALITY = {
   ultra: { pixelRatio: Math.min(2, window.devicePixelRatio || 1), shadows: 4096, shadowSize: 110, msaa: 4, bloom: true, rays: true, ssr: 36, ao: true, peds: 46, traffic: 34, drawDist: 3200 },
 };
 
+const _aimDir = new THREE.Vector3();
 export class Game {
   constructor(container, opts = {}) {
     this.container = container;
@@ -182,10 +183,23 @@ export class Game {
         const pv0 = player.vehicle;
         if (pv0.armed && player.seat === 0) player.aiming = !!pv0.showCrosshair; // mounted guns fire from playerControl
         else {
-          player.aiming = input.aimDown() && player.weaponDef.type === 'gun' && (player.weapon === 'pistol' || player.weapon === 'smg') && !pv0.def.kind;
-          if (player.aiming) {
-            player.fireCooldown -= dt;
-            if (input.driveByFire() && player.fireCooldown <= 0) player.fire(this.rig);
+          // drive-by (a passenger leans out of the window)
+          let aim = input.aimDown() && !pv0.def.kind;
+          if (aim && !player.carWeaponOk(player.weapon)) { const b = player.bestCarWeapon(); if (b) player.switchTo(b); else aim = false; }
+          player.aiming = aim;
+          if (input.hit('nextWeapon') || input.mouse.wheel > 0) player.cycleCarWeapon(1);
+          if (input.hit('prevWeapon') || input.mouse.wheel < 0) player.cycleCarWeapon(-1);
+          if (player.reloading > 0) { player.reloading -= dt; if (player.reloading <= 0) player.finishReload(); }
+          else if (input.key('KeyR')) player.startReload();
+          player.fireCooldown -= dt;
+          if (aim) {
+            const dir = this.rig.lookDir(_aimDir);
+            player.aimDir = (player.aimDir || new THREE.Vector3()).copy(dir);
+            player.aimPitch = Math.asin(Math.max(-1, Math.min(1, dir.y)));
+            player.aimYaw = Math.atan2(dir.x, dir.z);
+            // (leaning out takes a moment before the first shot)
+            const ready = player.seat === 0 || player.leanK > 0.7;
+            if (input.driveByFire() && player.fireCooldown <= 0 && player.reloading <= 0 && ready) player.fire(this.rig);
           }
         }
       }
@@ -227,7 +241,7 @@ export class Game {
       const cabSeat = this.taxi?.seatFor(v, p); // a cab you whistled for: get in the back
       if (cabSeat != null) { this.vehicles.enter(p, v, cabSeat); return; }
       const seat = v.nearestDoor ? v.nearestDoor(p.pos).seat : 0;
-      if (seat > 0 && v.occupants[seat]) { const free = [1, 2, 3].find((k) => !v.occupants[k]); if (free) return this.vehicles.enter(p, v, free); }
+      if (seat > 0 && v.occupants[seat]) { const free = [1, 2, 3].find((k) => k < (v.model?.seats?.length || 2) && !v.occupants[k]); if (free) return this.vehicles.enter(p, v, free); }
       this.vehicles.enter(p, v, seat);
     }
   }

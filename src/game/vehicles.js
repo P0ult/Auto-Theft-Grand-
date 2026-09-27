@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { Vehicle } from '../entities/vehicle.js';
 import { vehicleClass } from '../entities/aircraft.js';
 import { Train } from '../entities/train.js';
-import { VEHICLES, TRAFFIC_POOL } from '../entities/vehicledefs.js';
+import { VEHICLES, TRAFFIC_POOL, BIKES } from '../entities/vehicledefs.js';
 import { RNG, clamp, dist2, hash2 } from '../core/utils.js';
 
 const _a = new THREE.Vector3();
@@ -35,6 +35,7 @@ export class VehicleManager {
 
   update(dt) {
     const list = this.list;
+    for (let i = list.length - 1; i >= 0; i--) if (list[i].removed) list.splice(i, 1); // (removed directly, e.g. after a cutscene)
     // AI for vehicles not driven by the traffic or police systems (mission cars)
     for (const v of list) {
       if (v.ai && !v.traffic && !v.policeUnit && !v.remote && v.driver && !v.driver.isPlayer && !v.driver.dead && !v.isWrecked) v.ai.update(dt);
@@ -148,6 +149,7 @@ export class VehicleManager {
     A.vel.x -= j * nx * imA; A.vel.z -= j * nz * imA; A.r -= raN * j / A.I;
     Bc.vel.x += j * nx * imB; Bc.vel.z += j * nz * imB; Bc.r += rbN * j / Bc.I;
     const impact = -rvn;
+    A.onCrash?.(impact, Bc); Bc.onCrash?.(impact, A); // (bikes throw their riders)
     if (impact > 2.5) {
       const dmg = (impact - 2.5) * 12;
       A.damage(dmg * (Bc.mass / (A.mass + Bc.mass)) * 2, Bc.driver);
@@ -328,7 +330,7 @@ export class VehicleManager {
         if (s.seat === 0) door.open = Math.min(1, s.t / 0.3);
         if (s.t >= 0.3) {
           const occupant = veh.occupants[s.seat];
-          if (occupant && occupant !== char) { s.phase = 'jack'; s.t = 0; char.anim.play('pull'); this.game.audio?.play('doorOpen'); }
+          if (occupant && occupant !== char) { s.phase = 'jack'; s.t = 0; char.anim.play('pull'); if (!veh.def.bike) this.game.audio?.play('doorOpen'); }
           else { s.phase = 'enter'; s.t = 0; this._beginSit(s); }
         }
         return false;
@@ -354,7 +356,7 @@ export class VehicleManager {
       }
       if (s.phase === 'close') {
         if (s.seat === 0) door.open = Math.max(0, 1 - s.t / 0.3);
-        if (s.t >= 0.3) { door.open = 0; this.game.audio?.playAt('doorClose', veh.pos, 0.7); char.onEnteredVehicle?.(veh); this.game.events.emit('enteredVehicle', char, veh); return true; }
+        if (s.t >= 0.3) { door.open = 0; if (!veh.def.bike) this.game.audio?.playAt('doorClose', veh.pos, 0.7); char.onEnteredVehicle?.(veh); this.game.events.emit('enteredVehicle', char, veh); return true; }
         return false;
       }
     } else if (s.type === 'exit') {
@@ -374,7 +376,7 @@ export class VehicleManager {
       }
       if (s.phase === 'close') {
         if (s.seat === 0) door.open = Math.max(0, 1 - s.t / 0.3);
-        if (s.t >= 0.3) { door.open = 0; this.game.audio?.playAt('doorClose', veh.pos, 0.6); return true; }
+        if (s.t >= 0.3) { door.open = 0; if (!veh.def.bike) this.game.audio?.playAt('doorClose', veh.pos, 0.6); return true; }
         return false;
       }
     }
@@ -426,6 +428,7 @@ export class VehicleManager {
       else if (s.fancy) type = rng.pick(['zenith', 'kestrel', 'summit']);
       else if (s.district === 'hood') type = rng.weighted([['bouncer', 3], ['meridian', 4], ['brawler', 2], ['hauler', 2], ['summit', 1]]);
       else if (s.district === 'docks') type = rng.weighted([['boxer', 2], ['parcel', 3], ['hauler', 3]]);
+      else if (rng.chance(0.12)) type = rng.pick(BIKES);
       else type = rng.weighted(TRAFFIC_POOL.filter(([id]) => id !== 'boxer'));
       const v = this.spawn(type, s.x, s.z, s.rot, { parked: true });
       if (s.police) v.locked = false;

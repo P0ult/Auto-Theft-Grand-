@@ -52,7 +52,7 @@ export class Combat {
           const h = o.rayHit(ox, oy, oz, dx, dy, dz, maxT);
           if (h && h.t < t + 1.5) { occ = { t: h.t, kind: 'char', obj: o, part: h.part }; break; }
         }
-        if (occ && Math.random() < 0.55) best = occ;
+        if (occ && Math.random() < (v.def.bike ? 0.9 : 0.55)) best = occ; // (nothing between you and a rider)
         else best = { t, kind: 'vehicle', obj: v, normal: _n.clone() };
       }
     }

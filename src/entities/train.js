@@ -304,6 +304,7 @@ export class Train extends Vehicle {
       this._place();
       this._contacts(dt);
       this.wheelRot += this.v * dt / 0.46;
+      this._updateVisual(dt);
       return;
     }
     if (drv?.isPlayer) {
@@ -324,6 +325,7 @@ export class Train extends Vehicle {
     this._place();
     this._contacts(dt);
     this.wheelRot += this.v * dt / 0.46;
+    this._updateVisual(dt);
     this.hornT -= dt;
     if (this.horn && this.hornT <= 0) { this.hornT = 1.2; this.game.audio?.playAt('trainhorn', this.pos, 1); }
   }
@@ -382,6 +384,7 @@ export class Train extends Vehicle {
     this.pitch = Math.atan2(yF - yB, LOCO_L - 4);
     this.vel.set(_t[3] * this.v, 0, _t[4] * this.v);
     this.r = 0;
+    this.group.rotation.set(-this.pitch, this.yaw, 0); // (the locomotive turns with the track like its carriages)
     let s = this.s - LOCO_L - GAP;
     this.cars.forEach((car, k) => {
       const CL = car.len;

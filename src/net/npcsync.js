@@ -54,7 +54,7 @@ class NpcProxy extends Character {
     if (this.removed) return;
     if (this.vehicle) {
       const st = this.animState;
-      st.sit = this.seat === 0 ? 1 : 2; st.speed = 0; st.grounded = true; st.swim = false; st.weapon = 'none';
+      this._seatState(st); st.speed = 0; st.grounded = true; st.swim = false; st.weapon = 'none';
       this.anim.update(dt, st);
       return;
     }
@@ -173,7 +173,7 @@ export class NpcSync {
     }
     // forget what's no longer shared
     for (const [id, o] of this.byId) if (!shown.has(id) || o.removed) { this.byId.delete(id); this.sentStatic.delete(id); }
-    const out = { v: 1, q: ++this.seq, c: C, p: Pd, s: S };
+    const out = { v: 2, q: ++this.seq, c: C, p: Pd, s: S };
     const tr = this._trainState();
     if (tr) out.tr = tr;
     return out;
@@ -197,8 +197,8 @@ export class NpcSync {
   // ------------------------------------------------------------------ incoming
   onWorld(P, n) {
     if (!P) return;
-    if (!P.npc) P.npc = { buf: [], cars: new Map(), peds: new Map(), statics: new Map(), seen: new Map() };
-    if (!n || n.v !== 1) { this.clearPeer(P); return; }
+    if (!P.npc) P.npc = { buf: [], cars: new Map(), peds: new Map(), statics: new Map(), seen: new Map(), taken: new Map() };
+    if (!n || n.v !== 2) { this.clearPeer(P); return; }
     const now = performance.now();
     const snap = { t: now, cars: new Map(), peds: new Map(), tr: Array.isArray(n.tr) ? n.tr : null };
     const C = Array.isArray(n.c) ? n.c : [], Pd = Array.isArray(n.p) ? n.p : [];
@@ -217,6 +217,7 @@ export class NpcSync {
     for (const v of P.npc.cars.values()) this._dropCar(v);
     for (const q of P.npc.peds.values()) this._dropPed(q);
     P.npc.cars.clear(); P.npc.peds.clear(); P.npc.buf = [];
+    for (const v of this.game.vehicles.list) if (v.parkedOf === P.id) { v.parkedOf = null; this.net._releaseProxy(v); }
     this.pedList = this.pedList.filter((q) => !q.removed);
   }
 
@@ -226,8 +227,35 @@ export class NpcSync {
     q.removed = true;
   }
   _dropCar(v) {
-    for (const o of v.occupants) if (o && o.npcProxy) v.takeOut(o);
+    // (the stand-in driver goes with the car: left behind it would sit in the road where the car was)
+    for (const o of [...v.occupants]) if (o) { if (o.npcProxy) { v.takeOut(o); this._dropPed(o); } else if (o.remote) v.takeOut(o); }
     if (!v.removed) this.game.vehicles.remove(v);
+  }
+
+  // A car record from a peer with no stand-in yet: is it one we already have under another hat?
+  // (the car they're driving, the one they just got out of, or one of our parked cars on the same spot)
+  _adoptCar(P, id, type, x, z) {
+    const g = this.game, pv = P.veh;
+    if (pv && !pv.removed && pv.type === type && (pv.netId === id || (!pv.netId && Math.hypot(pv.pos.x - x, pv.pos.z - z) < 5))) { pv.netId = id; return 'driven'; }
+    for (const o of g.vehicles.list) {
+      if (o.parkedOf !== P.id || o.removed || o.type !== type || Math.hypot(o.pos.x - x, o.pos.z - z) > 6) continue;
+      o.parkedOf = null; o.npcRemote = true; o.netId = id;
+      return o;
+    }
+    return null;
+  }
+
+  // Parked cars and the army's hardware sit on fixed spots, so two players can each spawn their own copy of
+  // the same car. The player with the lower id keeps theirs; the other one's goes.
+  _dedupeStatic(P, v) {
+    const me = this.net.selfId;
+    if (!me || !(P.id < me)) return;
+    const g = this.game;
+    for (const o of [...g.vehicles.list]) {
+      if (o === v || o.remote || o.removed || !o.parked || o.driver || o.ownedByPlayer || o.type !== v.type) continue;
+      if (Math.hypot(o.pos.x - v.pos.x, o.pos.z - v.pos.z) > 3.5 || Math.abs(o.pos.y - v.pos.y) > 3) continue;
+      g.vehicles.remove(o);
+    }
   }
 
   // ------------------------------------------------------------------ per frame
@@ -250,11 +278,19 @@ export class NpcSync {
         if ((x - me.x) ** 2 + (z - me.z) ** 2 > SHOW_R * SHOW_R) { const v = N.cars.get(id); if (v) { this._dropCar(v); N.cars.delete(id); } continue; }
         let v = N.cars.get(id);
         if (!v || v.removed) {
+          if (N.taken.has(id)) continue; // we just drove off in it
           const st = N.statics.get(id);
           if (!st || st[1] !== 0 || !VTYPES[st[2]]) continue;
-          v = g.vehicles.spawn(VTYPES[st[2]], x, z, rb[4] / 100, { color: col(st[3]), y, persistent: true });
-          v.remote = true; v.npcRemote = true; v.remoteOwner = P.id; v.netId = id; v.locked = true; v.persistent = true; v.ai = null;
-          v._mass0 = v.mass; v.mass = 1e6;
+          const a = this._adoptCar(P, id, VTYPES[st[2]], x, z);
+          if (a === 'driven') continue;
+          if (a) v = a;
+          else {
+            v = g.vehicles.spawn(VTYPES[st[2]], x, z, rb[4] / 100, { color: col(st[3]), y, persistent: true });
+            v.remote = true; v.npcRemote = true; v.remoteOwner = P.id; v.netId = id; v.locked = true; v.persistent = true; v.ai = null;
+            v._mass0 = v.mass; v.mass = 1e6;
+            v.pos.set(x, y, z);
+            this._dedupeStatic(P, v);
+          }
           N.cars.set(id, v);
         }
         const yaw = ra[4] / 100 + wrapAngle(rb[4] / 100 - ra[4] / 100) * k;
@@ -310,7 +346,13 @@ export class NpcSync {
       }
       for (const [id, q] of N.peds) if (!B.peds.has(id)) { q._gone = (q._gone || 0) + dt; if (q._gone > 1.2) { this._dropPed(q); N.peds.delete(id); } } else q._gone = 0;
     }
+    // stand-ins nobody accounts for any more (a driver whose car went, a pedestrian whose owner left)
+    const live = new Set();
+    for (const P of this.net.peers.values()) if (P.npc) { for (const q of P.npc.peds.values()) live.add(q); for (const [id, t] of P.npc.taken) if (now - t > 6000) P.npc.taken.delete(id); }
+    for (const q of this.pedList) if (!q.removed && !q.vehicle && !live.has(q)) this._dropPed(q);
     this.pedList = this.pedList.filter((q) => !q.removed);
+    // cars a player got out of wait a few seconds for their owner to share them as a parked car
+    for (const v of [...g.vehicles.list]) if (v.parkedOf && now - v.parkedT > 4500 && !v.removed) this._dropCar(v);
     this._applyTrains(dt);
   }
 
@@ -326,7 +368,7 @@ export class NpcSync {
   takeCar(v) {
     const P = this.net.peers.get(v.remoteOwner);
     this.net._emit('tk', v.remoteOwner, v.netId);
-    if (P?.npc) P.npc.cars.delete(v.netId);
+    if (P?.npc) { P.npc.cars.delete(v.netId); P.npc.taken.set(v.netId, performance.now()); }
     const drv = v.occupants[0];
     // the stand-in driver becomes one of our own pedestrians, thrown out of the car
     if (drv && drv.npcProxy) {

@@ -102,18 +102,22 @@ export class Vehicle {
 
   // ------------------------------------------------------------------ occupants
   putIn(char, seat = 0) {
+    const prev = this.occupants[seat];
+    if (prev && prev !== char) this.takeOut(prev); // (never leave someone thinking they're still in the seat)
     this.occupants[seat] = char;
     char.vehicle = this;
     char.seat = seat;
     char.vel.set(0, 0, 0);
     char.ragdolling = false;
-    const s = this.model.seats[seat];
+    const S = this.model.seats;
+    const s = S[seat] || S[S.length - 1];
     this.model.bodyGroup.add(char.root);
     // hips a set height above the seat point, whatever the character's size (models without a seatHip
     // were laid out for hips 0.52 above the seat)
     const h = char.appearance.height || 1;
     char.root.position.set(s.x, s.y + (this.model.seatHip ?? 0.52) - (char.anim.hipH - 0.46) * h, s.z);
     char.root.rotation.set(0, 0, 0);
+    char._seatPos = char.root.position.clone(); char.leanK = 0; char.leaning = false;
     char.yaw = this.yaw;
     if (char.weaponMesh && char.weaponDef.type !== 'gun') char.weaponMesh.visible = false;
     this.parked = false;
@@ -122,6 +126,7 @@ export class Vehicle {
     const seat = this.occupants.indexOf(char);
     if (seat >= 0) this.occupants[seat] = null;
     char.vehicle = null;
+    char._seatPos = null; char.leanK = 0; char.leaning = false; char.aimYaw = null;
     char.seat = -1;
     this.game.scene.add(char.root);
     const p = pos || this.doorWorld();
@@ -529,7 +534,11 @@ export class Vehicle {
   remove() {
     if (this.removed) return;
     this.removed = true;
-    for (const o of this.occupants) if (o && !o.isPlayer) { if (this.game.peds) this.game.peds.remove(o); else o.remove(); }
+    for (const o of this.occupants) {
+      if (!o || o.isPlayer) continue;
+      if (o.remote && !o.npcProxy) { this.takeOut(o); continue; } // another player's avatar just steps out
+      if (this.game.peds) this.game.peds.remove(o); else o.remove();
+    }
     this.group.parent?.remove(this.group);
     // free GPU resources owned by this car
     const seen = new Set();

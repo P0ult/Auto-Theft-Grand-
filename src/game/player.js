@@ -141,6 +141,24 @@ export class Player extends Character {
     super.update(dt);
   }
 
+  // drive-bys: the driver has a hand on the wheel (pistol / SMG); a passenger can lean out with any gun
+  carWeaponOk(id, seat = this.seat) {
+    const d = WEAPONS[id];
+    if (!d || d.type !== 'gun' || !this.weapons[id]) return false;
+    return seat === 0 ? d.hold === 'pistol' || d.hold === 'smg' : true;
+  }
+  bestCarWeapon(seat = this.seat) {
+    const pref = seat === 0 ? ['smg', 'pistol'] : ['rifle', 'smg', 'shotgun', 'pistol'];
+    return pref.find((id) => this.carWeaponOk(id, seat) && this.weapons[id].clip + this.weapons[id].ammo > 0) || null;
+  }
+  cycleCarWeapon(dir) {
+    const owned = WEAPON_ORDER.filter((id) => this.carWeaponOk(id) && this.weapons[id].clip + this.weapons[id].ammo > 0);
+    if (!owned.length) return;
+    let i = owned.indexOf(this.weapon);
+    i = (i + dir + owned.length) % owned.length;
+    this.switchTo(owned[i]);
+  }
+
   cycleWeapon(dir) {
     const owned = WEAPON_ORDER.filter((id) => this.weapons[id] && (WEAPONS[id].type === 'melee' || this.weapons[id].clip + this.weapons[id].ammo > 0));
     if (!owned.length) return;

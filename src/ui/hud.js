@@ -665,7 +665,7 @@ export class HUD {
       else this.help('Teleporting is a free roam feature — pick <b>Free Roam</b> on the title screen.', 4);
     }
     if (this.menuOpen) { this._tick(dt); return; }
-    if (input.hit('radio') && p.vehicle) game.audio?.radio?.next();
+    if (input.hit('radio') && p.vehicle && !p.vehicle.def.bike) game.audio?.radio?.next();
 
     this.clock.textContent = game.env.timeString;
     // health / armor
@@ -698,7 +698,7 @@ export class HUD {
     const zp = p.vehicle ? p.vehicle.pos : p.pos;
     const zone = game.map.zoneName(zp.x, zp.z);
     if (zone !== this.lastZone) { this.lastZone = zone; this.zone.textContent = zone; this.zone.classList.add('show'); this.timers.zone = 3.5; }
-    if (p.vehicle !== this.lastVeh) { this.lastVeh = p.vehicle; if (p.vehicle) { this.vehName.textContent = p.vehicle.def.name; this.vehName.classList.add('show'); this.timers.veh = 3; if (game.audio?.radio) this.showRadio(game.audio.radio.current); } }
+    if (p.vehicle !== this.lastVeh) { this.lastVeh = p.vehicle; if (p.vehicle) { this.vehName.textContent = p.vehicle.def.name; this.vehName.classList.add('show'); this.timers.veh = 3; if (game.audio?.radio && !p.vehicle.def.bike) this.showRadio(game.audio.radio.current); } }
     // speech bubbles
     const cam = game.camera;
     const v = new THREE.Vector3();

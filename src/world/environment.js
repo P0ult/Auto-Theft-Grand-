@@ -176,7 +176,10 @@ export class Environment {
     U.uFogDensity.value = 0.00105 + this.fogBoost * 0.009 + this.rain * 0.002;
     U.uSunDir.value.copy(this.sunDir);
     U.uNight.value = this.night;
-    U.uStreetLights.value = smoothstep(0.35, 0.75, this.night);
+    // street lights go by how dark it actually is: on before the sun sets, off only once it's properly up
+    // (later still under heavy cloud, rain or fog)
+    const gloom = this.cloudCover * 0.05 + this.rain * 0.08 + (this.fogBoost || 0) * 0.04;
+    U.uStreetLights.value = 1 - smoothstep(0.02, 0.15, this.sunDir.y - gloom);
     U.uTime.value += dt;
 
     // Shadow camera follows focus (texel snapped to avoid shimmering)

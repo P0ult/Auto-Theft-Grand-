@@ -46,9 +46,13 @@ export class RemoteAvatar extends Character {
     if (this.removed) return;
     if (this.vehicle) {
       const st = this.animState;
-      st.sit = this.seat === 0 ? 1 : 2; st.speed = 0; st.grounded = true; st.swim = false;
+      this._seatState(st); st.speed = 0; st.grounded = true; st.swim = false;
       st.weapon = this.holdType;
+      st.aim = this.aiming && this.weaponDef?.type === 'gun'; st.aimPitch = this.aimPitch || 0;
+      if (this.aimYaw != null) this.aimDir = (this.aimDir || new THREE.Vector3()).set(Math.sin(this.aimYaw) * Math.cos(st.aimPitch), Math.sin(st.aimPitch), Math.cos(this.aimYaw) * Math.cos(st.aimPitch));
+      this._leanOut(dt);
       this.anim.update(dt, st);
+      this._orientWeapon();
       return;
     }
     if (this.ragdolling) { this.ragdoll.update(dt); this.ragdoll.apply(); return; }
