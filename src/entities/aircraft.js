@@ -11,6 +11,7 @@ import { vehicleMaterials } from './vehiclemodels.js';
 import { WATER_Y } from '../world/citymap.js';
 import { clamp, damp, wrapAngle, sign } from '../core/utils.js';
 import { Bike } from './bikes.js';
+import { Skateboard } from './skateboard.js';
 
 const G = 9.81;
 const X = new THREE.Vector3(1, 0, 0), Y = new THREE.Vector3(0, 1, 0), Z = new THREE.Vector3(0, 0, 1);
@@ -764,6 +765,7 @@ export class Tank extends Vehicle {
 }
 
 export function vehicleClass(def) {
+  if (def.board) return Skateboard;
   if (def.bike) return Bike;
   if (def.kind === 'plane' || def.kind === 'jet') return Plane;
   if (def.kind === 'heli') return Heli;

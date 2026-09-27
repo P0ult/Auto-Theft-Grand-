@@ -39,9 +39,10 @@ export class Gameplay {
         else if (kind === 'heli') g.hud.help(`<b>Space</b> climb · <b>Shift</b> descend · <b>W/S</b> nose down/up · <b>A/D</b> turn · <b>Q/E</b> strafe · <b>Mouse</b> camera${guns} · <b>F</b> bail out. Wait for the rotor to spin up.`, 12);
         else if (kind === 'train') g.hud.help(v.driver === c ? '<b>W</b> throttle · <b>S</b> brake / reverse · <b>H</b> horn · <b>F</b> climb out. The line runs from Dry Wells to Union Station.' : 'Riding the Sol Line. Sit back, or press <b>F</b> to get off (best at a station).', 9);
         else if (kind === 'tank') g.hud.help('<b>W/S</b> drive · <b>A/D</b> turn on the spot · <b>Mouse</b> aim the turret · <b>LMB</b> fire the cannon · drive straight over cars.', 10);
-      } else if (v.def.bike && !this.hinted.bike) {
-        this.hinted.bike = true;
-        g.hud.help(v.def.pedal ? '<b>W</b> pedal · <b>S</b> brake · <b>A/D</b> steer · <b>F</b> get off. Hit something hard and you\'ll go over the bars.' : '<b>W</b> throttle · <b>S</b> brake · <b>A/D</b> steer · <b>Space</b> handbrake · <b>F</b> get off. Crash hard and you\'re thrown off.', 8);
+      } else if (v.def.bike && !this.hinted[v.def.board ? 'board' : 'bike']) {
+        this.hinted[v.def.board ? 'board' : 'bike'] = true;
+        if (v.def.board) g.hud.help('<b>W</b> push · <b>S</b> foot-brake · <b>A/D</b> carve · <b>Space</b> ollie · in the air <b>A/D</b> kickflip / heelflip, <b>S</b> shove-it · <b>F</b> step off. Land it clean for cash.', 10);
+        else g.hud.help(v.def.pedal ? '<b>W</b> pedal · <b>S</b> brake · <b>A/D</b> steer · <b>F</b> get off. Hit something hard and you\'ll go over the bars.' : '<b>W</b> throttle · <b>S</b> brake · <b>A/D</b> steer · <b>Space</b> handbrake · <b>F</b> get off. Crash hard and you\'re thrown off.', 8);
       } else if (!kind && !v.def.bike && !this.hinted.drive) { this.hinted.drive = true; g.hud.help('<b>W</b> accelerate · <b>S</b> brake/reverse · <b>Space</b> handbrake · <b>N</b> radio · <b>V</b> camera · <b>F</b> exit', 7); }
     });
     ev.on('vehicleExploded', (v) => { if (v.lastDamager === g.player || g.player.vehicle === v) g.stats.carsDestroyed++; });
@@ -233,11 +234,12 @@ export class Gameplay {
     }
     for (const veh of g.vehicles.list) {
       if (veh.isWrecked && !veh.exploded) continue;
-      if (veh.health < 400 && !veh.exploded && Math.random() < dt * (veh.health < 150 ? 20 : 8)) {
+      const hp = veh.health / (veh.maxHealth || 1000);
+      if (hp < 0.4 && !veh.exploded && !veh.def.pedal && !veh.def.board && Math.random() < dt * (hp < 0.15 ? 20 : 8)) {
         const f = veh.fwd;
-        const hp = veh.pos.clone().addScaledVector(f, veh.def.L * 0.35).setY(veh.pos.y + veh.def.H * 0.7);
-        g.effects.engineSmoke(hp, veh.health < 150 ? 1 : 0);
-        if (veh.onFire && Math.random() < 0.8) g.effects.fire(hp, 0.9);
+        const hpos = veh.pos.clone().addScaledVector(f, veh.def.L * 0.35).setY(veh.pos.y + veh.def.H * 0.7);
+        g.effects.engineSmoke(hpos, hp < 0.15 ? 1 : 0);
+        if (veh.onFire && Math.random() < 0.8) g.effects.fire(hpos, 0.9);
       }
       if (veh.exploded && veh.wreckTime < 20 && Math.random() < dt * 12) g.effects.fire(veh.pos.clone().setY(veh.pos.y + 0.8), 1.3);
       // tire smoke & skid marks
@@ -256,7 +258,7 @@ export class Gameplay {
       }
       veh._skidding = veh.skid;
       // dust off-road
-      if (!veh.skid && veh.speedAbs > 8 && veh._surface < 1 && Math.random() < dt * 10) g.effects.dust(veh.pos.clone().addScaledVector(veh.fwd, -veh.def.L / 2), 1);
+      if (!veh.skid && !veh.def.board && veh.speedAbs > 8 && veh._surface < 1 && Math.random() < dt * 10) g.effects.dust(veh.pos.clone().addScaledVector(veh.fwd, -veh.def.L / 2), 1);
     }
     // player wet/drown
     if (p.swimming && !p.vehicle) { p.swimTime = (p.swimTime || 0) + dt; } else p.swimTime = 0;

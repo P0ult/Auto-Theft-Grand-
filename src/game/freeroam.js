@@ -55,6 +55,7 @@ export class FreeRoam {
     add(city, 'Los Soles Sign', L.sign?.x, L.sign?.z, { foot: true });
     add(city, 'Beach', L.beach?.x, L.beach?.z, { foot: true, exactVeh: true });
     add(city, 'Pier & Ferris Wheel', L.pierfront?.x, L.pierfront?.z);
+    add(city, 'Santa Luz Skatepark', L.skate_santaluz?.x, L.skate_santaluz?.z - 15, { foot: true, exactVeh: true });
     add(city, 'Docks', L.docksQuay?.x, L.docksQuay?.z);
     add(city, 'Warehouses', L.warehouse?.x, L.warehouse?.z);
 

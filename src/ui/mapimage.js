@@ -15,6 +15,7 @@ export function buildMapImage(map, size = 2048) {
   for (const b of map.blocks) { const d = b.district; if (!bl[d]) bl[d] = { x: 0, z: 0, n: 0 }; bl[d].x += b.cx; bl[d].z += b.cz; bl[d].n++; }
   for (const [d, v] of Object.entries(bl)) labels.push({ name: DISTRICTS[d].name, x: v.x / v.n, z: v.z / v.n });
   const P = map.landmarks.pier;
+  if (map.landmarks.skate_santaluz) labels.push({ name: 'Skatepark', x: map.landmarks.skate_santaluz.x, z: map.landmarks.skate_santaluz.z + 22 });
   labels.push({ name: 'Santa Luz Pier', x: (P.x0 + P.x1) / 2, z: P.z1 - 80 }, { name: 'Mount Vista', x: 0, z: -1250 }, { name: 'Red Canyon', x: -1250, z: -250 }, { name: 'Pacific Ocean', x: -1500, z: 1150 });
   for (const t of Object.values(TOWNS)) labels.push({ name: t.name, x: t.x, z: t.z - t.r - 40, big: true });
   labels.push({ name: 'Fort Carver', x: (BASE.minX + BASE.maxX) / 2, z: BASE.minZ - 50, big: true }, { name: 'Tierra Seca Desert', x: -4600, z: -1500 }, { name: 'Pinewood Forest', x: -300, z: -3500 },

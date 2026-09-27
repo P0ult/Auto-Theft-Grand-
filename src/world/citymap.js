@@ -6,6 +6,7 @@ import { WORLD as WORLD_BOUNDS, Heightfield, landHeight, TOWNS, BASE, AIRFIELD, 
 import { buildRoadNetwork, REMOVED_SEGMENTS, SUPERBLOCKS, CITY_ROUNDABOUTS, ROUTES } from './roadlayout.js';
 import { shapeTerrain } from './roadnet.js';
 import { populateCountryside } from './countryside.js';
+import { skateparkPads, planSkateparks } from './skatepark.js';
 
 export const ROAD_W = 20;
 export const HALF_ROAD = ROAD_W / 2;
@@ -239,6 +240,7 @@ export class CityMap {
     return this.hf.sample(x, z);
   }
 
+  inCity(x, z) { return cityDist(x, z) < 1; }
   waterDepth(x, z) { return WATER_Y - this.groundHeight(x, z); }
   isWater(x, z) { return this.groundHeight(x, z) < WATER_Y - 0.3; }
 
@@ -251,6 +253,7 @@ export class CityMap {
       ...Object.entries(TOWNS).map(([k, t]) => ({ key: k, x: t.x, z: t.z, r: t.padR ?? t.r, blend: 140, keepSea: true })),
       { key: 'base', minX: BASE.minX, maxX: BASE.maxX, minZ: BASE.minZ, maxZ: BASE.maxZ, blend: 160 },
       { key: 'air', minX: AIRFIELD.x - 60, maxX: AIRFIELD.x + 60, minZ: AIRFIELD.z - AIRFIELD.len / 2 - 20, maxZ: AIRFIELD.z + AIRFIELD.len / 2 + 20, blend: 80 },
+      ...skateparkPads(),
     ];
     this.hf.generate(landHeight, 3, pads);
     // valleys & passes for the roads, then re-flatten the pads
@@ -300,6 +303,7 @@ export class CityMap {
     // roads cut into the hills, sit on embankments or become bridges
     shapeTerrain(this.roads, this.hf, (x, z) => (cityDist(x, z) < 0.5 ? this._cityGround(x, z) : null));
     populateCountryside(this);
+    planSkateparks(this);
     this._buildLandmarks();
   }
 

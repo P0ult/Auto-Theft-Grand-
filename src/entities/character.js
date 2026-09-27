@@ -176,6 +176,7 @@ export class Character {
       st.feet = v.feetFor?.(this.seat) || null;
       st.grips = this.seat === 0 ? v.gripsFor?.() : null;
       st.steer = v.steerAngle || 0;
+      st.boardCrouch = v.def.board ? v.crouch || 0 : 0;
     } else st.bike = null;
   }
 

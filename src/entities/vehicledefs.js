@@ -81,6 +81,11 @@ export const VEHICLES = {
     mass: 100, force: 480, top: 14, grip: 1.0, drive: 'rwd', steer: 0.62, brake: 950, rarity: 0, camDist: 4.8, camHeight: 1.5, health: 300,
     colors: [0xe63946, 0x1d3557, 0xf1faee, 0x2a9d8f, 0x111111],
   },
+  skateboard: {
+    name: 'Skateboard', body: 'board', bike: 'board', board: true, L: 0.82, W: 0.22, H: 0.14, wheelbase: 0.48, track: 0.19, wheelR: 0.028, clearance: 0.06,
+    mass: 80, force: 300, top: 9.5, grip: 0.9, drive: 'rwd', steer: 0.42, brake: 380, rarity: 0, camDist: 4.2, camHeight: 1.75, health: 250,
+    colors: [0x1d3557, 0xe63946, 0xffb703, 0x2a9d8f, 0x8338ec, 0x111111, 0xf1faee],
+  },
   // ------------------------------------------------ military ground vehicles (car physics)
   ranger: {
     name: 'Ranger', body: 'suv', L: 4.7, W: 2.05, H: 1.95, wheelbase: 2.85, track: 1.75, wheelR: 0.44, clearance: 0.42,

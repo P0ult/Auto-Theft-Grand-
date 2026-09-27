@@ -298,8 +298,29 @@ export class Animator {
       this.mix(B.lForearm, lerp(-0.2, -1.4, arm), 0, 0, k); this.mix(B.rForearm, lerp(-0.2, -1.4, arm), 0, 0, k);
     }
 
-    // sitting (vehicle)
-    if (w.sit > 0.01) {
+    // standing on a skateboard: side-on, knees soft, arms out for balance, looking where it's going;
+    // the back foot pushes off the ground to get going (feet come from the board, in the rider's frame)
+    if (w.sit > 0.01 && s.bike === 'board' && s.feet) {
+      const k = w.sit;
+      const crouch = 0.06 + (s.boardCrouch || 0);
+      this.hipsOff[1] = lerp(this.hipsOff[1], -crouch, k);
+      this.hipsOff[0] = lerp(this.hipsOff[0], 0, k); this.hipsOff[2] = lerp(this.hipsOff[2], 0, k);
+      this.set(B.hips, P[B.hips * 3] * (1 - k), 0.25 * k, 0);
+      const save = this.P.slice();
+      const hipY = this.hipH - crouch;
+      for (let side = 0; side < 2; side++) {
+        const off = this.thighOff[side], f = s.feet[side];
+        this.legIK(side, f[0] - off[0], f[1] - hipY - off[1], f[2] - off[2]);
+      }
+      for (const b of [B.lThigh, B.lShin, B.lFoot, B.rThigh, B.rShin, B.rFoot]) for (let c = 0; c < 3; c++) { const i = b * 3 + c; P[i] = lerp(save[i], P[i], k); }
+      const air = clamp((s.boardCrouch || 0) / 0.3, 0, 1);
+      const sway = Math.sin(this.time * 1.7) * 0.06;
+      this.mix(B.spine, 0.14 + air * 0.25, 0.1, 0, k); this.mix(B.chest, 0.06, 0.25, 0, k);
+      this.mix(B.head, -0.1, 0.95 + (s.lookYaw || 0) * 0.3, 0, k);
+      this.mix(B.lUpperArm, -0.25 - air * 0.5, 0.1, 0.95 + sway + air * 0.3, k); this.mix(B.lForearm, -0.35, 0, 0, k);
+      this.mix(B.rUpperArm, -0.2 - air * 0.5, -0.1, -0.85 + sway - air * 0.3, k); this.mix(B.rForearm, -0.45, 0, 0, k);
+      this.mix(B.lHand, 0, 0, 0.2, k); this.mix(B.rHand, 0, 0, -0.2, k);
+    } else if (w.sit > 0.01) {
       const k = w.sit;
       this.hipsOff[1] = lerp(this.hipsOff[1], -0.46, k);
       this.hipsOff[2] = lerp(this.hipsOff[2], 0, k);

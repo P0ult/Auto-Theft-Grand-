@@ -22,6 +22,7 @@ import { TaxiSystem } from './game/taxi.js';
 import { PadNav } from './ui/padnav.js';
 import { Wildlife } from './game/wildlife.js';
 import { PetSystem } from './game/pets.js';
+import { Skateparks } from './world/skatepark.js';
 import { NetSystem } from './net/net.js';
 import { HUD } from './ui/hud.js';
 
@@ -78,6 +79,7 @@ async function boot() {
   game.addSystem('shops', new ShopSystem(game));
   game.addSystem('wildlife', new Wildlife(game));
   game.addSystem('pets', new PetSystem(game));
+  game.addSystem('skateparks', new Skateparks(game));
   setP(0.88, 'Writing the story');
   await tick();
   game.addSystem('missions', new Missions(game, STORY));

@@ -559,7 +559,7 @@ export class Audio {
     const flying = pv && pv.def.aircraft;
     if (flying) this._airUpdate(pv, t);
     else if (this.air) this.air.out.gain.setTargetAtTime(0, t, 0.3);
-    if (pv && !pv.isWrecked && !flying && !pv.def.pedal) {
+    if (pv && !pv.isWrecked && !flying && !pv.def.pedal && !pv.def.board) {
       const sp = Math.abs(pv.speed);
       const top = pv.def.top;
       // fake gearbox
@@ -583,6 +583,13 @@ export class Audio {
       V.tf.frequency.setTargetAtTime(1400 + sp * 20, t, 0.1);
       V.wg.gain.setTargetAtTime(clamp(sp / 50, 0, 1) * 0.12, t, 0.2);
       V.hg.gain.setTargetAtTime(pv.horn ? 0.08 : 0, t, 0.01);
+    } else if (pv?.def.board && !pv.airborne) {
+      // urethane on concrete: a low rolling rumble
+      V.out.gain.setTargetAtTime(0, t, 0.1);
+      V.tg.gain.setTargetAtTime(clamp(pv.speedAbs / pv.def.top, 0, 1) * 0.1, t, 0.05);
+      V.tf.frequency.setTargetAtTime(300 + pv.speedAbs * 25, t, 0.1);
+      V.wg.gain.setTargetAtTime(clamp(pv.speedAbs / 30, 0, 1) * 0.08, t, 0.2);
+      V.hg.gain.setTargetAtTime(0, t, 0.01);
     } else {
       V.out.gain.setTargetAtTime(0, t, 0.1);
       V.tg.gain.setTargetAtTime(0, t, 0.05);
