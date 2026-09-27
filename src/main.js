@@ -28,6 +28,7 @@ import { ShipRaid } from './game/shipraid.js';
 import { ModShop } from './game/modshop.js';
 import { RaceSystem } from './game/races.js';
 import { Vigilante } from './game/vigilante.js';
+import { Properties } from './game/properties.js';
 import { NetSystem } from './net/net.js';
 import { HUD } from './ui/hud.js';
 
@@ -99,6 +100,7 @@ async function boot() {
   game.addSystem('modshop', new ModShop(game));
   game.addSystem('races', new RaceSystem(game));
   game.addSystem('vigilante', new Vigilante(game));
+  game.addSystem('properties', new Properties(game));
   game.hud = new HUD(game);
   game.padNav = new PadNav(game);
   game.net = new NetSystem(game);
