@@ -31,7 +31,6 @@ const BINDINGS = {
   console: ['Backquote'],
   pet: ['KeyK'],
   nitro: ['ShiftLeft', 'ShiftRight'],
-  vigilante: ['KeyU'],
 };
 
 // Gamepad buttons in the W3C "standard" layout, named the Xbox way (PlayStation: A=✕ B=○ X=□ Y=△,

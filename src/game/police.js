@@ -112,12 +112,12 @@ export class Police {
     this.enabled = true;
     const ev = game.events;
     ev.on('kill', (killer, victim, weapon) => {
-      if (!killer?.isPlayer) return;
+      if (!killer?.isPlayer || victim.criminal) return; // (vigilante work: suspects are fair game)
       if (victim.brain === 'cop') this.crime(3, victim.pos, true);
       else if (victim.gang) this.crime(0.8, victim.pos, false);
       else this.crime(1.4, victim.pos, false);
     });
-    ev.on('gunshot', (shooter, pos) => { if (shooter?.isPlayer) this.crime(0.18, pos, false, true); });
+    ev.on('gunshot', (shooter, pos) => { if (shooter?.isPlayer && !game.vigilante?.active) this.crime(0.18, pos, false, true); });
     ev.on('melee', (att, vic) => { if (att?.isPlayer) this.crime(vic.brain === 'cop' ? 2 : 0.35, vic.pos, vic.brain === 'cop'); });
     ev.on('pedHitByCar', (c, v, spd) => { if (v.driver?.isPlayer) this.crime(c.brain === 'cop' ? 2 : 0.5, c.pos, c.brain === 'cop'); });
     ev.on('carjack', (by, victim, veh) => { if (by.isPlayer) this.crime(veh.def.police ? 2 : 0.6, veh.pos, false); });
