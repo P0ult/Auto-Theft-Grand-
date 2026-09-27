@@ -36,6 +36,7 @@ const HELP = [
   'jump · run · sprint · gravity · boom · riot · traffic off|normal|heavy · peds off|normal|heavy',
   'clear · explode · skydive · bodyguard · enemies · tp <place> · colour <n>',
   'pet <lab|shepherd|husky|rottweiler|pug|poodle|tabby|blackcat|siamese> [name] · animals',
+  'crime off|normal|high (street crime) · crime now [mug|steal|speed|jaywalk]',
 ];
 
 const NONE = Object.freeze({});
@@ -329,6 +330,15 @@ export class Admin {
       case 'enemies': case 'attack': return this.enemies();
       case 'traffic': if (!['off', 'normal', 'heavy'].includes(a)) return 'traffic off | normal | heavy'; this.traffic = a; return `Traffic: ${a}.`;
       case 'peds': case 'people': if (!['off', 'normal', 'heavy'].includes(a)) return 'peds off | normal | heavy'; this.peds = a; return `Pedestrians: ${a}.`;
+      case 'crime': {
+        if (['off', 'normal', 'high'].includes(a)) { g.settings.npcCrime = a; g.save?.saveSettings(); return `Street crime: ${a}.`; }
+        const [w, kind] = (a || '').split(/\s+/);
+        const kinds = ['mug', 'steal', 'speed', 'jaywalk'];
+        if (w !== 'now' || (kind && !kinds.includes(kind))) return 'crime off | normal | high · crime now [mug|steal|speed|jaywalk]';
+        if (g.settings.npcCrime === 'off') return 'Street crime is off (crime normal to turn it on).';
+        const k = kind || kinds[Math.floor(Math.random() * kinds.length)];
+        return g.npcCrime?.stage(k) ? `Trouble nearby: ${{ mug: 'a mugging', steal: 'a car thief', speed: 'a speeding driver', jaywalk: 'a jaywalker' }[k]}.` : 'Nobody around to do it right now.';
+      }
       case 'pet': {
         const [breed, ...nm] = (a || '').split(/\s+/);
         if (!PET_BREEDS.includes(breed)) return `pet ${PET_BREEDS.join(' | ')} [name]`;

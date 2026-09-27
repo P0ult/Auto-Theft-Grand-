@@ -185,16 +185,19 @@ export class Police {
     return cop;
   }
 
-  spawnCar(pursuit = true) {
+  // near: somewhere other than the player to respond to (an NPC suspect); still within the player's range
+  spawnCar(pursuit = true, near = null) {
     const game = this.game;
-    const p = this.targetPos();
+    const p = near || this.targetPos();
+    const pp = game.player.vehicle ? game.player.vehicle.pos : game.player.pos;
+    const [r0, r1] = near ? [45, 150] : [75, 230];
     for (let tries = 0; tries < 14; tries++) {
-      const smp = Traffic.sampleLane(game, p.x, p.z, 75, 230);
+      const smp = Traffic.sampleLane(game, p.x, p.z, r0, r1);
       if (!smp) continue;
       const { x, z } = smp;
-      const d2 = dist2(x, z, p.x, p.z);
-      if (d2 < 70 * 70 || d2 > 240 * 240) continue;
-      if (game.peds._inView(x, z) && d2 < 120 * 120 && tries < 10) continue;
+      const d2 = dist2(x, z, p.x, p.z), dp2 = dist2(x, z, pp.x, pp.z);
+      if (d2 < (r0 - 5) ** 2 || d2 > (r1 + 10) ** 2 || dp2 > 235 * 235) continue;
+      if (game.peds._inView(x, z) && dp2 < 120 * 120 && tries < 10) continue;
       let blocked = false;
       for (const o of game.vehicles.list) if (dist2(o.pos.x, o.pos.z, x, z) < 100 && Math.abs(o.pos.y - smp.y) < 4) { blocked = true; break; }
       if (blocked) continue;
@@ -222,8 +225,12 @@ export class Police {
     cop.animState.cower = false; cop.animState.handsUp = false;
     cop.aiming = false;
     if (this.level === 0 || pl.dead) {
+      // on a call to an NPC suspect (see npccrime.js)
+      if (cop.npcTask && !pl.dead && game.npcCrime?.copThink(cop, dt)) return;
       // no wanted: return to car or patrol
-      if (cop.homeCar && !cop.homeCar.isWrecked && !cop.vehicle && !game.vehicles.isBusy(cop)) {
+      // (not while climbing in: that made every cop getting back into a car a civilian)
+      if (game.vehicles.isBusy(cop)) return;
+      if (cop.homeCar && !cop.homeCar.isWrecked && !cop.homeCar.removed && !cop.vehicle) {
         const seat = cop.homeCar.occupants.findIndex((o) => !o);
         if (seat >= 0 && seat < 2) game.vehicles.enter(cop, cop.homeCar, seat, { force: true });
         else cop.stop();

@@ -145,7 +145,7 @@ export class NpcSync {
       const fwd = v.vel.x * Math.sin(v.yaw) + v.vel.z * Math.cos(v.yaw);
       const drv = v.driver && !v.driver.isPlayer ? this._id(v.driver) : 0;
       if (drv) { this.byId.set(drv, v.driver); shown.add(drv); }
-      const fl = (v.input.brake > 0.1 || v.input.handbrake ? 1 : 0) | (v.sirenOn ? 2 : 0) | (v.exploded ? 4 : 0) | (v.health <= 0 ? 8 : 0);
+      const fl = (v.input.brake > 0.1 || v.input.handbrake ? 1 : 0) | (v.sirenOn ? 2 : 0) | (v.exploded ? 4 : 0) | (v.health <= 0 ? 8 : 0) | (Math.min(3, v.driver?.npcWanted || 0) << 4);
       C.push(id, Math.round(v.pos.x * 10), Math.round(v.pos.y * 10), Math.round(v.pos.z * 10), Math.round(v.yaw * 100), Math.round(fwd * 10), Math.round((v.steerAngle || 0) * 100), fl, drv);
       statics.push([id, 'c', v, drv ? v.driver : null]);
     }
@@ -154,7 +154,7 @@ export class NpcSync {
       const id = this._id(q); shown.add(id); this.byId.set(id, q);
       const pos = q.ragdolling ? q.ragdoll.center : q.pos;
       const a = q.animState;
-      const fl = (q.aiming ? 2 : 0) | (a.crouch || q.crouching ? 4 : 0) | (a.handsUp ? 8 : 0) | (a.cower ? 16 : 0) | (q.dead ? 32 : 0) | (q.ragdolling ? 64 : 0) | (q.swimming ? 128 : 0) | (a.talking ? 256 : 0);
+      const fl = (q.aiming ? 2 : 0) | (a.crouch || q.crouching ? 4 : 0) | (a.handsUp ? 8 : 0) | (a.cower ? 16 : 0) | (q.dead ? 32 : 0) | (q.ragdolling ? 64 : 0) | (q.swimming ? 128 : 0) | (a.talking ? 256 : 0) | (Math.min(3, q.npcWanted || 0) << 9);
       Pd.push(id, Math.round(pos.x * 10), Math.round(pos.y * 10), Math.round(pos.z * 10), Math.round(q.yaw * 100), Math.round((a.speed || 0) * 10), fl, WTYPES.indexOf(q.weapon));
       statics.push([id, 'p', q]);
     }
@@ -314,7 +314,7 @@ export class NpcSync {
           const look = st && Array.isArray(st[4]) ? unpackLook(st[4]) : null;
           if (look) { const q = new NpcProxy(g, this, P.id, drvId, look); q.setPosition(x, y, z); v.putIn(q, 0); this.pedList.push(q); }
         } else if (!drvId && cur && cur.npcProxy) { v.takeOut(cur); this._dropPed(cur); }
-        if (v.occupants[0]?.npcProxy) v.occupants[0].update(dt);
+        if (v.occupants[0]?.npcProxy) { v.occupants[0].npcWanted = (rb[7] >> 4) & 3; v.occupants[0].update(dt); }
       }
       for (const [id, v] of N.cars) if (!B.cars.has(id)) { v._gone = (v._gone || 0) + dt; if (v._gone > 1.2) { this._dropCar(v); N.cars.delete(id); } } else v._gone = 0;
       // pedestrians
@@ -338,6 +338,7 @@ export class NpcSync {
         const s = q.animState;
         s.speed = clamp(rb[5] / 10, 0, 12); s.moveAngle = 0; s.grounded = true;
         s.aim = !!(fl & 2); s.crouch = !!(fl & 4); s.handsUp = !!(fl & 8); s.cower = !!(fl & 16); s.swim = !!(fl & 128); s.talking = !!(fl & 256);
+        q.npcWanted = q.dead ? 0 : (fl >> 9) & 3; // (an NPC another player's police are after)
         q.aiming = s.aim; q.crouching = s.crouch; q.swimming = s.swim;
         const w = WTYPES[rb[7]];
         if (w && w !== q.weapon) { if (!q.weapons[w]) q.giveWeapon(w, 1); q.equip(w); }

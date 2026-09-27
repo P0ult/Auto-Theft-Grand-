@@ -117,6 +117,7 @@ export class Wildlife {
     if (this.list.filter((a) => a.owner && !a.pet).length > 5) return null;
     const a = new Animal(this.game, pick(['lab', 'lab', 'poodle', 'pug', 'husky', 'shepherd']), ped.pos.x + 1, ped.pos.z - 1, { y: ped.pos.y });
     a.owner = ped; a.state = 'follow';
+    ped.walkedDog = a;
     this.list.push(a);
     return a;
   }

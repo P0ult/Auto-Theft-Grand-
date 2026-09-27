@@ -85,6 +85,8 @@ export class Ped extends Character {
     this.animState.talking = false;
     this.crouching = false;
     this.aiming = false;
+    // a crime in progress, or wanted by the police (see npccrime.js)
+    if ((this.crimeTask || this.npcCase) && game.npcCrime?.pedThink(this, dt)) return;
     // gang hostility
     if (this.gang && !GANGS[this.gang].friendly && !player.dead && this.state !== 'attack' && this.state !== 'flee') {
       const G = GANGS[this.gang];
@@ -154,6 +156,8 @@ export class Ped extends Character {
     }
     const n = this.node;
     const tx = n.x + (this.offX || 0), tz = n.z + (this.offZ || 0);
+    // some people can't be bothered to walk to the crossing (only mid-block: see npccrime.js)
+    if (this.jaywalker !== false && Math.random() < dt * 0.015 && this.game.npcCrime?.jaywalk(this)) return;
     if (this.goTo(tx, tz, this.walkSpeed, dt, 0.7)) {
       const nodes = map.walkNodes;
       let opts = n.links.filter((l) => nodes[l] !== this.prevNode);
@@ -177,7 +181,7 @@ export class Ped extends Character {
     const d = Math.hypot(dx, dz) || 1;
     dx /= d; dz /= d;
     // bias toward sidewalks: blend with direction to a node away from threat
-    const sp = 5.4 + this.brave * 1.2;
+    const sp = this.fleeSpeed ?? 5.4 + this.brave * 1.2; // (a suspect running from the police tires: see npccrime.js)
     // wall avoidance: probe ahead
     const probe = game.collision.resolveCircle(this.pos.x + dx * 1.5, this.pos.z + dz * 1.5, 0.4, this.pos.y + 0.3, 1.4);
     if (probe.hit) { const px = probe.x - (this.pos.x + dx * 1.5), pz = probe.z - (this.pos.z + dz * 1.5); dx += px * 2; dz += pz * 2; const l = Math.hypot(dx, dz) || 1; dx /= l; dz /= l; }

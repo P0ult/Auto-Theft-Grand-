@@ -4,6 +4,7 @@ import { Game } from './game/game.js';
 import { PedManager } from './game/peds.js';
 import { Traffic } from './game/traffic.js';
 import { Police } from './game/police.js';
+import { NpcCrime } from './game/npccrime.js';
 import { Combat } from './game/combat.js';
 import { Effects } from './game/effects.js';
 import { Audio } from './game/audio.js';
@@ -70,6 +71,7 @@ async function boot() {
   game.addSystem('peds', new PedManager(game));
   game.addSystem('traffic', new Traffic(game));
   game.addSystem('police', new Police(game));
+  game.addSystem('npcCrime', new NpcCrime(game));
   game.addSystem('pickups', new Pickups(game));
   game.addSystem('military', new Military(game));
   game.addSystem('rail', new RailSystem(game));

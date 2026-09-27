@@ -108,8 +108,8 @@ your map waypoint, taking your car or aircraft along. Free roam never touches yo
   cars, call a bodyguard, send enemies, or skydive from 400 m. You can set the wanted level, time of day,
   weather and traffic / pedestrian density too.
 - **Admin console:** press **`** (backtick) and type commands: `help`, `god`, `car zenith`, `wanted 3`,
-  `time 22`, `weather storm`, `tp beach`, `traffic heavy`, `gravity`, `boom`, `car razor`, `pet husky Blue`
-  and more.
+  `time 22`, `weather storm`, `tp beach`, `traffic heavy`, `gravity`, `boom`, `car razor`, `pet husky Blue`,
+  `crime high`, `crime now mug` and more.
 
 ## Multiplayer
 
@@ -224,6 +224,19 @@ timetable for everyone, and the longest-connected player's clock and weather are
   have lost you). Patrol cars route through the grid, then ram you. Cops on foot chase, shoot or arrest you
   (**BUSTED**), and a helicopter with a searchlight joins at three stars. Spray Shacks repaint your car and clear
   your wanted level.
+- **Street crime.** The people of Los Soles break the law too:
+  - Pedestrians jaywalk across the middle of the block, and drivers honk at them.
+  - Some drivers speed and run red lights.
+  - Bumps between cars end in a shouting match, a fist fight or a hit-and-run.
+  - Muggers and car thieves work the streets, more of them at night and in the rougher districts.
+  - A crime a patrol sees, or that somebody calls in, puts **wanted stars on the NPC**. They show over their
+    head and as an orange blip on the radar, and a **DISPATCH** line tells you about crimes nearby.
+  - The nearest patrol responds. Small stuff gets a ticket: a jaywalker gets a talking-to, a speeder is pulled
+    over. For the rest suspects surrender, run or (rarely, if they're holding a gun) shoot it out. Cars get
+    chased and rammed, runners get tackled, and arrested suspects ride off in the back of the cruiser.
+  - Your own wanted level always comes first: while you're wanted every unit is after you, and the suspects
+    get a head start.
+  - **Settings → Street crime** sets it to Off, Normal or High.
 - **Story.** 26 missions across six chapters, with cutscenes and dialogue: races, a stealth tail, chases, a
   kidnapping rescue, a heist, drive-bys, turf wars, a mansion assault, a rooftop showdown and a finale on the
   pier. After the credits, **Chapter VI: Out of Town** takes you beyond Los Soles after the desert cartel Los
@@ -260,6 +273,8 @@ src/game/                 (also) railway timetable, signalling & crossings, taxi
 src/world/interiors.js    walk-in shop interiors (layout, colliders, meshes)
 src/entities/bikes.js     motorbikes and bicycles (models, lean, rider pose, crashes)
 src/entities/animals.js   animal models and procedural rig (dogs, cats, deer, rabbits, coyotes, cows, birds)
+src/game/npccrime.js      street crime: jaywalkers, speeders, road rage, muggers and car thieves, NPC wanted
+                          stars and the police response (tickets, pull-overs, chases, arrests)
 src/game/wildlife.js      wildlife spawning and behaviour; src/game/pets.js: pets
 src/net/                  multiplayer: transports (claude.ai live room, WebSocket relay), remote players,
                           shared NPCs / traffic / trains, Online tab

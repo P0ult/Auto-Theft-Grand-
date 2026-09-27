@@ -31,6 +31,8 @@ export class HUD {
     for (let i = 0; i < 5; i++) this.starEls.push(h('span', 'star', this.stars, '★'));
     this.moneyPop = h('div', 'hud-money-pop', tr);
     this.petTag = h('div', 'hud-pet', tr);
+    this.dispatchEl = h('div', 'hud-dispatch', tr);
+    this.suspectTags = new Map(); // character -> star tag over their head
     // radar
     this.radarWrap = h('div', 'hud-radar', root);
     this.radar = h('canvas', '', this.radarWrap);
@@ -65,7 +67,7 @@ export class HUD {
     this.sctx = this.speedo.getContext('2d');
     this.speedoNeedle = 0;
     this.interactEl = h('div', 'hud-interact', root);
-    this.timers = { help: 0, big: 0, sub: 0, subs: 0, zone: 0, veh: 0, radio: 0, money: 0 };
+    this.timers = { help: 0, big: 0, sub: 0, subs: 0, zone: 0, veh: 0, radio: 0, money: 0, dispatch: 0 };
     this.lastZone = '';
     this.lastVeh = null;
     this.speeches = [];
@@ -147,6 +149,13 @@ export class HUD {
   showRadio(st) { this.radioName.innerHTML = st.style === 'off' ? 'Radio Off' : `${st.name}<small>${st.genre}</small>`; this.radioName.classList.add('show'); this.timers.radio = 3; }
   moneyFlash(amount) { this.moneyPop.textContent = (amount >= 0 ? '+' : '-') + formatMoney(Math.abs(amount)).replace('$0000', '$').replace(/^\$0+/, '$'); this.moneyPop.classList.add('show'); this.timers.money = 2; }
   interact(text) { if (text) { this.interactEl.innerHTML = text; this.interactEl.style.display = 'block'; } else this.interactEl.style.display = 'none'; }
+  // police radio: a crime reported / a case closed near the player
+  dispatch(text, where = '') {
+    if (!text) return;
+    this.dispatchEl.innerHTML = `<b>DISPATCH</b> ${text}${where ? `<small>${where}</small>` : ''}`;
+    this.dispatchEl.classList.add('show');
+    this.timers.dispatch = 5;
+  }
   speech(ped, text) {
     if (this.speeches.length > 5) { const s = this.speeches.shift(); s.el.remove(); }
     const el = h('div', 'speech', this.speechLayer, text);
@@ -589,6 +598,10 @@ export class HUD {
     tog('Ambient occlusion (contact shadows)', 'ao');
     const fps = document.createElement('input'); fps.type = 'checkbox'; fps.checked = this.showFps; fps.onchange = () => { this.showFps = fps.checked; };
     row('Show FPS', fps);
+    const cr = document.createElement('select');
+    for (const [k, v] of [['Off', 'off'], ['Normal', 'normal'], ['High', 'high']]) { const o = h('option', '', cr, k); o.value = v; if (v === (g.settings.npcCrime || 'normal')) o.selected = true; }
+    cr.onchange = () => { g.settings.npcCrime = cr.value; g.save?.saveSettings(); };
+    row('Street crime (NPCs jaywalk, speed, mug, steal cars; police respond)', cr);
     const ts = document.createElement('select');
     for (const [k, v] of [['1 min / sec (default)', 1], ['2 min / sec', 2], ['Slow (0.5)', 0.5], ['Freeze time', 0]]) { const o = h('option', '', ts, k); o.value = v; if (v === g.env.timeScale) o.selected = true; }
     ts.onchange = () => { g.env.timeScale = parseFloat(ts.value); };
@@ -723,6 +736,25 @@ export class HUD {
       s.el.style.top = `${(-v.y * 0.5 + 0.5) * window.innerHeight}px`;
       s.el.style.opacity = Math.min(1, s.t * 2);
     }
+    // wanted stars over NPC suspects
+    const seenTags = new Set();
+    for (const { c, n, hot } of game.npcCrime?.tagged() || []) {
+      seenTags.add(c);
+      let el = this.suspectTags.get(c);
+      const hp2 = c.vehicle ? c.vehicle.pos : c.ragdolling ? c.ragdoll.center : c.pos;
+      const d = cam.position.distanceTo(hp2);
+      v.set(hp2.x, hp2.y + (c.vehicle ? 2.1 : 2.0), hp2.z).project(cam);
+      if (v.z > 1 || d > 90) { if (el) el.style.display = 'none'; continue; }
+      if (!el) { el = h('div', 'npc-stars', this.speechLayer); this.suspectTags.set(c, el); }
+      const txt = '★'.repeat(n);
+      if (el._txt !== txt) { el._txt = txt; el.textContent = txt; }
+      el.classList.toggle('hot', hot);
+      el.style.display = 'block';
+      el.style.left = `${(v.x * 0.5 + 0.5) * window.innerWidth}px`;
+      el.style.top = `${(-v.y * 0.5 + 0.5) * window.innerHeight}px`;
+      el.style.fontSize = `${Math.round(clamp(30 - d * 0.22, 13, 26))}px`;
+    }
+    for (const [c, el] of this.suspectTags) if (!seenTags.has(c)) { el.remove(); this.suspectTags.delete(c); }
     // damage vignette
     this.damageFlash = Math.max(0, this.damageFlash - dt * 1.5);
     game.post.composite.uniforms.uDamage.value = Math.max(this.damageFlash, hp < 0.2 && !p.dead ? 0.35 + Math.sin(game.time * 4) * 0.1 : 0);
@@ -737,7 +769,7 @@ export class HUD {
   _tick(dt) {
     const T = this.timers;
     const dec = (k, el) => { if (T[k] > 0) { T[k] -= dt; if (T[k] <= 0) el.classList.remove('show'); } };
-    dec('help', this.helpBox); dec('big', this.bigMsg); dec('subs', this.subtitles); dec('zone', this.zone); dec('veh', this.vehName); dec('radio', this.radioName); dec('money', this.moneyPop);
+    dec('help', this.helpBox); dec('big', this.bigMsg); dec('subs', this.subtitles); dec('zone', this.zone); dec('veh', this.vehName); dec('radio', this.radioName); dec('money', this.moneyPop); dec('dispatch', this.dispatchEl);
   }
 
   _updateRoute(force = false) {
@@ -871,6 +903,10 @@ export class HUD {
     for (const b of game.blips) drawList.push(b);
     // cops & enemies
     if (game.police && game.police.level > 0) for (const c of game.police.cops) if (!c.dead) drawList.push({ x: c.vehicle ? c.vehicle.pos.x : c.pos.x, z: c.vehicle ? c.vehicle.pos.z : c.pos.z, color: Math.floor(game.time * 4) % 2 ? 0x3355ff : 0xff3333, icon: 'dot', small: true, noEdge: true });
+    // NPC suspects (orange; flashing while the police are on them) and the units answering the call
+    const flash = Math.floor(game.time * 4) % 2;
+    for (const t of game.npcCrime?.tagged() || []) { const q = t.c.vehicle ? t.c.vehicle.pos : t.c.pos; drawList.push({ x: q.x, z: q.z, color: t.hot && flash ? 0xff3333 : 0xff9a1f, icon: 'dot', small: true, noEdge: true }); }
+    if (game.police && game.police.level === 0) for (const car of game.police.cars) if (car.npcJob && !car.removed) drawList.push({ x: car.pos.x, z: car.pos.z, color: flash ? 0x3355ff : 0xdde4ff, icon: 'dot', small: true, noEdge: true, square: true });
     for (const b of drawList) {
       let [rx, ry] = toRadar(b.x, b.z);
       const d = Math.hypot(rx, ry);
