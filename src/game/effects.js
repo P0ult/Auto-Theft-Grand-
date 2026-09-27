@@ -257,6 +257,70 @@ class SkidMarks {
   break(key) { this.last.delete(key); }
 }
 
+// ------------------------------------------------------------------ boat wakes
+// white trails on the water behind boats: each segment spreads and fades as it ages
+class WakeTrails {
+  constructor(scene, max = 900) {
+    this.max = max;
+    this.pos = new Float32Array(max * 4 * 3);
+    this.born = new Float32Array(max * 4);
+    this.side = new Float32Array(max * 4);
+    this.str = new Float32Array(max * 4);
+    const idx = [];
+    for (let i = 0; i < max; i++) { const b = i * 4; idx.push(b, b + 1, b + 2, b, b + 2, b + 3); }
+    for (let i = 0; i < max; i++) { this.side.set([-1, 1, 1, -1], i * 4); this.born.fill(-1e4, i * 4, i * 4 + 4); }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(this.pos, 3).setUsage(THREE.DynamicDrawUsage));
+    g.setAttribute('aBorn', new THREE.BufferAttribute(this.born, 1).setUsage(THREE.DynamicDrawUsage));
+    g.setAttribute('aSide', new THREE.BufferAttribute(this.side, 1));
+    g.setAttribute('aStr', new THREE.BufferAttribute(this.str, 1).setUsage(THREE.DynamicDrawUsage));
+    g.setIndex(idx);
+    this.uniforms = { uTime: { value: 0 }, uLight: { value: new THREE.Color(1, 1, 1) } };
+    const m = new THREE.ShaderMaterial({
+      uniforms: this.uniforms,
+      vertexShader: `attribute float aBorn; attribute float aSide; attribute float aStr; uniform float uTime; varying float vA; varying float vS; varying vec2 vW;
+        void main(){ float age = uTime - aBorn; vA = aStr * clamp(1.0 - age / 9.0, 0.0, 1.0); vS = aSide; vW = position.xz; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+      fragmentShader: `uniform vec3 uLight; varying float vA; varying float vS; varying vec2 vW;
+        float h(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+        float vn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f); return mix(mix(h(i), h(i + vec2(1, 0)), f.x), mix(h(i + vec2(0, 1)), h(i + vec2(1, 1)), f.x), f.y); }
+        void main(){ float n = vn(vW * 1.3) * 0.6 + vn(vW * 4.1) * 0.4; float edge = smoothstep(1.0, 0.55, abs(vS)); float core = 0.45 + 0.55 * smoothstep(0.2, 0.9, abs(vS));
+          float a = vA * edge * core * smoothstep(0.25, 0.75, n);
+          gl_FragColor = vec4(uLight * 0.95, a * 0.5); }`,
+      transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4,
+    });
+    this.mesh = new THREE.Mesh(g, m);
+    this.mesh.frustumCulled = false;
+    this.mesh.renderOrder = 2;
+    scene.add(this.mesh);
+    this.next = 0;
+    this.last = new Map();
+    this.time = 0;
+  }
+  add(key, x, y, z, w, strength) {
+    const prev = this.last.get(key);
+    if (prev && Math.hypot(x - prev.x, z - prev.z) < 0.9) return;
+    this.last.set(key, { x, y, z, w, t: this.time });
+    if (!prev || this.time - prev.t > 1) return;
+    const dx = x - prev.x, dz = z - prev.z, len = Math.hypot(dx, dz) || 1;
+    const nx = -dz / len, nz = dx / len;
+    const i = this.next;
+    this.next = (this.next + 1) % this.max;
+    const p = this.pos, b = i * 12;
+    // older end spreads wider than the new end
+    const w0 = prev.w * 0.5 + 0.6, w1 = w * 0.5;
+    p[b] = prev.x - nx * w0; p[b + 1] = y; p[b + 2] = prev.z - nz * w0;
+    p[b + 3] = prev.x + nx * w0; p[b + 4] = y; p[b + 5] = prev.z + nz * w0;
+    p[b + 6] = x + nx * w1; p[b + 7] = y; p[b + 8] = z + nz * w1;
+    p[b + 9] = x - nx * w1; p[b + 10] = y; p[b + 11] = z - nz * w1;
+    this.born.fill(this.time, i * 4, i * 4 + 4);
+    this.str.fill(clamp(strength, 0, 1), i * 4, i * 4 + 4);
+    const g = this.mesh.geometry;
+    g.attributes.position.needsUpdate = true; g.attributes.aBorn.needsUpdate = true; g.attributes.aStr.needsUpdate = true;
+  }
+  break(key) { this.last.delete(key); }
+  update(dt, light) { this.time += dt; this.uniforms.uTime.value = this.time; this.uniforms.uLight.value.copy(light).addScalar(0.1); }
+}
+
 // ------------------------------------------------------------------ tracers
 class Tracers {
   constructor(scene, max = 64) {
@@ -353,6 +417,7 @@ export class Effects {
     this.dotAlpha = new ParticlePool(scene, 1200, dot, false);
     this.decals = new Decals(scene);
     this.skids = new SkidMarks(scene);
+    this.wake = new WakeTrails(scene);
     this.tracers = new Tracers(scene);
     this.lights = [];
     for (let i = 0; i < 3; i++) {
@@ -500,6 +565,18 @@ export class Effects {
     }
   }
 
+  // churned white water behind a boat's stern, and spray thrown off the bow at speed (s, c: heading)
+  foam(pos, s, c, spd, w) {
+    for (let i = 0; i < 2; i++) this.alphaPool.spawn(P({ x: pos.x + rand(-w, w) * 0.35, y: pos.y + 0.05, z: pos.z + rand(-w, w) * 0.35, vx: -s * spd * 0.25 + rand(-0.5, 0.5), vy: rand(0.2, 0.8), vz: -c * spd * 0.25 + rand(-0.5, 0.5), life: rand(0.8, 1.6), size0: 0.4, size1: 1.8 + spd * 0.05, color: [0.95, 0.97, 1], alpha: 0.45, drag: 1.5, fadeIn: 0.05 }));
+  }
+  bowSpray(pos, s, c, spd, w) {
+    for (const sd of [-1, 1]) for (let i = 0; i < 3; i++) {
+      const rx = -c * sd, rz = s * sd;
+      this.dotAlpha.spawn(P({ x: pos.x + rx * w * 0.45, y: pos.y, z: pos.z + rz * w * 0.45, vx: rx * rand(2, 4) + s * spd * 0.3, vy: rand(1.5, 3.5), vz: rz * rand(2, 4) + c * spd * 0.3, life: rand(0.5, 0.9), size0: rand(0.08, 0.16), size1: 0.12, color: [0.85, 0.92, 1], alpha: 0.7, grav: -10, drag: 0.6 }));
+    }
+    if (Math.random() < 0.5) this.alphaPool.spawn(P({ x: pos.x, y: pos.y + 0.3, z: pos.z, vx: s * spd * 0.2, vy: 0.8, vz: c * spd * 0.2, life: 0.8, size0: 0.6, size1: 2.2, color: [0.95, 0.97, 1], alpha: 0.3, drag: 2 }));
+  }
+
   // a window giving way: a spray of glittering cubes
   glassBurst(pos, w = 1.8) {
     for (let i = 0; i < 40; i++) this.dotAlpha.spawn(P({ x: pos.x + rand(-w, w) * 0.4, y: pos.y + rand(-0.2, 0.3), z: pos.z + rand(-w, w) * 0.4, vx: rand(-3, 3), vy: rand(0.5, 3.5), vz: rand(-3, 3), life: rand(0.6, 1.3), size0: rand(0.03, 0.07), size1: 0.03, color: [0.85, 0.95, 1], alpha: 0.9, grav: -14, drag: 0.4, floor: this.game.map.groundHeight(pos.x, pos.z) + 0.02 }));
@@ -549,6 +626,7 @@ export class Effects {
     this.addPool.update(dt);
     this.dotAlpha.update(dt);
     this.decals.update(dt, this.lightColor);
+    this.wake.update(dt, this.lightColor);
     this.tracers.update(dt);
     this.rain.update(dt, this.game.camera.position, this.game.env.rain, this.lightColor);
     for (const l of this.lights) {
@@ -617,7 +695,7 @@ export class Effects {
       this._restoreTimer = 0;
       const p = this.game.player.pos;
       for (const col of this.game.city.propColliders) {
-        if (col.broken && Math.hypot(col.x - p.x, col.z - p.z) > 250) this.game.city.restoreProp(col.prop);
+        if (col.broken && !col.gone && Math.hypot(col.x - p.x, col.z - p.z) > 250) this.game.city.restoreProp(col.prop);
       }
     }
   }

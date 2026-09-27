@@ -572,7 +572,7 @@ export class Audio {
       if (pv.airborne) rpm = Math.max(rpm, 5000 * pv.input.throttle + 1500);
       V.rpm += (rpm - V.rpm) * Math.min(1, dt * 8);
       const heavy = pv.def.mass > 2000 ? 0.7 : 1;
-      const base = (V.rpm / 60) * 0.5 * heavy * (pv.def.bike ? 1.75 : pv.def.body === 'super' ? 1.3 : pv.def.body === 'muscle' ? 0.8 : 1);
+      const base = (V.rpm / 60) * 0.5 * heavy * (pv.def.kind === 'boat' ? (pv.def.boat === 'jetski' ? 1.4 : 0.6) : pv.def.bike ? 1.75 : pv.def.body === 'super' ? 1.3 : pv.def.body === 'muscle' ? 0.8 : 1);
       V.o1.frequency.setTargetAtTime(base, t, 0.03);
       V.o2.frequency.setTargetAtTime(base * 0.5, t, 0.03);
       V.o3.frequency.setTargetAtTime(base * 0.25, t, 0.03);

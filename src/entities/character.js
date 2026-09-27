@@ -171,8 +171,8 @@ export class Character {
   _seatState(st) {
     const v = this.vehicle;
     st.sit = this.seat === 0 ? 1 : 2;
-    if (v?.def.bike) {
-      st.bike = this.seat === 0 ? v.def.bike : 'pillion';
+    if (v?.def.bike || v?.def.astride) {
+      st.bike = this.seat === 0 ? v.def.bike || 'moto' : 'pillion';
       st.feet = v.feetFor?.(this.seat) || null;
       st.grips = this.seat === 0 ? v.gripsFor?.() : null;
       st.steer = v.steerAngle || 0;

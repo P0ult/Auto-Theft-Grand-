@@ -8,8 +8,9 @@ import { PET_BREEDS } from '../entities/animals.js';
 
 // what the spawner offers, by group (trains need their rails, so they're left out)
 export const SPAWN_GROUPS = [
-  ['Cars', ['meridian', 'kestrel', 'brawler', 'zenith', 'bouncer', 'summit', 'taxi']],
-  ['Bikes', ['razor', 'trail', 'bmx', 'roadbike']],
+  ['Cars', ['meridian', 'pico', 'kestrel', 'brawler', 'zenith', 'bouncer', 'summit', 'taxi']],
+  ['Bikes & boards', ['razor', 'trail', 'bmx', 'roadbike', 'skateboard']],
+  ['Boats', ['dinghy', 'jetski', 'speedboat', 'cruiser', 'policeboat']],
   ['Work & emergency', ['hauler', 'parcel', 'boxer', 'police']],
   ['Military', ['ranger', 'barracks', 'mammoth']],
   ['Aircraft', ['skipper', 'skylark', 'hercules', 'warhawk', 'raptor']],
@@ -248,11 +249,19 @@ export class Admin {
     const fx = Math.sin(p.yaw), fz = Math.cos(p.yaw);
     const ahead = into ? 0 : Math.max(d.L, 5) / 2 + 3;
     let x = p.pos.x + fx * ahead, z = p.pos.z + fz * ahead;
+    if (d.kind === 'boat') {
+      // boats go in the nearest open water
+      const deep = (px, pz) => g.map.waterLevel(px, pz) - g.map.terrainHeight(px, pz) > d.draft + 1.2;
+      let found = deep(x, z) ? [x, z] : null;
+      for (let r = 6; !found && r <= 400; r += 6) for (let k = 0; k < 24 && !found; k++) { const a = k / 24 * Math.PI * 2; const px = p.pos.x + Math.cos(a) * r, pz = p.pos.z + Math.sin(a) * r; if (deep(px, pz)) found = [px, pz]; }
+      if (!found) { if (old && !old.removed && !p.vehicle) g.vehicles.seatNow(p, old, 0); return 'No open water nearby: try the beach, a harbour or the lake.'; }
+      [x, z] = found;
+    }
     const gy = g.map.groundHeight(x, z);
     const opt = { persistent: true };
     if (this.color != null) opt.color = this.color;
     const inAir = air && (opts.air ?? (d.kind !== 'heli' || this._cramped(x, z, d)));
-    let y = g.collision.floorHeight(x, z, p.pos.y + 1.5);
+    let y = d.kind === 'boat' ? g.map.waterLevel(x, z) : g.collision.floorHeight(x, z, p.pos.y + 1.5);
     if (inAir) y = Math.max(gy, 0) + (d.kind === 'heli' ? 70 : 260);
     const v = g.vehicles.spawn(id, x, z, p.yaw, opt);
     v.persistent = true;

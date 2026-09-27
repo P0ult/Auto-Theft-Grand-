@@ -49,6 +49,8 @@ export function buildLandmarks(city, map) {
       col.addBox({ minX: x - 0.2, maxX: x + 0.2, minZ: zB, maxZ: P.z1, minY: y - 0.5, maxY: y + 1.1, type: 'fence', soft: true });
     }
     col.addBox({ minX: x0, maxX: x1, minZ: P.z1 - 0.3, maxZ: P.z1 + 0.3, minY: y - 0.5, maxY: y + 1.1, type: 'fence', soft: true });
+    // the pilings: boats can't slip under the deck
+    col.addBox({ minX: x0, maxX: x1, minZ: zB + 20, maxZ: P.z1, minY: -8, maxY: 1.4, type: 'pilings' });
     // food booths along the pier
     const rng = new RNG(31);
     for (let z = zB + 30; z < P.z1 - 70; z += 36) {

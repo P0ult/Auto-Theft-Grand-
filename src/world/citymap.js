@@ -241,6 +241,8 @@ export class CityMap {
   }
 
   inCity(x, z) { return cityDist(x, z) < 1; }
+  // the water surface at a point: the sea, or Lake Mirador up in the hills
+  waterLevel(x, z) { return Math.hypot(x - LAKE.x, z - LAKE.z) < LAKE.r + 40 ? LAKE.y : WATER_Y; }
   waterDepth(x, z) { return WATER_Y - this.groundHeight(x, z); }
   isWater(x, z) { return this.groundHeight(x, z) < WATER_Y - 0.3; }
 
@@ -959,7 +961,7 @@ export class CityMap {
       if (b.noCollide) continue;
       const maxY = b.y1 + (b.roof === 'gable' ? 2.5 : 0);
       if (b.rot) this.colliders.push({ cx: (b.x0 + b.x1) / 2, cz: (b.z0 + b.z1) / 2, hx: (b.x1 - b.x0) / 2, hz: (b.z1 - b.z0) / 2, yaw: b.rot, minY: b.y0 - 1.2, maxY, type: 'building' });
-      else this.colliders.push({ minX: b.x0, minZ: b.z0, maxX: b.x1, maxZ: b.z1, minY: b.y0 - 0.2, maxY, type: 'building' });
+      else this.colliders.push({ minX: b.x0, minZ: b.z0, maxX: b.x1, maxZ: b.z1, minY: b.kind === 'pier' ? -8 : b.y0 - 0.2, maxY, type: 'building' }); // (piers stand on pilings: nothing sails under)
     }
     for (const f of this.fences) {
       const y0 = f.y ?? 0;

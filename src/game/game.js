@@ -184,7 +184,7 @@ export class Game {
         if (pv0.armed && player.seat === 0) player.aiming = !!pv0.showCrosshair; // mounted guns fire from playerControl
         else {
           // drive-by (a passenger leans out of the window)
-          let aim = input.aimDown() && !pv0.def.kind;
+          let aim = input.aimDown() && (!pv0.def.kind || pv0.def.kind === 'boat');
           if (aim && !player.carWeaponOk(player.weapon)) { const b = player.bestCarWeapon(); if (b) player.switchTo(b); else aim = false; }
           player.aiming = aim;
           if (input.hit('nextWeapon') || input.mouse.wheel > 0) player.cycleCarWeapon(1);

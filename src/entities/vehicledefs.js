@@ -97,6 +97,32 @@ export const VEHICLES = {
     mass: 7800, force: 26000, top: 30, grip: 0.9, drive: 'awd', steer: 0.5, brake: 36000, rarity: 0, camDist: 13, camHeight: 3.4, military: true,
     colors: [0x4b5320],
   },
+  // ------------------------------------------------ boats (see boat.js)
+  dinghy: {
+    name: 'Dinghy', kind: 'boat', boat: 'rib', L: 4.4, W: 2.0, H: 1.1, draft: 0.28, freeboard: 0.55, mass: 520, force: 4200, top: 17, turn: 1.25,
+    rarity: 0, camDist: 7.5, camHeight: 2.4, health: 600, wheelbase: 2.6, track: 1.6, wheelR: 0.3, clearance: 0, grip: 1, drive: 'rwd', steer: 0.5, brake: 1,
+    colors: [0xd62828, 0x2b2d42, 0xf77f00, 0x3a5a40],
+  },
+  speedboat: {
+    name: 'Squalo', kind: 'boat', boat: 'speed', L: 6.8, W: 2.4, H: 1.5, draft: 0.42, freeboard: 0.9, mass: 1500, force: 15500, top: 32, turn: 1.05,
+    rarity: 0, camDist: 9.5, camHeight: 2.8, health: 900, wheelbase: 4, track: 2, wheelR: 0.3, clearance: 0, grip: 1, drive: 'rwd', steer: 0.5, brake: 1,
+    colors: [0xffffff, 0xe63946, 0x1d3557, 0xffb703, 0x111111],
+  },
+  jetski: {
+    name: 'Wave Rider', kind: 'boat', boat: 'jetski', astride: true, L: 3.1, W: 1.15, H: 1.1, draft: 0.2, freeboard: 0.42, mass: 380, force: 4600, top: 25, turn: 1.9,
+    rarity: 0, camDist: 5.8, camHeight: 2.0, health: 450, wheelbase: 1.8, track: 0.8, wheelR: 0.2, clearance: 0, grip: 1, drive: 'rwd', steer: 0.5, brake: 1,
+    colors: [0xffd60a, 0x00b4d8, 0xe63946, 0x80ed99, 0xffffff],
+  },
+  cruiser: {
+    name: 'Marquis', kind: 'boat', boat: 'cruiser', L: 11.5, W: 3.8, H: 3.6, draft: 0.9, freeboard: 1.35, mass: 9500, force: 30000, top: 14, turn: 0.5,
+    rarity: 0, camDist: 17, camHeight: 5.5, health: 1600, wheelbase: 7, track: 3, wheelR: 0.3, clearance: 0, grip: 1, drive: 'rwd', steer: 0.5, brake: 1,
+    colors: [0xffffff, 0xf1faee, 0x264653],
+  },
+  policeboat: {
+    name: 'Predator', kind: 'boat', boat: 'police', police: true, weapons: true, L: 8.4, W: 2.8, H: 2.7, draft: 0.5, freeboard: 1.0, mass: 2900, force: 24000, top: 30, turn: 0.95,
+    rarity: 0, camDist: 11, camHeight: 3.6, health: 1400, wheelbase: 5, track: 2.2, wheelR: 0.3, clearance: 0, grip: 1, drive: 'rwd', steer: 0.5, brake: 1,
+    colors: [0xf4f4f4],
+  },
   // ------------------------------------------------ tank
   mammoth: {
     name: 'Mammoth Tank', kind: 'tank', tank: true, L: 9.2, W: 3.7, H: 2.9, mass: 46000, top: 13, turn: 0.85, accel: 3.2,
@@ -139,4 +165,5 @@ export const VEHICLES = {
 };
 
 export const TRAFFIC_POOL = Object.entries(VEHICLES).filter(([, d]) => d.rarity > 0).map(([id, d]) => [id, d.rarity]);
-export const BIKES = Object.keys(VEHICLES).filter((id) => VEHICLES[id].bike);
+export const BIKES = Object.keys(VEHICLES).filter((id) => VEHICLES[id].bike && !VEHICLES[id].board);
+export const BOATS = Object.keys(VEHICLES).filter((id) => VEHICLES[id].kind === 'boat');
