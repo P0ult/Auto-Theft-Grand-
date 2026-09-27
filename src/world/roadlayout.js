@@ -88,10 +88,29 @@ export function buildRoadNetwork(C, hf) {
   const mk = (x, z, opts = {}) => net.addNode(x, z, opts.y ?? avgTerrain(x, z), opts);
   function road(ctrl, type, o = {}) {
     let pts = catmull(ctrl, o.spacing ?? 6);
+    // a road runs in to the centre of the junction it starts / ends at. Its control points usually stop at the
+    // edge of a roundabout or a city street, and the ribbon and lanes are cut back from the node itself: from
+    // there they fell 25 m short of a roundabout, leaving grass between the road and the ring. The run-in is
+    // level with the junction, and the road's own profile starts where it used to.
+    const run = [0, 0];
+    const runIn = (n, atEnd) => {
+      const q = atEnd ? pts[pts.length - 1] : pts[0];
+      const d = Math.hypot(q[0] - n.x, q[1] - n.z);
+      if (d < 1) return;
+      const k = Math.ceil(d / (o.spacing ?? 6)), add = [];
+      for (let i = 0; i < k; i++) add.push([n.x + (q[0] - n.x) * i / k, n.z + (q[1] - n.z) * i / k]);
+      pts = atEnd ? pts.concat(add.reverse()) : add.concat(pts);
+      run[atEnd ? 1 : 0] = d;
+    };
+    if (o.start) runIn(o.start, false);
+    if (o.end) runIn(o.end, true);
+    const len = cumLen(pts)[pts.length - 1];
+    const ends = [o.start && { s: run[0], y: o.start.y }, o.end && { s: len - run[1], y: o.end.y }].filter(Boolean);
+    const level = (x, z, s) => (o.start && s <= run[0] + 0.01 ? o.start.y : o.end && s >= len - run[1] - 0.01 ? o.end.y : o.fixed ? o.fixed(x, z, s) : null);
     const T = RT[type];
     const prof = solveProfile(pts, terrain, {
-      y0: o.start ? o.start.y : o.y0, y1: o.end ? o.end.y : o.y1, window: o.window ?? (type === 'dirt' ? 50 : type === 'road' ? 80 : 160),
-      maxGrade: o.maxGrade ?? (type === 'dirt' ? 0.14 : type === 'road' ? 0.1 : 0.075), maxCut: o.maxCut ?? (type === 'dirt' ? 4 : 12), pins: o.pins, fixed: o.fixed, minY: o.minY,
+      y0: o.start ? null : o.y0, y1: o.end ? null : o.y1, window: o.window ?? (type === 'dirt' ? 50 : type === 'road' ? 80 : 160),
+      maxGrade: o.maxGrade ?? (type === 'dirt' ? 0.14 : type === 'road' ? 0.1 : 0.075), maxCut: o.maxCut ?? (type === 'dirt' ? 4 : 12), pins: [...(o.pins || []), ...ends], fixed: level, minY: o.minY,
     });
     const cum = prof.cum;
     pts = pts.map((p, i) => [p[0], p[1], prof.y[i]]);
@@ -333,9 +352,22 @@ export function buildRoadNetwork(C, hf) {
     const n = splitAtPoint(r, p, 'jct');
     if (!n) return;
     const e = atStart ? sideRoad.edges[0] : sideRoad.edges[sideRoad.edges.length - 1];
-    const endNode = atStart ? net.nodes[e.a] : net.nodes[e.b];
-    retarget(net, e, endNode, n);
-    easeToJunction(e, atStart, n.y);
+    const endNode = atStart ? net.nodes[e.a] : net.nodes[e.b], far = atStart ? net.nodes[e.b] : net.nodes[e.a];
+    // the side road now starts at the junction itself: its first point was only somewhere near the main road,
+    // sometimes on the far side of it, so its lanes ran back across the junction and parked in the middle
+    let pts = [];
+    for (let i = 0; i < e.n; i++) pts.push([e.p[i * 3], e.p[i * 3 + 2], e.p[i * 3 + 1]]);
+    if (!atStart) pts.reverse();
+    const cum = cumLen(pts), s = project(pts, cum, n.x, n.z).s;
+    let k = 1;
+    while (k < pts.length - 2 && cum[k] < s + 3) k++;
+    pts = [[n.x, n.z, pts[k][2]], ...pts.slice(k)];
+    if (!atStart) pts.reverse();
+    removeEdge(net, e);
+    endNode.dead = endNode.e.length === 0;
+    const e2 = atStart ? net.addEdge(n, far, pts, e.type, { name: e.name }) : net.addEdge(far, n, pts, e.type, { name: e.name });
+    sideRoad.edges.splice(sideRoad.edges.indexOf(e), 1, e2);
+    easeToJunction(e2, atStart, n.y);
   };
   joinTo(fernN, fs1); joinTo(fernS, fs2); joinTo(fernS, fs3);
   info.towns.fern.roads.push(fs1, fs2, fs3);
@@ -419,6 +451,32 @@ export function buildRoadNetwork(C, hf) {
   }
   // traffic priority: a node's major class
   for (const n of net.nodes) { let c = 0; for (const eid of n.e) c = Math.max(c, net.edges[eid].T.cls); n.maxCls = c; }
+  // ------------------------------------------------------------------ level through junctions
+  // A junction, and the ground under it, is flat at the node's height. A road that kept its own grade right up
+  // to it met that pad in a ledge (up to a metre on the hill at Pine Hollow) that cars drove into. Every road
+  // runs level across the pad, then climbs or drops away from it no steeper than a little over its own grade
+  // (easing into that over the first few metres) until it meets its own profile again.
+  // (Level crossings keep the height the railway was laid to.)
+  const crossings = (info.rail?.crossings || []).filter((c) => c.kind === 'level');
+  for (const n of net.nodes) {
+    if (n.dead || n.grid || n.city || (n.kind !== 'x' && n.kind !== 'rb')) continue;
+    const flat = n.kind === 'rb' ? n.rbR + 6.5 : n.r + 1.5;
+    for (const eid of n.e) {
+      const e = net.edges[eid];
+      if (e.removed || e.type === 'rail' || e.a === e.b) continue;
+      const along = (i) => (e.a === n.id ? e.cum[i] : e.len - e.cum[i]);
+      let grade = 0;
+      for (let i = 1; i < e.n; i++) if (Math.min(along(i), along(i - 1)) < flat + 60) grade = Math.max(grade, Math.abs(e.p[i * 3 + 1] - e.p[i * 3 - 2]) / Math.max(0.1, e.cum[i] - e.cum[i - 1]));
+      const G = Math.max(0.12, grade * 1.25), ease = 8;
+      for (let i = 0; i < e.n; i++) {
+        const x = e.p[i * 3], z = e.p[i * 3 + 2];
+        if (crossings.some((c) => Math.hypot(c.x - x, c.z - z) < 20)) continue;
+        const u = Math.max(0, along(i) - flat);
+        const room = u < ease ? G * u * u / (2 * ease) : G * (u - ease / 2);
+        e.p[i * 3 + 1] = n.y + clamp(e.p[i * 3 + 1] - n.y, -room, room);
+      }
+    }
+  }
   return { net, info };
 }
 
@@ -441,7 +499,6 @@ export function removeEdge(net, e) {
   for (const nid of [e.a, e.b]) { const n = net.nodes[nid]; const i = n.e.indexOf(e.id); if (i >= 0) n.e.splice(i, 1); }
   for (const arr of net.grid.values()) for (let i = arr.length - 1; i >= 0; i--) if (arr[i].e === e) arr.splice(i, 1);
 }
-// move one end of an edge from node `from` to node `to` (used to hook side streets onto a new junction)
 // A side road's profile is solved on its own: ease its end to the height of the junction it joins
 // (over a distance long enough to keep a sensible grade) so it doesn't meet the main road in a step.
 function easeToJunction(e, atStart, y) {
@@ -457,9 +514,3 @@ function easeToJunction(e, atStart, y) {
   }
 }
 
-function retarget(net, e, from, to) {
-  if (e.a === from.id) e.a = to.id; else if (e.b === from.id) e.b = to.id; else return;
-  const i = from.e.indexOf(e.id); if (i >= 0) from.e.splice(i, 1);
-  to.e.push(e.id);
-  from.dead = from.e.length === 0;
-}

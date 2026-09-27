@@ -464,6 +464,9 @@ export function shapeTerrain(net, hf, groundAt, opts = {}) {
     const d0 = e.deck.slice();
     for (let i = 0; i < e.n; i++) if (d0[i] && !(d0[i - 1] || d0[i + 1]) && e.n > 2) e.deck[i] = 0;
     const core = Math.max(e.wL, e.wR) + 2.2, blend = e.type === 'freeway' || e.type === 'ramp' ? 22 : 16;
+    // under the road itself the ground takes the height of the nearest piece of it: taking the lowest of
+    // the overlapping pieces left a climbing road up to half a metre above its own ground (a ledge)
+    const coreY = new Map();
     for (let i = 0; i < e.n - 1; i++) {
       if (e.deck[i] && e.deck[i + 1]) continue;
       const ax = p[i * 3], ay = p[i * 3 + 1], az = p[i * 3 + 2], bx = p[i * 3 + 3], by = p[i * 3 + 4], bz = p[i * 3 + 5];
@@ -471,25 +474,29 @@ export function shapeTerrain(net, hf, groundAt, opts = {}) {
       const R = core + blend;
       const x0 = Math.min(ax, bx) - R, x1 = Math.max(ax, bx) + R, z0 = Math.min(az, bz) - R, z1 = Math.max(az, bz) + R;
       const dx = bx - ax, dz = bz - az, L2 = dx * dx + dz * dz || 1;
+      // where a bridge span starts, the end of the last piece on the ground keeps to the road's grade:
+      // levelled off at its end height it stood above a road dropping onto the bridge (a hump, then a step)
+      const spanA = i > 0 && e.deck[i] && e.deck[i - 1], spanB = i + 2 < e.n && e.deck[i + 1] && e.deck[i + 2];
       hf.forRect(x0, z0, x1, z1, (k, x, z) => {
         if (groundAt(x, z) != null) return;
-        const t = clamp(((x - ax) * dx + (z - az) * dz) / L2, 0, 1);
+        const tr = ((x - ax) * dx + (z - az) * dz) / L2, t = clamp(tr, 0, 1);
         const d = Math.hypot(x - ax - dx * t, z - az - dz * t);
         if (d > R) return;
-        const ty = ay + (by - ay) * t - 0.07;
+        const ty = ay + (by - ay) * ((tr < 0 && spanA) || (tr > 1 && spanB) ? tr : t) - 0.07;
         const w = d <= core ? 1 : 1 - smoothstep(core, R, d);
         // cuts only lower, fills only raise (so crossing roads don't bury each other)
         const cur = h[k];
         const nv = cur + (ty - cur) * w;
-        if (d <= core) { h[k] = ty; if (ty < low[k]) low[k] = ty; } else h[k] = nv;
+        if (d <= core) { const c = coreY.get(k); if (!c || d < c[0]) coreY.set(k, [d, ty]); } else h[k] = nv;
       });
     }
+    for (const [k, [, ty]] of coreY) { h[k] = ty; if (ty < low[k]) low[k] = ty; }
   }
   // junction pads
   for (const n of net.nodes) {
     if (n.grid || n.city || n.dead) continue;
     if (groundAt(n.x, n.z) != null) continue;
-    const r = n.kind === 'rb' ? n.rbR + 11 : n.kind === 'x' ? n.r + 1 : n.kind === 'end' ? 6 : 0;
+    const r = n.kind === 'rb' ? n.rbR + 6 : n.kind === 'x' ? n.r + 1 : n.kind === 'end' ? 6 : 0;
     if (!r) continue;
     hf.pad({ x: n.x, z: n.z, r, y: n.y - 0.07, blend: 16 });
   }

@@ -175,13 +175,15 @@ export class RoadMeshes {
 
   // distance along an edge from each end that the ribbon should leave to the junction pad
   trims(e) {
-    const t = (n) => {
-      if (n.grid || n.city) return 10.2;
+    const t = (n, x, z) => {
+      // city streets are 20 m wide: the ribbon starts at their edge (roads leaving the city already start there)
+      if (n.grid || n.city) return Math.max(0, 10.2 - Math.hypot(x - n.x, z - n.z));
       if (n.kind === 'x') return n.r;
       if (n.kind === 'rb') return n.rbR + 5.4;
       return 0;
     };
-    return [t(this.net.nodes[e.a]), t(this.net.nodes[e.b])];
+    const p = e.p, k = (e.n - 1) * 3;
+    return [t(this.net.nodes[e.a], p[0], p[2]), t(this.net.nodes[e.b], p[k], p[k + 2])];
   }
 
   build() {
