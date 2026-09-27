@@ -39,7 +39,9 @@ export class RouteDriver extends LaneDriver {
         if (r && r.seq.length) {
           const firstNode = r.seq[0].node;
           const dir = firstNode === e.b ? 0 : 1;
-          if (dir !== st.dir) st = { ...st, dir, lane: 0, s: e.len - st.s };
+          // (a car already on the move carries on and turns round at the next junction: taking the other lane
+          // at speed flung it into a full-lock U-turn off the road)
+          if (dir !== st.dir && veh.speedAbs < 3) st = { ...st, dir, lane: 0, s: e.len - st.s };
         }
       }
     }

@@ -342,8 +342,11 @@ export class LaneDriver {
   _junctionControl(cur, remain, speed) {
     const n = cur.node;
     const game = this.game;
-    if (this.ignoreLights || this.panic > 0) return 99;
+    if (this.panic > 0) return 99;
+    // (running red lights is one thing; driving into a junction another car is in the middle of, or into a
+    // roundabout on top of the traffic in it, just wedges both and locks the junction for everyone)
     if (n.sig != null) {
+      if (this.ignoreLights) return 99;
       // axis of approach: grid streets know it, others use their heading
       let axis;
       if (cur.e.grid) axis = cur.e.grid.di !== 0 ? 1 : 0;
@@ -384,10 +387,13 @@ export class LaneDriver {
       const minor = cur.e.T.cls < n.maxCls;
       // someone else holds the junction? (only while they're still at it or in it, and not stuck for good)
       const h = n.busy;
-      const busy = h && h !== this.veh && !h.removed && !h.isWrecked && h.ai?.paths?.[0]?.node === n && !(h.ai.jam > 6) &&
+      const busy = h && h !== this.veh && !h.removed && !h.isWrecked && h.ai?.paths?.[0]?.node === n && !(h.ai.jam > 20) &&
         Math.hypot(h.pos.x - n.x, h.pos.z - n.z) < n.r + 30;
       if (busy) return Math.max(0, (remain - 0.5) * 0.6);
-      if (minor) {
+      // don't block the box: wait until there's room on the road out (a queue backing up through the
+      // junction had cars stuck in it, and everyone else piling in round them)
+      if (remain < 12 && this._exitBlocked(this.paths[2])) return Math.max(0, (remain - 0.5) * 0.6);
+      if (minor && !this.ignoreLights) {
         // stop, then go when nothing is crossing
         let clear = true;
         for (const o of vlist) {
@@ -402,6 +408,19 @@ export class LaneDriver {
       return 9;
     }
     return 99;
+  }
+
+  // is something stopped just inside the lane we'd come out on?
+  _exitBlocked(lane) {
+    if (!lane || lane.kind !== 'lane') return false;
+    const A = lane.pts[0], B = sampleOn(lane, Math.min(lane.len, 10), _t4);
+    const dx = B[0] - A[0], dz = B[2] - A[2], l2 = dx * dx + dz * dz || 1;
+    for (const o of this.game.vehicles.list) {
+      if (o === this.veh || o.removed || o.speedAbs > 2.5 || Math.abs(o.pos.y - A[1]) > 3) continue;
+      const t = clamp(((o.pos.x - A[0]) * dx + (o.pos.z - A[2]) * dz) / l2, 0, 1);
+      if (Math.hypot(o.pos.x - A[0] - dx * t, o.pos.z - A[2] - dz * t) < 2.2) return true;
+    }
+    return false;
   }
 
   update(dt) {
@@ -531,7 +550,7 @@ export class LaneDriver {
     if (st) this._start(st);
   }
 }
-const _t3 = [0, 0, 0];
+const _t3 = [0, 0, 0], _t4 = [0, 0, 0];
 
 export class Traffic {
   constructor(game) {
