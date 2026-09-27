@@ -369,6 +369,7 @@ export class PedManager {
       }
       const ped = this.spawnPed(sx, sz, {});
       ped.node = n2; ped.prevNode = n;
+      if (Math.random() < 0.07 && district !== 'docks') game.wildlife?.addWalkedDog(ped);
       // occasional conversation pair
       if (Math.random() < 0.15 && this.list.length < this.maxPeds - 1) {
         const other = this.spawnPed(sx + 1.2, sz + 0.3, {});

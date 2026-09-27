@@ -607,6 +607,7 @@ export class City {
       'BIG BUN': { bg: '#6b1a00', fg: '#ffd166' }, GARAGE: { bg: '#222', fg: '#ffffff' }, LIQUOR: { bg: '#1d0826', fg: '#ff5ec4' },
       GAS: { bg: '#b3121b', fg: '#ffffff' }, MOTEL: { bg: '#123d4a', fg: '#ff6fb5' }, SALOON: { bg: '#3b2412', fg: '#ffcc66' }, CANTINA: { bg: '#5a1a4a', fg: '#ffd166' },
       'FORT CARVER': { bg: '#2f3a26', fg: '#e9e4c8' }, AIRFIELD: { bg: '#1c2f4a', fg: '#ffffff' }, MALL: { bg: '#20252b', fg: '#7ee0ff' }, LODGE: { bg: '#2d3d22', fg: '#f4e3b2' },
+      'PET PALACE': { bg: '#1f6f4a', fg: '#fff3a8' }, '24/7': { bg: '#0f7a3a', fg: '#ffffff' }, 'RUSTY ANCHOR': { bg: '#2a1a10', fg: '#ff9a3c' }, 'BEAN SCENE': { bg: '#3b2418', fg: '#f2d7b0' },
     };
     for (const b of this.map.buildings) {
       if (!b.sign) continue;
@@ -632,7 +633,7 @@ export class City {
       const mesh = new THREE.Mesh(geo, mat);
       // sign on the south face if the block's street is south, else north face
       const blk = this.map.blockAt((b.x0 + b.x1) / 2, (b.z0 + b.z1) / 2);
-      const faceSouth = blk ? (blk.iz1 - b.z1) < (b.z0 - blk.iz0) : true;
+      const faceSouth = b.shop ? b.shop.front === 'z1' : blk ? (blk.iz1 - b.z1) < (b.z0 - blk.iz0) : true;
       const y = Math.min(b.y1 - h * 0.6, b.y0 + 4.2 + h / 2);
       if (faceSouth) { mesh.position.set((b.x0 + b.x1) / 2, y, b.z1 + 0.06); }
       else { mesh.position.set((b.x0 + b.x1) / 2, y, b.z0 - 0.06); mesh.rotation.y = Math.PI; }

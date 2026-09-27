@@ -30,6 +30,7 @@ export class HUD {
     this.starEls = [];
     for (let i = 0; i < 5; i++) this.starEls.push(h('span', 'star', this.stars, '★'));
     this.moneyPop = h('div', 'hud-money-pop', tr);
+    this.petTag = h('div', 'hud-pet', tr);
     // radar
     this.radarWrap = h('div', 'hud-radar', root);
     this.radar = h('canvas', '', this.radarWrap);
@@ -90,8 +91,8 @@ export class HUD {
     if (input.lastDevice !== 'gamepad' || typeof text !== 'string' || !text.includes('<b>')) return text;
     const v = this.game.player.vehicle, kind = v ? (v.def?.kind || 'car') : null;
     const G = input.gp.family === 'playstation'
-      ? { A: '✕', B: '○', X: '□', Y: '△', LB: 'L1', RB: 'R1', LT: 'L2', RT: 'R2', VIEW: 'Create', LS: 'L3' }
-      : { A: 'A', B: 'B', X: 'X', Y: 'Y', LB: 'LB', RB: 'RB', LT: 'LT', RT: 'RT', VIEW: 'View', LS: 'LS' };
+      ? { A: '✕', B: '○', X: '□', Y: '△', LB: 'L1', RB: 'R1', LT: 'L2', RT: 'R2', VIEW: 'Create', LS: 'L3', RS: 'R3' }
+      : { A: 'A', B: 'B', X: 'X', Y: 'Y', LB: 'LB', RB: 'RB', LT: 'LT', RT: 'RT', VIEW: 'View', LS: 'LS', RS: 'RS' };
     const air = kind === 'plane' || kind === 'jet' || kind === 'heli' || kind === 'tank', heli = kind === 'heli';
     return text.replace(/<b>([^<]{1,14})<\/b>([^<]{0,40})/g, (m, key, after) => {
       let r = null;
@@ -101,6 +102,7 @@ export class HUD {
         case 'R': r = G.B; break;
         case 'N': r = 'D-pad →'; break;
         case 'J': r = 'D-pad ←'; break;
+        case 'K': r = G.RS; break;
         case 'V': r = G.VIEW; break;
         case 'H': r = v ? G.LS : 'D-pad →'; break;
         case 'G': r = /hydraulic/i.test(text) ? 'D-pad ↑' : 'D-pad ←'; break;
@@ -603,7 +605,7 @@ export class HUD {
     const KB = `<div class="ctl-cols"><div><h3>On foot</h3><table>
       <tr><td>WASD</td><td>Move</td></tr><tr><td>Mouse</td><td>Look</td></tr><tr><td>Shift</td><td>Sprint</td></tr><tr><td>Space</td><td>Jump</td></tr>
       <tr><td>C / Ctrl</td><td>Crouch</td></tr><tr><td>Left mouse</td><td>Punch / fire</td></tr><tr><td>Right mouse</td><td>Aim</td></tr><tr><td>R</td><td>Reload</td></tr>
-      <tr><td>Q / E, wheel, 1-9</td><td>Switch weapon</td></tr><tr><td>F / Enter</td><td>Enter / steal vehicle</td></tr></table></div>
+      <tr><td>Q / E, wheel, 1-9</td><td>Switch weapon</td></tr><tr><td>F / Enter</td><td>Enter / steal vehicle</td></tr><tr><td>K</td><td>Whistle for your pet: stay / come (aiming at someone: set your dog on them)</td></tr></table></div>
       <div><h3>In a vehicle</h3><table><tr><td>W / S</td><td>Accelerate / brake-reverse</td></tr><tr><td>A / D</td><td>Steer</td></tr><tr><td>Space</td><td>Handbrake (drift!)</td></tr>
       <tr><td>H</td><td>Horn (Shift+H: siren in police cars)</td></tr><tr><td>N</td><td>Next radio station</td></tr><tr><td>V</td><td>Change camera</td></tr><tr><td>B</td><td>Look behind</td></tr>
       <tr><td>Right mouse + left mouse</td><td>Drive-by (pistol / SMG)</td></tr><tr><td>G</td><td>Hydraulics (lowriders)</td></tr><tr><td>F</td><td>Exit (bail out when fast)</td></tr></table>
@@ -627,6 +629,7 @@ export class HUD {
           [G.L, 'Move'], [G.R, 'Look'], [`${G.A} (hold)`, 'Sprint'], [G.X, 'Jump / open parachute'], [G.LS, 'Crouch'],
           [G.RT, 'Fire / punch / throw'], [`${G.LT} (hold)`, 'Aim — pair with ' + G.RT + ' to shoot'], [G.B, 'Reload'],
           [`${G.LB} / ${G.RB}`, 'Previous / next weapon'], [G.Y, 'Enter / steal vehicle'],
+          [G.RS, 'Whistle for your pet (stay / come / attack)'],
           ['D-pad ↑', 'Teleport menu (free roam)'], ['D-pad →', 'Whistle for a taxi'], ['D-pad ←', 'Ride as a passenger'], ['D-pad ↓', 'Map'], [G.MENU, 'Pause']])}</div>
         <div><h3>In a vehicle</h3>${rows([
           [G.RT, 'Accelerate'], [G.LT, 'Brake / reverse'], [G.L, 'Steer'], [G.RB, 'Handbrake (drift!)'],
@@ -668,6 +671,11 @@ export class HUD {
     if (input.hit('radio') && p.vehicle && !p.vehicle.def.bike) game.audio?.radio?.next();
 
     this.clock.textContent = game.env.timeString;
+    // your pet: name, and whether it's staying put / on the attack / hurt
+    const pet = game.pets?.pet;
+    const petTxt = pet && !pet.removed ? `🐾 ${pet.petName}${pet.dead ? ' ✝' : game.pets.target ? ' · attacking' : game.pets.stay ? ' · staying' : pet.inVehicle ? ' · riding' : ''}` : '';
+    if (petTxt !== this._petTxt) { this._petTxt = petTxt; this.petTag.textContent = petTxt; this.petTag.style.display = petTxt ? '' : 'none'; }
+    if (pet && !pet.dead) this.petTag.classList.toggle('hurt', pet.health < pet.maxHealth * 0.35);
     // health / armor
     const hp = clamp(p.health / p.maxHealth, 0, 1);
     this.healthBar.firstChild.style.width = `${hp * 100}%`;
@@ -952,6 +960,10 @@ const ICONS = {
   taxi: (c) => { c.fillRect(-6, -1, 12, 5); c.fillRect(-3, -4, 6, 3); c.fillRect(-1.5, -7, 3, 2); },
   person: (c) => { c.beginPath(); c.arc(0, -4, 2.6, 0, Math.PI * 2); c.fill(); c.fillRect(-3, -1, 6, 5); c.fillRect(-3, 4, 2, 3); c.fillRect(1, 4, 2, 3); },
   train: (c) => { c.fillRect(-4, -6, 8, 9); c.clearRect(-3, -5, 6, 3); c.fillRect(-5, 4, 2, 2); c.fillRect(3, 4, 2, 2); },
+  paw: (c) => { c.beginPath(); c.ellipse(0, 2.5, 3.6, 3, 0, 0, Math.PI * 2); c.fill(); for (const [x, y] of [[-4.2, -1.6], [-1.5, -4.4], [1.5, -4.4], [4.2, -1.6]]) { c.beginPath(); c.arc(x, y, 1.5, 0, Math.PI * 2); c.fill(); } },
+  cart: (c) => { c.fillRect(-5, -3, 9, 5); c.fillRect(-7, -5, 3, 1.5); c.beginPath(); c.arc(-3, 4.5, 1.4, 0, Math.PI * 2); c.arc(3, 4.5, 1.4, 0, Math.PI * 2); c.fill(); },
+  beer: (c) => { c.fillRect(-4, -4, 7, 10); c.fillRect(3, -2, 2.5, 1.4); c.fillRect(4.5, -2, 1.4, 5); c.fillRect(3, 2, 2.5, 1.4); },
+  cup: (c) => { c.beginPath(); c.moveTo(-5, -3); c.lineTo(4, -3); c.lineTo(3, 5); c.lineTo(-4, 5); c.closePath(); c.fill(); c.fillRect(4, -1, 2.5, 1.3); c.fillRect(5.2, -1, 1.3, 3.5); },
 };
 
 export function drawWeaponIcon(c, id, size) {

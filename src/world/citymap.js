@@ -894,8 +894,56 @@ export class CityMap {
     this.walkNodes = nodes;
   }
 
+  // More walk-in shops: a few ordinary street-front buildings get a real ground-floor shop — the pet shop,
+  // three 24/7 stores, a bar and a coffee shop. Picked (deterministically) from buildings on the ground that
+  // face a street with a clear pavement in front, sized for a room, away from the landmark blocks.
+  _retrofitShops() {
+    const WANT = [
+      { key: 'petshop', name: 'Pet Palace', sign: 'PET PALACE', districts: ['midtown', 'westside'], lm: 'petshop' },
+      { key: 'store', name: '24/7 Downtown', sign: '24/7', districts: ['downtown'], lm: 'store1' },
+      { key: 'store', name: '24/7 Rosewood', sign: '24/7', districts: ['westside', 'beach'], lm: 'store2' },
+      { key: 'store', name: '24/7 El Corona', sign: '24/7', districts: ['corona', 'hood'], lm: 'store3' },
+      { key: 'bar', name: 'The Rusty Anchor', sign: 'RUSTY ANCHOR', districts: ['docks', 'hood', 'corona'], lm: 'bar' },
+      { key: 'cafe', name: 'Bean Scene', sign: 'BEAN SCENE', districts: ['downtown', 'midtown'], lm: 'cafe' },
+    ];
+    const used = [];
+    const hash = (x, z) => { let h = Math.imul(Math.round(x) * 73856093 ^ Math.round(z) * 19349663, 0x5bd1e995); h ^= h >>> 13; return (h >>> 0) / 4294967296; };
+    for (const W of WANT) {
+      const cands = [];
+      for (const b of this.buildings) {
+        if (b.shop || b.rot || b.name || b.sign || b.noCollide || b.base || ['house', 'warehouse', 'mansion', 'stand'].includes(b.kind)) continue;
+        if (!W.districts.includes(b.district) || b.y0 > CURB_H + 0.6) continue;
+        const w = b.x1 - b.x0, d = b.z1 - b.z0;
+        if (w < 14 || w > 30 || d < 11 || d > 24 || b.y1 - b.y0 < 4.4) continue;
+        const cx = (b.x0 + b.x1) / 2, cz = (b.z0 + b.z1) / 2;
+        const blk = this.blockAt(cx, cz);
+        if (!blk || blk.special || blk.park) continue;
+        const front = Math.abs(b.z0 - blk.iz0) < 3.5 ? 'z0' : Math.abs(b.z1 - blk.iz1) < 3.5 ? 'z1' : null;
+        if (!front) continue;
+        // nothing may sit against the doorway, and no other building may overlap the room
+        const fz = front === 'z0' ? b.z0 : b.z1, out = front === 'z0' ? -1 : 1;
+        const inFront = (x0, z0, x1, z1) => x1 > cx - 2 && x0 < cx + 2 && (out < 0 ? z1 > fz - 3 && z0 < fz + 0.1 : z0 < fz + 3 && z1 > fz - 0.1);
+        if (this.buildings.some((o) => o !== b && (inFront(o.x0, o.z0, o.x1, o.z1) || (o.x1 > b.x0 + 0.3 && o.x0 < b.x1 - 0.3 && o.z1 > b.z0 + 0.3 && o.z0 < b.z1 - 0.3 && o.y0 < b.y0 + 3)))) continue;
+        if (this.fences.some((f) => inFront(Math.min(f.x0, f.x1), Math.min(f.z0, f.z1), Math.max(f.x0, f.x1), Math.max(f.z0, f.z1)))) continue;
+        if (used.some((u) => Math.hypot(u.x - cx, u.z - cz) < 220)) continue;
+        cands.push({ b, front, cx, cz, fz, h: hash(cx, cz) });
+      }
+      cands.sort((a, c) => a.h - c.h);
+      const c = cands[0];
+      if (!c) continue;
+      const b = c.b;
+      b.shop = { key: W.key, front: c.front };
+      b.name = W.name; b.sign = W.sign; b.noCollide = true;
+      // street furniture out of the doorway
+      this.props = this.props.filter((p) => !(Math.abs(p.x - c.cx) < 2.2 && Math.abs(p.z - c.fz) < 3.5));
+      used.push({ x: c.cx, z: c.cz });
+      this.landmarks[W.lm] = { x: c.cx, z: c.fz + (c.front === 'z0' ? -2 : 2), name: W.name };
+    }
+  }
+
   _buildLandmarks() {
     const pier = this.landmarks.pier;
+    this._retrofitShops();
     this.landmarks.ferris = { x: (pier.x0 + pier.x1) / 2, z: pier.z1 - 40 };
     this.landmarks.sign = { x: -60, z: -1010 };
     this.landmarks.beach = { x: -40, z: CITY.maxZ + 30 };

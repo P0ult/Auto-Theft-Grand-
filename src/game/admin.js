@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { VEHICLES } from '../entities/vehicledefs.js';
 import { WEAPONS } from './weapondefs.js';
 import { clamp } from '../core/utils.js';
+import { PET_BREEDS } from '../entities/animals.js';
 
 // what the spawner offers, by group (trains need their rails, so they're left out)
 export const SPAWN_GROUPS = [
@@ -34,6 +35,7 @@ const HELP = [
   'time <0-24> · weather clear|cloudy|rain|storm|fog · freeze · slowmo',
   'jump · run · sprint · gravity · boom · riot · traffic off|normal|heavy · peds off|normal|heavy',
   'clear · explode · skydive · bodyguard · enemies · tp <place> · colour <n>',
+  'pet <lab|shepherd|husky|rottweiler|pug|poodle|tabby|blackcat|siamese> [name] · animals',
 ];
 
 const NONE = Object.freeze({});
@@ -327,6 +329,17 @@ export class Admin {
       case 'enemies': case 'attack': return this.enemies();
       case 'traffic': if (!['off', 'normal', 'heavy'].includes(a)) return 'traffic off | normal | heavy'; this.traffic = a; return `Traffic: ${a}.`;
       case 'peds': case 'people': if (!['off', 'normal', 'heavy'].includes(a)) return 'peds off | normal | heavy'; this.peds = a; return `Pedestrians: ${a}.`;
+      case 'pet': {
+        const [breed, ...nm] = (a || '').split(/\s+/);
+        if (!PET_BREEDS.includes(breed)) return `pet ${PET_BREEDS.join(' | ')} [name]`;
+        const nmS = nm.join(' ').slice(0, 16);
+        const pet = g.pets?.adopt(breed, nmS ? nmS[0].toUpperCase() + nmS.slice(1) : undefined);
+        return pet ? `Meet <b>${pet.petName}</b>.` : 'No pet.';
+      }
+      case 'animals': case 'wildlife': {
+        const n = g.wildlife?.list.filter((x) => !x.dead).length || 0;
+        return `${n} animals nearby.`;
+      }
       default: return `Unknown command "${cmd}". Type <b>help</b>.`;
     }
   }

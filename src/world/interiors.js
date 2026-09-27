@@ -72,6 +72,42 @@ const LAYOUTS = {
   },
 };
 
+// the shops added to ordinary street buildings (they're sized from the building)
+LAYOUTS.petshop = (F) => {
+  const D = F.D, H = F.W / 2;
+  return {
+    name: 'Pet Palace', ceil: 3.5,
+    floor: [[0.82, 0.78, 0.66], [0.74, 0.7, 0.58]], wall: [0.86, 0.94, 0.84], dado: [0.2, 0.46, 0.3],
+    counter: { u0: 1.2, w0: D - 3.4, u1: H - 1.2, w1: D - 2.7, top: [0.9, 0.9, 0.86], body: [0.2, 0.46, 0.3] },
+    clerk: { u: (H + 1.2) / 2, w: D - 1.7 }, service: { u: (H + 1.2) / 2, w: D - 4.3 }, till: { u: H - 2.2, w: D - 3.05 },
+    lights: [[-H / 2, 3], [H / 2, 3], [-H / 2, D - 3], [H / 2, D - 3]],
+    extra: 'petshop', H,
+  };
+};
+LAYOUTS.store = (F) => ({ ...LAYOUTS.liquor(F), name: '24/7', floor: [[0.92, 0.92, 0.9], [0.8, 0.84, 0.82]], wall: [0.94, 0.96, 0.92], dado: [0.08, 0.5, 0.25] });
+LAYOUTS.bar = (F) => {
+  const D = F.D, H = F.W / 2;
+  return {
+    name: 'The Rusty Anchor', ceil: 3.4,
+    floor: [[0.28, 0.18, 0.11], [0.24, 0.15, 0.09]], wall: [0.42, 0.28, 0.2], dado: [0.2, 0.12, 0.07],
+    counter: { u0: -H + 2.6, w0: 2.2, u1: -H + 3.4, w1: D - 2.2, top: [0.18, 0.1, 0.05], body: [0.3, 0.18, 0.1] },
+    clerk: { u: -H + 1.4, w: D / 2, face: 'r' }, service: { u: -H + 4.4, w: D / 2 }, till: { u: -H + 3.0, w: D - 3.2 },
+    lights: [[-H + 3, D / 3], [-H + 3, D * 2 / 3], [2, D / 2], [H - 2.5, 3], [H - 2.5, D - 3]],
+    extra: 'bar', H,
+  };
+};
+LAYOUTS.cafe = (F) => {
+  const D = F.D, H = F.W / 2;
+  return {
+    name: 'Bean Scene', ceil: 3.4,
+    floor: [[0.55, 0.38, 0.24], [0.6, 0.42, 0.27]], wall: [0.93, 0.88, 0.8], dado: [0.36, 0.24, 0.16],
+    counter: { u0: -H + 1.5, w0: D - 3.4, u1: 2.5, w1: D - 2.6, top: [0.85, 0.85, 0.82], body: [0.36, 0.24, 0.16] },
+    clerk: { u: -2, w: D - 1.6 }, service: { u: -2, w: D - 4.3 }, till: { u: 1.2, w: D - 3.0 },
+    lights: [[-H / 2, 3], [H / 2, 3], [-H / 2, D - 3], [H / 2, D - 3]],
+    extra: 'cafe', H,
+  };
+};
+
 // ------------------------------------------------------------------ plan (map build time)
 export function planInteriors(map) {
   map.interiors = [];
@@ -79,7 +115,7 @@ export function planInteriors(map) {
     if (!b.shop) continue;
     const F = new Frame(b);
     const L = LAYOUTS[b.shop.key](F);
-    const it = { key: b.shop.key, name: L.name, b, F, L, colliders: [], furniture: [] };
+    const it = { key: b.shop.key, name: b.name || L.name, b, F, L, colliders: [], furniture: [] };
     const y0 = F.y, y1 = Math.max(b.y1, F.y + L.ceil + 0.6);
     const box = (u0, w0, u1, w1, h0, h1, type = 'wall') => {
       const [x0, z0, x1, z1] = F.rect(u0, w0, u1, w1);
@@ -96,8 +132,9 @@ export function planInteriors(map) {
     box(-H, 0, -DOOR_W / 2, T, -0.3, y1 - y0, 'building');
     box(DOOR_W / 2, 0, H, T, -0.3, y1 - y0, 'building');
     box(-DOOR_W / 2, 0, DOOR_W / 2, T, DOOR_H, y1 - y0, 'building');
-    // roof slab over the room (bullets / the camera stop at it)
+    // roof slab over the room (bullets / the camera stop at it), and the building's own roof on top
     box(-H, 0, H, D, L.ceil, L.ceil + 0.3, 'building');
+    if (y1 - y0 > L.ceil + 1.5) box(-H, 0, H, D, y1 - y0 - 0.3, y1 - y0, 'building');
     // counter
     const c = L.counter;
     box(c.u0, c.w0, c.u1, c.w1, 0, 1.05, 'counter');
@@ -136,6 +173,30 @@ function furniture(it, box) {
       if (w > D - 6.4) continue;
       box(u - 0.45, w - 0.45, u + 0.45, w + 0.45, 0, 0.8, 'table');
       add('table', { u, w });
+    }
+  } else if (L.extra === 'petshop') {
+    // kennels down the left wall (glass fronts), aquarium wall on the right, a food aisle in the middle
+    const nK = Math.max(2, Math.min(4, Math.floor((D - 2.5) / 2.6)));
+    for (let k = 0; k < nK; k++) {
+      const w0 = 1.8 + k * 2.6;
+      box(-H + 0.25, w0 - 0.05, -H + 2.4, w0 + 0.05, 0, 1.2, 'pen'); // divider
+      add('pen', { u0: -H + 0.25, w0, u1: -H + 2.4, w1: w0 + 2.5, i: k });
+    }
+    box(-H + 2.35, 1.8, -H + 2.45, 1.8 + nK * 2.6, 0, 1.2, 'glass');
+    box(H - 0.9, 1.5, H - 0.25, D - 4.2, 0, 2.0, 'tanks'); add('tanks', { u0: H - 0.9, w0: 1.5, u1: H - 0.25, w1: D - 4.2 });
+    box(-0.5, 2.6, 0.5, Math.max(4, D - 5.6), 0, 1.6, 'shelf'); add('aisle', { u: 0, w0: 2.6, w1: Math.max(4, D - 5.6) });
+  } else if (L.extra === 'bar') {
+    // bottle wall behind the bar, a pool table, booths down the right wall
+    box(-H + 0.25, 1.6, -H + 0.7, D - 1.2, 0, 2.3, 'shelf'); add('bottles', {});
+    const pu = H * 0.25, pw = D * 0.5;
+    box(pu - 1.3, pw - 0.75, pu + 1.3, pw + 0.75, 0, 0.85, 'table'); add('pool', { u: pu, w: pw });
+    for (let w = 2.2; w < D - 2; w += 3.2) { box(H - 1.9, w - 0.45, H - 0.25, w + 0.45, 0, 0.75, 'table'); add('booth', { w }); }
+    for (let w = 2.8; w < D - 2.2; w += 1.3) add('stool', { u: -H + 3.9, w });
+  } else if (L.extra === 'cafe') {
+    // pastry case on the counter, tables by the window
+    for (const [u, w] of [[-H + 2.5, 2.8], [H - 2.5, 2.8], [H - 2.5, 5.8], [3, 5.8]]) {
+      if (w > D - 5.2 || u > H - 1.5) continue;
+      box(u - 0.4, w - 0.4, u + 0.4, w + 0.4, 0, 0.78, 'table'); add('table', { u, w });
     }
   } else if (L.extra === 'liquor') {
     for (const u of [-2.5, 1.5, 5.5]) { box(u - 0.5, 3.4, u + 0.5, Math.min(8.6, D - 2.2), 0, 1.75, 'shelf'); add('aisle', { u, w0: 3.4, w1: Math.min(8.6, D - 2.2) }); }
@@ -338,6 +399,123 @@ export function buildInteriorMesh(it) {
     const mm = new THREE.Mesh(new THREE.PlaneGeometry(6.4, 1.6), new THREE.MeshBasicMaterial({ map: menu }));
     mm.position.set(...F.P(0, c.w1 + 0.45, 2.7));
     mm.rotation.y = F.yawIn + Math.PI;
+    group.add(mm);
+  } else if (L.extra === 'petshop') {
+    // kennels: straw floor, back and side walls, a glass front and a water bowl each
+    const pens = it.furniture.filter((q) => q.kind === 'pen');
+    for (const p of pens) {
+      lbox(gb, p.u0, p.w0, p.u1, p.w1, 0.06, 0.09, [0.78, 0.66, 0.36]);
+      lbox(gb, p.u0, p.w0 - 0.05, p.u1, p.w0 + 0.05, 0, 1.2, [0.85, 0.85, 0.82]);
+      lbox(gb, p.u1 - 0.55, p.w0 + 0.3, p.u1 - 0.25, p.w0 + 0.6, 0.09, 0.16, [0.2, 0.45, 0.8]);
+    }
+    const last = pens[pens.length - 1];
+    if (last) lbox(gb, last.u0, last.w1 - 0.05, last.u1, last.w1 + 0.05, 0, 1.2, [0.85, 0.85, 0.82]);
+    if (pens.length) {
+      const [gx0, gz0, gx1, gz1] = F.rect(-H + 2.36, pens[0].w0, -H + 2.44, last.w1);
+      const glass = new THREE.Mesh(new THREE.BoxGeometry(Math.max(0.05, gx1 - gx0), 1.1, Math.max(0.05, gz1 - gz0)), M.glass);
+      glass.position.set((gx0 + gx1) / 2, F.y + 0.62, (gz0 + gz1) / 2);
+      group.add(glass);
+    }
+    // aquarium wall: lit blue tanks with little fish
+    const tk = it.furniture.find((q) => q.kind === 'tanks');
+    if (tk) {
+      lbox(gb, tk.u0, tk.w0, tk.u1, tk.w1, 0, 0.7, [0.12, 0.12, 0.14]);
+      lbox(gb, tk.u0, tk.w0, tk.u1, tk.w1, 1.9, 2.0, [0.12, 0.12, 0.14]);
+      for (let w = tk.w0 + 0.1; w < tk.w1 - 0.9; w += 1.1) {
+        col(em, [0.2, 0.55, 0.9]);
+        face(em, [tk.u0 - 0.005, 0.72, w], [tk.u0 - 0.005, 0.72, w + 1.0], [tk.u0 - 0.005, 1.88, w + 1.0], [tk.u0 - 0.005, 1.88, w], [-1, 0, 0]);
+        for (let f = 0; f < 5; f++) {
+          const fw = w + 0.1 + R() * 0.75, fh = 0.85 + R() * 0.9;
+          col(em, [[1, 0.5, 0.1], [1, 0.85, 0.2], [0.9, 0.2, 0.5], [0.3, 1, 0.6]][Math.floor(R() * 4)]);
+          face(em, [tk.u0 - 0.01, fh, fw], [tk.u0 - 0.01, fh, fw + 0.09], [tk.u0 - 0.01, fh + 0.05, fw + 0.09], [tk.u0 - 0.01, fh + 0.05, fw], [-1, 0, 0]);
+        }
+      }
+    }
+    // pet food aisle
+    const ai = it.furniture.find((q) => q.kind === 'aisle');
+    if (ai) {
+      lbox(gb, ai.u - 0.5, ai.w0, ai.u + 0.5, ai.w1, 0, 0.1, [0.3, 0.3, 0.32]);
+      lbox(gb, ai.u - 0.04, ai.w0, ai.u + 0.04, ai.w1, 0, 1.6, [0.5, 0.5, 0.52]);
+      products(ai.u - 0.48, ai.w0 + 0.05, ai.u - 0.06, ai.w1 - 0.05, 3, 0.4, 0.45, 1, 0.38);
+      products(ai.u + 0.06, ai.w0 + 0.05, ai.u + 0.48, ai.w1 - 0.05, 3, 0.4, 0.45, -1, 0.38);
+    }
+    const adopt = canvasTex(320, 200, (g, w, h) => {
+      g.fillStyle = '#fff6d8'; g.fillRect(0, 0, w, h);
+      g.fillStyle = '#1f6f4a'; g.font = 'bold 44px Impact, sans-serif'; g.textAlign = 'center'; g.fillText('ADOPT A FRIEND', w / 2, 70);
+      g.fillStyle = '#333'; g.font = 'bold 22px Arial, sans-serif'; g.fillText('Dogs · Cats · Fish', w / 2, 112); g.fillText('Ask at the counter', w / 2, 150);
+    });
+    poster(group, F, adopt, H - 0.02, D - 2.4, 2.3, 1.6, 1.0, 'l');
+  } else if (L.extra === 'bar') {
+    // backlit bottle wall behind the bar
+    lbox(gb, -H + 0.25, 1.6, -H + 0.7, D - 1.2, 0, 1.0, [0.2, 0.12, 0.07]);
+    for (let k = 0; k < 3; k++) {
+      const y = 1.25 + k * 0.42;
+      lbox(gb, -H + 0.25, 1.6, -H + 0.72, D - 1.2, y - 0.03, y, [0.25, 0.16, 0.1]);
+      for (let w = 1.7; w < D - 1.3; w += 0.16 + R() * 0.08) {
+        col(em, [[0.9, 0.55, 0.15], [0.3, 0.7, 0.3], [0.8, 0.8, 0.9], [0.7, 0.15, 0.1], [0.95, 0.8, 0.3]][Math.floor(R() * 5)]);
+        face(em, [-H + 0.73, y, w], [-H + 0.73, y, w + 0.08], [-H + 0.73, y + 0.3, w + 0.08], [-H + 0.73, y + 0.3, w], [1, 0, 0]);
+      }
+    }
+    // stools along the bar
+    for (const s of it.furniture.filter((q) => q.kind === 'stool')) {
+      const p = F.P(s.u, s.w, 0);
+      col(gb, [0.55, 0.12, 0.08]); gb.addGeometry(new THREE.CylinderGeometry(0.22, 0.22, 0.08, 12), mat4(p[0], p[1] + 0.78, p[2]));
+      col(gb, [0.3, 0.3, 0.32]); gb.addGeometry(new THREE.CylinderGeometry(0.04, 0.14, 0.76, 8), mat4(p[0], p[1] + 0.38, p[2]));
+    }
+    // pool table: felt, rails, legs, a few balls
+    const pt = it.furniture.find((q) => q.kind === 'pool');
+    if (pt) {
+      lbox(gb, pt.u - 1.3, pt.w - 0.75, pt.u + 1.3, pt.w + 0.75, 0.62, 0.82, [0.3, 0.17, 0.08]);
+      lbox(gb, pt.u - 1.18, pt.w - 0.63, pt.u + 1.18, pt.w + 0.63, 0.82, 0.84, [0.08, 0.4, 0.2]);
+      for (const [a, b] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) lbox(gb, pt.u + a * 1.1 - 0.1, pt.w + b * 0.6 - 0.1, pt.u + a * 1.1 + 0.1, pt.w + b * 0.6 + 0.1, 0, 0.62, [0.25, 0.14, 0.07]);
+      for (let k = 0; k < 7; k++) { const p = F.P(pt.u - 0.8 + R() * 1.6, pt.w - 0.45 + R() * 0.9, 0.87); col(gb, [[0.9, 0.9, 0.85], [0.9, 0.8, 0.1], [0.1, 0.2, 0.8], [0.8, 0.1, 0.1], [0.1, 0.1, 0.1]][k % 5]); gb.addGeometry(new THREE.SphereGeometry(0.03, 8, 6), mat4(p[0], p[1], p[2])); }
+    }
+    // booths
+    for (const bo of it.furniture.filter((q) => q.kind === 'booth')) {
+      lbox(gb, H - 1.9, bo.w - 0.45, H - 0.9, bo.w + 0.45, 0.7, 0.75, [0.3, 0.17, 0.08]);
+      lbox(gb, H - 1.9, bo.w - 0.4, H - 1.5, bo.w + 0.4, 0, 0.7, [0.25, 0.14, 0.07]);
+      for (const s of [-1, 1]) lbox(gb, H - 2.0, bo.w + s * 0.85 - 0.25, H - 0.3, bo.w + s * 0.85 + 0.25, 0, 0.48, [0.55, 0.1, 0.08]);
+    }
+    const neon = canvasTex(512, 160, (g, w, h) => {
+      g.fillStyle = '#0c0705'; g.fillRect(0, 0, w, h);
+      g.shadowColor = '#ff9a3c'; g.shadowBlur = 18; g.fillStyle = '#ffb35c'; g.font = 'bold 64px Impact, sans-serif'; g.textAlign = 'center'; g.fillText('RUSTY ANCHOR', w / 2, 92);
+      g.shadowBlur = 0; g.fillStyle = '#7fd4ff'; g.font = 'bold 22px Arial'; g.fillText('COLD BEER · WHISKEY · POOL', w / 2, 136);
+    });
+    const nm = new THREE.Mesh(new THREE.PlaneGeometry(3.2, 1.0), new THREE.MeshBasicMaterial({ map: neon }));
+    nm.position.set(...F.P(0, D - 0.04, 2.4)); nm.rotation.y = F.yawIn + Math.PI;
+    group.add(nm);
+  } else if (L.extra === 'cafe') {
+    // espresso machine, grinder and a pastry case on the counter
+    const cw = (c.w0 + c.w1) / 2;
+    lbox(gb, -H + 2, cw - 0.25, -H + 3, cw + 0.25, 1.05, 1.55, [0.75, 0.75, 0.78]);
+    lbox(gb, -H + 3.2, cw - 0.15, -H + 3.5, cw + 0.15, 1.05, 1.45, [0.15, 0.15, 0.16]);
+    lbox(gb, 0, c.w0 - 0.02, 2.2, c.w1 + 0.02, 1.05, 1.1, [0.8, 0.8, 0.8]);
+    for (let k = 0; k < 8; k++) { const p = F.P(0.2 + (k % 4) * 0.5, c.w0 + 0.2 + Math.floor(k / 4) * 0.35, 1.13); col(gb, [[0.85, 0.6, 0.3], [0.55, 0.3, 0.15], [0.95, 0.85, 0.6], [0.9, 0.4, 0.5]][k % 4]); gb.addGeometry(new THREE.SphereGeometry(0.09, 8, 6), mat4(p[0], p[1], p[2], 0, 0, 0, 1, 0.55, 1)); }
+    const [gx0, gz0, gx1, gz1] = F.rect(0, c.w0, 2.2, c.w1);
+    const glass = new THREE.Mesh(new THREE.BoxGeometry(gx1 - gx0, 0.32, gz1 - gz0), M.glass);
+    glass.position.set((gx0 + gx1) / 2, F.y + 1.27, (gz0 + gz1) / 2);
+    group.add(glass);
+    // tables and chairs, plants
+    for (const t of it.furniture.filter((q) => q.kind === 'table')) {
+      const p = F.P(t.u, t.w, 0);
+      col(gb, [0.9, 0.9, 0.88]); gb.addGeometry(new THREE.CylinderGeometry(0.42, 0.42, 0.04, 16), mat4(p[0], p[1] + 0.76, p[2]));
+      col(gb, [0.2, 0.2, 0.22]); gb.addGeometry(new THREE.CylinderGeometry(0.04, 0.16, 0.74, 8), mat4(p[0], p[1] + 0.37, p[2]));
+      for (const a of [0.8, 0.8 + Math.PI]) {
+        const sx = p[0] + Math.cos(a) * 0.7, sz = p[2] + Math.sin(a) * 0.7;
+        col(gb, [0.45, 0.3, 0.18]); gb.addGeometry(new THREE.BoxGeometry(0.4, 0.05, 0.4), mat4(sx, p[1] + 0.46, sz));
+        gb.addGeometry(new THREE.BoxGeometry(0.4, 0.46, 0.05), mat4(sx + Math.cos(a) * 0.2, p[1] + 0.7, sz + Math.sin(a) * 0.2, 0, -a + Math.PI / 2, 0));
+      }
+    }
+    for (const u of [-H + 0.6, H - 0.6]) { const p = F.P(u, 0.8, 0); col(gb, [0.6, 0.35, 0.2]); gb.addGeometry(new THREE.CylinderGeometry(0.25, 0.2, 0.45, 10), mat4(p[0], p[1] + 0.22, p[2])); col(gb, [0.2, 0.5, 0.22]); gb.addGeometry(new THREE.IcosahedronGeometry(0.45, 0), mat4(p[0], p[1] + 0.85, p[2])); }
+    const menu = canvasTex(768, 256, (g, w, h) => {
+      g.fillStyle = '#2b1b12'; g.fillRect(0, 0, w, h);
+      g.fillStyle = '#f2d7b0'; g.font = 'bold 60px Georgia, serif'; g.textAlign = 'left'; g.fillText('Bean Scene', 28, 80);
+      g.font = 'bold 24px Arial'; const items = [['Espresso', '$3'], ['Flat White', '$4'], ['Iced Latte', '$5'], ['Glazed Donut', '$2'], ['Club Sandwich', '$6']];
+      items.forEach(([n, p], k) => { const x = 360 + (k % 2) * 200, y = 60 + Math.floor(k / 2) * 55; g.fillStyle = '#fff'; g.fillText(n, x, y); g.fillStyle = '#f2b36b'; g.fillText(p, x + 150, y); });
+      g.fillStyle = '#c9a27a'; g.font = 'italic 22px Georgia'; g.fillText('Roasted in Los Soles', 30, 130);
+    });
+    const mm = new THREE.Mesh(new THREE.PlaneGeometry(4.2, 1.4), new THREE.MeshBasicMaterial({ map: menu }));
+    mm.position.set(...F.P(-H / 2 + 0.6, D - 0.04, 2.5)); mm.rotation.y = F.yawIn + Math.PI;
     group.add(mm);
   } else if (L.extra === 'liquor') {
     // aisles of shelves stocked both sides

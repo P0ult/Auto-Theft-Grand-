@@ -195,6 +195,7 @@ export class NetSystem {
       w: p.weapon, ac: act ? [act.name, this.actN] : null,
       hp: Math.round(p.health), ar: Math.round(p.armor), d: p.dead ? 1 : 0, rg: p.ragdolling ? 1 : 0, wl: g.police?.level | 0,
       vh: v ? this._vehState(v, p.seat) : null,
+      pt: g.pets?.netState() || null,
       tod: r2(g.env.hours), wx: g.env.weather,
       ev: this.out.map((o) => o.e),
     };
@@ -263,6 +264,7 @@ export class NetSystem {
   }
 
   _removePeer(id, announce) {
+    this.game.pets?.dropRemote(id);
     const P = this.peers.get(id);
     if (!P) return;
     const g = this.game;
@@ -368,6 +370,7 @@ export class NetSystem {
 
   _pose(P, now, dt) {
     const g = this.game, av = P.avatar;
+    g.pets?.poseRemote(P.id, P.st?.pt, dt); // their pet
     const { a, b, k, ext } = this._sample(P, now);
     const st = P.st;
     const jump = Math.hypot(a.p[0] - b.p[0], a.p[2] - b.p[2]) > 40;

@@ -24,6 +24,7 @@ export class SaveSystem {
       money: p.money, health: p.health, armor: p.armor, weapons, weapon: p.weapon,
       hours: g.env.hours, missions: g.missions.serialize(), stats: g.stats,
       packages: [...g.pickups.collectedPackages], gang: g.missions.gangDensity,
+      pet: g.pets?.pet && !g.pets.pet.dead ? { ...g.pets.info } : null,
     };
     const ok = write(KEY, data);
     if (!auto && ok) g.audio?.play('checkpoint');
@@ -47,6 +48,7 @@ export class SaveSystem {
     g.pickups.refreshPackages();
     g.pickups.spawnSafehouseRewards();
     g.env.setTime(d.hours ?? 9);
+    if (d.pet?.breed) g.pets?.adopt(d.pet.breed, d.pet.name);
     return true;
   }
 

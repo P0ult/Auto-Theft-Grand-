@@ -250,6 +250,33 @@ export class Audio {
       case 'swoosh':
         this._noiseHit(dest, t, { dur: 0.22, vol: 0.35 * vol, freq: 500, type: 'bandpass', sweepTo: 2500, q: 2, attack: 0.05 });
         break;
+      // animals
+      case 'bark': {
+        const f = vol > 0.9 ? 420 : 560; // (big dogs bark lower)
+        for (let i = 0; i < 2; i++) {
+          this._tone(dest, t + i * 0.18, { f0: f * 1.25, f1: f * 0.7, dur: 0.1, vol: 0.45 * vol, type: 'sawtooth', attack: 0.004 });
+          this._noiseHit(dest, t + i * 0.18, { dur: 0.08, vol: 0.35 * vol, freq: f * 2.2, type: 'bandpass', q: 1.5 });
+        }
+        break;
+      }
+      case 'whistle':
+        this._tone(dest, t, { f0: 1500, f1: 2300, dur: 0.16, vol: 0.18 * vol, type: 'sine', attack: 0.02 });
+        this._tone(dest, t + 0.2, { f0: 2300, f1: 1700, dur: 0.22, vol: 0.18 * vol, type: 'sine', attack: 0.02 });
+        break;
+      case 'yelp':
+        this._tone(dest, t, { f0: 1300, f1: 600, dur: 0.22, vol: 0.4 * vol, type: 'triangle' });
+        break;
+      case 'meow':
+        this._tone(dest, t, { f0: 620, f1: 900, dur: 0.18, vol: 0.25 * vol, type: 'triangle' });
+        this._tone(dest, t + 0.17, { f0: 900, f1: 520, dur: 0.3, vol: 0.22 * vol, type: 'triangle' });
+        break;
+      case 'moo':
+        this._tone(dest, t, { f0: 120, f1: 95, dur: 1.1, vol: 0.35 * vol, type: 'sawtooth', attack: 0.15 });
+        this._tone(dest, t, { f0: 240, f1: 190, dur: 1.1, vol: 0.12 * vol, type: 'triangle', attack: 0.15 });
+        break;
+      case 'flap':
+        for (let i = 0; i < 5; i++) this._noiseHit(dest, t + i * 0.07, { dur: 0.05, vol: 0.25 * vol, freq: 700, type: 'bandpass', q: 1 });
+        break;
       case 'bodyhit':
         this._tone(dest, t, { f0: 80, f1: 40, dur: 0.2, vol: 1.2 * vol });
         this._noiseHit(dest, t, { dur: 0.15, vol: 0.6 * vol, freq: 500, type: 'lowpass' });

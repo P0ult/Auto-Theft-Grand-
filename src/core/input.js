@@ -29,6 +29,7 @@ const BINDINGS = {
   skipTrip: ['Space'],
   chat: ['Slash'],
   console: ['Backquote'],
+  pet: ['KeyK'],
 };
 
 // Gamepad buttons in the W3C "standard" layout, named the Xbox way (PlayStation: A=✕ B=○ X=□ Y=△,
@@ -59,6 +60,7 @@ const GP_BIND = {
   pause: [GP.MENU, GP.MENU],
   skip: [GP.A, GP.A],
   skipTrip: [null, GP.A],
+  pet: [GP.RS, null],
 };
 
 // which glyphs to show for a pad

@@ -61,6 +61,12 @@ export class Combat {
       const t = raySphere(ox, oy, oz, dx, dy, dz, heli.pos.x, heli.pos.y, heli.pos.z, 2.6);
       if (t >= 0 && t < (best ? best.t : maxT)) best = { t, kind: 'heli', obj: heli, normal: new THREE.Vector3(-dx, -dy, -dz) };
     }
+    // animals (wildlife, walked dogs, pets)
+    if (game.wildlife) for (const a of game.wildlife.all()) {
+      if (a.dead || a.removed || (exclude && a === exclude)) continue;
+      const h = a.rayHit(ox, oy, oz, dx, dy, dz, best ? best.t : maxT);
+      if (h) best = { t: h.t, kind: 'animal', obj: a };
+    }
     if (best) best.point = new THREE.Vector3(ox + dx * best.t, oy + dy * best.t, oz + dz * best.t);
     return best;
   }
@@ -113,6 +119,10 @@ export class Combat {
       game.effects.blood(hit.point, dir, hit.part === 'head' ? 14 : 7);
       game.audio?.playAt('bulletflesh', hit.point, 0.6);
       if (c.dead && !wasDead) { game.effects.bloodPool(c.ragdolling ? new THREE.Vector3(c.ragdoll.pos[0], 0, c.ragdoll.pos[2]) : c.pos); game.events.emit('kill', shooter, c, def.id, hit.part); }
+    } else if (hit.kind === 'animal') {
+      hit.obj.takeDamage(def.damage * (shooter.isPlayer ? 1 : 0.6), { source: shooter, type: 'bullet' });
+      game.effects.blood(hit.point, dir, 6);
+      game.audio?.playAt('bulletflesh', hit.point, 0.5);
     } else if (hit.kind === 'vehicle') {
       const v = hit.obj;
       v.damage(def.damage * 0.9 * (v.def.bulletMul ?? 1), shooter);
@@ -165,6 +175,16 @@ export class Combat {
       hitAny = true;
       if (!strong) break;
     }
+    // animals within reach
+    if (!hitAny && game.wildlife) for (const a of game.wildlife.all()) {
+      if (a === attacker || a.dead || a.inVehicle || (attacker.isPlayer && a.pet)) continue;
+      const dx = a.pos.x - attacker.pos.x, dz = a.pos.z - attacker.pos.z, d = Math.hypot(dx, dz);
+      if (!(d <= range + 0.5) || (dx * fx + dz * fz) / (d || 1) < 0.3) continue;
+      a.takeDamage(def.damage * (act === 'kick' ? 1.6 : 1), { source: attacker, type: 'melee' });
+      game.audio?.playAt(def.id === 'knife' ? 'stab' : def.id === 'bat' ? 'bat' : 'punch', a.pos, 0.8);
+      hitAny = true;
+      break;
+    }
     // hitting a car with a bat dents it
     if (!hitAny && def.id === 'bat') {
       for (const v of game.vehicles.list) {
@@ -198,6 +218,11 @@ export class Combat {
       c.takeDamage(damage * k, { type: 'explosion', source, impulse: imp, knockdown: true });
       if (c.ragdolling) c.ragdoll.push(0, imp.x, imp.y, imp.z);
       if (c.dead && !wasDead) game.events.emit('kill', source, c, 'explosion', 'torso');
+    }
+    if (game.wildlife) for (const a of game.wildlife.all()) {
+      if (a.dead || a.inVehicle) continue;
+      const d = a.pos.distanceTo(pos);
+      if (d < radius) a.takeDamage(damage * (1 - d / radius) * 1.5, { source, type: 'explosion' });
     }
     for (const v of game.vehicles.list) {
       if (v === excludeVehicle || v.exploded) continue;

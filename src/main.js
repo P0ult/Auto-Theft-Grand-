@@ -19,6 +19,8 @@ import { Admin } from './game/admin.js';
 import { ShopSystem } from './game/shops.js';
 import { TaxiSystem } from './game/taxi.js';
 import { PadNav } from './ui/padnav.js';
+import { Wildlife } from './game/wildlife.js';
+import { PetSystem } from './game/pets.js';
 import { NetSystem } from './net/net.js';
 import { HUD } from './ui/hud.js';
 
@@ -72,6 +74,8 @@ async function boot() {
   game.addSystem('military', new Military(game));
   game.addSystem('rail', new RailSystem(game));
   game.addSystem('shops', new ShopSystem(game));
+  game.addSystem('wildlife', new Wildlife(game));
+  game.addSystem('pets', new PetSystem(game));
   setP(0.88, 'Writing the story');
   await tick();
   game.addSystem('missions', new Missions(game, STORY));

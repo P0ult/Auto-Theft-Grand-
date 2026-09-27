@@ -36,9 +36,13 @@ Chrome, Edge or Firefox with hardware acceleration turned on is recommended. If 
 | C / Ctrl | Crouch | N | Next radio station |
 | Left mouse | Punch (jab-cross-kick combo) / fire | V | Camera distance |
 | Right mouse | Aim (people put their hands up) | B | Look behind |
-| R | Reload | Right + left mouse | Drive-by with a pistol / SMG |
+| R | Reload | Right + left mouse | Drive-by (a passenger leans out of the window with any gun) |
 | Q / E, wheel, 1-9 | Switch weapon | G | Hydraulics (lowriders) |
 | F / Enter | Enter or steal a car (carjack drivers) | F | Exit (bail out at speed) |
+| K | Whistle for your pet (stay / come; aiming at someone: set your dog on them) | Q / E, wheel | Switch drive-by weapon |
+
+Motorbikes and bicycles drive like cars (W / S / A / D, Space for the handbrake on a motorbike); crash hard
+into something and you're thrown off.
 
 | Planes & jets | | Helicopters | | Tank | |
 |---|---|---|---|---|---|
@@ -84,6 +88,7 @@ names, and on-screen hints switch to controller buttons while you play with one.
 | A (hold) / X | Sprint / jump (parachute) | LS / RS click | Horn / look behind |
 | B / Y | Reload / enter vehicle | View / Y | Camera / exit |
 | LS click | Crouch | D-pad → / ↑ / ← | Radio / hydraulics / taxi job |
+| RS click | Whistle for your pet | | |
 | D-pad ↑ / → / ← / ↓ | Teleport / hail a cab / ride as passenger / map | Menu | Pause |
 
 Aircraft and the tank: RT / LT throttle (planes) or climb / descend (helicopters), RB guns, LB missiles or
@@ -103,7 +108,8 @@ your map waypoint, taking your car or aircraft along. Free roam never touches yo
   cars, call a bodyguard, send enemies, or skydive from 400 m. You can set the wanted level, time of day,
   weather and traffic / pedestrian density too.
 - **Admin console:** press **`** (backtick) and type commands: `help`, `god`, `car zenith`, `wanted 3`,
-  `time 22`, `weather storm`, `tp beach`, `traffic heavy`, `gravity`, `boom` and more.
+  `time 22`, `weather storm`, `tp beach`, `traffic heavy`, `gravity`, `boom`, `car razor`, `pet husky Blue`
+  and more.
 
 ## Multiplayer
 
@@ -180,6 +186,11 @@ timetable for everyone, and the longest-connected player's clock and weather are
   - Tire smoke and skid marks. Smashable lamp posts, hydrants (they spray water), benches and phone booths.
   - 11 car types, including a police cruiser with a light bar and siren, a lowrider with hydraulics, a
     supercar and a box truck, plus army trucks.
+  - **Motorbikes and bicycles:** the Razor 600 sport bike and the Trailblazer dirt bike (happy off-road), a
+    BMX and a road bike. Bikes lean into corners, riders sit astride with their hands on the grips and pedal
+    (the cranks turn), and a hard crash throws everyone off. They turn up in traffic and parked at the kerb.
+  - **Drive-bys:** a passenger who aims climbs half out of the window onto the door frame, turns towards the
+    target and shoots with any gun; the driver uses a pistol or SMG. On a bike you twist at the waist.
   - An analogue speedometer with gear and damage readouts (airspeed, altitude and throttle in aircraft).
   - Drift and stunt-jump cash bonuses.
 - **Flying and armour.** Arcade flight physics: stall and nose drop, banked turns, loops, gear, crash
@@ -194,7 +205,16 @@ timetable for everyone, and the longest-connected player's clock and weather are
   display cases, a diner with a kitchen line and menu board, aisles of shelves and drinks fridges. The clerk behind
   the counter serves you when you step up to the marker. Point a gun at them and the burger bar or liquor store
   empties the till (and calls the cops), while the Gun Barn's owner reaches for his shotgun. Kill the clerk and
-  the shop stays shut until you've been gone a while.
+  the shop stays shut until you've been gone a while. Five more street shops open onto the pavement: **Pet
+  Palace** (kennels of dogs and cats, an aquarium wall), two **24/7** stores, **The Rusty Anchor** bar (a
+  backlit bottle wall, pool table and booths; drinks make the room sway) and **Bean Scene** coffee shop.
+- **Wildlife and pets.** Pigeons on the pavements and plazas, gulls on the beach and the docks, cats in the back
+  streets and the odd stray dog; deer, rabbits and crows in the country and the forest, coyotes in the desert
+  and cows on the farmland. They graze, peck and wander, and bolt or take off when you get close, shoot or
+  drive at them (cars, bullets and blasts kill them). People walk their dogs. At **Pet Palace** you can adopt a
+  Labrador, German Shepherd, Husky, Rottweiler, Pug, Poodle, Tabby, Black Cat or Siamese: your pet follows you,
+  sits when you stop, rides in the passenger seat, goes for anyone who hurts you, attacks whoever you aim at
+  when you whistle (K), and is saved with the story. Other players see it too.
 - **Living city.**
   - Pedestrians walk the sidewalks, cross at crosswalks, chat, flee gunfire, cower, fight back and shout.
   - Traffic follows lanes, obeys the same traffic-light cycle the signals display, brakes for pedestrians,
@@ -238,6 +258,9 @@ assets/audio/             the WASTED stinger
 src/game/                 (also) railway timetable, signalling & crossings, taxis, free roam teleport,
                           admin tools & vehicle spawner, shopkeepers
 src/world/interiors.js    walk-in shop interiors (layout, colliders, meshes)
+src/entities/bikes.js     motorbikes and bicycles (models, lean, rider pose, crashes)
+src/entities/animals.js   animal models and procedural rig (dogs, cats, deer, rabbits, coyotes, cows, birds)
+src/game/wildlife.js      wildlife spawning and behaviour; src/game/pets.js: pets
 src/net/                  multiplayer: transports (claude.ai live room, WebSocket relay), remote players,
                           shared NPCs / traffic / trains, Online tab
 src/ui/                   HUD, radar, pause menu & map, controller menu navigation
