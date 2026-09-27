@@ -7,7 +7,7 @@ models or textures; the only asset file is the sound clip played on the WASTED s
 
 You play Andre "Dre" Castillo. He comes home to the sunny, smoggy city of **Los Soles** after his little brother
 Tino is gunned down. Within an hour of landing, a crooked detective has robbed him and dumped him in rival gang
-territory.
+territory. Later the story heads up the coast to a second city, **San Aurelio**.
 
 ## Play
 
@@ -40,9 +40,12 @@ Chrome, Edge or Firefox with hardware acceleration turned on is recommended. If 
 | Q / E, wheel, 1-9 | Switch weapon | G | Hydraulics (lowriders) |
 | F / Enter | Enter or steal a car (carjack drivers) | F | Exit (bail out at speed) |
 | K | Whistle for your pet (stay / come; aiming at someone: set your dog on them) | Q / E, wheel | Switch drive-by weapon |
+| Wheel (sniper scope) | Zoom | Shift | Nitrous (fitted at a Customs garage) |
 
 Motorbikes and bicycles drive like cars (W / S / A / D, Space for the handbrake on a motorbike); crash hard
-into something and you're thrown off.
+into something and you're thrown off. Boats and jet skis steer the same way. On a **skateboard**, W pushes off,
+Space ollies, A / D flip the board and S does a shove-it; land clean for cash. A rolled car can be rocked back
+onto its wheels with A / D.
 
 | Planes & jets | | Helicopters | | Tank | |
 |---|---|---|---|---|---|
@@ -65,6 +68,7 @@ ground hard, nose-first or with the gear up tears the aircraft apart.
 | Space (in a cab's back seat) | Skip the trip (pay the estimated fare) |
 | G (on foot) | Ride as a passenger in any car with a driver (or another player's car) |
 | J (driving a cab) | Taxi driver side job on / off |
+| J (driving a police car) | Vigilante patrol on / off |
 | F by the train | Board a carriage, or climb into the cab at the front to drive it (W / S) |
 | T (free roam) | Teleport menu |
 | ` (backtick, free roam) | Admin console (type `help`) |
@@ -129,10 +133,11 @@ timetable for everyone, and the longest-connected player's clock and weather are
 
 ## Features
 
-- **World.** A GTA-style map of about 7 × 7 km: the city of Los Soles on the coast, six towns (Fern Creek, Pine
-  Hollow, the desert town of Dry Wells, lakeside Mirador, the harbour town of Port Hale with its pier, and the
-  desert crossroads of Puerto Seco), farmland, pine-forested mountains with a lake, a river with bridges, and a
-  red-rock desert with mesas. The terrain is a streamed heightfield with level of detail,
+- **World.** A GTA-style map of about 7 × 7 km: two cities (Los Soles on the south coast and San Aurelio in the
+  north-east), nine towns (Fern Creek, Pine Hollow, the desert town of Dry Wells, lakeside Mirador, the harbour
+  town of Port Hale with its pier, the desert crossroads of Puerto Seco, and up north the beach town of Gull Bay,
+  Cedar Ridge on the mountain pass and the logging town of Timberline), farmland, pine-forested mountains with a
+  lake, a river with bridges, and a red-rock desert with mesas. The terrain is a streamed heightfield with level of detail,
   biome shading and instanced vegetation (pines, oaks, saguaros, dead trees, boulders).
   - **Roads.** A real road graph rather than a pure grid: the elevated six-lane Sol Freeway with on/off ramps and
     diamond interchanges, winding country highways, dirt tracks, roundabouts in town and in the city, bridges
@@ -149,6 +154,15 @@ timetable for everyone, and the longest-connected player's clock and weather are
     **Warhawk** attack helicopter, the **Mammoth** tank and army trucks. It's a restricted zone: after a
     warning, soldiers open fire and the police send a three-star response. The **Skipper** light plane waits at
     Fern Creek Airfield, and a **Skylark** helicopter sits on the hospital roof in the city.
+- **San Aurelio.** A bay city on a coastal plain in the north-east, and nothing like a grid: three wobbly ring
+  roads circle the Plaza de Aurelio and its fountain, crossed by seven curving avenues and side streets, so every
+  block is a different lopsided, curved shape. Glass and art deco towers crowd Centro; brick and mid-rise fill
+  Harborside, Mission, Cathedral Hill and Northgate; low stucco shops and houses make up Bayview and Aurelio
+  Heights. Four-lane avenues with zebra crossings and raised, kerbed pavements (you walk on them, cars bump up
+  onto them), roundabouts, back-lot courtyards, car parks and gardens, the Cathedral of San Aurelio, Bayview
+  Park, the Aurelio Arena, and Harbor Drive along a palm-lined beach with a marina. The Aurelio Highway runs up
+  the coast from Bayshore Road, Ridge Road climbs Cedar Valley, and Timber Road heads up to Timberline. The
+  Harbor Saints run the waterfront.
 - **City.** Eight districts (Cedar Row, Downtown, Market District, Rosewood, El Corona, Port Morena docks,
   Santa Luz Beach and Vistawood Hills) on a 1.7 km road grid, surrounded by hills and ocean. About 1,700 buildings
   with setback towers, gable-roof houses, warehouses and mansions. The Santa Luz pier has a working Ferris wheel.
@@ -184,8 +198,15 @@ timetable for everyone, and the longest-connected player's clock and weather are
   - Suspension that sways as you drive, jumps and airtime, and crash physics.
   - Dents that deform the body, engine smoke, fire and **explosions** with chain reactions.
   - Tire smoke and skid marks. Smashable lamp posts, hydrants (they spray water), benches and phone booths.
-  - 11 car types, including a police cruiser with a light bar and siren, a lowrider with hydraulics, a
-    supercar and a box truck, plus army trucks.
+  - 12 car types, remodelled with lofted bodies: proper roofs and pillars, cabins with headliners, curved
+    glass, fender flares, per-model grilles, lamps, bumpers and rims (wire, mesh, split-spoke, steel, alloy).
+    Includes a police cruiser with a light bar and siren, a lowrider with hydraulics, a supercar, a pickup, a
+    van, a box truck and a city hatchback, plus army trucks.
+  - **Crash physics:** hard hits and high-speed swerves roll cars over as a rigid body (they tumble, slide on
+    their roofs, bounce and settle). Doors, hoods and bumpers dent and fly open; glass shatters. A car left on its
+    roof catches fire.
+  - **Explosions scale with what blew up:** a scooter pops, a truck booms, and a plane or the Hercules goes up
+    in a huge fireball with flying wreckage, a smoke column and follow-up blasts.
   - **Motorbikes and bicycles:** the Razor 600 sport bike and the Trailblazer dirt bike (happy off-road), a
     BMX and a road bike. Bikes lean into corners, riders sit astride with their hands on the grips and pedal
     (the cranks turn), and a hard crash throws everyone off. They turn up in traffic and parked at the kerb.
@@ -193,12 +214,21 @@ timetable for everyone, and the longest-connected player's clock and weather are
     target and shoots with any gun; the driver uses a pistol or SMG. On a bike you twist at the waist.
   - An analogue speedometer with gear and damage readouts (airspeed, altitude and throttle in aircraft).
   - Drift and stunt-jump cash bonuses.
+  - **Skateboards** and a skatepark in Santa Luz: push, ollie, kickflips and shove-its, grind the ramps, locals
+    skating the bowl.
+  - **Boats:** dinghies, speedboats, jet skis and cruisers, moored at the marinas (Santa Luz, Port Morena, Port
+    Hale, Lake Mirador and Aurelio Marina) or cruising the coast, with planing hulls, waves, wakes and spray.
+    Wanted out on the water, **police boats** come after you: they ram, and the bow gunner opens up.
+  - **Customs garages** (Los Soles, Corona and Aurelio Customs): three engine stages, three armour levels,
+    nitrous (Shift), any paint colour, or a respray that loses the cops. Upgrades stay with that car.
 - **Flying and armour.** Arcade flight physics: stall and nose drop, banked turns, loops, gear, crash
   detection and afterburners. Helicopters hover on their own and flare as they land. The Raptor has a cannon
   and heat-seeking missiles that lock on to vehicles and the police helicopter. The Warhawk has a chin-turret
   minigun and rocket pods, both aimed with the camera. The tank shrugs off bullets and flattens cars, and its
   turret tracks where you look. Bail out of anything that flies and a parachute opens.
-- **Combat.** Fists, knife, bat, pistol, SMG, shotgun, assault rifle, rocket launcher and grenades. Headshots,
+- **Combat.** Fists, knife, bat, pistol, SMG, shotgun, assault rifle, **sniper rifle** (a zoom scope,
+  one-shot headshots), **minigun** (spins up, slows you down), rocket launcher, grenades and **molotovs** (a
+  pool of fire that sets people running and cooks cars). Headshots,
   tracers, muzzle flashes, blood, bullet holes, scorch marks and bodies that pile up. You can punch, stab, shoot
   or run people over.
 - **Walk-in shops.** The **Gun Barn**, **Big Bun Burgers** and **Ray's Liquor** are real interiors: gun racks and
@@ -219,7 +249,8 @@ timetable for everyone, and the longest-connected player's clock and weather are
   - Pedestrians walk the sidewalks, cross at crosswalks, chat, flee gunfire, cower, fight back and shout.
   - Traffic follows lanes, obeys the same traffic-light cycle the signals display, brakes for pedestrians,
     honks at you and steers around wrecks and stalled cars.
-  - Gangs hold their turf: the Cedar Row Kings are friendly, while the Vipers and Los Cuervos are hostile.
+  - Gangs hold their turf: the Cedar Row Kings are friendly, while the Vipers, Los Cuervos and San Aurelio's
+    Harbor Saints are hostile.
 - **Police.** Five-star wanted levels with witnesses and line-of-sight evasion (the stars flash while the cops
   have lost you). Patrol cars route through the grid, then ram you. Cops on foot chase, shoot or arrest you
   (**BUSTED**), and a helicopter with a searchlight joins at three stars. Spray Shacks repaint your car and clear
@@ -237,11 +268,26 @@ timetable for everyone, and the longest-connected player's clock and weather are
   - Your own wanted level always comes first: while you're wanted every unit is after you, and the suspects
     get a head start.
   - **Settings → Street crime** sets it to Off, Normal or High.
-- **Story.** 26 missions across six chapters, with cutscenes and dialogue: races, a stealth tail, chases, a
+- **The MV Pacific Star.** The container ship at Port Morena can be raided: walk up the gangway and security
+  tells you to get off. Draw a gun, go near the bridge or hang around and the crew (hi-vis deckhands, masked
+  security in plate carriers, the captain) turn on you, and the captain radios the coast guard. Crack the
+  captain's safe on the bridge for the payroll and break open the contraband containers for cash, weapons and
+  armour. The ship restocks after a while.
+- **Side activities.**
+  - **Street races:** Sol Sprint, Bayshore Run, Aurelio Ring and the Cedar Valley Climb. Pay the entry, race three
+    locals through the checkpoints, win the pot. Best times are kept.
+  - **Vigilante:** in a police car press J; chase down carloads of suspects against the clock, level after level.
+  - **Property:** eight safehouses and businesses to buy (Hotel Aurelio, the Arena Skybox, the Clam Shack, a beach
+    house...). Safehouses save and heal you; businesses earn money into a till you collect.
+- **Story.** 35 missions across eight chapters, with cutscenes and dialogue: races, a stealth tail, chases, a
   kidnapping rescue, a heist, drive-bys, turf wars, a mansion assault, a rooftop showdown and a finale on the
   pier. After the credits, **Chapter VI: Out of Town** takes you beyond Los Soles after the desert cartel Los
   Secos: a taxi run to Mirador and Port Hale, hijacking the Sol Line gun train, a low-level flight through the
-  canyons, and a gunship raid on Puerto Seco.
+  canyons, and a gunship raid on Puerto Seco. **Chapters VII and VIII** move up the coast to San Aurelio and
+  the Harbor Saints: a long drive north with an ambush at Gull Bay, skateboard courier runs against the clock
+  (tricks buy time), a night-time speedboat interception with the coast guard on your tail, defending the
+  cathedral, the arena box office heist, a full raid on the Pacific Star with a boat run up the coast, stopping
+  log trucks on the Timber Road, a sniper ambush in Cedar Valley and a boat chase finale.
 - **WASTED / BUSTED.** The death screen follows modern GTA: slow motion, a white flash and a black-and-white
   blur while the camera drifts away from your body. The "wasted" banner lands on the hit of the stinger. In Free
   Roam you respawn with all your weapons and cash.
@@ -276,6 +322,11 @@ src/entities/animals.js   animal models and procedural rig (dogs, cats, deer, ra
 src/game/npccrime.js      street crime: jaywalkers, speeders, road rage, muggers and car thieves, NPC wanted
                           stars and the police response (tickets, pull-overs, chases, arrests)
 src/game/wildlife.js      wildlife spawning and behaviour; src/game/pets.js: pets
+src/world/northcity.js    San Aurelio: ring-and-avenue street plan, pavements, buildings, walk graph
+src/world/cargoship.js    the MV Pacific Star (hull, decks, containers, superstructure); src/game/shipraid.js
+src/entities/loft.js      lofted geometry for car bodies and boat hulls; boat.js, skateboard.js
+src/game/boats.js         marinas, cruising boats and police boats; skatepark.js (world), story_north.js
+src/game/modshop.js       Customs garages; races.js, vigilante.js, properties.js
 src/net/                  multiplayer: transports (claude.ai live room, WebSocket relay), remote players,
                           shared NPCs / traffic / trains, Online tab
 src/ui/                   HUD, radar, pause menu & map, controller menu navigation
@@ -291,7 +342,9 @@ server.mjs                zero-dependency static server + multiplayer relay
 - Long way to a mission? Whistle for a taxi (H) and press Space to skip the ride.
 - Want to fly without the army on your tail? Take the Skipper at Fern Creek Airfield or the Skylark on the
   hospital roof.
-- Walk into the green marker at your house in Cedar Row to save.
+- Walk into the green marker at your house in Cedar Row to save, or buy a safehouse.
+- Fit nitrous at a Customs garage before a street race.
+- The Aurelio Highway up the coast is the quickest way to San Aurelio; a speedboat is faster still.
 - Yellow letter blips on the radar are story missions.
 - If the stars are flashing, stay out of sight.
 
