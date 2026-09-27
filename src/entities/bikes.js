@@ -225,7 +225,7 @@ export class Bike extends Vehicle {
 
   _updateVisual(dt) {
     super._updateVisual(dt);
-    if (!this.model?.bodyGroup) return;
+    if (!this.model?.bodyGroup || this.tb) return; // (tumbling: the rigid body sets the pose)
     // lean into the turn: tan(lean) = v * yawRate / g (from the heading change, so it works for stand-ins too)
     const yr = dt > 0 ? wrapAngle(this.yaw - (this._yawPrev ?? this.yaw)) / dt : 0;
     this._yawPrev = this.yaw;

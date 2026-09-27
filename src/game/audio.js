@@ -177,17 +177,17 @@ export class Audio {
     if (!this.enabled || !pos) return;
     const cam = this.game.camera.position;
     const d = cam.distanceTo(pos);
-    if (d > (opts.gun ? 500 : 180)) return;
+    if (d > (opts.gun ? 500 : name === 'explosion' ? 260 * Math.max(1, Math.sqrt(opts.size || 1)) : 180)) return;
     const pan = this._panner(pos, opts.gun ? 12 : 5);
     pan.connect(this.sfx);
     if (opts.gun || name === 'explosion') {
       const send = this.ctx.createGain(); send.gain.value = clamp(0.3 + d / 150, 0.3, 1.4);
       pan.connect(send).connect(this.revSend);
     }
-    this._make(name, pan, vol, d);
+    this._make(name, pan, vol, d, opts);
   }
 
-  _make(name, dest, vol, dist = 0) {
+  _make(name, dest, vol, dist = 0, opts = {}) {
     const t = this.ctx.currentTime + 0.005;
     const far = clamp(dist / 200, 0, 1);
     switch (name) {
@@ -217,10 +217,14 @@ export class Audio {
         this._tone(dest, t, { f0: 80, f1: 40, dur: 0.3, vol: 0.9 * vol });
         break;
       case 'explosion': {
-        this._noiseHit(dest, t, { dur: 2.5, vol: 2.0 * vol, freq: 3000, type: 'lowpass', sweepTo: 80, buf: this.brown, attack: 0.005 });
-        this._noiseHit(dest, t, { dur: 0.6, vol: 1.5 * vol, freq: 1200, type: 'lowpass', sweepTo: 200, attack: 0.002 });
-        this._tone(dest, t, { f0: 70, f1: 25, dur: 1.2, vol: 2.0 * vol });
-        for (let i = 0; i < 6; i++) this._noiseHit(dest, t + 0.2 + Math.random() * 1.2, { dur: 0.05, vol: 0.3 * vol, freq: 2000 + Math.random() * 3000, type: 'bandpass', q: 2 });
+        // bigger blasts: deeper, longer rumble and more debris rattling down afterwards
+        const sz = clamp(opts.size ?? 1, 0.3, 4.6), lo = 1 / Math.sqrt(sz);
+        this._noiseHit(dest, t, { dur: 2.5 * Math.sqrt(sz), vol: 2.0 * vol, freq: 3000 * lo, type: 'lowpass', sweepTo: 80 * lo, buf: this.brown, attack: 0.005 });
+        this._noiseHit(dest, t, { dur: 0.6, vol: 1.5 * vol, freq: 1200 * Math.min(1.4, lo), type: 'lowpass', sweepTo: 200, attack: 0.002 });
+        this._tone(dest, t, { f0: 70 * Math.min(1.3, lo), f1: 25 * Math.min(1.2, lo), dur: 1.2 * Math.sqrt(sz), vol: 2.0 * vol });
+        if (sz > 1.8) this._tone(dest, t + 0.05, { f0: 38, f1: 18, dur: 2.2 * Math.sqrt(sz), vol: 1.4 * vol });
+        const nd = Math.round(6 * Math.min(3, sz));
+        for (let i = 0; i < nd; i++) this._noiseHit(dest, t + 0.2 + Math.random() * 1.2 * Math.sqrt(sz), { dur: 0.05, vol: 0.3 * vol, freq: 2000 + Math.random() * 3000, type: 'bandpass', q: 2 });
         break;
       }
       case 'crash': {
@@ -231,6 +235,10 @@ export class Audio {
         for (let i = 0; i < 4; i++) this._noiseHit(dest, t + 0.05 + Math.random() * 0.3, { dur: 0.04, vol: 0.25 * vol, freq: 4000, type: 'bandpass', q: 4 });
         break;
       }
+      case 'glass':
+        this._noiseHit(dest, t, { dur: 0.25, vol: 0.9 * vol, freq: 5000, type: 'highpass' });
+        for (let i = 0; i < 8; i++) this._tone(dest, t + Math.random() * 0.35, { f0: rand(2500, 6000), dur: rand(0.04, 0.12), vol: 0.07 * vol, type: 'triangle' });
+        break;
       case 'metalhit':
         for (const f of [412, 689, 1033]) this._tone(dest, t, { f0: f, dur: 0.3, vol: 0.12 * vol, type: 'triangle' });
         this._noiseHit(dest, t, { dur: 0.08, vol: 0.5 * vol, freq: 1800, type: 'bandpass' });

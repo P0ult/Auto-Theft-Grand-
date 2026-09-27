@@ -107,9 +107,7 @@ class AirVehicle extends Vehicle {
       else m.material = M.burnt;
     }
     const c = this.cg();
-    const big = this.def.L > 20;
-    this.game.combat?.explosion(c.clone(), big ? 16 : this.def.kind === 'heli' ? 11 : 13, 260, this.lastDamager, this);
-    if (big) for (let i = 0; i < 3; i++) setTimeout(() => this.game.effects?.explosion(this.localPoint((Math.random() - 0.5) * 24, this.cgY + 1, (Math.random() - 0.5) * 18), 7), 150 + i * 220);
+    this.game.combat?.vehicleExplosion(this, c.clone());
     for (const o of this.occupants) if (o) o.takeDamage(1000, { type: 'explosion', source: this.lastDamager });
     this.game.events?.emit('vehicleExploded', this);
     this.wreckTime = 0;
@@ -714,7 +712,7 @@ export class Tank extends Vehicle {
     this.health = 0;
     const M = vehicleMaterials();
     for (const m of this.model.meshes) m.material = M.burnt;
-    this.game.combat?.explosion(this.pos.clone().add(new THREE.Vector3(0, 1.6, 0)), 12, 250, this.lastDamager, this);
+    this.game.combat?.vehicleExplosion(this, this.pos.clone().add(new THREE.Vector3(0, 1.6, 0)));
     for (const o of this.occupants) if (o) o.takeDamage(1000, { type: 'explosion', source: this.lastDamager });
     // the turret gets blown off its ring
     this.turretVy = 9; this.turretSpin = (Math.random() - 0.5) * 4;

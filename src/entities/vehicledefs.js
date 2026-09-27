@@ -45,6 +45,11 @@ export const VEHICLES = {
     mass: 1400, force: 17000, top: 72, grip: 1.25, drive: 'awd', steer: 0.58, brake: 22000, rarity: 1,
     colors: [0xffd60a, 0xe63946, 0x00b4d8, 0xffffff, 0x111111, 0x80ed99],
   },
+  pico: {
+    name: 'Pico', body: 'hatch', L: 4.0, W: 1.76, H: 1.5, wheelbase: 2.5, track: 1.5, wheelR: 0.31, clearance: 0.2,
+    mass: 1100, force: 6400, top: 43, grip: 1.02, drive: 'fwd', steer: 0.66, brake: 12500, rarity: 7,
+    colors: [0xe63946, 0x2a9d8f, 0xf4a261, 0xe9ecef, 0x457b9d, 0x6a4c93, 0x8ac926],
+  },
   bouncer: {
     name: 'Bouncer', body: 'lowrider', L: 5.3, W: 1.96, H: 1.35, wheelbase: 3.05, track: 1.6, wheelR: 0.33, clearance: 0.16,
     mass: 1750, force: 9000, top: 46, grip: 0.95, drive: 'rwd', steer: 0.6, brake: 14000, rarity: 3, hydraulics: true,

@@ -150,6 +150,14 @@ export class VehicleManager {
     Bc.vel.x += j * nx * imB; Bc.vel.z += j * nz * imB; Bc.r += rbN * j / Bc.I;
     const impact = -rvn;
     A.onCrash?.(impact, Bc); Bc.onCrash?.(impact, A); // (bikes throw their riders)
+    if (impact > 7) {
+      // the lighter one takes more of it: panels come off, and a hard hit can flip it
+      const kA = Math.min(2.4, 2 * Bc.mass / (A.mass + Bc.mass)), kB = Math.min(2.4, 2 * A.mass / (A.mass + Bc.mass));
+      const cp = new THREE.Vector3(px, (A.pos.y + Bc.pos.y) / 2 + 0.5, pz);
+      A._crashParts?.(cp, impact * kA); Bc._crashParts?.(cp, impact * kB);
+      if (!A.tb) A.crashTumble?.(new THREE.Vector3(-nx, 0, -nz), impact, kA);
+      if (!Bc.tb) Bc.crashTumble?.(new THREE.Vector3(nx, 0, nz), impact, kB);
+    }
     if (impact > 2.5) {
       const dmg = (impact - 2.5) * 12;
       A.damage(dmg * (Bc.mass / (A.mass + Bc.mass)) * 2, Bc.driver);
@@ -376,7 +384,13 @@ export class VehicleManager {
       }
       if (s.phase === 'close') {
         if (s.seat === 0) door.open = Math.max(0, 1 - s.t / 0.3);
-        if (s.t >= 0.3) { door.open = 0; if (!veh.def.bike) this.game.audio?.playAt('doorClose', veh.pos, 0.6); return true; }
+        if (s.t >= 0.3) {
+          door.open = 0;
+          if (!veh.def.bike) this.game.audio?.playAt('doorClose', veh.pos, 0.6);
+          // crawled out of a crashed car: get clear of it
+          if (char._bailFlee) { char._bailFlee = null; if (char.setState && !char.isPlayer) { char.threat = null; char.threatPos?.copy(veh.pos); char.setState('flee'); } }
+          return true;
+        }
         return false;
       }
     }

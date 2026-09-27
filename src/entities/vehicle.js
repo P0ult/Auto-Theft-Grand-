@@ -9,7 +9,12 @@ import { U } from '../render/materials.js';
 
 const G = 9.81;
 const _v = new THREE.Vector3(), _w = new THREE.Vector3();
+const _q = new THREE.Quaternion(), _e = new THREE.Euler(0, 0, 0, 'YXZ');
+const _p = new THREE.Vector3(), _r = new THREE.Vector3(), _n = new THREE.Vector3(), _j = new THREE.Vector3(), _t = new THREE.Vector3(), _a = new THREE.Vector3();
+const UPV = new THREE.Vector3(0, 1, 0);
+const _c = new THREE.Vector3(), _ax = new THREE.Vector3(), _fw = new THREE.Vector3(), _J = new THREE.Vector3();
 let nextVid = 1;
+const drvIsPlayer = (v) => !!v.driver?.isPlayer;
 
 function sat(x) {
   const ax = Math.abs(x);
@@ -177,11 +182,352 @@ export class Vehicle {
     if (inp.handbrake) this.rearGrip = Math.max(0.36, this.rearGrip - dt * 4);
     else this.rearGrip = Math.min(1, this.rearGrip + dt * 1.1);
 
+    if (this.tb) { this._tumble(dt); this._updateVisual(dt); return; }
     const steps = dt > 1 / 45 ? 3 : 2;
     const h = dt / steps;
     for (let i = 0; i < steps; i++) this._step(h);
     this._afterPhysics(dt);
+    this._rolloverCheck(dt);
     this._updateVisual(dt);
+  }
+
+  // ------------------------------------------------------------------ crash physics: tumbling
+  // A crash that's hard enough, a blast or a rollover hands the vehicle to a full 3D rigid body: it flips,
+  // rolls and slides on its roof or sides until it settles. Landing back on its wheels, it drives on; on
+  // its roof or side it stays put (rock it back over with A / D; a car left upside down catches fire).
+  get canTumble() { return !this.def.kind && !this.remote && !this.removed; }
+
+  _hullPoints() {
+    if (this._hull) return this._hull;
+    const d = this.def, H = this.model.hull, pts = [];
+    const L = d.L, W = d.W, c = d.clearance;
+    const add = (x, y, z, wheel = false) => pts.push({ p: new THREE.Vector3(x, y, z), wheel });
+    if (d.bike) {
+      for (const z of [d.wheelbase / 2, -d.wheelbase / 2]) add(0, 0, z, true);
+      for (const sx of [1, -1]) { add(sx * 0.38, d.H * 0.8, d.wheelbase * 0.35); add(sx * 0.25, d.H * 0.45, -d.wheelbase * 0.3); add(sx * 0.2, c + 0.1, 0); }
+      add(0, d.H * 0.75, -0.2);
+    } else {
+      for (const sx of [1, -1]) {
+        for (const sz of [1, -1]) {
+          add(sx * d.track / 2, 0, sz * d.wheelbase / 2, true);
+          add(sx * W * 0.46, c + 0.06, sz * L * 0.47);
+          add(sx * W * 0.5, H ? H.beltY : d.H * 0.6, sz * L * 0.45);
+        }
+        add(sx * W * 0.5, H ? H.beltY : d.H * 0.6, 0);
+        const rx = H ? H.roofX : W * 0.4, ry = H ? H.roofY : d.H, z0 = H ? H.roofZ0 : -L * 0.25, z1 = H ? H.roofZ1 : L * 0.1;
+        add(sx * rx, ry, z0); add(sx * rx, ry, z1); add(sx * rx, ry, (z0 + z1) / 2);
+      }
+    }
+    const cgH = this.model.hull?.cgH ?? Math.max(0.35, d.H * 0.4);
+    for (const q of pts) q.p.y -= cgH;
+    // inertia of a box (body frame: x across, y up, z along)
+    const m = this.mass, H2 = d.H * d.H, L2 = L * L, W2 = W * W;
+    this._hull = { pts, cgH, inv: new THREE.Vector3(12 / (m * (H2 + L2)), 12 / (m * (W2 + L2)), 12 / (m * (W2 + H2))) };
+    return this._hull;
+  }
+  // world-space inverse inertia applied to v (in place)
+  _iinv(v) {
+    const inv = this._hull.inv, q = this.tb.q;
+    _q.copy(q).invert();
+    v.applyQuaternion(_q);
+    v.set(v.x * inv.x, v.y * inv.y, v.z * inv.z);
+    return v.applyQuaternion(q);
+  }
+  _impulse(J, r) { // J at r (from the centre of gravity), world space
+    this.vel.addScaledVector(J, 1 / this.mass);
+    this.tb.w.add(this._iinv(_a.crossVectors(r, J)));
+  }
+
+  // w: extra angular velocity (world, rad/s); vy: extra upward speed
+  startTumble(w = null, vy = 0) {
+    if (!this.canTumble) return;
+    const hull = this._hullPoints();
+    if (!this.tb) {
+      _e.set(-this.groundPitch, this.yaw, this.groundRoll, 'YXZ');
+      const q = new THREE.Quaternion().setFromEuler(_e);
+      this.tb = { q, w: new THREE.Vector3(0, this.r, 0), rest: 0, flipT: 0, rockT: 0, bailT: 0, scrapeT: 0, landed: 0, rPrev: this.r };
+      this.vel.y = this.airborne ? this.vy : Math.max(0, this.groundVy);
+      this.airborne = true;
+      this.bodyPitch = this.bodyRoll = this.bodyY = 0;
+      this.bodyPitchV = this.bodyRollV = this.bodyYV = 0;
+      this.tb.cg = this.pos.clone().add(_v.set(0, hull.cgH, 0).applyQuaternion(q));
+    }
+    if (w) this.tb.w.add(w);
+    this.vel.y += vy;
+    this.tb.rest = 0; this.tb.settled = false;
+    if (this.def.bike && this.driver) this.throwRiders?.(9);
+  }
+
+  _endTumble() {
+    const tb = this.tb;
+    _v.set(0, 0, 1).applyQuaternion(tb.q);
+    this.yaw = Math.atan2(_v.x, _v.z);
+    this.r = tb.w.y;
+    this.vy = 0; this.vel.y = 0;
+    this.airborne = false;
+    this.groundPitch = 0; this.groundRoll = 0;
+    this.pos.y = this.game.collision.surfaceHeight(this.pos.x, this.pos.z, this.pos.y + 1.2);
+    this.lastGroundY = this.pos.y;
+    this.tb = null;
+    this.flipped = false;
+    this.group.quaternion.setFromEuler(_e.set(0, this.yaw, 0, 'YXZ'));
+  }
+
+  _tumble(dt) {
+    const tb = this.tb, hull = this._hullPoints(), col = this.game.collision;
+    const g = G * (this.game.gravity ?? 1);
+    // other systems (car-car contacts, walls) push pos / r: fold those into the rigid body
+    tb.cg.copy(this.pos).add(_v.set(0, hull.cgH, 0).applyQuaternion(tb.q));
+    tb.w.y += this.r - tb.rPrev;
+    const steps = 4, h = dt / steps;
+    let touching = 0, wheels = 0, maxImpact = 0, scrape = 0, hitAt = null;
+    for (let s = 0; s < steps; s++) {
+      this.vel.y -= g * h;
+      tb.cg.addScaledVector(this.vel, h);
+      // integrate orientation
+      const w = tb.w, wl = w.length();
+      if (wl > 1e-6) { _q.setFromAxisAngle(_v.copy(w).multiplyScalar(1 / wl), wl * h); tb.q.premultiply(_q).normalize(); }
+      w.multiplyScalar(1 - 0.08 * h);
+      touching = 0; wheels = 0;
+      let push = 0; const pn = _t.set(0, 0, 0);
+      for (const hp of hull.pts) {
+        _r.copy(hp.p).applyQuaternion(tb.q);
+        _p.copy(tb.cg).add(_r);
+        const gy = col.surfaceHeight(_p.x, _p.z, _p.y + 0.6);
+        const pen = gy - _p.y;
+        if (pen <= 0) continue;
+        touching++;
+        if (hp.wheel) wheels++;
+        // ground normal from the surface around the point
+        const e = 0.6;
+        const hx = col.surfaceHeight(_p.x + e, _p.z, _p.y + 1) - col.surfaceHeight(_p.x - e, _p.z, _p.y + 1);
+        const hz = col.surfaceHeight(_p.x, _p.z + e, _p.y + 1) - col.surfaceHeight(_p.x, _p.z - e, _p.y + 1);
+        _n.set(-hx / (2 * e), 1, -hz / (2 * e));
+        if (Math.abs(_n.x) > 1.5 || Math.abs(_n.z) > 1.5) _n.set(0, 1, 0); // (a kerb / wall edge, not a slope)
+        _n.normalize();
+        if (pen > push) { push = pen; pn.copy(_n); }
+        // contact velocity
+        const vp = _j.copy(w).cross(_r).add(this.vel);
+        const vn = vp.dot(_n);
+        if (vn >= 0) continue;
+        const denom = (rv) => 1 / this.mass + this._iinv(_c.crossVectors(_r, rv)).cross(_r).dot(rv);
+        const kn = denom(_n);
+        const eRest = hp.wheel ? 0.05 : -vn > 2 ? 0.22 : 0;
+        const jn = -(1 + eRest) * vn / kn;
+        this._impulse(_J.copy(_n).multiplyScalar(jn), _r);
+        if (-vn > maxImpact) { maxImpact = -vn; hitAt = _p.clone(); }
+        // friction: tyres grip sideways and roll along; bodywork slides
+        const vp2 = _j.copy(w).cross(_r).add(this.vel);
+        const vt = vp2.addScaledVector(_n, -vp2.dot(_n));
+        const vtl = vt.length();
+        if (vtl < 1e-4) continue;
+        if (hp.wheel) {
+          _ax.set(1, 0, 0).applyQuaternion(tb.q); // axle
+          _ax.addScaledVector(_n, -_ax.dot(_n)).normalize();
+          _fw.set(0, 0, 1).applyQuaternion(tb.q);
+          _fw.addScaledVector(_n, -_fw.dot(_n)).normalize();
+          const vs = vt.dot(_ax), vf = vt.dot(_fw);
+          const js = clamp(-vs / denom(_ax), -0.9 * jn, 0.9 * jn);
+          this._impulse(_J.copy(_ax).multiplyScalar(js), _r);
+          const jf = clamp(-vf / denom(_fw), -0.03 * jn, 0.03 * jn);
+          this._impulse(_J.copy(_fw).multiplyScalar(jf), _r);
+        } else {
+          const tdir = _fw.copy(vt).multiplyScalar(-1 / vtl);
+          const jt = Math.min(vtl / denom(tdir), 0.5 * jn);
+          this._impulse(_J.copy(tdir).multiplyScalar(jt), _r);
+          if (vtl > 3) scrape = Math.max(scrape, vtl);
+        }
+      }
+      if (push > 0) tb.cg.addScaledVector(pn, push * 0.7);
+    }
+    // back to the vehicle's own frame (pos: the ground point under the car, as built)
+    this.pos.copy(tb.cg).sub(_v.set(0, hull.cgH, 0).applyQuaternion(tb.q));
+    _v.set(0, 0, 1).applyQuaternion(tb.q);
+    if (Math.hypot(_v.x, _v.z) > 0.15) this.yaw = Math.atan2(_v.x, _v.z);
+    this.r = tb.w.y; tb.rPrev = this.r;
+    this.vy = this.vel.y;
+    // crunches, sparks and damage as it lands and rolls
+    if (maxImpact > 3.5 && hitAt) {
+      const dmg = (maxImpact - 3.5) * 16;
+      this.damage(dmg);
+      this.dent(hitAt.x, hitAt.y, hitAt.z, maxImpact * 2.2);
+      if (this.game.time - this.lastHit > 0.2) {
+        this.lastHit = this.game.time;
+        this.game.audio?.playAt('crash', hitAt, clamp(maxImpact / 12, 0.25, 1));
+        this.game.effects?.sparks?.(hitAt, maxImpact);
+        this.game.effects?.dust?.(hitAt, 1.2);
+        if (this.driver?.isPlayer) this.game.rig?.addShake(Math.min(0.9, maxImpact / 14));
+      }
+      for (const o of this.occupants) if (o && !o.isPlayer && maxImpact > 7) o.takeDamage((maxImpact - 7) * 3, { type: 'vehicle' });
+      if (this.driver?.isPlayer && maxImpact > 9) this.driver.takeDamage((maxImpact - 9) * 1.5, { type: 'fall' });
+      this._crashParts(hitAt, maxImpact);
+    }
+    tb.scrapeT -= dt;
+    if (scrape > 3 && tb.scrapeT <= 0) {
+      tb.scrapeT = 0.12;
+      const p = this.localToWorld(0, 0.1, 0);
+      this.game.effects?.sparks?.(p, Math.min(10, scrape));
+      if (Math.random() < 0.3) this.game.audio?.playAt('metalhit', p, 0.35);
+    }
+    // the static world (buildings, props): the flat contacts still apply
+    const px = this.pos.x, pz = this.pos.z;
+    const list = this.game.collision.obbContacts(this.pos.x, this.pos.z, this.yaw, this.hx, this.hz, this.pos.y + 0.3, this.contacts);
+    for (const ct of list) this._resolveStatic(ct);
+    tb.cg.x += this.pos.x - px; tb.cg.z += this.pos.z - pz;
+    tb.w.y += this.r - tb.rPrev; tb.rPrev = this.r;
+    // settle
+    const up = _v.set(0, 1, 0).applyQuaternion(tb.q);
+    const spd = this.vel.length(), spin = tb.w.length();
+    this.flipped = up.y < 0.5;
+    if (up.y > 0.8 && wheels >= 3 && spin < 2.4 && Math.abs(this.vel.y) < 3) {
+      if (++tb.landed > 2) { this._endTumble(); this._common(dt); return; }
+    } else tb.landed = 0;
+    if (touching && spd < 0.6 && spin < 0.6) tb.rest += dt; else tb.rest = 0;
+    if (tb.rest > 0.5 && !tb.settled) { tb.settled = true; }
+    if (tb.settled) {
+      this.vel.multiplyScalar(0.5); tb.w.multiplyScalar(0.5);
+      if (drvIsPlayer(this) && !tb.hinted) { tb.hinted = true; this.game.hud?.help(up.y > -0.6 ? 'On its side: <b>A / D</b> to rock it back onto its wheels, or <b>F</b> to climb out.' : 'Upside down! Get out (<b>F</b>) before it catches fire.', 5); }
+    }
+    // on its side: rock it back over (A / D, or the stick)
+    tb.rockT -= dt;
+    const drv = this.driver;
+    if (tb.settled && drv?.isPlayer && Math.abs(this.input.steer) > 0.5 && tb.rockT <= 0 && up.y > -0.6) {
+      tb.rockT = 0.9;
+      const fwd = _j.set(0, 0, 1).applyQuaternion(tb.q);
+      tb.w.addScaledVector(fwd, -Math.sign(this.input.steer) * (this.def.bike ? 1.5 : 3.2));
+      this.vel.y += 1.6;
+      tb.settled = false; tb.rest = 0;
+    }
+    // upside down: out you get, and it catches fire after a while
+    if (tb.settled && this.flipped && !this.def.bike && !this.isWrecked) {
+      tb.flipT += dt;
+      if (up.y < -0.2 && tb.flipT > 6 && this.health > 0) this.health = 0;
+      tb.bailT += dt;
+      if (tb.bailT > 1.5) for (const o of this.occupants) if (o && !o.isPlayer && !o.dead && !o.remote && !this.game.vehicles.isBusy(o)) { this.game.vehicles.exit(o); o._bailFlee = this; }
+    } else tb.flipT = Math.max(0, tb.flipT - dt);
+    this._common(dt);
+  }
+
+  // shared end-of-step work: water, fire, wheel spin
+  _common(dt) {
+    const map = this.game.map;
+    if (!this.sunk && map.waterDepth(this.pos.x, this.pos.z) > 1.0 && this.pos.y < WATER_Y - 0.3) {
+      this.sunk = true;
+      this.onSunk?.();
+      this.game.events?.emit('vehicleSunk', this);
+      this.game.effects?.splash(this.pos, 3);
+      if (this.tb) this._endTumble();
+    }
+    if (!this.exploded && !this.sunk && this.health <= 0) {
+      this.onFire = true;
+      this.burnTime += dt;
+      if (this.burnTime > 4.5) this.explode();
+    }
+    if (!this.tb) return;
+    this.skid = 0;
+    this.wheelRot += this.tb.settled ? (this.flipped && this.driver ? this.input.throttle * 12 * dt : 0) : 0;
+  }
+
+  // tall, top-heavy vehicles roll over when cornered too hard, and anything tips over on a steep side slope
+  _rolloverCheck(dt) {
+    if (!this.canTumble || this.airborne || this.def.bike) return;
+    const d = this.def;
+    const cgH = this.model.hull?.cgH ?? d.H * 0.4;
+    const ssf = d.track / (2 * cgH); // static stability factor (g's of sideways grip it takes to tip)
+    const lat = Math.abs(this.ayLat) / G;
+    this._rollT = lat > ssf * 1.02 && this.speedAbs > 8 ? (this._rollT || 0) + dt : 0;
+    const steep = Math.abs(this.groundRoll) > 0.62 && this.speedAbs > 3;
+    if (this._rollT > 0.18 || steep) {
+      this._rollT = 0;
+      // roll to the outside of the turn (or down the slope)
+      const rgt = _v.set(-Math.cos(this.yaw), 0, Math.sin(this.yaw));
+      const dir = steep ? -Math.sign(this.groundRoll) : -Math.sign(this.ayLat);
+      const d2 = rgt.multiplyScalar(dir);
+      this.startTumble(_w.crossVectors(UPV, d2).multiplyScalar(2.6 + Math.random()), 1.2);
+    }
+  }
+
+  // a blast: tossed into the air, spinning (from Combat.explosion)
+  blast(pos, k, dir) {
+    if (!this.canTumble || k < 0.15) {
+      this.vel.addScaledVector(dir, k * 9 * 1500 / this.mass);
+      if (k > 0.4) { this.airborne = true; this.vy = Math.max(this.vy, k * 7); }
+      return;
+    }
+    const lift = k * 9 * Math.min(1.6, 1500 / this.mass);
+    this.startTumble(null, 0);
+    this.vel.addScaledVector(dir, k * 8 * Math.min(1.6, 1500 / this.mass));
+    this.vel.y = Math.max(this.vel.y, lift);
+    // flip away from the blast, with a random twist
+    this.tb.w.add(_w.crossVectors(UPV, dir).multiplyScalar(k * (3 + Math.random() * 3)));
+    this.tb.w.add(_v.set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).multiplyScalar(k * 3));
+  }
+
+  // a crash: flips a lighter vehicle hit hard in the side or nose-first (from the car-car / wall contacts).
+  // n: unit push direction into this vehicle, impact: closing speed, k: share of the momentum it took
+  crashTumble(n, impact, k, wall = false) {
+    if (!this.canTumble) return;
+    const eff = impact * k;
+    const fwd = _v.set(Math.sin(this.yaw), 0, Math.cos(this.yaw));
+    const side = Math.abs(n.x * fwd.z - n.z * fwd.x); // 1 = hit square in the side
+    const d = _j.copy(n).setY(0).normalize();
+    if (this.def.bike) { if (eff > 5) this.startTumble(_w.crossVectors(UPV, d).multiplyScalar(eff * 0.35), eff * 0.12); return; }
+    // tall vehicles go over more easily
+    const tall = clamp((this.model.hull?.cgH ?? 0.6) / 0.62, 0.8, 1.8);
+    if (side > 0.6) {
+      // shoved sideways by a car the top goes with the push; sliding sideways into a wall it trips over it
+      const p = clamp((eff * tall - 12) / 12, 0, 0.9);
+      if (Math.random() < p) this.startTumble(_w.crossVectors(UPV, d).multiplyScalar((wall ? -1 : 1) * clamp((eff * tall - 9) * 0.32, 1.5, 7.5)), clamp(eff * 0.14, 1, 4));
+    } else if (eff > 17) {
+      const p = clamp((eff - 17) / 14, 0, 0.7);
+      if (Math.random() < p) {
+        // nose-first: the tail kicks up over the nose (or the nose over the tail)
+        this.startTumble(_w.crossVectors(UPV, d).multiplyScalar(-clamp((eff - 14) * 0.18, 1, 5)), clamp(eff * 0.12, 1, 4));
+      }
+    }
+  }
+
+  // bumpers, doors, bonnet and boot: dented, sprung open or torn off by heavy hits near them
+  _crashParts(at, impact) {
+    const m = this.model, P = m.panels;
+    if (!P || this.def.bike) return;
+    const [lx, lz] = this.worldToLocal(at.x, at.z);
+    const hz = this.hz, front = lz > hz * 0.55, rear = lz < -hz * 0.55, side = Math.abs(lx) > this.hx * 0.7;
+    const r = Math.random();
+    if (impact > 7 && m.hinges?.hood && front && !this._hoodOpen && r < 0.5) { this._hoodOpen = true; m.hinges.hood.rotation.x = -(0.15 + Math.random() * 0.35); }
+    if (impact > 7 && m.hinges?.trunk && rear && !this._trunkOpen && r < 0.4) { this._trunkOpen = true; m.hinges.trunk.rotation.x = 0.15 + Math.random() * 0.3; }
+    if (impact > 11 && front && P.bumperF && r < 0.45) this.detachPart('bumperF', at);
+    if (impact > 11 && rear && P.bumperR && r < 0.45) this.detachPart('bumperR', at);
+    if (impact > 14 && front && P.hood && this._hoodOpen && r < 0.3) this.detachPart('hood', at);
+    if (impact > 14 && side && !front && !rear && r < 0.35) this.detachPart(lx > 0 ? 'door' : 'door2', at);
+    if (impact > 13 && !this._glassBroken && r < 0.35) this.shatterGlass();
+  }
+
+  detachPart(name, at) {
+    const m = this.model, mesh = m.panels?.[name];
+    if (!mesh || !mesh.parent) return;
+    if (name === 'door') { const dr = m.door; if (this.occupants.some((o) => o && this.game.vehicles.isBusy(o))) return; dr.pivot.traverse((o) => { if (o !== dr.pivot) o.visible = false; }); }
+    this.group.updateMatrixWorld(true);
+    const wm = mesh.matrixWorld.clone();
+    const obj = name === 'door' ? mesh.clone() : mesh;
+    if (name === 'door') { obj.visible = true; for (const c of m.door.pivot.children) if (c.material === vehicleMaterials().glass) { /* the window goes with it */ const gl = c.clone(); gl.visible = true; obj.add(gl); } }
+    mesh.parent.remove(mesh);
+    if (name !== 'door') delete m.panels[name];
+    wm.decompose(obj.position, obj.quaternion, obj.scale);
+    this.game.scene.add(obj);
+    const out = _v.set(at.x - this.pos.x, 0, at.z - this.pos.z).normalize();
+    const e = this.game.effects;
+    if (e) e.debris.push({ obj, vx: this.vel.x * 0.8 + out.x * 3, vy: 2 + Math.random() * 3, vz: this.vel.z * 0.8 + out.z * 3, ax: (Math.random() - 0.5) * 8, az: (Math.random() - 0.5) * 8, t: 0, part: true });
+    this.game.audio?.playAt('metalhit', at, 0.6);
+  }
+
+  shatterGlass() {
+    if (this._glassBroken || !this.model.glass) return;
+    this._glassBroken = true;
+    this.model.glass.visible = false;
+    this.model.door?.pivot?.traverse((o) => { if (o.material === vehicleMaterials().glass) o.visible = false; });
+    this.game.effects?.glassBurst?.(this.localToWorld(0, this.def.H * 0.8, 0), this.def.W);
+    this.game.audio?.playAt('glass', this.pos, 0.8);
   }
 
   _step(h) {
@@ -345,26 +691,12 @@ export class Vehicle {
     const list = this.game.collision.obbContacts(this.pos.x, this.pos.z, this.yaw, this.hx, this.hz, this.pos.y, this.contacts);
     for (const ct of list) this._resolveStatic(ct);
 
-    // water
-    if (!this.sunk && map.waterDepth(this.pos.x, this.pos.z) > 1.0 && this.pos.y < WATER_Y - 0.3) {
-      this.sunk = true;
-      this.onSunk?.();
-      this.game.events?.emit('vehicleSunk', this);
-      this.game.effects?.splash(this.pos, 3);
-    }
+    // water, fire & explosion
+    this._common(dt);
     if (this.sunk) {
       this.vel.multiplyScalar(1 - dt * 1.5);
       this.pos.y = Math.max(map.groundHeight(this.pos.x, this.pos.z), this.pos.y - dt * 0.6);
       this.airborne = false;
-    }
-
-    // fire & explosion
-    if (!this.exploded && !this.sunk) {
-      if (this.health <= 0) {
-        this.onFire = true;
-        this.burnTime += dt;
-        if (this.burnTime > 4.5) this.explode();
-      }
     }
     this.wheelRot += this.speed * dt / this.def.wheelR;
     this.skid = (this.slipRear > 3.2 || this.wheelspin > 0.2 || (this.input.handbrake && Math.abs(this.speed) > 4) || (this.input.brake > 0.5 && this.speed > 12)) && !this.airborne ? 1 : 0;
@@ -405,6 +737,8 @@ export class Vehicle {
     if (impact > 3) {
       this.damage((impact - 3) * 14);
       this.dent(ct.px, this.pos.y + 0.6, ct.pz, impact);
+      if (impact > 9) this._crashParts(_p.set(ct.px, this.pos.y + 0.5, ct.pz), impact);
+      if (impact > 15 && !this.tb) this.crashTumble(new THREE.Vector3(ct.nx, 0, ct.nz), impact, 1, true);
       if (this.game.time - this.lastHit > 0.25) {
         this.lastHit = this.game.time;
         this.game.audio?.playAt('crash', this.pos, clamp(impact / 18, 0.2, 1));
@@ -424,40 +758,53 @@ export class Vehicle {
     this.game.events?.emit('vehicleDamaged', this, amount, source);
   }
 
+  // the painted panels that dent (cars list theirs; other models only have a body)
+  _panels() { const P = this.model.panels; return P ? Object.values(P).filter((m) => m && m.parent) : [this.model.body]; }
+
   dent(wx, wy, wz, strength) {
     if (strength < 5) return;
     if (this.game.cheatsOn?.vehGod && this.driver?.isPlayer) return;
     // deform body vertices near the impact point (copy-on-write geometry)
-    const body = this.model.body;
-    const inv = new THREE.Matrix4().copy(body.matrixWorld).invert();
-    body.updateMatrixWorld(true);
-    const lp = new THREE.Vector3(wx, wy, wz).applyMatrix4(inv);
-    const pos = body.geometry.attributes.position;
-    if (!this._undented) this._undented = pos.array.slice();
     const rad = 0.9;
     const amt = Math.min(0.16, strength * 0.006);
-    const cx = 0, cy = this.def.H * 0.45, cz = 0;
-    let changed = false;
-    for (let i = 0; i < pos.count; i++) {
-      const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
-      const dd = Math.hypot(x - lp.x, y - lp.y, z - lp.z);
-      if (dd < rad) {
-        const k = (1 - dd / rad) * amt;
-        const dx = cx - x, dy = cy - y, dz = cz - z;
-        const l = Math.hypot(dx, dy, dz) || 1;
-        pos.setXYZ(i, x + dx / l * k, y + dy / l * k * 0.4, z + dz / l * k);
-        changed = true;
+    const cy = this.def.H * 0.45;
+    const wp = new THREE.Vector3(wx, wy, wz), lp = new THREE.Vector3(), cp = new THREE.Vector3();
+    const inv = new THREE.Matrix4();
+    this.group.updateMatrixWorld(true);
+    for (const body of this._panels()) {
+      if (!body.geometry?.attributes?.position || body.geometry.userData.shared) continue;
+      inv.copy(body.matrixWorld).invert();
+      lp.copy(wp).applyMatrix4(inv);
+      // the car's centre in this panel's frame (doors hang off hinges)
+      cp.set(0, cy, 0).applyMatrix4(this.model.bodyGroup.matrixWorld).applyMatrix4(inv);
+      const pos = body.geometry.attributes.position;
+      if (!body.userData.undented) body.userData.undented = pos.array.slice();
+      let changed = false;
+      for (let i = 0; i < pos.count; i++) {
+        const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
+        const dd = Math.hypot(x - lp.x, y - lp.y, z - lp.z);
+        if (dd < rad) {
+          const k = (1 - dd / rad) * amt;
+          const dx = cp.x - x, dy = cp.y - y, dz = cp.z - z;
+          const l = Math.hypot(dx, dy, dz) || 1;
+          pos.setXYZ(i, x + dx / l * k, y + dy / l * k * 0.4, z + dz / l * k);
+          changed = true;
+        }
       }
+      if (changed) { pos.needsUpdate = true; body.userData.normalsDirty = true; this._normalsDirty = true; }
     }
-    if (changed) { pos.needsUpdate = true; this._normalsDirty = true; }
   }
 
   // put the bodywork back as built (repair)
   undent() {
-    if (!this._undented) return;
-    const pos = this.model.body.geometry.attributes.position;
-    pos.array.set(this._undented);
-    pos.needsUpdate = true;
+    for (const body of this._panels()) {
+      const u = body.userData.undented;
+      if (!u) continue;
+      const pos = body.geometry.attributes.position;
+      pos.array.set(u);
+      pos.needsUpdate = true;
+      body.userData.normalsDirty = true;
+    }
     this._normalsDirty = true;
   }
 
@@ -467,15 +814,21 @@ export class Vehicle {
     this.onFire = false;
     this.health = 0;
     const M = vehicleMaterials();
-    this.model.body.material = M.burnt;
+    for (const m of this._panels()) m.material = M.burnt;
     this.model.door.mesh.material = M.burnt;
     this.model.glass.visible = false;
+    this.model.door.pivot.traverse((o) => { if (o.material === M.glass) o.visible = false; });
     this.model.head.material = M.headOff;
     this.model.tail.material = M.tailOff;
-    this.vy = 6 + Math.random() * 3;
-    this.airborne = true;
-    this.r += (Math.random() - 0.5) * 3;
-    this.game.combat?.explosion(this.pos.clone().add(new THREE.Vector3(0, 0.8, 0)), 9, 180, this.lastDamager, this);
+    if (this.canTumble && !this.sunk) {
+      this.startTumble(new THREE.Vector3((Math.random() - 0.5) * 5, (Math.random() - 0.5) * 3, (Math.random() - 0.5) * 5), 6 + Math.random() * 3);
+      this.shatterGlass();
+    } else {
+      this.vy = 6 + Math.random() * 3;
+      this.airborne = true;
+      this.r += (Math.random() - 0.5) * 3;
+    }
+    this.game.combat?.vehicleExplosion(this, this.pos.clone().add(new THREE.Vector3(0, this.def.H * 0.45, 0)));
     for (const o of this.occupants) if (o) { o.takeDamage(1000, { type: 'explosion', source: this.lastDamager }); }
     this.game.events?.emit('vehicleExploded', this);
     this.wreckTime = 0;
@@ -484,9 +837,13 @@ export class Vehicle {
   // ------------------------------------------------------------------ visuals
   _updateVisual(dt) {
     const g = this.group;
-    g.rotation.y = this.yaw;
-    g.rotation.x = -this.groundPitch;
-    g.rotation.z = this.groundRoll;
+    if (this.tb) g.quaternion.copy(this.tb.q);
+    else if (this.netQ) g.quaternion.copy(this.netQ); // (another player's car, tumbling)
+    else {
+      g.rotation.y = this.yaw;
+      g.rotation.x = -this.groundPitch;
+      g.rotation.z = this.groundRoll;
+    }
     // body suspension springs
     const tp = clamp(this.axLong * 0.008, -0.07, 0.07);
     const tr = clamp(-this.ayLat * 0.011, -0.09, 0.09);
@@ -501,6 +858,13 @@ export class Vehicle {
       this.hydraulicV += (-this.hydraulic * 30 - this.hydraulicV * 2.5) * dt;
       this.hydraulic += this.hydraulicV * dt;
     }
+    // distant cars drop their small parts (interior, trim, chrome)
+    if (this.model.detail && (this._lodT = (this._lodT ?? Math.random() * 0.5) - dt) <= 0) {
+      this._lodT = 0.5;
+      const cam = this.game.camera?.position;
+      const near = !cam || (cam.x - this.pos.x) ** 2 + (cam.z - this.pos.z) ** 2 < 75 * 75;
+      for (const m of this.model.detail) m.visible = near;
+    }
     const bg = this.model.bodyGroup;
     bg.rotation.x = this.bodyPitch;
     bg.rotation.z = this.bodyRoll;
@@ -512,8 +876,11 @@ export class Vehicle {
     }
     // door
     const door = this.model.door;
-    door.pivot.rotation.y = door.open * 1.1;
-    if (this._normalsDirty && dt > 0) { this.model.body.geometry.computeVertexNormals(); this._normalsDirty = false; }
+    door.pivot.rotation.y = door.open * (door.max ?? 1.1);
+    if (this._normalsDirty && dt > 0) {
+      for (const m of this._panels()) if (m.userData.normalsDirty || m === this.model.body) { m.geometry.computeVertexNormals(); m.userData.normalsDirty = false; }
+      this._normalsDirty = false;
+    }
     // lights
     const M = vehicleMaterials();
     const night = U.uNight.value > 0.4;

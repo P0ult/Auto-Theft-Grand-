@@ -348,7 +348,7 @@ export class Effects {
     this.game = game;
     const scene = game.scene;
     const smoke = smokeTexture(), dot = softDotTexture();
-    this.alphaPool = new ParticlePool(scene, 2500, smoke, false);
+    this.alphaPool = new ParticlePool(scene, 3500, smoke, false);
     this.addPool = new ParticlePool(scene, 2000, dot, true);
     this.dotAlpha = new ParticlePool(scene, 1200, dot, false);
     this.decals = new Decals(scene);
@@ -362,6 +362,7 @@ export class Effects {
     }
     this.debris = [];
     this.emitters = [];
+    this.pending = []; // delayed secondary blasts
     this.rain = new Rain(scene);
     this.lightColor = new THREE.Color();
   }
@@ -440,23 +441,69 @@ export class Effects {
     if (Math.random() < 0.5) this.alphaPool.spawn(P({ x: pos.x, y: pos.y + 0.8 * size, z: pos.z, vx: rand(-0.3, 0.3), vy: rand(1.5, 2.5), vz: rand(-0.3, 0.3), life: rand(1.5, 2.5), size0: 0.6 * size, size1: 3 * size, color: [0.12, 0.11, 0.1], alpha: 0.55, drag: 0.4 }));
   }
 
-  explosion(pos, radius = 6) {
+  // radius: visual size (6.75 = a car). foot: [halfWidth, halfLength, sin(yaw), cos(yaw)] of the vehicle
+  // that went up, so a bus or a plane burns along its whole length rather than from one point.
+  explosion(pos, radius = 6, foot = null, secondary = false) {
     const s = radius / 6;
-    for (let i = 0; i < 40; i++) {
-      const a = Math.random() * 6.28, e = rand(-0.2, 1.2), sp = rand(4, 14) * s;
-      this.addPool.spawn(P({ x: pos.x, y: pos.y, z: pos.z, vx: Math.cos(a) * Math.cos(e) * sp, vy: Math.sin(e) * sp + 2, vz: Math.sin(a) * Math.cos(e) * sp, life: rand(0.4, 0.9), size0: rand(1.5, 3) * s, size1: rand(3, 5) * s, color: [6, 2.6, 0.6], color1: [2.5, 0.5, 0.1], alpha: 1, drag: 3.5, fadeIn: 0.02 }));
-    }
-    for (let i = 0; i < 30; i++) {
-      const a = Math.random() * 6.28, sp = rand(1, 6) * s;
-      this.alphaPool.spawn(P({ x: pos.x, y: pos.y + rand(0, 2), z: pos.z, vx: Math.cos(a) * sp, vy: rand(2, 7) * s, vz: Math.sin(a) * sp, life: rand(2.5, 5), size0: rand(2, 3) * s, size1: rand(7, 11) * s, color: [0.1, 0.09, 0.08], color1: [0.25, 0.24, 0.23], alpha: 0.75, drag: 1.2, fadeIn: 0.08 }));
-    }
-    for (let i = 0; i < 30; i++) this.addPool.spawn(P({ x: pos.x, y: pos.y, z: pos.z, vx: rand(-15, 15), vy: rand(4, 18), vz: rand(-15, 15), life: rand(0.6, 1.4), size0: 0.15, size1: 0.05, color: [6, 3, 1], grav: -16, drag: 0.3 }));
-    for (let i = 0; i < 16; i++) this.dotAlpha.spawn(P({ x: pos.x, y: pos.y, z: pos.z, vx: rand(-9, 9), vy: rand(4, 14), vz: rand(-9, 9), life: rand(1, 2), size0: rand(0.1, 0.25), size1: 0.1, color: [0.05, 0.05, 0.05], grav: -16, drag: 0.2, floor: this.game.map.groundHeight(pos.x, pos.z) }));
-    this.flash(pos, 0xff8a3a, 250, 0.9, 60);
+    const n = Math.round(clamp(Math.pow(s, 0.8), 0.5, 3.4) * 40);
     const gy = this.game.map.groundHeight(pos.x, pos.z);
-    if (pos.y - gy < 3) this.decals.add(new THREE.Vector3(pos.x, gy + 0.07, pos.z), UP, radius * 0.9, 2, { life: 200 });
-    // lingering fire
-    this.emitters.push({ type: 'fire', pos: pos.clone().setY(gy + 0.2), t: 0, life: 6, size: s * 1.2 });
+    const at = (spread = 1) => {
+      if (!foot) return [pos.x, pos.z];
+      const lx = rand(-1, 1) * foot[0] * spread, lz = rand(-1, 1) * foot[1] * spread;
+      return [pos.x + lx * foot[3] + lz * foot[2], pos.z - lx * foot[2] + lz * foot[3]];
+    };
+    const ps = Math.min(s, 2.2) / s; // big blasts get more particles rather than ever-bigger ones
+    for (let i = 0; i < n; i++) {
+      const a = Math.random() * 6.28, e = rand(-0.2, 1.2), sp = rand(4, 14) * s;
+      const [x, z] = at(0.8);
+      this.addPool.spawn(P({ x, y: pos.y, z, vx: Math.cos(a) * Math.cos(e) * sp, vy: Math.sin(e) * sp + 2, vz: Math.sin(a) * Math.cos(e) * sp, life: rand(0.4, 0.9) * Math.sqrt(Math.max(1, s)), size0: rand(1.5, 3) * s * Math.sqrt(ps), size1: rand(3, 5) * s * Math.sqrt(ps), color: [6, 2.6, 0.6], color1: [2.5, 0.5, 0.1], alpha: 1, drag: 3.5, fadeIn: 0.02 }));
+    }
+    for (let i = 0; i < Math.round(n * 0.75); i++) {
+      const a = Math.random() * 6.28, sp = rand(1, 6) * s;
+      const [x, z] = at(0.9);
+      this.alphaPool.spawn(P({ x, y: pos.y + rand(0, 2) * s, z, vx: Math.cos(a) * sp, vy: rand(2, 7) * s, vz: Math.sin(a) * sp, life: rand(2.5, 5) * Math.sqrt(Math.max(1, s)), size0: rand(2, 3) * s, size1: rand(7, 11) * s, color: [0.1, 0.09, 0.08], color1: [0.25, 0.24, 0.23], alpha: 0.75, drag: 1.2, fadeIn: 0.08 }));
+    }
+    const ns = Math.round(30 * clamp(s, 0.5, 2.5));
+    for (let i = 0; i < ns; i++) this.addPool.spawn(P({ x: pos.x, y: pos.y, z: pos.z, vx: rand(-15, 15) * Math.sqrt(s), vy: rand(4, 18) * Math.sqrt(s), vz: rand(-15, 15) * Math.sqrt(s), life: rand(0.6, 1.4), size0: 0.15, size1: 0.05, color: [6, 3, 1], grav: -16, drag: 0.3 }));
+    for (let i = 0; i < Math.round(16 * clamp(s, 0.5, 2.5)); i++) this.dotAlpha.spawn(P({ x: pos.x, y: pos.y, z: pos.z, vx: rand(-9, 9) * Math.sqrt(s), vy: rand(4, 14) * Math.sqrt(s), vz: rand(-9, 9) * Math.sqrt(s), life: rand(1, 2), size0: rand(0.1, 0.25), size1: 0.1, color: [0.05, 0.05, 0.05], grav: -16, drag: 0.2, floor: gy }));
+    this.flash(pos, 0xff8a3a, 250 * Math.min(3, s), 0.9 * Math.min(2, Math.max(1, Math.sqrt(s))), 60 * Math.min(3, Math.max(0.5, s)));
+    if (pos.y - gy < 3 * Math.max(1, s)) this.decals.add(new THREE.Vector3(pos.x, gy + 0.07, pos.z), UP, radius * 0.9, 2, { life: 200 });
+    // lingering fire (the length of the wreck for a long vehicle)
+    const fires = foot ? clamp(Math.round(foot[1] / 3), 1, 4) : 1;
+    for (let i = 0; i < fires; i++) {
+      const [x, z] = fires > 1 ? at(0.7) : [pos.x, pos.z];
+      this.emitters.push({ type: 'fire', pos: new THREE.Vector3(x, this.game.map.groundHeight(x, z) + 0.2, z), t: 0, life: 6 + 3 * Math.min(3, s), size: Math.min(s, 3) * 1.2 / Math.sqrt(fires) });
+    }
+    if (secondary) return;
+    if (s > 0.9) {
+      // flaming wreckage thrown out on smoky arcs
+      const nc = Math.round(clamp(2 + s * 5, 0, 26));
+      for (let i = 0; i < nc; i++) {
+        const a = Math.random() * 6.28, sp = rand(5, 13) * Math.sqrt(s);
+        const [x, z] = at(0.6);
+        this.emitters.push({ type: 'chunk', pos: new THREE.Vector3(x, pos.y + 0.5, z), vel: new THREE.Vector3(Math.cos(a) * sp, rand(6, 15) * Math.sqrt(s), Math.sin(a) * sp), t: 0, life: rand(2.5, 4.5), size: rand(0.35, 0.7) * Math.min(1.6, Math.sqrt(s)), landed: false });
+      }
+    }
+    if (s > 1.6) {
+      // a shock ring of dust along the ground and a rolling column of smoke above the fireball
+      for (let i = 0; i < 36; i++) {
+        const a = i / 36 * 6.28, sp = rand(14, 22) * Math.sqrt(s);
+        this.alphaPool.spawn(P({ x: pos.x, y: gy + 0.6, z: pos.z, vx: Math.cos(a) * sp, vy: rand(0.2, 1), vz: Math.sin(a) * sp, life: rand(1.6, 2.6), size0: 1.5 * s, size1: 5 * s, color: [0.5, 0.45, 0.38], alpha: 0.45, drag: 2.2, fadeIn: 0.05 }));
+      }
+      this.emitters.push({ type: 'column', pos: pos.clone(), t: 0, life: 3 + s, size: s });
+      // secondary blasts rippling along the fuel tanks
+      const n2 = Math.min(6, Math.floor(s * 1.3));
+      for (let i = 0; i < n2; i++) {
+        const [x, z] = at(0.9);
+        this.pending.push({ t: rand(0.15, 0.4) + i * rand(0.15, 0.3), pos: new THREE.Vector3(x, pos.y + rand(0, 1.5), z), r: radius * rand(0.3, 0.45) });
+      }
+    }
+  }
+
+  // a window giving way: a spray of glittering cubes
+  glassBurst(pos, w = 1.8) {
+    for (let i = 0; i < 40; i++) this.dotAlpha.spawn(P({ x: pos.x + rand(-w, w) * 0.4, y: pos.y + rand(-0.2, 0.3), z: pos.z + rand(-w, w) * 0.4, vx: rand(-3, 3), vy: rand(0.5, 3.5), vz: rand(-3, 3), life: rand(0.6, 1.3), size0: rand(0.03, 0.07), size1: 0.03, color: [0.85, 0.95, 1], alpha: 0.9, grav: -14, drag: 0.4, floor: this.game.map.groundHeight(pos.x, pos.z) + 0.02 }));
+    for (let i = 0; i < 12; i++) this.addPool.spawn(P({ x: pos.x, y: pos.y, z: pos.z, vx: rand(-2.5, 2.5), vy: rand(0.5, 3), vz: rand(-2.5, 2.5), life: rand(0.2, 0.5), size0: 0.05, size1: 0.02, color: [2.5, 2.8, 3], grav: -12, drag: 0.5 }));
   }
 
   splash(pos, size = 1) {
@@ -514,7 +561,37 @@ export class Effects {
       e.t += dt;
       if (e.t > e.life) { this.emitters.splice(i, 1); continue; }
       if (e.type === 'fire' && Math.random() < dt * 30) this.fire(e.pos, e.size * (1 - e.t / e.life));
+      else if (e.type === 'chunk') {
+        if (!e.landed) {
+          e.vel.y -= 16 * dt;
+          const ox = e.pos.x, oy = e.pos.y, oz = e.pos.z;
+          e.pos.addScaledVector(e.vel, dt);
+          const fy = this.game.map.groundHeight(e.pos.x, e.pos.z);
+          if (e.pos.y < fy + 0.1) { e.pos.y = fy + 0.1; e.landed = true; }
+          // a continuous trail: fill in the path covered this frame
+          const seg = Math.hypot(e.pos.x - ox, e.pos.y - oy, e.pos.z - oz), nk = Math.min(6, 1 + Math.floor(seg / (e.size * 0.6)));
+          for (let k = 1; k <= nk; k++) {
+            const f = k / nk, x = ox + (e.pos.x - ox) * f, y = oy + (e.pos.y - oy) * f, z = oz + (e.pos.z - oz) * f;
+            this.addPool.spawn(P({ x, y, z, vx: rand(-0.3, 0.3), vy: rand(0.2, 1), vz: rand(-0.3, 0.3), life: rand(0.15, 0.3), size0: e.size * 1.2, size1: e.size * 0.3, color: [3.5, 1.4, 0.3], color1: [1.5, 0.3, 0.08], alpha: 0.8, drag: 1 }));
+            if (k === nk || k % 2 === 0) this.alphaPool.spawn(P({ x, y, z, vx: rand(-0.2, 0.2), vy: rand(0.3, 1), vz: rand(-0.2, 0.2), life: rand(1.2, 2.4), size0: e.size * 0.8, size1: e.size * 4, color: [0.12, 0.11, 0.1], alpha: 0.4, drag: 0.8 }));
+          }
+        } else if (Math.random() < dt * 12) this.fire(e.pos, e.size * 0.8 * (1 - e.t / e.life));
+      } else if (e.type === 'column' && Math.random() < dt * 24) {
+        // a fireball that rolls upward on a dark stalk of smoke
+        const k = e.t / e.life, s = e.size;
+        const x = e.pos.x + rand(-1, 1) * s, y = e.pos.y + rand(0, 2) * s, z = e.pos.z + rand(-1, 1) * s, vy = rand(6, 10) * Math.sqrt(s) * (1 - k * 0.5);
+        this.alphaPool.spawn(P({ x, y, z, vx: rand(-1, 1), vy, vz: rand(-1, 1), life: rand(4, 7), size0: 2.5 * s, size1: 9 * s, color: [0.08, 0.075, 0.07], color1: [0.22, 0.21, 0.2], alpha: 0.7, drag: 0.35, fadeIn: 0.1 }));
+        if (k < 0.35) this.addPool.spawn(P({ x, y, z, vx: rand(-1, 1), vy: vy * 1.1, vz: rand(-1, 1), life: rand(0.7, 1.2), size0: 2.8 * s, size1: 1.2 * s, color: [4, 1.5, 0.3], color1: [1.2, 0.25, 0.05], alpha: 0.8 * (1 - k / 0.35), drag: 0.4, fadeIn: 0.05 }));
+      }
       if (e.type === 'hydrant') for (let k = 0; k < 3; k++) this.dotAlpha.spawn(P({ x: e.pos.x, y: e.pos.y, z: e.pos.z, vx: rand(-0.6, 0.6), vy: rand(7, 10), vz: rand(-0.6, 0.6), life: 1.6, size0: 0.25, size1: 0.5, color: [0.75, 0.85, 1], alpha: 0.6, grav: -9.8, drag: 0.2, floor: e.pos.y - 0.6 }));
+    }
+    for (let i = this.pending.length - 1; i >= 0; i--) {
+      const q = this.pending[i];
+      q.t -= dt;
+      if (q.t > 0) continue;
+      this.pending.splice(i, 1);
+      this.explosion(q.pos, q.r, null, true);
+      this.game.audio?.playAt('explosion', q.pos, 0.6, { size: q.r / 6.75 });
     }
     for (let i = this.debris.length - 1; i >= 0; i--) {
       const d = this.debris[i];
@@ -526,10 +603,11 @@ export class Effects {
         o.position.x += d.vx * dt; o.position.y += d.vy * dt; o.position.z += d.vz * dt;
         o.rotation.x += d.ax * dt; o.rotation.z += d.az * dt;
         if (d.tall) { o.rotation.x = Math.min(Math.PI / 2, Math.abs(o.rotation.x) + dt * 2.5) * Math.sign(d.ax || 1); }
-        if (o.position.y < gy) { o.position.y = gy; d.vy = Math.abs(d.vy) * 0.25; d.vx *= 0.5; d.vz *= 0.5; d.ax *= 0.5; d.az *= 0.5; }
+        if (o.position.y < gy) { o.position.y = gy; d.vy = Math.abs(d.vy) * 0.25; d.vx *= 0.5; d.vz *= 0.5; d.ax *= 0.5; d.az *= 0.5; if (d.part && d.vy < 1) { d.vy = 0; d.ax = d.az = 0; } }
       }
       if (d.t > 30) {
         o.parent?.remove(o);
+        if (d.part) o.traverse((c) => { if (c.isMesh && !c.geometry.userData.shared) c.geometry.dispose(); });
         this.debris.splice(i, 1);
       }
     }

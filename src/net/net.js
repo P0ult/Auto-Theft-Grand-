@@ -141,11 +141,11 @@ export class NetSystem {
     this._emit('sh', def.id, r2(from.x), r2(from.y), r2(from.z), r1(to.x), r1(to.y), r1(to.z));
   }
 
-  onExplosion(pos, radius, source) {
+  onExplosion(pos, radius, source, vis = radius * 0.75) {
     if (!this.online) return;
     const p = this.game.player;
     if (source !== p && source !== p.vehicle) return;
-    this._emit('ex', r1(pos.x), r1(pos.y), r1(pos.z), r1(radius));
+    this._emit('ex', r1(pos.x), r1(pos.y), r1(pos.z), r1(radius), r1(vis));
   }
 
   sendHit(peerId, dmg, info) {
@@ -208,6 +208,7 @@ export class NetSystem {
     if (v.def.train) o.tr = 1;
     if (v.quat) { o.q = [r3(v.quat.x), r3(v.quat.y), r3(v.quat.z), r3(v.quat.w)]; o.sp = r2(v.def.kind === 'heli' ? v.spool : v.power); o.gr = v.grounded ? 1 : 0; }
     else { o.pr = [r3(v.groundPitch || 0), r3(v.groundRoll || 0)]; o.st = r2(v.steerAngle || 0); o.br = v.input.brake > 0.1 || v.input.handbrake ? 1 : 0; o.sr = v.sirenOn ? 1 : 0; }
+    if (v.tb) { const q = v.tb.q; o.tq = [r3(q.x), r3(q.y), r3(q.z), r3(q.w)]; } // tumbling after a crash
     if (v.def.tank) { o.tu = r2(v.turretYaw); o.gp = r2(v.gunPitch); }
     return o;
   }
@@ -301,10 +302,11 @@ export class NetSystem {
         const p = vec3(e.slice(2, 5));
         if (!p) continue;
         const pos = new THREE.Vector3(...p);
-        g.effects.explosion(pos, clamp(num(e[5], 5), 1, 20) * 0.75);
-        g.audio?.playAt('explosion', pos, 1);
+        const vis = clamp(num(e[6], num(e[5], 5) * 0.75), 0.75, 32), size = vis / 6.75;
+        g.effects.explosion(pos, vis);
+        g.audio?.playAt('explosion', pos, Math.min(1.6, 0.7 + size * 0.3), { size });
         const pd = g.player.vehicle ? g.player.vehicle.pos : g.player.pos;
-        g.rig.addShake(clamp(1.2 - pos.distanceTo(pd) / 60, 0, 1.2));
+        g.rig.addShake(clamp(1.2 - pos.distanceTo(pd) / (60 * Math.max(1, Math.sqrt(size))), 0, 1.2));
       } else if (k === 'hit') {
         if (!me || e[2] !== me) continue;
         this._takeHit(P, clamp(num(e[3]), 0, 400), !!e[4], !!e[5], vec3(e[6]), String(e[7] || ''));
@@ -461,7 +463,7 @@ export class NetSystem {
       if (v.occupants[seat] && v.occupants[seat] !== av) { const o = v.occupants[seat]; if (!o.isPlayer) v.takeOut(o); }
       if (!v.occupants[seat]) v.putIn(av, seat);
     }
-    v.netT = { A, B, k: kk, sp: num(vs.sp), gr: vs.gr, pr: Array.isArray(B.pr) ? B.pr : [0, 0], st: num(vs.st), br: vs.br, sr: vs.sr, tu: num(vs.tu), gp: num(vs.gp) };
+    v.netT = { A, B, k: kk, sp: num(vs.sp), gr: vs.gr, pr: Array.isArray(B.pr) ? B.pr : [0, 0], st: num(vs.st), br: vs.br, sr: vs.sr, tu: num(vs.tu), gp: num(vs.gp), tq: Array.isArray(B.tq) && B.tq.length === 4 && B.tq.every(Number.isFinite) ? B.tq : null };
     if (vs.x && !v.exploded) this._proxyExplode(v);
     this._netStep(v, dt);
   }
@@ -485,6 +487,7 @@ export class NetSystem {
       v.wheelRot += fwd * dt / (v.def.wheelR || 0.35);
       if (v.def.tank) { v.turretYaw = T.tu; v.gunPitch = T.gp; }
       v.airborne = false;
+      if (T.tq) (v.netQ ||= new THREE.Quaternion()).set(...T.tq).normalize(); else v.netQ = null;
       try { v._updateVisual(dt); } catch { /* visual only */ }
     }
   }

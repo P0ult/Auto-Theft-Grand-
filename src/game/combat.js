@@ -5,6 +5,15 @@ import { rayOBBYaw, raySphere, clamp, rand } from '../core/utils.js';
 
 const _n = new THREE.Vector3();
 
+// How big a vehicle goes up, relative to a family car: by mass (more fuel, more metal), with aircraft
+// carrying far more fuel for their weight. A bicycle barely pops; a Hercules fills the sky.
+export function blastScale(def) {
+  let k = Math.cbrt((def.mass || 1450) / 1450);
+  if (def.aircraft) k *= def.kind === 'heli' ? 1.25 : 1.5;
+  if (def.pedal || def.board) k *= 0.55;
+  return clamp(k, 0.35, 4.6);
+}
+
 export class Combat {
   constructor(game) {
     this.game = game;
@@ -196,15 +205,27 @@ export class Combat {
   }
 
   // ------------------------------------------------------------------ explosions & projectiles
-  explosion(pos, radius, damage, source = null, excludeVehicle = null) {
+  // a vehicle blowing up, sized to the vehicle (see blastScale)
+  vehicleExplosion(v, pos) {
+    const k = blastScale(v.def);
+    let yaw = v.yaw;
+    if (v.quat) { _n.set(0, 0, 1).applyQuaternion(v.quat); yaw = Math.atan2(_n.x, _n.z); }
+    const hx = v.def.aircraft && v.def.kind !== 'heli' ? v.def.W * 0.38 : v.hx; // (fuel is in the wings)
+    this.explosion(pos, 9 * Math.pow(k, 0.85), 180 * Math.sqrt(k), v.lastDamager, v, { size: k, foot: [hx, v.hz, Math.sin(yaw), Math.cos(yaw)] });
+  }
+
+  explosion(pos, radius, damage, source = null, excludeVehicle = null, opts = {}) {
     const game = this.game;
-    game.effects.explosion(pos, radius * 0.75);
-    game.audio?.playAt('explosion', pos, 1);
+    const size = opts.size ?? radius / 9; // 1 = a car
+    const vis = opts.size != null ? 6.75 * size : radius * 0.75;
+    game.effects.explosion(pos, vis, opts.foot);
+    game.audio?.playAt('explosion', pos, Math.min(1.6, 0.7 + size * 0.3), { size });
     if (this.visualOnly) return; // another player's vehicle blowing up: their client deals the damage
-    game.net?.onExplosion(pos, radius, source);
+    game.net?.onExplosion(pos, radius, source, vis);
     const pd = game.player.vehicle ? game.player.vehicle.pos : game.player.pos;
     const dp = pos.distanceTo(pd);
-    game.rig.addShake(clamp(1.2 - dp / 60, 0, 1.2));
+    const reach = 60 * Math.max(1, Math.sqrt(size));
+    game.rig.addShake(clamp((1.2 - dp / reach) * Math.min(1.4, Math.max(0.6, Math.sqrt(size))), 0, 1.5));
     for (const c of game.allCharacters()) {
       if (c.removed) continue;
       const cp = c.ragdolling ? c.ragdoll.center : c.pos;
@@ -232,9 +253,13 @@ export class Combat {
       v.damage(damage * k * 4.5 * (v.def.blastMul ?? 1), source);
       if (v.def.kind) continue; // aircraft & tanks don't get tossed around
       const dir = new THREE.Vector3().subVectors(v.pos, pos).setY(0).normalize();
-      v.vel.addScaledVector(dir, k * 9 * 1500 / v.mass);
-      v.r += (Math.random() - 0.5) * k * 3;
-      if (k > 0.4) { v.airborne = true; v.vy = Math.max(v.vy, k * 7); }
+      const push = Math.min(2.2, Math.sqrt(damage / 180));
+      if (v.blast) v.blast(pos, k * push, dir); // (tumbles: flips and rolls)
+      else {
+        v.vel.addScaledVector(dir, k * 9 * push * 1500 / v.mass);
+        v.r += (Math.random() - 0.5) * k * 3;
+        if (k > 0.4) { v.airborne = true; v.vy = Math.max(v.vy, k * 7 * push); }
+      }
       v.dent(pos.x, pos.y, pos.z, 30 * k);
     }
     // props
