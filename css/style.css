@@ -326,3 +326,7 @@ body.dead .hud-tr, body.dead .hud-radar, body.dead .hud-speedo, body.dead .hud-z
 .con-row { display: flex; align-items: center; gap: 8px; background: rgba(0,0,0,0.8); padding: 6px 10px; border-radius: 4px; border-left: 3px solid #6cff8a; }
 .con-row span { font-family: ui-monospace, Menlo, Consolas, monospace; color: #6cff8a; font-weight: 700; }
 .con-row input { flex: 1; background: transparent; border: 0; color: #fff; font-size: 15px; outline: none; font-family: ui-monospace, Menlo, Consolas, monospace; }
+
+.swatches { display: flex; flex-wrap: wrap; gap: 5px; max-width: 260px; justify-content: flex-end; }
+.swatch { width: 24px; height: 24px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.8); cursor: pointer; padding: 0; }
+.swatch:hover { transform: scale(1.15); }

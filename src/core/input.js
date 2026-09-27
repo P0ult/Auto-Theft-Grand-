@@ -30,6 +30,8 @@ const BINDINGS = {
   chat: ['Slash'],
   console: ['Backquote'],
   pet: ['KeyK'],
+  nitro: ['ShiftLeft', 'ShiftRight'],
+  vigilante: ['KeyU'],
 };
 
 // Gamepad buttons in the W3C "standard" layout, named the Xbox way (PlayStation: A=✕ B=○ X=□ Y=△,
@@ -53,6 +55,7 @@ const GP_BIND = {
   radio: [null, GP.RIGHT],
   hydraulics: [null, GP.UP],
   taxiJob: [null, GP.LEFT],
+  nitro: [null, GP.A],
   teleport: [GP.UP, null],
   hail: [GP.RIGHT, null],
   passenger: [GP.LEFT, null],

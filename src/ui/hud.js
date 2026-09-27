@@ -980,6 +980,9 @@ export function drawBlip(ctx, x, y, b, scale = 1) {
 }
 
 const ICONS = {
+  wrench: (c) => { c.save(); c.rotate(-0.75); c.fillRect(-1.3, -2, 2.6, 9); c.beginPath(); c.arc(0, -4, 3.6, 0, Math.PI * 2); c.fill(); c.globalCompositeOperation = 'destination-out'; c.fillRect(-1.2, -8, 2.4, 4.2); c.restore(); },
+  star: (c) => { c.beginPath(); for (let k = 0; k < 10; k++) { const r = k % 2 ? 2.6 : 6.5, a = k / 10 * Math.PI * 2 - Math.PI / 2; c.lineTo(Math.cos(a) * r, Math.sin(a) * r); } c.fill(); },
+  house2: (c) => { c.beginPath(); c.moveTo(-6, 0); c.lineTo(0, -6); c.lineTo(6, 0); c.fill(); c.fillRect(-4.5, 0, 9, 6); },
   ship: (c) => { c.beginPath(); c.moveTo(-7, 1); c.lineTo(7, 1); c.lineTo(5, 5); c.lineTo(-5, 5); c.fill(); c.fillRect(-5, -3, 4, 4); c.fillRect(0, -2, 4, 3); c.fillRect(3, -6, 2, 4); },
   boat: (c) => { c.beginPath(); c.moveTo(-6, 2); c.lineTo(6, 2); c.lineTo(4, 5); c.lineTo(-4, 5); c.fill(); c.beginPath(); c.moveTo(0, -6); c.lineTo(0, 1); c.lineTo(5, 1); c.fill(); },
   skate: (c) => { c.fillRect(-6, -2, 12, 3); c.beginPath(); c.arc(-4, 3, 1.7, 0, 6.3); c.fill(); c.beginPath(); c.arc(4, 3, 1.7, 0, 6.3); c.fill(); },

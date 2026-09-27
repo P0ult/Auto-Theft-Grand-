@@ -25,6 +25,7 @@ import { PetSystem } from './game/pets.js';
 import { Skateparks } from './world/skatepark.js';
 import { BoatSystem } from './game/boats.js';
 import { ShipRaid } from './game/shipraid.js';
+import { ModShop } from './game/modshop.js';
 import { NetSystem } from './net/net.js';
 import { HUD } from './ui/hud.js';
 
@@ -93,6 +94,7 @@ async function boot() {
   game.addSystem('freeroam', new FreeRoam(game));
   game.addSystem('admin', new Admin(game));
   game.addSystem('taxi', new TaxiSystem(game));
+  game.addSystem('modshop', new ModShop(game));
   game.hud = new HUD(game);
   game.padNav = new PadNav(game);
   game.net = new NetSystem(game);

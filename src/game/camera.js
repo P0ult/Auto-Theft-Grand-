@@ -93,7 +93,7 @@ export class CameraRig {
       const dists = [size, size * 1.45, size * 0.6];
       this.dist = dists[this.vehicleCamIndex % dists.length];
       this.pivot.set(veh.pos.x, veh.pos.y + (veh.def.camHeight || 1.6), veh.pos.z);
-      this.fovBase = 64 + clamp(Math.abs(speed) / 45, 0, 1) * 14;
+      this.fovBase = 64 + clamp(Math.abs(speed) / 45, 0, 1) * 14 + (this.boostFov || 0);
     } else {
       // on-foot orbit
       this.yaw = wrapAngle(this.yaw - dx);
