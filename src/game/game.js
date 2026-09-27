@@ -153,7 +153,10 @@ export class Game {
 
   frame(dt) {
     const input = this.input;
+    input.frameDt = dt;
+    input.inVehicle = !!this.player?.vehicle;
     input.pollGamepad();
+    this.padNav?.update();
     const sdt = this.paused ? 0 : dt * this.timeScale;
     if (!this.paused) this.update(sdt, dt);
     this.net?.tick(dt);
@@ -182,7 +185,7 @@ export class Game {
           player.aiming = input.aimDown() && player.weaponDef.type === 'gun' && (player.weapon === 'pistol' || player.weapon === 'smg') && !pv0.def.kind;
           if (player.aiming) {
             player.fireCooldown -= dt;
-            if (input.mouse.left && player.fireCooldown <= 0) player.fire(this.rig);
+            if (input.driveByFire() && player.fireCooldown <= 0) player.fire(this.rig);
           }
         }
       }

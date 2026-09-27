@@ -64,7 +64,7 @@ export class Ped extends Character {
   goTo(x, z, speed, dt, arriveDist = 0.4) {
     const dx = x - this.pos.x, dz = z - this.pos.z;
     const d = Math.hypot(dx, dz);
-    if (d < arriveDist) { this.moveTarget.set(0, 0); return true; }
+    if (!(d >= arriveDist) || d < 1e-4) { this.moveTarget.set(0, 0); return true; }
     const sp = Math.min(speed, d * 3);
     this.moveTarget.set(dx / d * sp, dz / d * sp);
     this.yaw = dampAngle(this.yaw, Math.atan2(dx, dz), 8, dt);
@@ -170,8 +170,10 @@ export class Ped extends Character {
 
   _flee(dt) {
     const game = this.game;
-    const tp = this.threat && !this.threat.removed ? (this.threat.vehicle ? this.threat.vehicle.pos : this.threat.pos) : this.threatPos;
+    let tp = this.threat && !this.threat.removed && this.threat !== this ? (this.threat.vehicle ? this.threat.vehicle.pos : this.threat.pos) : this.threatPos;
+    if (!Number.isFinite(tp.x) || !Number.isFinite(tp.z)) { this.threat = null; tp = this.threatPos; }
     let dx = this.pos.x - tp.x, dz = this.pos.z - tp.z;
+    if (!Number.isFinite(dx) || !Number.isFinite(dz)) { dx = Math.sin(this.yaw); dz = Math.cos(this.yaw); }
     const d = Math.hypot(dx, dz) || 1;
     dx /= d; dz /= d;
     // bias toward sidewalks: blend with direction to a node away from threat
@@ -188,11 +190,12 @@ export class Ped extends Character {
   _attack(dt) {
     const game = this.game;
     const t = this.threat;
-    if (!t || t.dead || t.removed) { this.threat = null; this.node = null; this.setState(this.gang ? 'guard' : 'wander'); return; }
+    if (!t || t === this || t.dead || t.removed) { this.threat = null; this.node = null; this.setState(this.gang ? 'guard' : 'wander'); return; }
     const tp = t.vehicle ? t.vehicle.pos : t.pos;
     const dx = tp.x - this.pos.x, dz = tp.z - this.pos.z;
     const d = Math.hypot(dx, dz);
-    if (d > Math.max(60, (GANGS[this.gang]?.range || 0) + 25)) { this.threat = null; this.setState(this.gang ? 'guard' : 'wander'); return; }
+    // (written so a NaN distance also gives up rather than slipping through every range check)
+    if (!(d <= Math.max(60, (GANGS[this.gang]?.range || 0) + 25)) || d < 1e-3) { this.threat = null; this.setState(this.gang ? 'guard' : 'wander'); return; }
     const def = this.weaponDef;
     if (def.type === 'gun') {
       this.aiming = true;
@@ -417,9 +420,11 @@ export class PedManager {
     if (ped.brain === 'cop' || ped.brain === 'script') { ped.threat = src; return; }
     if (ped.state === 'follow') { ped.threat = src; return; }
     if (ped.gang) {
+      // a stray round from one of their own: no feud (and never make the shooter its own target)
+      if (src.gang === ped.gang) return;
       ped.threat = src; ped.setState('attack');
       // gang backup
-      for (const p of this.list) if (p.gang === ped.gang && !p.dead && dist2(p.pos.x, p.pos.z, ped.pos.x, ped.pos.z) < 30 * 30) { p.threat = src; p.setState('attack'); }
+      for (const p of this.list) if (p !== src && p.gang === ped.gang && !p.dead && dist2(p.pos.x, p.pos.z, ped.pos.x, ped.pos.z) < 30 * 30) { p.threat = src; p.setState('attack'); }
       if (src.isPlayer) this.gangAggro[ped.gang] = true;
       return;
     }
@@ -451,12 +456,26 @@ export class PedManager {
     const pp = pl.vehicle ? pl.vehicle.pos : pl.pos;
     // spawn
     this.spawnTimer -= dt;
-    const ambientCount = this.list.filter((p) => !p.persistent && p.brain !== 'cop' && !p.vehicle).length;
+    // the living count against the budget; bodies don't (so a shoot-out doesn't empty the streets), but
+    // they're capped and the oldest ones out of sight are cleared first
+    let ambientCount = 0;
+    const bodies = [];
+    for (const p of this.list) {
+      if (p.persistent || p.brain === 'cop' || p.vehicle) continue;
+      if (p.dead) bodies.push(p); else ambientCount++;
+    }
     const npc = game.net?.online ? game.net.npc : null;
     const target = Math.floor(this.maxPeds * this.density()) - (npc ? npc.proxyPedsNear(pp.x, pp.z, 150) : 0);
     if (this.spawnTimer <= 0 && ambientCount < target && !game.disableAmbient) {
-      this.spawnTimer = 0.25;
+      this.spawnTimer = ambientCount < target * 0.6 ? 0.1 : 0.25;
       this._spawnAmbient();
+    }
+    if (bodies.length > 10) {
+      bodies.sort((a, b) => a.deathTime - b.deathTime);
+      for (let k = 0; k < bodies.length - 10; k++) {
+        const b = bodies[k], bx = b.ragdolling ? b.ragdoll.pos[0] : b.pos.x, bz = b.ragdolling ? b.ragdoll.pos[2] : b.pos.z;
+        if (game.time - b.deathTime > 12 && dist2(bx, bz, pp.x, pp.z) > 30 * 30 && !this._inView(bx, bz)) this.remove(b);
+      }
     }
     // frustum for visibility culling
     const cam = game.camera;
@@ -467,6 +486,11 @@ export class PedManager {
     for (let i = this.list.length - 1; i >= 0; i--) {
       const p = this.list[i];
       if (p.removed) { this.list.splice(i, 1); continue; }
+      if (!Number.isFinite(p.pos.x) || !Number.isFinite(p.pos.z) || (p.ragdolling && !Number.isFinite(p.ragdoll.pos[0]))) {
+        // a broken ped (NaN position) would pass every distance check in the game: get rid of it
+        if (!p.persistent || !p._goodPos) { this.remove(p); continue; }
+        p.recoverFrom?.();
+      }
       const cx = p.ragdolling ? p.ragdoll.pos[0] : p.pos.x, cz = p.ragdolling ? p.ragdoll.pos[2] : p.pos.z;
       const d2 = dist2(cx, cz, pp.x, pp.z);
       if (!p.persistent && !p.vehicle) {

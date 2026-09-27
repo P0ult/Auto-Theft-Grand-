@@ -199,7 +199,7 @@ export class Plane extends AirVehicle {
     const c = this.ctl, gp = input.gp;
     if (input.key('KeyW') || gp.rt > 0.3) this.power = Math.min(1, this.power + dt * (0.5 + gp.rt * 0.3));
     if (input.key('KeyS') || gp.lt > 0.3) this.power = Math.max(0, this.power - dt * 0.7);
-    c.brake = input.key('Space') ? 1 : 0;
+    c.brake = input.key('Space') || gp.buttons[1] ? 1 : 0; // (pad: B)
     c.reverse = this.grounded && this.power === 0 && input.key('KeyS');
     // the mouse behaves like a spring-centred stick
     const [mdx, mdy] = input.lookDelta();
@@ -212,8 +212,8 @@ export class Plane extends AirVehicle {
     c.yaw = clamp((input.key('KeyE') ? 1 : 0) - (input.key('KeyQ') ? 1 : 0), -1, 1);
     this.horn = false;
     if (this.armed && !this.exploded && this.health > 0) {
-      if (input.mouse.left && this.gunT <= 0) this.fireCannon();
-      if (input.mouse.rightPressed && this.missileT <= 0) this.fireMissile();
+      if (input.vehFire() && this.gunT <= 0) this.fireCannon();
+      if (input.vehAltPressed() && this.missileT <= 0) this.fireMissile();
     }
   }
 
@@ -461,9 +461,10 @@ export class Heli extends AirVehicle {
     this.horn = false;
     if (this.armed && !this.exploded && this.health > 0 && this.spool > 0.6) {
       this.aimT = (this.aimT || 0) - dt;
-      if (this.aimT <= 0 || input.mouse.left || input.mouse.rightPressed) { this.aimT = 0.12; this.aimAt = aimPoint(this.game, 700, this.driver); }
-      if (input.mouse.left && this.gunT <= 0) this.fireMinigun();
-      if (input.mouse.rightPressed && this.missileT <= 0) this.fireRocket();
+      const fire = input.vehFire(), alt = input.vehAltPressed();
+      if (this.aimT <= 0 || fire || alt) { this.aimT = 0.12; this.aimAt = aimPoint(this.game, 700, this.driver); }
+      if (fire && this.gunT <= 0) this.fireMinigun();
+      if (alt && this.missileT <= 0) this.fireRocket();
     }
   }
 
@@ -636,7 +637,7 @@ export class Tank extends Vehicle {
     super.playerControl(input, dt);
     this.aimT -= dt;
     if (this.aimT <= 0) { this.aimT = 0.1; this.aimAt = aimPoint(this.game, 900, this.driver); }
-    if (input.mouse.left && this.reload <= 0 && !this.exploded) this.fireCannon();
+    if (input.vehFire() && this.reload <= 0 && !this.exploded) this.fireCannon();
   }
 
   muzzleWorld(out = new THREE.Vector3()) {

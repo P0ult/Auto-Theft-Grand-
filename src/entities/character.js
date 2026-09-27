@@ -133,12 +133,16 @@ export class Character {
     this.animState.sit = 0;
     if (this.ragdolling) {
       this.ragdoll.update(dt);
+      if (!Number.isFinite(this.ragdoll.pos[0]) || !Number.isFinite(this.ragdoll.pos[2])) { this.recoverFrom(); return; }
       this.ragdoll.apply();
       this.downTime += dt;
       if (!this.dead && (this.ragdoll.settled || this.downTime > 3.5) && this.downTime > 1.2) this.getUp();
       return;
     }
     this.physics(dt);
+    // safety net: a position that has gone NaN would slip through every distance check in the game
+    if (Number.isFinite(this.pos.x) && Number.isFinite(this.pos.y) && Number.isFinite(this.pos.z) && Number.isFinite(this.vel.x) && Number.isFinite(this.vel.z)) (this._goodPos || (this._goodPos = new THREE.Vector3())).copy(this.pos);
+    else this.recoverFrom();
     // turn rate (for leaning into turns)
     const dy = this._lastYaw == null ? 0 : wrapAngle(this.yaw - this._lastYaw);
     this._lastYaw = this.yaw;
@@ -325,6 +329,21 @@ export class Character {
     this.anim.beginBlend(0.3);
     if (faceUp) this.anim.play('getup');
     this.onGotUp?.();
+  }
+
+  // put a character whose physics produced NaN back where it last was sane
+  recoverFrom() {
+    const g = this._goodPos;
+    if (g) this.pos.copy(g); else this.pos.set(0, this.game.map.groundHeight(0, 0), 0);
+    this.vel.set(0, 0, 0);
+    this.moveTarget?.set(0, 0);
+    if (!Number.isFinite(this.yaw)) this.yaw = 0;
+    if (!Number.isFinite(this.aimPitch)) this.aimPitch = 0;
+    this.aimDir = null;
+    if (this.threat === this) this.threat = null;
+    if (this.ragdolling && !this.dead) { this.ragdolling = false; this.downTime = 0; this.anim.beginBlend?.(0.2); }
+    this.root.position.copy(this.pos);
+    this.root.rotation.y = this.yaw;
   }
 
   get isDown() { return this.ragdolling || this.dead; }

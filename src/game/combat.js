@@ -144,7 +144,7 @@ export class Combat {
       if (c === attacker || c.dead || c.vehicle) continue;
       const dx = c.pos.x - attacker.pos.x, dz = c.pos.z - attacker.pos.z;
       const d = Math.hypot(dx, dz);
-      if (d > range + 0.35 || Math.abs(c.pos.y - attacker.pos.y) > 1.2) continue;
+      if (!(d <= range + 0.35) || !(Math.abs(c.pos.y - attacker.pos.y) <= 1.2)) continue; // (NaN-safe)
       const dot = (dx * fx + dz * fz) / (d || 1);
       if (dot < 0.45 && d > 0.6) continue;
       let dmg = def.damage;
@@ -189,7 +189,7 @@ export class Combat {
       if (c.removed) continue;
       const cp = c.ragdolling ? c.ragdoll.center : c.pos;
       const d = cp.distanceTo(pos);
-      if (d > radius) continue;
+      if (!(d <= radius)) continue;
       const k = 1 - d / radius;
       const dir = new THREE.Vector3().subVectors(cp, pos).setY(0).normalize();
       const imp = dir.multiplyScalar(6 + k * 10).add(new THREE.Vector3(0, 4 + k * 7, 0));
@@ -202,7 +202,7 @@ export class Combat {
     for (const v of game.vehicles.list) {
       if (v === excludeVehicle || v.exploded) continue;
       const d = v.pos.distanceTo(pos);
-      if (d > radius * 1.3) continue;
+      if (!(d <= radius * 1.3)) continue;
       const k = 1 - d / (radius * 1.3);
       v.damage(damage * k * 4.5 * (v.def.blastMul ?? 1), source);
       if (v.def.kind) continue; // aircraft & tanks don't get tossed around

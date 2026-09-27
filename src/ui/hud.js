@@ -82,7 +82,45 @@ export class HUD {
   }
 
   // ------------------------------------------------------------------ message API
-  help(text, dur = 5) { this.helpBox.innerHTML = text; this.helpBox.classList.add('show'); this.timers.help = dur; }
+  help(text, dur = 5) { this.helpBox.innerHTML = this._padText(text); this.helpBox.classList.add('show'); this.timers.help = dur; }
+
+  // with a controller in hand, the key hints name the pad's buttons instead
+  _padText(text) {
+    const input = this.game.input;
+    if (input.lastDevice !== 'gamepad' || typeof text !== 'string' || !text.includes('<b>')) return text;
+    const v = this.game.player.vehicle, kind = v ? (v.def?.kind || 'car') : null;
+    const G = input.gp.family === 'playstation'
+      ? { A: '✕', B: '○', X: '□', Y: '△', LB: 'L1', RB: 'R1', LT: 'L2', RT: 'R2', VIEW: 'Create', LS: 'L3' }
+      : { A: 'A', B: 'B', X: 'X', Y: 'Y', LB: 'LB', RB: 'RB', LT: 'LT', RT: 'RT', VIEW: 'View', LS: 'LS' };
+    const air = kind === 'plane' || kind === 'jet' || kind === 'heli' || kind === 'tank', heli = kind === 'heli';
+    return text.replace(/<b>([^<]{1,14})<\/b>([^<]{0,40})/g, (m, key, after) => {
+      let r = null;
+      switch (key.trim()) {
+        case 'F': r = G.Y; break;
+        case 'T': r = 'D-pad ↑'; break;
+        case 'R': r = G.B; break;
+        case 'N': r = 'D-pad →'; break;
+        case 'J': r = 'D-pad ←'; break;
+        case 'V': r = G.VIEW; break;
+        case 'H': r = v ? G.LS : 'D-pad →'; break;
+        case 'G': r = /hydraulic/i.test(text) ? 'D-pad ↑' : 'D-pad ←'; break;
+        case 'Space': case 'SPACE':
+          r = /parachute/i.test(after) ? G.X : /skip/i.test(after) ? G.A : /handbrake/i.test(after) ? G.RB : /brakes/i.test(after) ? G.B : /climb/i.test(after) ? G.RT : null; break;
+        case 'Shift': r = heli ? G.LT : null; break;
+        case 'W': r = G.RT; break;
+        case 'S': r = G.LT; break;
+        case 'W/S': r = heli ? 'Left stick ↕' : kind === 'tank' ? 'Left stick' : `${G.RT} / ${G.LT}`; break;
+        case 'A/D': r = 'Left stick ↔'; break;
+        case '↑↓': r = 'Left stick ↕'; break;
+        case 'Mouse': r = kind === 'plane' || kind === 'jet' ? null : 'Right stick'; break;
+        case 'LMB': case 'left mouse': r = air ? G.RB : G.RT; break;
+        case 'RMB': case 'right mouse': r = air ? G.LB : G.LT; break;
+        case 'Wheel': r = `${G.LB} / ${G.RB}`; break;
+        default: return m;
+      }
+      return r ? `<b>${r}</b>${after}` : m;
+    });
+  }
   bigMessage(text, style = 'title', dur = 4, sub = '') {
     this.bigMsg.className = 'hud-big show ' + style;
     this.bigMsg.innerHTML = `<div>${text}</div>${sub ? `<small>${sub}</small>` : ''}`;
@@ -262,7 +300,7 @@ export class HUD {
     this.overlay.innerHTML = '';
     this.menuOpen = null;
     this.game.paused = false;
-    if (this.game.gameplay?.state === 'playing') this.game.input.requestLock();
+    if (this.game.gameplay?.state === 'playing' && this.game.input.lastDevice !== 'gamepad') this.game.input.requestLock();
   }
 
   togglePause() {
@@ -556,8 +594,13 @@ export class HUD {
   }
 
   _tab_controls(body) {
+    const game = this.game, input = game.input;
     const box = h('div', 'controls', body);
-    box.innerHTML = `<div class="ctl-cols"><div><h3>On foot</h3><table>
+    const seg = h('div', 'ctl-seg', box);
+    const bKb = h('button', 'tab', seg, 'Keyboard &amp; mouse');
+    const bPad = h('button', 'tab', seg, 'Controller');
+    const view = h('div', '', box);
+    const KB = `<div class="ctl-cols"><div><h3>On foot</h3><table>
       <tr><td>WASD</td><td>Move</td></tr><tr><td>Mouse</td><td>Look</td></tr><tr><td>Shift</td><td>Sprint</td></tr><tr><td>Space</td><td>Jump</td></tr>
       <tr><td>C / Ctrl</td><td>Crouch</td></tr><tr><td>Left mouse</td><td>Punch / fire</td></tr><tr><td>Right mouse</td><td>Aim</td></tr><tr><td>R</td><td>Reload</td></tr>
       <tr><td>Q / E, wheel, 1-9</td><td>Switch weapon</td></tr><tr><td>F / Enter</td><td>Enter / steal vehicle</td></tr></table></div>
@@ -568,8 +611,41 @@ export class HUD {
       <tr><td>A / D</td><td>Roll (bank to turn)</td></tr><tr><td>Q / E</td><td>Rudder</td></tr><tr><td>Space</td><td>Wheel brakes</td></tr><tr><td>Left / right mouse</td><td>Cannon / homing missile</td></tr><tr><td>F</td><td>Bail out (parachute)</td></tr></table>
       <h3>Helicopters</h3><table><tr><td>Space / Shift</td><td>Climb / descend</td></tr><tr><td>W / S</td><td>Fly forward / back</td></tr><tr><td>A / D</td><td>Turn</td></tr><tr><td>Q / E</td><td>Strafe</td></tr><tr><td>Left / right mouse</td><td>Minigun / rockets</td></tr></table>
       <h3>Tank</h3><table><tr><td>W / S, A / D</td><td>Drive, turn on the spot</td></tr><tr><td>Mouse / left mouse</td><td>Aim turret / fire</td></tr></table>
-      <h3>General</h3><table><tr><td>Esc / P</td><td>Pause, map & settings</td></tr><tr><td>M</td><td>Map</td></tr><tr><td>T</td><td>Teleport (free roam)</td></tr><tr><td>&#96; (backtick)</td><td>Admin console (free roam)</td></tr><tr><td>/</td><td>Chat (multiplayer)</td></tr><tr><td>H (on foot)</td><td>Whistle for a taxi</td></tr><tr><td>G (on foot)</td><td>Ride as a passenger</td></tr><tr><td>J (in a cab)</td><td>Taxi driver job on / off</td></tr><tr><td>Space (in a cab's back seat)</td><td>Skip the trip</td></tr><tr><td>Space / Enter</td><td>Skip cutscene line</td></tr></table>
-      <p class="muted">Gamepad supported (standard layout): sticks, RT/LT to drive, RB handbrake, Y enter vehicle, A sprint.</p></div></div>`;
+      <h3>General</h3><table><tr><td>Esc / P</td><td>Pause, map & settings</td></tr><tr><td>M</td><td>Map</td></tr><tr><td>T</td><td>Teleport (free roam)</td></tr><tr><td>&#96; (backtick)</td><td>Admin console (free roam)</td></tr><tr><td>/</td><td>Chat (multiplayer)</td></tr><tr><td>H (on foot)</td><td>Whistle for a taxi</td></tr><tr><td>G (on foot)</td><td>Ride as a passenger</td></tr><tr><td>J (in a cab)</td><td>Taxi driver job on / off</td></tr><tr><td>Space (in a cab's back seat)</td><td>Skip the trip</td></tr><tr><td>Space / Enter</td><td>Skip cutscene line</td></tr></table></div></div>`;
+    let glyphs = input.gp.family === 'playstation' ? 'playstation' : 'xbox';
+    const pad = () => {
+      const ps = glyphs === 'playstation';
+      const G = ps
+        ? { A: '✕', B: '○', X: '□', Y: '△', LB: 'L1', RB: 'R1', LT: 'L2', RT: 'R2', VIEW: 'Create / Share', MENU: 'Options', LS: 'L3', RS: 'R3', L: 'Left stick', R: 'Right stick' }
+        : { A: 'A', B: 'B', X: 'X', Y: 'Y', LB: 'LB', RB: 'RB', LT: 'LT', RT: 'RT', VIEW: 'View', MENU: 'Menu', LS: 'LS (click)', RS: 'RS (click)', L: 'Left stick', R: 'Right stick' };
+      const rows = (list) => `<table>${list.map(([k, v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join('')}</table>`;
+      const gp = input.gp;
+      const name = gp.connected ? gp.id.replace(/\s*\(.*$/, '').slice(0, 60) : '';
+      return `<div class="pad-head"><span class="${gp.connected ? 'pad-on' : 'pad-off'}">${gp.connected ? `Connected: ${name || 'controller'}` : 'No controller detected — plug one in (or switch it on) and press any button.'}</span>
+        <span class="pad-glyphs"><button class="tab${ps ? '' : ' active'}" data-g="xbox">Xbox / Logitech</button><button class="tab${ps ? ' active' : ''}" data-g="playstation">PlayStation</button></span></div>
+        <div class="ctl-cols"><div><h3>On foot</h3>${rows([
+          [G.L, 'Move'], [G.R, 'Look'], [`${G.A} (hold)`, 'Sprint'], [G.X, 'Jump / open parachute'], [G.LS, 'Crouch'],
+          [G.RT, 'Fire / punch / throw'], [`${G.LT} (hold)`, 'Aim — pair with ' + G.RT + ' to shoot'], [G.B, 'Reload'],
+          [`${G.LB} / ${G.RB}`, 'Previous / next weapon'], [G.Y, 'Enter / steal vehicle'],
+          ['D-pad ↑', 'Teleport menu (free roam)'], ['D-pad →', 'Whistle for a taxi'], ['D-pad ←', 'Ride as a passenger'], ['D-pad ↓', 'Map'], [G.MENU, 'Pause']])}</div>
+        <div><h3>In a vehicle</h3>${rows([
+          [G.RT, 'Accelerate'], [G.LT, 'Brake / reverse'], [G.L, 'Steer'], [G.RB, 'Handbrake (drift!)'],
+          [`${G.LB} (hold) + ${G.RB}`, 'Drive-by: aim, shoot (pistol / SMG)'], [G.LS, 'Horn'], [G.RS, 'Look behind'], [G.VIEW, 'Change camera'],
+          ['D-pad →', 'Next radio station'], ['D-pad ↑', 'Hydraulics (lowriders)'], ['D-pad ←', 'Taxi job (in a cab)'], [G.Y, 'Exit (bail out when fast)'], [G.A, 'Skip the trip (in a cab\'s back seat)']])}</div>
+        <div><h3>Aircraft &amp; tank</h3>${rows([
+          [`${G.RT} / ${G.LT}`, 'Throttle (plane) · climb / descend (heli)'], [G.L, 'Pitch &amp; roll (plane) · fly &amp; turn (heli)'],
+          [G.B, 'Plane: wheel brakes'], [`${G.RB} (hold)`, 'Cannon / minigun / tank gun'], [G.LB, 'Homing missile / rockets'], [G.R, 'Look · aim the tank turret'], [G.Y, 'Bail out (parachute)']])}
+        <h3>Menus</h3>${rows([['D-pad / ' + G.L, 'Move'], [G.A, 'Select'], [G.B, 'Back / close'], [`${G.LB} / ${G.RB}`, 'Switch tabs'], ['← / →', 'Change a slider or option']])}</div></div>
+        <p class="muted">Works with Xbox (One / Series), Logitech (F310 / F510 / F710 — use the X switch position if you can) and PlayStation controllers. Best in Chrome or Edge.</p>`;
+    };
+    const show = (which) => {
+      bKb.classList.toggle('active', which === 'kb'); bPad.classList.toggle('active', which === 'pad');
+      view.innerHTML = which === 'kb' ? KB : pad();
+      view.querySelectorAll('[data-g]').forEach((b) => { b.onclick = () => { glyphs = b.dataset.g; show('pad'); }; });
+    };
+    bKb.onclick = () => show('kb');
+    bPad.onclick = () => show('pad');
+    show(input.gp.connected || input.lastDevice === 'gamepad' ? 'pad' : 'kb');
   }
 
   // ------------------------------------------------------------------ update
@@ -577,8 +653,9 @@ export class HUD {
     const game = this.game;
     const p = game.player;
     const input = game.input;
-    if (input.hit('pause')) { if (!(this._autoPauseT && performance.now() - this._autoPauseT < 450)) this.togglePause(); }
-    else if (input.hit('map') && !this.menuOpen) this.openPause('map');
+    const inGame = game.gameplay?.state !== 'menu'; // (not on the title screen)
+    if (input.hit('pause') && (inGame || this.menuOpen)) { if (!(this._autoPauseT && performance.now() - this._autoPauseT < 450)) this.togglePause(); }
+    else if (input.hit('map') && !this.menuOpen && inGame) this.openPause('map');
     else if (input.hit('chat') && !this.menuOpen && game.net?.online && game.gameplay?.state === 'playing') game.net.openChat();
     else if (input.hit('console') && !this.menuOpen && !this.consoleOpen && game.gameplay?.state === 'playing' && !game.cutscene) {
       if (game.freeroam?.active) this.openConsole();

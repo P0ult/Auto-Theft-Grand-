@@ -18,6 +18,7 @@ import { FreeRoam } from './game/freeroam.js';
 import { Admin } from './game/admin.js';
 import { ShopSystem } from './game/shops.js';
 import { TaxiSystem } from './game/taxi.js';
+import { PadNav } from './ui/padnav.js';
 import { NetSystem } from './net/net.js';
 import { HUD } from './ui/hud.js';
 
@@ -81,6 +82,7 @@ async function boot() {
   game.addSystem('admin', new Admin(game));
   game.addSystem('taxi', new TaxiSystem(game));
   game.hud = new HUD(game);
+  game.padNav = new PadNav(game);
   game.net = new NetSystem(game);
   game.net.detect();
   game.pickups.refreshPackages();
@@ -99,7 +101,10 @@ async function boot() {
     window.__step = (sec, dt = 1 / 30, render = true) => {
       const n = Math.max(1, Math.round(sec / dt));
       for (let i = 0; i < n; i++) {
+        game.input.frameDt = dt;
+        game.input.inVehicle = !!game.player.vehicle;
         game.input.pollGamepad();
+        game.padNav?.update();
         if (!game.paused) game.update(dt * game.timeScale, dt);
         game.net?.tick(dt);
         game.hud.update(dt);
@@ -135,7 +140,7 @@ function showTitle(game) {
   const bMulti = el('button', '', menu, 'Multiplayer');
   const bSet = el('button', '', menu, 'Settings');
   const bCtl = el('button', '', menu, 'Controls');
-  el('div', 'title-foot', t, 'WASD + Mouse · Gamepad supported · Best in Chrome/Edge with hardware acceleration · An original parody inspired by open-world crime classics');
+  el('div', 'title-foot', t, 'WASD + Mouse · Xbox, PlayStation &amp; Logitech controllers supported · Best in Chrome/Edge with hardware acceleration · An original parody inspired by open-world crime classics');
   const go = (cont, free = false) => {
     game.audio.init();
     t.style.transition = 'opacity 0.6s';

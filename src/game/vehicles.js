@@ -46,8 +46,8 @@ export class VehicleManager {
       for (let j = i + 1; j < list.length; j++) {
         const Bv = list[j];
         const r = Math.max(A.hz, A.hx) + Math.max(Bv.hz, Bv.hx);
-        if (dist2(A.pos.x, A.pos.z, Bv.pos.x, Bv.pos.z) > r * r) continue;
-        if (Math.abs(A.pos.y - Bv.pos.y) > 2.2) continue;
+        if (!(dist2(A.pos.x, A.pos.z, Bv.pos.x, Bv.pos.z) <= r * r)) continue;
+        if (!(Math.abs(A.pos.y - Bv.pos.y) <= 2.2)) continue;
         this._carCar(A, Bv);
       }
     }
@@ -59,8 +59,8 @@ export class VehicleManager {
       const R = Math.hypot(v.hx, v.hz) + 0.5;
       for (const c of chars) {
         if (c.vehicle || c.removed) continue;
-        if (Math.abs(c.pos.y - v.pos.y) > 1.8) continue;
-        if (dist2(c.pos.x, c.pos.z, v.pos.x, v.pos.z) > R * R) continue;
+        if (!(Math.abs(c.pos.y - v.pos.y) <= 1.8)) continue;
+        if (!(dist2(c.pos.x, c.pos.z, v.pos.x, v.pos.z) <= R * R)) continue; // (NaN-safe)
         if (c.ragdolling) { this._runOver(v, c, spd); continue; }
         this._carPed(v, c);
       }

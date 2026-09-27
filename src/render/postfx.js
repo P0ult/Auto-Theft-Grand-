@@ -301,6 +301,7 @@ uniform float uFade;
 uniform float uRaysOn;
 uniform vec2 uResolution;
 uniform float uDeath;
+uniform float uDeathBoost;
 uniform float uFlash;
 uniform sampler2D tSSR;
 uniform sampler2D tAO;
@@ -358,6 +359,8 @@ void main() {
   col += texture2D(tBloom, uv).rgb * uBloom;
   if (uRaysOn > 0.5) col += texture2D(tRays, uv).rgb;
   col *= uExposure;
+  // the death screen opens the exposure up (at night the black & white grade would otherwise be black)
+  if (uDeath > 0.0) col *= 1.0 + uDeath * uDeathBoost;
   col *= uTint;
   col = ACESFilm(col);
   // grading in display-ish space
@@ -369,10 +372,11 @@ void main() {
   if (uDeath > 0.0) {
     // GTA-style death grade: harsh black & white with crushed blacks and a slow darkening
     float g = dot(col, vec3(0.2126, 0.7152, 0.0722));
-    g = smoothstep(0.04, 0.92, g);
+    g = smoothstep(0.02, 0.92, g);
     g = pow(g, 1.12);
+    g = mix(g, 0.07 + 0.93 * g, clamp(uDeathBoost * 0.4, 0.0, 1.0)); // (never crush a dark night to pure black)
     col = mix(col, vec3(g), clamp(uDeath * 1.3, 0.0, 1.0));
-    col *= 1.0 - 0.18 * uDeath;
+    col *= 1.0 - 0.18 * uDeath * (1.0 - clamp(uDeathBoost * 0.5, 0.0, 1.0));
   }
   col = mix(col, vec3(1.0), clamp(uFlash, 0.0, 1.0));
   // vignette
@@ -416,7 +420,7 @@ export class PostFX {
       uTint: { value: new THREE.Color(1.05, 1.0, 0.93) }, uLift: { value: new THREE.Color(0.012, 0.01, 0.018) },
       uVignette: { value: 0.8 }, uGrain: { value: 0.025 }, uDamage: { value: 0 }, uDesat: { value: 0 },
       uChroma: { value: 0.0022 }, uFade: { value: 0 }, uRaysOn: { value: 1 }, uResolution: { value: new THREE.Vector2(1, 1) },
-      uDeath: { value: 0 }, uFlash: { value: 0 },
+      uDeath: { value: 0 }, uDeathBoost: { value: 0 }, uFlash: { value: 0 },
       tSSR: { value: null }, tAO: { value: null }, uSSROn: { value: 0 }, uAOOn: { value: 0 }, uAOTexel: { value: new THREE.Vector2(1, 1) },
     });
     // depth-buffer effects

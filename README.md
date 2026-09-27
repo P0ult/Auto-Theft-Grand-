@@ -67,8 +67,27 @@ ground hard, nose-first or with the gear up tears the aircraft apart.
 | / (multiplayer) | Chat |
 
 Esc or P opens the pause menu: map (right-click to set a waypoint with GPS route), mission brief (in free
-roam: Teleport, Vehicles and Admin instead), Online, stats, settings and controls. M opens the map directly. Standard-layout gamepads are
-supported.
+roam: Teleport, Vehicles and Admin instead), Online, stats, settings and controls. M opens the map directly.
+
+### Controller
+
+Xbox (One / Series), Logitech (F310 / F510 / F710; the X switch position is best) and PlayStation pads work,
+best in Chrome or Edge. The layout follows GTA V; the Controls tab lists it with Xbox or PlayStation button
+names, and on-screen hints switch to controller buttons while you play with one.
+
+| On foot | | In a vehicle | |
+|---|---|---|---|
+| Left / right stick | Move / look | RT / LT | Accelerate / brake-reverse |
+| RT | Fire, punch, throw (hip fire) | Left stick | Steer |
+| LT (hold) | Aim (RT to shoot) | RB | Handbrake |
+| LB / RB | Previous / next weapon | LB (hold) + RB | Drive-by |
+| A (hold) / X | Sprint / jump (parachute) | LS / RS click | Horn / look behind |
+| B / Y | Reload / enter vehicle | View / Y | Camera / exit |
+| LS click | Crouch | D-pad → / ↑ / ← | Radio / hydraulics / taxi job |
+| D-pad ↑ / → / ← / ↓ | Teleport / hail a cab / ride as passenger / map | Menu | Pause |
+
+Aircraft and the tank: RT / LT throttle (planes) or climb / descend (helicopters), RB guns, LB missiles or
+rockets, B wheel brakes. In menus the D-pad or left stick moves, A selects, B backs out and LB / RB switch tabs.
 
 ## Free roam
 
@@ -221,7 +240,7 @@ src/game/                 (also) railway timetable, signalling & crossings, taxi
 src/world/interiors.js    walk-in shop interiors (layout, colliders, meshes)
 src/net/                  multiplayer: transports (claude.ai live room, WebSocket relay), remote players,
                           shared NPCs / traffic / trains, Online tab
-src/ui/                   HUD, radar, pause menu & map
+src/ui/                   HUD, radar, pause menu & map, controller menu navigation
 vendor/three/             Three.js r186 (MIT), bundled
 server.mjs                zero-dependency static server + multiplayer relay
 ```

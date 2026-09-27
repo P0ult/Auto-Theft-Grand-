@@ -91,7 +91,7 @@ export class Player extends Character {
     } else if (def.type === 'thrown') {
       if (input.attackPressed() && this.fireCooldown <= 0) this.throwGrenade(rig);
     } else if (!this.swimming) {
-      const wantFire = def.auto ? input.mouse.left : input.mouse.leftPressed;
+      const wantFire = def.auto ? input.fireDown() : input.firePressed();
       if (wantFire) {
         this.aimHold = 0.6;
         if (!this.aiming) this.yaw = camYaw;

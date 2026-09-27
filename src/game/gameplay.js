@@ -115,6 +115,7 @@ export class Gameplay {
       g.timeScale = 1;
       g.post.composite.uniforms.uDesat.value = 0;
       g.post.composite.uniforms.uDeath.value = 0;
+      g.post.composite.uniforms.uDeathBoost.value = 0;
       g.post.composite.uniforms.uFlash.value = 0;
       g.hud.deathMode(false);
       g.audio?.muffle(false);
@@ -175,6 +176,7 @@ export class Gameplay {
       const U = g.post.composite.uniforms;
       U.uDesat.value = clamp(T / 0.6, 0, 1);
       U.uDeath.value = clamp(T / 1.1, 0, 1);
+      U.uDeathBoost.value = 0.2 + 1.7 * clamp(g.env.night ?? 0, 0, 1);
       U.uFlash.value = T < 0.08 ? 0.55 : Math.max(0, 0.55 * (1 - (T - 0.08) / 0.45));
       // a second, softer pulse when the shard lands
       const sinceAudio = this.audioStart != null && g.audio?.ctx ? g.audio.ctx.currentTime - this.audioStart : T;
