@@ -11,6 +11,7 @@ import { U } from '../render/materials.js';
 import { RNG, rand, randInt, pick, clamp, dist2, wrapAngle } from '../core/utils.js';
 
 const NI = XS.length, NJ = ZS.length;
+const STOP_GAP = 3; // metres left to the bumper of a stopped car ahead
 
 export function nearestIdx(arr, v) { let b = 0, bd = Infinity; for (let i = 0; i < arr.length; i++) { const d = Math.abs(arr[i] - v); if (d < bd) { bd = d; b = i; } } return b; }
 
@@ -266,26 +267,66 @@ export class LaneDriver {
     return lim;
   }
 
-  // distance to the nearest obstacle ahead within the lane corridor
+  // the next stretch of the path we're about to drive, from the car (then straight on past what we know)
+  _aheadLine(maxD) {
+    const v = this.veh, L = this._line || (this._line = { x: [], y: [], z: [], s: [], n: 0 });
+    let n = 0, acc = 0;
+    const put = (x, y, z) => { L.x[n] = x; L.y[n] = y; L.z[n] = z; L.s[n] = acc; n++; };
+    put(v.pos.x, v.pos.y, v.pos.z);
+    let s = this.s;
+    // pulled out to pass something, we're not on our lane: look where we're pointing (at oncoming traffic)
+    for (let k = 0; k < this.paths.length && acc < maxD && !this.bypass; k++, s = 0) {
+      const { pts, cum } = this.paths[k];
+      for (let i = 0; i < pts.length && acc < maxD; i++) {
+        if (cum[i] <= s + 0.5) continue;
+        const q = pts[i], d = Math.hypot(q[0] - L.x[n - 1], q[2] - L.z[n - 1]);
+        if (d < 0.5) continue;
+        acc += d; put(q[0], q[1], q[2]);
+      }
+    }
+    if (acc < maxD) {
+      let dx = Math.sin(v.yaw), dz = Math.cos(v.yaw);
+      if (n > 1) { dx = L.x[n - 1] - L.x[n - 2]; dz = L.z[n - 1] - L.z[n - 2]; const l = Math.hypot(dx, dz) || 1; dx /= l; dz /= l; }
+      const r = maxD - acc + 6, x = L.x[n - 1], z = L.z[n - 1];
+      acc += r; put(x + dx * r, L.y[n - 1], z + dz * r);
+    }
+    L.n = n;
+    return L;
+  }
+
+  // distance to the nearest obstacle ahead in our lane: measured along the path we're about to drive, so
+  // the car in front is still "ahead" round a bend (a straight feeler lost it, and fast cabs ran into it)
   _obstacleAhead(maxD) {
     const v = this.veh;
     const fx = Math.sin(v.yaw), fz = Math.cos(v.yaw);
     let best = maxD;
     this._obsObj = null;
-    const check = (x, z, y, rad, obj) => {
-      if (Math.abs(y - v.pos.y) > 3.5) return;
-      const dx = x - v.pos.x, dz = z - v.pos.z;
-      const along = dx * fx + dz * fz;
-      if (along < 0 || along > maxD + v.hz) return;
-      const lat = Math.abs(dx * fz - dz * fx);
-      const allowed = v.hx + rad + 0.25;
-      if (lat < allowed && along - v.hz - rad < best) { best = along - v.hz - rad; this._obsObj = obj || null; }
+    const L = this._aheadLine(maxD + 6), N = L.n;
+    // o: a vehicle (its footprint counts), else something round of radius rad
+    const check = (x, z, y, rad, o) => {
+      if ((x - v.pos.x) * fx + (z - v.pos.z) * fz < 0) return; // behind us
+      let bl = Infinity, ba = 0, bi = 0;
+      for (let i = 0; i < N - 1; i++) {
+        const ax = L.x[i], az = L.z[i], dx = L.x[i + 1] - ax, dz = L.z[i + 1] - az, l2 = dx * dx + dz * dz || 1;
+        const t = clamp(((x - ax) * dx + (z - az) * dz) / l2, 0, 1);
+        const lat = Math.hypot(x - ax - dx * t, z - az - dz * t);
+        if (lat < bl) { bl = lat; ba = L.s[i] + t * Math.sqrt(l2); bi = i; }
+      }
+      if (Math.abs(y - L.y[bi]) > 3.5) return;
+      let side = rad;
+      if (o) {
+        // a car ahead reaches back by half its length (not half its width): the gap is bumper to bumper
+        const dx = L.x[bi + 1] - L.x[bi], dz = L.z[bi + 1] - L.z[bi], l = Math.hypot(dx, dz) || 1;
+        const cf = Math.abs((Math.sin(o.yaw) * dx + Math.cos(o.yaw) * dz) / l), cs = Math.sqrt(Math.max(0, 1 - cf * cf));
+        rad = cf * o.hz + cs * o.hx; side = cs * o.hz + cf * o.hx;
+      }
+      if (bl < v.hx + side + 0.25 && ba - v.hz - rad < best) { best = ba - v.hz - rad; this._obsObj = o || null; }
     };
     const skip = this.bypass?.v;
     for (const o of this.game.vehicles.list) {
       if (o === v || o.removed || o === skip) continue;
-      if (Math.abs(o.pos.x - v.pos.x) > maxD + 8 || Math.abs(o.pos.z - v.pos.z) > maxD + 8) continue;
-      check(o.pos.x, o.pos.z, o.pos.y, Math.min(o.hx, o.hz), o);
+      if (Math.abs(o.pos.x - v.pos.x) > maxD + 12 || Math.abs(o.pos.z - v.pos.z) > maxD + 12) continue;
+      check(o.pos.x, o.pos.z, o.pos.y, 0, o);
     }
     const pl = this.game.player;
     if (!pl.vehicle) check(pl.pos.x, pl.pos.z, pl.pos.y, 0.5);
@@ -341,8 +382,10 @@ export class LaneDriver {
     }
     if (n.kind === 'x' && !n.grid) {
       const minor = cur.e.T.cls < n.maxCls;
-      // someone else holds the junction?
-      const busy = n.busy && n.busy !== this.veh && !n.busy.removed && Math.hypot(n.busy.pos.x - n.x, n.busy.pos.z - n.z) < n.r + 8;
+      // someone else holds the junction? (only while they're still at it or in it, and not stuck for good)
+      const h = n.busy;
+      const busy = h && h !== this.veh && !h.removed && !h.isWrecked && h.ai?.paths?.[0]?.node === n && !(h.ai.jam > 6) &&
+        Math.hypot(h.pos.x - n.x, h.pos.z - n.z) < n.r + 30;
       if (busy) return Math.max(0, (remain - 0.5) * 0.6);
       if (minor) {
         // stop, then go when nothing is crossing
@@ -353,6 +396,9 @@ export class LaneDriver {
         }
         if (!clear || (remain > 1.2 && this.wait < 0.6)) return Math.max(0, (remain - 0.4) * 0.5);
       }
+      // about to pull in: take the junction now. Taking it only once inside let two cars from different arms
+      // drive in together and wedge each other in the middle, with every other arm queued behind them.
+      if (remain < 3 + Math.max(0, speed) * 0.6) n.busy = this.veh;
       return 9;
     }
     return 99;
@@ -394,8 +440,10 @@ export class LaneDriver {
     let obs = this._obstacleAhead(22 + Math.max(0, speed) * 1.2);
     // level crossings close while a train is near
     if (this.game.rail) obs = Math.min(obs, this.game.rail.crossingAhead(v.pos.x, v.pos.z, Math.sin(v.yaw), Math.cos(v.yaw), 20 + Math.max(0, speed) * 1.5));
-    if (obs < 20 + speed) desired = Math.min(desired, Math.max(0, (obs - 2.5) * 0.9));
-    if (obs < 2.5) desired = 0;
+    // pull up a few metres short of whatever is ahead, braking no harder than a car can (a cab doing
+    // 19 m/s used to arrive too fast to stop and end up on the bumper of the car in front)
+    if (obs < 20 + speed) desired = Math.min(desired, Math.max(0, Math.min((obs - STOP_GAP) * 0.9, Math.sqrt(2 * 5 * Math.max(0, obs - STOP_GAP)))));
+    if (obs < STOP_GAP) desired = 0;
     // steering toward a point ahead on the path
     const look = 5 + Math.abs(speed) * 0.45;
     const T = this._pointAhead(look, _t3);
@@ -439,8 +487,15 @@ export class LaneDriver {
     // jammed: barely moving and not because of a signal. Stationary obstruction ahead (a wreck, an
     // abandoned car, a car that's stuck itself): after a few seconds drive round it.
     if (Math.abs(speed) < 1 && !this.waitingLight && !this.queued) this.jam += dt; else this.jam = Math.max(0, this.jam - dt * 2);
-    const dead = ob && (ob.isWrecked || !ob.driver || ob.driver.dead || (ob.driver.isPlayer && ob.speedAbs < 0.5) || (oa && (oa.jam > 4 || oa.stuck > 1.5)));
-    if (!this.bypass && obs < 7 && ob && ob.speedAbs < 0.6 && dead && !this.queued) this.bypassT += dt; else if (!this.bypass) this.bypassT = Math.max(0, this.bypassT - dt);
+    // (a car that is only waiting behind another live car is in a queue, not broken down: pulling out to pass
+    // a queue for a junction put cars head-on into the traffic leaving it)
+    this.obsD = obs;
+    const inQueue = oa && oa.obsD < 6 && oa._obsObj?.driver && !oa._obsObj.isWrecked;
+    const dead = ob && (ob.isWrecked || !ob.driver || ob.driver.dead || (ob.driver.isPlayer && ob.speedAbs < 0.5) || (oa && !inQueue && (oa.jam > 4 || oa.stuck > 1.5)));
+    // (never pull out to pass on the approach to a junction or in it: the passing car ended up on the wrong side
+    // of the road at the give-way line, nose to nose with traffic leaving the junction, and nobody could move)
+    const nearJct = cur.kind !== 'lane' || cur.len - this.s < 35;
+    if (!this.bypass && obs < 7 && ob && ob.speedAbs < 0.6 && dead && !this.queued && !nearJct) this.bypassT += dt; else if (!this.bypass) this.bypassT = Math.max(0, this.bypassT - dt);
     if (this.bypassT > 2.5 && !this.bypass) {
       // pass on the side with room: toward the oncoming lane on two-way roads, else whichever side the car is less in the way
       const lanesRight = cur.kind === 'lane' ? (cur.dir === 0 ? cur.e.lanesF : cur.e.lanesB) : 1;
