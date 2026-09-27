@@ -13,8 +13,14 @@ export const WEAPONS = {
   rifle: { id: 'rifle', name: 'Assault Rifle', slot: 5, type: 'gun', hold: 'rifle', damage: 32, rate: 0.105, clip: 30, spread: 0.016, range: 220, auto: true, price: 3500, ammoPrice: 200, ammoPack: 90, pellets: 1, recoil: 0.45, sound: 'rifle', icon: 'rifle', shake: 0.25 },
   rpg: { id: 'rpg', name: 'Rocket Launcher', slot: 6, type: 'launcher', hold: 'rpg', damage: 200, rate: 1.6, clip: 1, spread: 0.004, range: 300, auto: false, price: 8000, ammoPrice: 800, ammoPack: 4, pellets: 1, recoil: 1.4, sound: 'rpg', icon: 'rpg', shake: 1 },
   grenade: { id: 'grenade', name: 'Grenades', slot: 7, type: 'thrown', hold: 'none', damage: 150, rate: 1.0, clip: 1, price: 600, ammoPrice: 300, ammoPack: 4, icon: 'grenade' },
+  // bolt-action with a zoom scope (hold aim; mouse wheel zooms), one-shot headshots
+  sniper: { id: 'sniper', name: 'Sniper Rifle', slot: 5, type: 'gun', hold: 'rifle', damage: 150, rate: 1.3, clip: 5, spread: 0.0005, range: 650, auto: false, price: 6000, ammoPrice: 300, ammoPack: 20, pellets: 1, recoil: 1.5, sound: 'sniper', icon: 'sniper', shake: 0.8, scope: true, headMul: 8 },
+  // spins up before it fires; slows you to a walk
+  minigun: { id: 'minigun', name: 'Minigun', slot: 6, type: 'gun', hold: 'rifle', damage: 18, rate: 0.032, clip: 600, spread: 0.05, range: 160, auto: true, price: 25000, ammoPrice: 2000, ammoPack: 600, pellets: 1, recoil: 0.2, sound: 'smg', icon: 'minigun', shake: 0.22, spinUp: 0.55, heavy: true },
+  // bursts into a pool of fire where it lands
+  molotov: { id: 'molotov', name: 'Molotov Cocktails', slot: 7, type: 'thrown', hold: 'none', damage: 30, rate: 1.0, clip: 1, price: 450, ammoPrice: 250, ammoPack: 5, icon: 'molotov' },
 };
-export const WEAPON_ORDER = ['fist', 'knife', 'bat', 'pistol', 'smg', 'shotgun', 'rifle', 'rpg', 'grenade'];
+export const WEAPON_ORDER = ['fist', 'knife', 'bat', 'pistol', 'smg', 'shotgun', 'rifle', 'rpg', 'grenade', 'sniper', 'minigun', 'molotov'];
 
 let mat = null;
 function weaponMaterial() {
@@ -79,6 +85,30 @@ export function weaponGeometry(id) {
       c(0x3b4a2a); gb.addGeometry(new THREE.SphereGeometry(0.045, 10, 8), mat4(0, 0, 0));
       c(0x888888); box(0.015, 0.04, 0.02, 0, 0.05, 0);
       break;
+    case 'sniper':
+      c(0x3a3d33); box(0.045, 0.065, 0.36, 0, 0.055, 0.1);
+      c(gun); cyl(0.012, 0.62, 0, 0.07, 0.58);
+      c(gun); cyl(0.02, 0.06, 0, 0.07, 0.9);
+      c(black); cyl(0.024, 0.3, 0, 0.13, 0.12, 12);
+      c(black); cyl(0.03, 0.05, 0, 0.13, 0.28, 12); cyl(0.028, 0.05, 0, 0.13, -0.03, 12);
+      c(black); box(0.012, 0.04, 0.02, 0, 0.1, 0.05);
+      c(0x3a3d33); box(0.035, 0.1, 0.045, 0, -0.01, 0.0, -0.25);
+      c(0x3a3d33); box(0.045, 0.11, 0.3, 0, 0.03, -0.22, 0.14);
+      c(black); box(0.01, 0.12, 0.01, 0.03, 0.0, 0.66, 0.4); box(0.01, 0.12, 0.01, -0.03, 0.0, 0.66, 0.4);
+      break;
+    case 'minigun':
+      c(gun); cyl(0.07, 0.34, 0, 0.04, 0.08, 12);
+      c(0x8a8d90); for (let k = 0; k < 6; k++) { const a = k / 6 * Math.PI * 2; cyl(0.011, 0.62, Math.cos(a) * 0.035, 0.04 + Math.sin(a) * 0.035, 0.52); }
+      c(gun); cyl(0.052, 0.03, 0, 0.04, 0.62, 12); cyl(0.052, 0.03, 0, 0.04, 0.78, 12);
+      c(black); box(0.03, 0.13, 0.04, 0, -0.06, -0.02, -0.2);
+      c(black); box(0.1, 0.03, 0.03, 0, 0.14, 0.05);
+      c(0x5a5a3a); box(0.1, 0.12, 0.14, 0.1, -0.02, 0.02);
+      break;
+    case 'molotov':
+      c(0x2f6b3a); gb.addGeometry(new THREE.CylinderGeometry(0.035, 0.035, 0.14, 10), mat4(0, 0, 0));
+      c(0x2f6b3a); gb.addGeometry(new THREE.CylinderGeometry(0.013, 0.033, 0.06, 10), mat4(0, 0.1, 0));
+      c(0xd9c9a3); gb.addGeometry(new THREE.CylinderGeometry(0.016, 0.01, 0.07, 6), mat4(0, 0.16, 0));
+      break;
     default:
       cache[id] = null;
       return null;
@@ -97,5 +127,5 @@ export function createWeaponMesh(id) {
 
 // muzzle offsets in model space
 export const MUZZLE = {
-  pistol: [0, 0.06, 0.16], smg: [0, 0.06, 0.27], shotgun: [0, 0.07, 0.66], rifle: [0, 0.075, 0.61], rpg: [0, 0.1, 0.75],
+  pistol: [0, 0.06, 0.16], smg: [0, 0.06, 0.27], shotgun: [0, 0.07, 0.66], rifle: [0, 0.075, 0.61], rpg: [0, 0.1, 0.75], sniper: [0, 0.07, 0.94], minigun: [0, 0.04, 0.84],
 };

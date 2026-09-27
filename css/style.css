@@ -87,6 +87,14 @@ body.menu .hud { display: none; }
 .hud-progress { position: absolute; top: 330px; right: 28px; width: 200px; display: none; font-family: var(--hud-font); font-size: 20px; text-shadow: 2px 2px 0 #000; text-align: right; }
 .hud-progress div { height: 12px; background: rgba(0,0,0,0.7); border: 2px solid #000; margin-top: 2px; }
 .hud-progress i { display: block; height: 100%; background: #e63946; }
+.hud-scope { position: absolute; inset: 0; display: none; pointer-events: none; }
+.hud-scope.show { display: block; }
+.hud-scope .ring { position: absolute; inset: 0; background: radial-gradient(circle at 50% 50%, transparent 0, transparent 38vmin, rgba(0,0,0,0.55) 38.4vmin, #000 39.5vmin); }
+.hud-scope i { position: absolute; background: rgba(0,0,0,0.85); }
+.hud-scope i.h { left: calc(50% - 38vmin); width: 76vmin; top: 50%; height: 1.5px; transform: translateY(-50%); }
+.hud-scope i.v { top: calc(50% - 38vmin); height: 76vmin; left: 50%; width: 1.5px; transform: translateX(-50%); }
+.hud-scope b { position: absolute; left: 50%; top: 50%; width: 5px; height: 5px; border-radius: 50%; background: #e0322a; transform: translate(-50%, -50%); box-shadow: 0 0 4px #ff3b30; }
+.hud-scope span { position: absolute; left: 50%; top: calc(50% + 30vmin); transform: translateX(-50%); color: #fff; font: 600 14px/1 system-ui, sans-serif; text-shadow: 0 0 3px #000; }
 .hud-crosshair { position: absolute; left: 50%; top: 50%; width: 30px; height: 30px; transform: translate(-50%, -50%); display: none; }
 .hud-crosshair i { position: absolute; background: #fff; box-shadow: 0 0 2px #000, 0 0 1px #000; }
 .hud-crosshair i:nth-child(1) { left: 14px; top: 0; width: 2px; height: 9px; }

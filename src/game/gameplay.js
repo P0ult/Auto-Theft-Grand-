@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { clamp, wrapAngle } from '../core/utils.js';
 
-export const FREE_ROAM_KIT = [['bat', 0], ['pistol', 120], ['smg', 200], ['shotgun', 40], ['rifle', 180], ['rpg', 6], ['grenade', 8]];
+export const FREE_ROAM_KIT = [['bat', 0], ['pistol', 120], ['smg', 200], ['shotgun', 40], ['rifle', 180], ['rpg', 6], ['grenade', 8], ['sniper', 30], ['minigun', 1200], ['molotov', 8]];
 
 export class Gameplay {
   constructor(game) {

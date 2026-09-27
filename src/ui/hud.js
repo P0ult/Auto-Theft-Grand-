@@ -51,6 +51,7 @@ export class HUD {
     this.counterEl = h('div', 'hud-counter', root);
     this.barEl = h('div', 'hud-progress', root, '<span></span><div><i></i></div>');
     this.crosshair = h('div', 'hud-crosshair', root, '<i></i><i></i><i></i><i></i>');
+    this.scope = h('div', 'hud-scope', root, '<div class="ring"></div><i class="h"></i><i class="v"></i><b></b><span></span>');
     this.speechLayer = h('div', 'hud-speech-layer', root);
     this.letterTop = h('div', 'letterbox top', document.body);
     this.letterBot = h('div', 'letterbox bottom', document.body);
@@ -214,7 +215,7 @@ export class HUD {
     if (game.player.vehicle) return;
     game.paused = true;
     game.input.exitLock();
-    const items = ['bat', 'knife', 'pistol', 'smg', 'shotgun', 'rifle', 'rpg', 'grenade'];
+    const items = ['bat', 'knife', 'pistol', 'smg', 'shotgun', 'rifle', 'sniper', 'minigun', 'rpg', 'grenade', 'molotov'];
     const o = this.overlay;
     const render = () => {
       const p = game.player;
@@ -713,7 +714,10 @@ export class HUD {
     this.starEls.forEach((s, i) => { s.className = 'star' + (i < lvl ? (flash ? ' on flash' : ' on') : ''); });
     // crosshair
     const aimVisible = (p.aiming && (def.type === 'gun' || def.type === 'launcher') && !p.dead) || (p.vehicle && p.aiming);
-    this.crosshair.style.display = aimVisible ? 'block' : 'none';
+    const scoped = (game.rig?.scopeBlend || 0) > 0.55;
+    this.crosshair.style.display = aimVisible && !scoped ? 'block' : 'none';
+    this.scope.classList.toggle('show', scoped);
+    if (scoped) this.scope.lastChild.textContent = `${(60 / game.rig.scopeFov).toFixed(1)}×`;
     this.crosshair.classList.toggle('wide', def.id === 'shotgun' || def.id === 'smg');
     // zone name
     const zp = p.vehicle ? p.vehicle.pos : p.pos;
@@ -1024,6 +1028,9 @@ export function drawWeaponIcon(c, id, size) {
     case 'rifle': P([[4, 46], [30, 40], [88, 38], [88, 44], [62, 46], [58, 66], [50, 66], [50, 48], [36, 50], [30, 60], [20, 60], [22, 52], [4, 56]]); break;
     case 'rpg': c.fillStyle = '#9aa77e'; P([[6, 42], [78, 38], [90, 42], [78, 46], [6, 50]]); c.fillStyle = '#f5f5f5'; P([[36, 50], [44, 50], [44, 64], [36, 64]]); break;
     case 'grenade': c.beginPath(); c.arc(48, 54, 18, 0, Math.PI * 2); c.fill(); c.stroke(); P([[42, 30], [54, 30], [54, 38], [42, 38]]); break;
+    case 'sniper': P([[2, 48], [26, 44], [92, 42], [92, 46], [60, 48], [56, 60], [50, 60], [50, 50], [34, 52], [28, 62], [18, 62], [20, 54], [2, 58]]); P([[32, 32], [58, 32], [58, 40], [32, 40]]); break;
+    case 'minigun': P([[10, 40], [34, 36], [34, 60], [10, 58]]); for (const y of [38, 44, 50, 56]) P([[34, y], [90, y - 1], [90, y + 3], [34, y + 4]]); P([[18, 58], [26, 58], [26, 72], [18, 72]]); break;
+    case 'molotov': c.fillStyle = '#9fd0a0'; P([[36, 40], [60, 40], [60, 82], [36, 82]]); P([[42, 26], [54, 26], [60, 40], [36, 40]]); c.fillStyle = '#ffb347'; P([[44, 10], [52, 12], [50, 26], [46, 26]]); break;
     default: break;
   }
   c.restore();

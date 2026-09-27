@@ -20,6 +20,8 @@ export class CameraRig {
     this.shake = 0;
     this.fovBase = 62;
     this.fov = 62;
+    this.scopeBlend = 0;
+    this.scopeFov = 16;
     this.lastLookInput = 0;
     this.vehYawOffset = 0;
     this.vehPitch = -0.12;
@@ -45,6 +47,8 @@ export class CameraRig {
     this.time += dt;
     const cam = this.cam;
     let [dx, dy] = input && input.enabled ? input.lookDelta() : [0, 0];
+    // finer look through a scope
+    if (this.scopeBlend > 0.01) { const k = lerp(1, this.fov / 60, this.scopeBlend); dx *= k; dy *= k; }
     const moved = Math.abs(dx) + Math.abs(dy) > 0.0005;
     if (moved) this.lastLookInput = this.time;
 
@@ -96,22 +100,27 @@ export class CameraRig {
       this.pitch = clamp(this.pitch - dy, -1.35, 0.9);
       const aiming = player.aiming && !player.dead;
       this.aimBlend = damp(this.aimBlend, aiming ? 1 : 0, 12, dt);
+      // sniper scope: the camera moves into the eye and zooms
+      const scoped = aiming && !!player.weaponDef?.scope && !player.swimming;
+      this.scopeBlend = damp(this.scopeBlend, scoped ? 1 : 0, scoped ? 16 : 22, dt);
+      const hide = this.scopeBlend > 0.55;
+      if (hide !== !!this._scopeHid) { this._scopeHid = hide; player.root.visible = !hide; }
       const hy = player.swimming ? 0.6 : player.crouching ? 1.15 : 1.62;
       const tp = player.ragdolling ? player.ragdoll.center : player.pos;
       const py = player.ragdolling ? tp.y + 0.6 : tp.y + hy;
       _t.set(tp.x, py, tp.z);
       this.pivot.lerp(_t, player.ragdolling ? 1 - Math.exp(-dt * 5) : 1);
       if (!player.ragdolling) this.pivot.copy(_t);
-      this.dist = player.chute ? 9 : lerp(4.3, 2.0, this.aimBlend);
+      this.dist = player.chute ? 9 : lerp(lerp(4.3, 2.0, this.aimBlend), 0.02, this.scopeBlend);
       if (player.chute) this.pivot.y += 2.4;
-      this.fovBase = lerp(64, 48, this.aimBlend) + (player.sprinting ? 4 : 0);
+      this.fovBase = lerp(lerp(64, 48, this.aimBlend) + (player.sprinting ? 4 : 0), this.scopeFov, this.scopeBlend * this.scopeBlend);
     }
 
     // desired camera position
     const cp = Math.cos(this.pitch), sp = Math.sin(this.pitch);
     _d.set(Math.sin(this.yaw) * cp, -sp, Math.cos(this.yaw) * cp); // from pivot toward camera
     // over-the-shoulder offset (to the right of view direction)
-    const side = veh ? 0 : lerp(0.35, 0.62, this.aimBlend);
+    const side = veh ? 0 : lerp(lerp(0.35, 0.62, this.aimBlend), 0, this.scopeBlend);
     const rx = -Math.cos(this.yaw), rz = Math.sin(this.yaw);
     const piv = _v.copy(this.pivot);
     piv.x += rx * side * -1; piv.z += rz * side * -1;

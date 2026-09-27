@@ -205,6 +205,15 @@ export class Audio {
         this._noiseHit(dest, t, { dur: 0.04, vol: 1.0 * vol, freq: 4500, type: 'bandpass', q: 1 });
         this._tone(dest, t, { f0: 140, f1: 40, dur: 0.11, vol: 1.2 * vol });
         break;
+      case 'sniper':
+        // a heavy crack, a long rolling tail and the bolt working
+        this._noiseHit(dest, t, { dur: 0.22, vol: 1.5 * vol, freq: 520 - far * 300, type: 'highpass' });
+        this._noiseHit(dest, t, { dur: 0.05, vol: 1.2 * vol, freq: 5200, type: 'bandpass', q: 1 });
+        this._tone(dest, t, { f0: 110, f1: 30, dur: 0.3, vol: 1.5 * vol });
+        this._noiseHit(dest, t + 0.05, { dur: 0.9, vol: 0.35 * vol, freq: 300, type: 'lowpass', sweepTo: 90 });
+        this._noiseHit(dest, t + 0.62, { dur: 0.05, vol: 0.3 * vol, freq: 2600, type: 'bandpass', q: 3 });
+        this._noiseHit(dest, t + 0.8, { dur: 0.05, vol: 0.32 * vol, freq: 2100, type: 'bandpass', q: 3 });
+        break;
       case 'shotgun':
         this._noiseHit(dest, t, { dur: 0.35, vol: 1.5 * vol, freq: 400, type: 'lowpass', sweepTo: 150 });
         this._noiseHit(dest, t, { dur: 0.12, vol: 1.1 * vol, freq: 1500, type: 'highpass' });

@@ -67,6 +67,7 @@ export class FreeRoam {
     add(nc, 'Bayview Park', L.aurPark?.x, L.aurPark?.z, { foot: true });
     add(nc, 'Aurelio Arena', L.aurArena?.x, L.aurArena?.z);
     add(nc, 'Harbor Drive', L.aurHarbor?.x, L.aurHarbor?.z);
+    add(nc, 'Aurelio Marina', L.aurMarina?.x, L.aurMarina?.z, { foot: true, exactVeh: true, yaw: Math.PI / 2 });
 
     const towns = 'Towns';
     for (const t of Object.values(TOWNS)) add(towns, t.name, t.x, t.z);

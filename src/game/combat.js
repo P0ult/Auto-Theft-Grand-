@@ -1,6 +1,6 @@
 // Combat: hitscan firing with spread/pellets, melee hits, explosions, rockets and grenades.
 import * as THREE from 'three';
-import { WEAPONS } from './weapondefs.js';
+import { WEAPONS, createWeaponMesh } from './weapondefs.js';
 import { rayOBBYaw, raySphere, clamp, rand } from '../core/utils.js';
 
 const _n = new THREE.Vector3();
@@ -18,6 +18,7 @@ export class Combat {
   constructor(game) {
     this.game = game;
     this.projectiles = [];
+    this.fires = [];
     this.rocketGeo = new THREE.CylinderGeometry(0.05, 0.05, 0.6, 8).rotateX(Math.PI / 2);
     this.rocketMat = new THREE.MeshStandardMaterial({ color: 0x3e4a2f, roughness: 0.6 });
     this.grenadeGeo = new THREE.SphereGeometry(0.06, 8, 6);
@@ -123,7 +124,7 @@ export class Combat {
       const wasDead = c.dead;
       const dmg = def.damage * (shooter.isPlayer ? 1 : (shooter.damageMul || 0.55));
       const imp = dir.clone().multiplyScalar(def.id === 'shotgun' ? 3 : 2.2).add(new THREE.Vector3(0, 0.6, 0));
-      c.takeDamage(dmg, { part: hit.part, source: shooter, type: 'bullet', impulse: imp, hitPoint: hit.point, weapon: def.id });
+      c.takeDamage(dmg, { part: hit.part, source: shooter, type: 'bullet', impulse: imp, hitPoint: hit.point, weapon: def.id, headMul: def.headMul });
       if (wasDead && c.ragdolling) c.ragdoll.push(c.ragdoll.nearestParticle(hit.point.x, hit.point.y, hit.point.z), dir.x * 3, 0.5, dir.z * 3);
       game.effects.blood(hit.point, dir, hit.part === 'head' ? 14 : 7);
       game.audio?.playAt('bulletflesh', hit.point, 0.6);
@@ -351,20 +352,71 @@ export class Combat {
     return best;
   }
 
-  throwGrenade(thrower, dir) {
+  throwGrenade(thrower, dir, kind = 'grenade') {
     const game = this.game;
     const p = thrower.pos.clone().add(new THREE.Vector3(0, 1.7, 0)).addScaledVector(thrower.forward, 0.4);
-    const mesh = new THREE.Mesh(this.grenadeGeo, this.grenadeMat);
+    let mesh;
+    if (kind === 'molotov') { mesh = createWeaponMesh('molotov'); mesh.add(this._flameSprite()); }
+    else mesh = new THREE.Mesh(this.grenadeGeo, this.grenadeMat);
     mesh.position.copy(p);
     mesh.castShadow = true;
     game.scene.add(mesh);
     const v = dir.clone().setY(Math.max(dir.y, 0) + 0.35).normalize().multiplyScalar(17);
-    this.projectiles.push({ type: 'grenade', mesh, pos: p, vel: v, t: 0, owner: thrower });
+    this.projectiles.push({ type: kind === 'molotov' ? 'molotov' : 'grenade', mesh, pos: p, vel: v, t: 0, owner: thrower });
     game.audio?.playAt('swoosh', p, 0.6);
+  }
+  // the burning rag on a thrown molotov
+  _flameSprite() {
+    if (!this._flameMat) this._flameMat = new THREE.SpriteMaterial({ color: new THREE.Color(4, 1.8, 0.4), transparent: true, opacity: 0.9, depthWrite: false, blending: THREE.AdditiveBlending });
+    const s = new THREE.Sprite(this._flameMat);
+    s.scale.setScalar(0.22); s.position.y = 0.2;
+    return s;
+  }
+  // a pool of burning fuel: sets people alight and cooks cars that sit in it
+  ignite(pos, owner, r = 4.2, life = 9) {
+    const game = this.game;
+    const gy = game.collision.floorHeight(pos.x, pos.z, pos.y + 1);
+    this.fires.push({ x: pos.x, y: gy, z: pos.z, r, t: 0, life, owner, tick: 0 });
+    game.audio?.playAt('glass', pos, 0.9);
+    game.audio?.playAt('explosion', pos, 0.25, { size: 0.3 });
+    for (let k = 0; k < 18; k++) game.effects.fire(new THREE.Vector3(pos.x + rand(-r, r) * 0.6, gy + 0.1, pos.z + rand(-r, r) * 0.6), 1.4);
+    game.events.emit('explosion', pos, r, owner);
+  }
+  _updateFires(dt) {
+    const game = this.game;
+    for (let i = this.fires.length - 1; i >= 0; i--) {
+      const f = this.fires[i];
+      f.t += dt;
+      if (f.t > f.life) { this.fires.splice(i, 1); continue; }
+      const k = f.t < f.life - 2 ? 1 : (f.life - f.t) / 2; // dies down at the end
+      const n = Math.random() < dt * 30 * k ? 2 : 0;
+      for (let q = 0; q < n; q++) { const a = Math.random() * 6.283, rr = Math.sqrt(Math.random()) * f.r; game.effects.fire(new THREE.Vector3(f.x + Math.cos(a) * rr, f.y + 0.05, f.z + Math.sin(a) * rr), 1.1 + Math.random() * 0.8); }
+      f.tick -= dt;
+      if (f.tick > 0) continue;
+      f.tick = 0.25;
+      const burn = (c) => {
+        if (c.dead || c.vehicle || Math.abs(c.pos.y - f.y) > 2) return;
+        if (Math.hypot(c.pos.x - f.x, c.pos.z - f.z) > f.r * (0.6 + 0.4 * k)) return;
+        c.takeDamage(7, { type: 'fire', source: f.owner, part: 'torso' });
+        c.onFire = Math.max(c.onFire || 0, 2.5);
+        if (!c.isPlayer && c.state !== 'flee' && c.brain !== 'script') { c.threatPos?.set?.(f.x, f.y, f.z); c.setState?.('flee'); }
+      };
+      burn(game.player);
+      for (const p of game.peds.list) burn(p);
+      for (const v of game.vehicles.list) {
+        if (v.removed || v.isWrecked || v.isBoat) continue;
+        if (Math.hypot(v.pos.x - f.x, v.pos.z - f.z) < f.r + 1.5) v.damage?.(22, f.owner);
+      }
+    }
+    // people who ran out of the fire keep burning a moment
+    const tick = (c) => { if (!c.onFire || c.dead) { c.onFire = 0; return; } c.onFire -= dt; if (Math.random() < dt * 20) game.effects.fire(new THREE.Vector3(c.pos.x, c.pos.y + 1, c.pos.z), 0.6); if (Math.random() < dt * 3) c.takeDamage(3, { type: 'fire', part: 'torso' }); };
+    tick(game.player);
+    for (const p of game.peds.list) if (p.onFire) tick(p);
   }
 
   update(dt) {
     const game = this.game;
+    if (this.fires.length || game.player.onFire) this._updateFires(dt);
     for (let i = this.projectiles.length - 1; i >= 0; i--) {
       const pr = this.projectiles[i];
       pr.t += dt;
@@ -405,6 +457,20 @@ export class Combat {
         if (pr.kind === 'shell') continue;
         game.effects.alphaPool.spawn({ x: pr.pos.x, y: pr.pos.y, z: pr.pos.z, vx: rand(-0.3, 0.3), vy: rand(0, 0.5), vz: rand(-0.3, 0.3), age: 0, life: 1.6, size0: 0.3, size1: 1.8, rot: Math.random() * 6, spin: 0.5, grav: 0, drag: 1, alpha: 0.5, fadeIn: 0.05, fadePow: 1.5, color: [0.8, 0.8, 0.8], color1: null, floor: null });
         game.effects.addPool.spawn({ x: pr.pos.x, y: pr.pos.y, z: pr.pos.z, vx: 0, vy: 0, vz: 0, age: 0, life: 0.08, size0: 0.5, size1: 0.3, rot: 0, spin: 0, grav: 0, drag: 0, alpha: 1, fadeIn: 0.01, fadePow: 1, color: [6, 3, 1], color1: null, floor: null });
+      } else if (pr.type === 'molotov') {
+        pr.vel.y -= 16 * dt;
+        const step = pr.vel.length() * dt, d = pr.vel.clone().normalize();
+        const hit = this.raycast(pr.pos.x, pr.pos.y, pr.pos.z, d.x, d.y, d.z, step + 0.1, pr.owner);
+        const gh = game.map.groundHeight(pr.pos.x, pr.pos.z) + 0.05;
+        if (hit || pr.pos.y < gh || pr.t > 4) {
+          pr.mesh.parent?.remove(pr.mesh);
+          this.projectiles.splice(i, 1);
+          this.ignite(hit ? hit.point : pr.pos.clone().setY(Math.max(pr.pos.y, gh)), pr.owner);
+          continue;
+        }
+        pr.pos.addScaledVector(pr.vel, dt);
+        pr.mesh.position.copy(pr.pos);
+        pr.mesh.rotation.x += dt * 9;
       } else if (pr.type === 'grenade') {
         pr.vel.y -= 16 * dt;
         pr.pos.addScaledVector(pr.vel, dt);

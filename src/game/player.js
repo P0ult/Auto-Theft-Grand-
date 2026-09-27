@@ -51,6 +51,7 @@ export class Player extends Character {
     let speed = this.sprinting ? 7.2 : 4.3;
     if (this.chute) speed = 9;
     if (this.aiming) speed = 2.6;
+    if (def.heavy) speed = Math.min(speed, this.aiming ? 1.9 : 3.2);
     if (this.crouching) speed = 1.8;
     if (this.swimming) speed = this.sprinting ? 3.8 : 2.4;
     if (this.game.cheatsOn?.superRun && !this.aiming && !this.swimming) speed *= 2;
@@ -74,8 +75,12 @@ export class Player extends Character {
     if (input.hit('jump') && !this.aiming) this.jump(this.game.cheatsOn?.superJump ? 17 : undefined);
 
     // weapon switching
-    if (input.hit('nextWeapon') || input.mouse.wheel > 0) this.cycleWeapon(1);
-    if (input.hit('prevWeapon') || input.mouse.wheel < 0) this.cycleWeapon(-1);
+    // (looking down a scope, the wheel zooms instead)
+    if (this.aiming && def.scope && input.mouse.wheel) rig.scopeFov = clamp(rig.scopeFov * (input.mouse.wheel > 0 ? 0.8 : 1.25), 5, 32);
+    else {
+      if (input.hit('nextWeapon') || input.mouse.wheel > 0) this.cycleWeapon(1);
+      if (input.hit('prevWeapon') || input.mouse.wheel < 0) this.cycleWeapon(-1);
+    }
     for (let k = 0; k <= 8; k++) if (input.keyHit('Digit' + (k + 1))) { const id = WEAPON_ORDER[k]; if (this.weapons[id]) this.switchTo(id); }
 
     // attacks
@@ -92,11 +97,17 @@ export class Player extends Character {
       if (input.attackPressed() && this.fireCooldown <= 0) this.throwGrenade(rig);
     } else if (!this.swimming) {
       const wantFire = def.auto ? input.fireDown() : input.firePressed();
+      // the minigun's barrels have to spin up first (aiming keeps them turning)
+      if (def.spinUp) {
+        const spinning = input.fireDown() || wantAim;
+        this.spin = clamp((this.spin || 0) + (spinning ? dt : -dt * 0.6) / def.spinUp, 0, 1);
+        if (spinning) { this.spinSnd = (this.spinSnd || 0) - dt; if (this.spinSnd <= 0) { this.spinSnd = 0.12; this.game.audio?.playAt('clink', this.pos, 0.08 + this.spin * 0.1); } }
+      } else this.spin = 0;
       if (wantFire) {
         this.aimHold = 0.6;
         if (!this.aiming) this.yaw = camYaw;
         this.aiming = true;
-        if (this.fireCooldown <= 0 && this.reloading <= 0) this.fire(rig);
+        if (this.fireCooldown <= 0 && this.reloading <= 0 && (!def.spinUp || this.spin >= 1)) this.fire(rig);
       }
     }
   }
@@ -230,15 +241,16 @@ export class Player extends Character {
   }
 
   throwGrenade(rig) {
-    const w = this.weapons.grenade;
+    const id = WEAPONS[this.weapon]?.type === 'thrown' ? this.weapon : 'grenade';
+    const w = this.weapons[id];
     if (!w || w.clip + w.ammo <= 0) return;
     if (this.game.freeroam?.active) { /* unlimited */ } else if (w.clip > 0) w.clip--; else w.ammo--;
     this.fireCooldown = 1.0;
     this.yaw = rig.forwardYaw;
     const a = this.anim.play('throw');
     const dir = rig.lookDir(new THREE.Vector3());
-    a.onHit = () => this.game.combat.throwGrenade(this, dir);
-    if (w.clip + w.ammo <= 0) setTimeout(() => { delete this.weapons.grenade; this.switchTo('fist'); }, 800);
+    a.onHit = () => this.game.combat.throwGrenade(this, dir, id);
+    if (w.clip + w.ammo <= 0) setTimeout(() => { delete this.weapons[id]; this.switchTo('fist'); }, 800);
   }
 
 }
