@@ -24,6 +24,7 @@ import { Wildlife } from './game/wildlife.js';
 import { PetSystem } from './game/pets.js';
 import { Skateparks } from './world/skatepark.js';
 import { BoatSystem } from './game/boats.js';
+import { ShipRaid } from './game/shipraid.js';
 import { NetSystem } from './net/net.js';
 import { HUD } from './ui/hud.js';
 
@@ -82,6 +83,7 @@ async function boot() {
   game.addSystem('pets', new PetSystem(game));
   game.addSystem('skateparks', new Skateparks(game));
   game.addSystem('boats', new BoatSystem(game));
+  game.addSystem('shipRaid', new ShipRaid(game));
   setP(0.88, 'Writing the story');
   await tick();
   game.addSystem('missions', new Missions(game, STORY));

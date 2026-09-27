@@ -314,6 +314,7 @@ export class Character {
     this.lastDamager = info.source || null;
     this.lastHitTime = this.game.time;
     if (info.source && this.onDamaged) this.onDamaged(info.source, dmg, info);
+    if (info.source) this.game.events?.emit('charDamaged', this, dmg, info.source);
     if (this.health <= 0) {
       this.health = 0;
       this.die(info);

@@ -976,6 +976,9 @@ export function drawBlip(ctx, x, y, b, scale = 1) {
 }
 
 const ICONS = {
+  ship: (c) => { c.beginPath(); c.moveTo(-7, 1); c.lineTo(7, 1); c.lineTo(5, 5); c.lineTo(-5, 5); c.fill(); c.fillRect(-5, -3, 4, 4); c.fillRect(0, -2, 4, 3); c.fillRect(3, -6, 2, 4); },
+  boat: (c) => { c.beginPath(); c.moveTo(-6, 2); c.lineTo(6, 2); c.lineTo(4, 5); c.lineTo(-4, 5); c.fill(); c.beginPath(); c.moveTo(0, -6); c.lineTo(0, 1); c.lineTo(5, 1); c.fill(); },
+  skate: (c) => { c.fillRect(-6, -2, 12, 3); c.beginPath(); c.arc(-4, 3, 1.7, 0, 6.3); c.fill(); c.beginPath(); c.arc(4, 3, 1.7, 0, 6.3); c.fill(); },
   gun: (c) => { c.fillRect(-6, -3, 11, 3); c.fillRect(-5, 0, 3, 5); },
   spray: (c) => { c.fillRect(-3, -4, 6, 9); c.fillRect(-1, -7, 2, 3); },
   burger: (c) => { c.beginPath(); c.arc(0, 0, 5, Math.PI, 0); c.fill(); c.fillRect(-5, 1, 10, 3); },

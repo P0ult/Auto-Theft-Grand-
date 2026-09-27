@@ -231,7 +231,28 @@ export function buildHumanoidGeometry(a) {
   // belt buckle & jeans pockets
   sb.add(new THREE.BoxGeometry(0.045, 0.032, 0.012), M(0, hy + 0.068, hipW * 0.62 + 0.004), 0xb8a060, H, MAT.metal);
   if (denim === MAT.denim) for (const s of [1, -1]) sb.add(new THREE.BoxGeometry(0.075, 0.08, 0.006), M(s * 0.07, hy - 0.02, -0.117), shade(pants, 0.82), H, MAT.denim);
-  if (a.uniform) sb.add(new THREE.BoxGeometry(0.05, 0.06, 0.01), M(0.09, cy + 0.14, 0.13), 0xd4af37, C, MAT.metal); // badge
+  if (a.uniform && !a.noBadge) sb.add(new THREE.BoxGeometry(0.05, 0.06, 0.01), M(0.09, cy + 0.14, 0.13), 0xd4af37, C, MAT.metal); // badge
+  // work / tactical vests over the shirt: a hi-vis vest with reflective bands, or a plate carrier with pouches
+  if (a.vest) {
+    const v = a.vest, vc = v.color ?? (v.kind === 'tactical' ? 0x2a2d26 : 0xd7ff1e);
+    const band = v.kind === 'tactical' ? shade(vc, 0.8) : 0xd8d8d8;
+    const k = v.kind === 'tactical' ? 1.12 : 1.07;
+    const ring = (y, rx, rz, w, c, cut = false, front = 0.02) => ({ y, x: 0, z: 0, rx: rx * k, rz: rz * k, w, c, m: MAT.cloth, sq: 0.6, front, cut });
+    const rows = [
+      ring(sy - 0.02, waistW, 0.1, [[S, 0.8], [H, 0.2]], vc),
+      ring(sy + 0.06, waistW * 1.02, 0.101, [[S, 0.7], [C, 0.3]], vc),
+    ];
+    if (v.kind !== 'tactical') rows.push(ring(sy + 0.06, waistW * 1.02, 0.101, [[S, 0.7], [C, 0.3]], band, true), ring(sy + 0.1, waistW * 1.04, 0.102, [[S, 0.6], [C, 0.4]], band), ring(sy + 0.1, waistW * 1.04, 0.102, [[S, 0.6], [C, 0.4]], vc, true));
+    rows.push(ring(cy + 0.0, chestW * 0.96, 0.11, [[C, 0.7], [S, 0.3]], vc));
+    if (v.kind !== 'tactical') rows.push(ring(cy + 0.06, chestW * 0.98, 0.114, [[C, 1]], vc), ring(cy + 0.06, chestW * 0.98, 0.114, [[C, 1]], band, true), ring(cy + 0.1, chestW, 0.118, [[C, 1]], band), ring(cy + 0.1, chestW, 0.118, [[C, 1]], vc, true));
+    else rows.push(ring(cy + 0.1, chestW, 0.118, [[C, 1]], vc));
+    rows.push(ring(cy + 0.17, shW * 0.8, 0.108, [[C, 1]], vc));
+    sb.loft(rows, 14, [false, false]);
+    if (v.kind === 'tactical') {
+      for (const xx of [-0.07, 0, 0.07]) sb.add(rbox(0.055, 0.075, 0.035), M(xx, sy + 0.08, chestW * 0.62 + 0.03), shade(vc, 0.9), S, MAT.cloth); // mag pouches
+      sb.add(rbox(0.12, 0.05, 0.02), M(0, cy + 0.08, chestW * 0.66 + 0.02), shade(vc, 0.75), C, MAT.cloth);
+    }
+  }
 
   // ---------------- arms: shoulder to wrist in one piece, bending smoothly at the elbow
   const armR = fem ? 0.044 : 0.052 * bw;
@@ -383,11 +404,23 @@ export function buildHumanoidGeometry(a) {
     default: break;
   }
   if (a.bandana) sb.add(new THREE.CylinderGeometry(0.108, 0.11, 0.045, 16), M(0, hdy + 0.05, -0.005, -0.1, 0, 0, 0.95, 1, 1.02), a.bandana, HD, MAT.cloth);
+  // a balaclava: a knitted hood over the head and face, eyes showing
+  if (a.mask) {
+    sb.add(new THREE.SphereGeometry(0.122, 16, 12), M(0, hdy + 0.005, 0.0, 0, 0, 0, 0.93, 1.13, 1.06), a.mask, HD, MAT.cloth);
+    sb.add(new THREE.CylinderGeometry(0.066, 0.07, 0.1, 12), M(0, ny + 0.06, 0.004), a.mask, N, MAT.cloth);
+  }
+  // a hard hat: shell, brim all round, a ridge on top
+  if (a.hardhat) {
+    sb.add(new THREE.SphereGeometry(0.128, 16, 10, 0, Math.PI * 2, 0, Math.PI * 0.5), M(0, hdy + 0.03, -0.004, 0, 0, 0, 0.96, 1.08, 1.06), a.hardhat, HD, MAT.leather);
+    sb.add(new THREE.CylinderGeometry(0.15, 0.15, 0.012, 18), M(0, hdy + 0.032, 0.012, 0.05, 0, 0, 0.95, 1, 1.12), a.hardhat, HD, MAT.leather);
+    sb.add(new THREE.BoxGeometry(0.03, 0.02, 0.24), M(0, hdy + 0.16, -0.004), shade(a.hardhat, 0.85), HD, MAT.leather);
+  }
   if (a.uniform && a.uniform.hat) {
     sb.add(new THREE.CylinderGeometry(0.108, 0.113, 0.07, 16), M(0, hdy + 0.07, 0), a.uniform.hat, HD, MAT.cloth);
     sb.add(new THREE.CylinderGeometry(0.125, 0.125, 0.015, 16), M(0, hdy + 0.11, 0), a.uniform.hat, HD, MAT.cloth);
     sb.add(new THREE.BoxGeometry(0.16, 0.01, 0.08), M(0, hdy + 0.045, 0.12, 0.1, 0, 0), 0x111111, HD, MAT.leather);
     sb.add(new THREE.BoxGeometry(0.03, 0.03, 0.006), M(0, hdy + 0.08, 0.113), 0xd4af37, HD, MAT.metal);
+    if (a.uniform.band) sb.add(new THREE.CylinderGeometry(0.111, 0.115, 0.018, 16, 1, true), M(0, hdy + 0.05, 0), a.uniform.band, HD, MAT.metal); // gold braid
   }
 
   const geo = sb.build();

@@ -74,7 +74,7 @@ class Pickup {
     this.kind = kind;
     this.data = data;
     this.pos = pos.clone();
-    this.pos.y = game.map.groundHeight(pos.x, pos.z);
+    this.pos.y = data.y ?? game.map.groundHeight(pos.x, pos.z); // (y: on a deck, a roof, a ship)
     const g = new THREE.Group();
     g.position.copy(this.pos);
     let mesh;
@@ -133,8 +133,8 @@ export class Pickups {
   addMarker(x, z, opts) { const m = new Marker(this.game, x, z, opts); this.markers.add(m); return m; }
   removeMarker(m) { if (!m) return; m.remove(); this.markers.delete(m); }
 
-  dropMoney(pos, amount) { if (amount > 0) this.list.push(new Pickup(this.game, 'money', pos.clone().add(new THREE.Vector3(rand(-0.4, 0.4), 0, rand(-0.4, 0.4))), { amount, life: 40 })); }
-  dropWeapon(pos, weapon, ammo) { if (!WEAPONS[weapon] || weapon === 'fist') return; this.list.push(new Pickup(this.game, 'weapon', pos.clone().add(new THREE.Vector3(rand(-0.6, 0.6), 0, rand(-0.6, 0.6))), { weapon, ammo, life: 45 })); }
+  dropMoney(pos, amount) { if (amount > 0) this.list.push(new Pickup(this.game, 'money', pos.clone().add(new THREE.Vector3(rand(-0.4, 0.4), 0, rand(-0.4, 0.4))), { amount, life: 40, y: this.game.collision?.floorHeight(pos.x, pos.z, pos.y + 0.3) })); }
+  dropWeapon(pos, weapon, ammo) { if (!WEAPONS[weapon] || weapon === 'fist') return; this.list.push(new Pickup(this.game, 'weapon', pos.clone().add(new THREE.Vector3(rand(-0.6, 0.6), 0, rand(-0.6, 0.6))), { weapon, ammo, life: 45, y: this.game.collision?.floorHeight(pos.x, pos.z, pos.y + 0.3) })); }
   spawn(kind, x, z, data = {}) { const p = new Pickup(this.game, kind, new THREE.Vector3(x, 0, z), data); this.list.push(p); return p; }
 
   _setupWorld() {

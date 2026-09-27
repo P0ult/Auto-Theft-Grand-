@@ -1,4 +1,4 @@
-// Hand-placed landmarks: Santa Luz pier + Ferris wheel, Vistawood sign, dock cranes, cargo ship.
+// Hand-placed landmarks: Santa Luz pier + Ferris wheel, Vistawood sign, dock cranes.
 import * as THREE from 'three';
 import { GeoBuilder, mat4 } from './geom.js';
 import { std } from '../render/materials.js';
@@ -216,47 +216,7 @@ export function buildLandmarks(city, map) {
     cm.castShadow = true;
     root.add(cm);
 
-    // cargo ship
-    const shipX = quayX + 22, shipZ = 270, L = 170, W = 26;
-    const hullShape = new THREE.Shape();
-    hullShape.moveTo(-W / 2, -L / 2);
-    hullShape.lineTo(W / 2, -L / 2);
-    hullShape.lineTo(W / 2, L / 2 - 30);
-    hullShape.quadraticCurveTo(W / 2, L / 2, 0, L / 2 + 8);
-    hullShape.quadraticCurveTo(-W / 2, L / 2, -W / 2, L / 2 - 30);
-    hullShape.lineTo(-W / 2, -L / 2);
-    const hullGeo = new THREE.ExtrudeGeometry(hullShape, { depth: 16, bevelEnabled: false });
-    hullGeo.rotateX(-Math.PI / 2);
-    const hullMat = std({ color: 0x1d2b3a, roughness: 0.6, metalness: 0.3 }, { key: 'hull' });
-    const deckMat = std({ color: 0x5a2a22, roughness: 0.8 }, { key: 'shipdeck' });
-    const hull = new THREE.Mesh(hullGeo, [deckMat, hullMat]);
-    hull.position.set(shipX, WATER_Y - 6, shipZ);
-    hull.rotation.y = 0;
-    hull.castShadow = true; hull.receiveShadow = true;
-    root.add(hull);
-    const deckGB = new GeoBuilder({ position: 3, normal: 3, uv: 2, color: 3 });
-    deckGB.set('color', 0.92, 0.92, 0.9);
-    deckGB.box(shipX - W / 2 + 1, WATER_Y + 10, shipZ + L / 2 - 18, shipX + W / 2 - 1, WATER_Y + 32, shipZ + L / 2 - 4, { top: true });
-    deckGB.set('color', 0.2, 0.25, 0.3);
-    deckGB.box(shipX - W / 2 + 1.5, WATER_Y + 28, shipZ + L / 2 - 18.2, shipX + W / 2 - 1.5, WATER_Y + 30, shipZ + L / 2 - 17.9, { top: true });
-    deckGB.set('color', 0.8, 0.1, 0.1);
-    deckGB.addGeometry(new THREE.CylinderGeometry(2.2, 2.6, 8, 12), mat4(shipX, WATER_Y + 36, shipZ + L / 2 - 10));
-    const colors = [[0.69, 0.23, 0.18], [0.12, 0.38, 0.55], [0.07, 0.48, 0.4], [0.83, 0.67, 0.05], [0.42, 0.2, 0.51], [0.73, 0.29, 0]];
-    const rng = new RNG(9);
-    for (let z = shipZ - L / 2 + 32; z < shipZ + L / 2 - 26; z += 6.4) {
-      for (let x = -3; x <= 3; x++) {
-        const stack = rng.int(1, 4);
-        for (let s = 0; s < stack; s++) {
-          const c = rng.pick(colors);
-          deckGB.set('color', c[0], c[1], c[2]);
-          deckGB.box(shipX + x * 2.6 - 1.2, WATER_Y + 10 + s * 2.6, z, shipX + x * 2.6 + 1.2, WATER_Y + 12.55 + s * 2.6, z + 6, { top: true });
-        }
-      }
-    }
-    const deckMesh = new THREE.Mesh(deckGB.build(), detail);
-    deckMesh.castShadow = true;
-    root.add(deckMesh);
-    col.addBox({ minX: shipX - W / 2, maxX: shipX + W / 2, minZ: shipZ - L / 2 - 8, maxZ: shipZ + L / 2, minY: -10, maxY: WATER_Y + 22, type: 'building' });
+    // (the cargo ship alongside is built by cargoship.js: it can be boarded)
   }
 
   return {

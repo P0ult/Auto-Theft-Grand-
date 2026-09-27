@@ -11,6 +11,8 @@ export const GANGS = {
   cuervos: { name: 'Los Cuervos', color: 0x1f7a8c, district: 'docks', friendly: false, weapons: ['pistol', 'smg', 'shotgun'] },
   // Fort Carver garrison: only hostile once the base is on alert (see military.js)
   army: { name: 'Army', color: 0x556b2f, district: 'base', friendly: false, weapons: ['rifle'], aggroOnly: true, range: 70 },
+  // the MV Pacific Star's crew and security: only hostile once the ship is alerted (see shipraid.js)
+  crew: { name: 'Ship Crew', color: 0xff8c1a, district: 'ship', friendly: false, weapons: ['pistol'], aggroOnly: true, range: 55 },
 };
 
 const LINES = {
@@ -21,6 +23,7 @@ const LINES = {
   handsUp: ['Take it! Take anything!', 'Don\'t shoot!', 'Please!'],
   jacked: ['My car!', 'Hey, that\'s my ride!', 'Thief!'],
   army: ['Contact!', 'Intruder on base!', 'Open fire!', 'Take him down!', 'Weapons free!'],
+  crew: ['Boarder on deck!', 'Get off my ship!', 'Stop him!', 'Protect the cargo!', 'Nobody touches the bridge!'],
 };
 
 export class Ped extends Character {
@@ -95,7 +98,7 @@ export class Ped extends Character {
       const R = G.range || 22;
       if (d2 < R * R && (game.peds.gangAggro[this.gang] || (d2 < 12 * 12 && !G.aggroOnly))) {
         this.threat = player; this.setState('attack');
-        if (game.time - this.lastSay > 5) this.say(pick(G.aggroOnly ? LINES.army : LINES.gang));
+        if (game.time - this.lastSay > 5) this.say(pick(G.aggroOnly ? LINES[this.gang] || LINES.army : LINES.gang));
       }
     }
     // player aiming at me
@@ -292,7 +295,7 @@ export class PedManager {
     this.list = [];
     this.maxPeds = game.quality?.peds ?? 36;
     this.spawnTimer = 0;
-    this.gangAggro = { vipers: true, cuervos: false, kings: false, army: false };
+    this.gangAggro = { vipers: true, cuervos: false, kings: false, army: false, crew: false };
     this.frustum = new THREE.Frustum();
     this._m = new THREE.Matrix4();
     this.bodies = 0;
@@ -443,7 +446,8 @@ export class PedManager {
     // witnesses flee
     this.onNoise(info?.source || null, c.pos, 25, false);
     // cash drop
-    if (Math.random() < (c.gang ? 0.7 : 0.35)) this.game.pickups?.dropMoney(c.pos, c.gang ? randInt(20, 120) : randInt(5, 60));
+    if (c.moneyDrop) this.game.pickups?.dropMoney(c.pos, Math.round(c.moneyDrop));
+    else if (Math.random() < (c.gang ? 0.7 : 0.35)) this.game.pickups?.dropMoney(c.pos, c.gang ? randInt(20, 120) : randInt(5, 60));
     if (c.gang && c.weapon !== 'fist' && Math.random() < 0.5) this.game.pickups?.dropWeapon(c.pos, c.weapon, c.weapon === 'bat' || c.weapon === 'knife' ? 1 : randInt(8, 30));
     if (c.brain === 'cop' && Math.random() < 0.8) this.game.pickups?.dropWeapon(c.pos, c.weapon === 'fist' ? 'pistol' : c.weapon, randInt(10, 30));
   }
