@@ -25,6 +25,12 @@ ES modules on `file://`.
 Chrome, Edge or Firefox with hardware acceleration turned on is recommended. If your frame rate is low, change
 **Graphics quality** in Settings (Low / Medium / High / Ultra), or add `?q=low` to the URL.
 
+## Unreal Engine version
+
+A C++ port to Unreal Engine 5.8 is under way in [`Unreal/AutoTheftGrand`](Unreal/AutoTheftGrand/README.md). It
+generates the same world from the same seed. So far you can walk and drive around all of it; the rest of the
+game is being ported in phases ([plan](Unreal/AutoTheftGrand/PORTING.md)).
+
 ## Controls
 
 | On foot | | In a vehicle | |
@@ -332,6 +338,7 @@ src/net/                  multiplayer: transports (claude.ai live room, WebSocke
 src/ui/                   HUD, radar, pause menu & map, controller menu navigation
 vendor/three/             Three.js r186 (MIT), bundled
 server.mjs                zero-dependency static server + multiplayer relay
+Unreal/AutoTheftGrand/    the Unreal Engine 5 port (C++)
 ```
 
 ## Tips
