@@ -134,5 +134,9 @@ ATG_CMD(CmdCity, "ATG.City", "ATG.City: log the traffic, the people and the trai
 	UE_LOG(LogATG, Display, TEXT("ATG city: %d traffic cars (%d moving), %d people, %d vehicles"), Cars, Moving, G->peds ? (int32)G->peds->list.size() : 0, (int32)G->vehicles.list.size());
 	if (G->rail) for (atg::Train* T : G->rail->trains()) UE_LOG(LogATG, Display, TEXT("ATG city: %s at s %.0f, %.1f m/s, (%.0f, %.0f)"), UTF8_TO_TCHAR(T->type.c_str()), T->s, T->v, T->pos.x, T->pos.z);
 })
+ATG_CMD(CmdKill, "ATG.Kill", "ATG.Kill: the player dies (WASTED)", {
+	if (atg::Game* G = Sim(W)) { atg::DamageInfo D; D.type = "fall"; G->player->invincible = false; G->cheats.god = false; G->player->takeDamage(10000, D); }
+})
+ATG_CMD(CmdBust, "ATG.Bust", "ATG.Bust: the police arrest the player (BUSTED)", { if (atg::Game* G = Sim(W)) G->events.busted.emit(); })
 #undef ATG_CMD
 }

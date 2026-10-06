@@ -22,6 +22,8 @@ namespace atg {
 class PedManager;
 class Traffic;
 class RailSystem;
+class Gameplay;
+class HudModel;
 
 struct Cheats {
 	bool god = false, vehGod = false, neverWanted = false, superJump = false, superRun = false, infSprint = false, lowGravity = false;
@@ -78,6 +80,9 @@ public:
 	bool freeroamActive() const { return freeRoam && !missionActive; }
 	bool wheelOpen = false, phoneOpen = false;
 	bool weaponWheelOpen() const { return wheelOpen; }
+	// the post-process uniforms the gameplay rules drive (WASTED / BUSTED): desaturation, the death tint, its
+	// night boost and the white flash
+	struct PostFx { double desat = 0, death = 0, deathBoost = 0, flash = 0; } post;
 	struct Stats { double kills = 0, copKills = 0, headshots = 0, carsStolen = 0, carsDestroyed = 0, runOver = 0, wasted = 0, busted = 0, maxWanted = 0, bestDrift = 0, driven = 0, walked = 0, playTime = 0, missions = 0, sprays = 0; } stats;
 
 	Environment env;
@@ -101,6 +106,10 @@ public:
 	PedManager* peds = nullptr;
 	Traffic* traffic = nullptr;
 	RailSystem* rail = nullptr;
+	Gameplay* gameplay = nullptr;
+	// the HUD's state (hud.js); hud points at it. Updated after each frame with the real frame time.
+	std::unique_ptr<IHud> ownedHud;
+	HudModel* hudModel = nullptr;
 	std::unordered_map<int, Ref<Vehicle>> nodeBusy; // road node -> the car holding that junction (traffic.js n.busy)
 	std::map<std::string, double> gangDensity; // (missions thin gangs out)
 	bool disableAmbient = false;               // (no ambient traffic or pedestrians: some missions)

@@ -53,9 +53,10 @@ void AATGGameMode::StartGame() {
 	bStarted = true;
 	double X, Y, Z, Yaw;
 	World->PlayerStart(X, Y, Z, Yaw);
+	atg::StartGame(*G);
 	G->respawnPlayer(X, Z, Yaw);
 	atg::PopulateWorld(*G);
-	if (AATGPlayerController* PC = Cast<AATGPlayerController>(GetWorld()->GetFirstPlayerController())) PC->ShowMessage(TEXT("Welcome to San Andreas. F to get in a car, M for the map."), 8.f);
+	if (G->hud) G->hud->help("Welcome back to Los Soles.", 4);
 	UE_LOG(LogATG, Log, TEXT("Player at the safehouse (%.0f, %.0f)"), X, Z);
 }
 
@@ -110,6 +111,7 @@ void AATGGameMode::SyncViews(float Dt) {
 		if (!bHave) if (AATGPerson* P = AATGPerson::Spawn(W, C)) People.Add(P);
 	}
 	for (AATGPerson* P : People) P->Sync(Dt);
+	World->SetDeathLook(G->post.desat, G->post.death, G->post.deathBoost);
 	// the world streams round the player
 	atg::Player& Pl = *G->player;
 	World->SetFocus(ATG::ToUE(Pl.vehicle ? Pl.vehicle->pos : Pl.pos));

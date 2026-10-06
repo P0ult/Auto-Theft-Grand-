@@ -1,6 +1,8 @@
 // Native tests for the simulation (no Unreal): Tools/native.sh simtest.exe simtest.cpp && ./simtest.exe [test ...]
 // Each test sets up a game on the generated world, runs fixed 1/30 s frames and prints what it measured.
 #include "Sim/Game.h"
+#include "Sim/Gameplay.h"
+#include "Sim/Hud.h"
 #include "Sim/Peds.h"
 #include "Sim/Rail.h"
 #include "Sim/Setup.h"
@@ -20,7 +22,7 @@ struct World {
 	std::unique_ptr<Game> game(bool systems = false) {
 		WorldData w; w.map = &map; w.roadPrims = roads.prims; w.roadDecks = roads.decks; w.props = props; w.propDefs = &defs;
 		auto g = std::make_unique<Game>(w);
-		if (systems) InstallSystems(*g);
+		if (systems) { InstallSystems(*g); StartGame(*g); }
 		const Landmark& home = map.landmarks.at("home");
 		g->respawnPlayer(home.x, home.z, 0);
 		return g;
@@ -254,6 +256,41 @@ static void TestBoard(World& w) {
 	Check(t->v > 3, "the player drives it");
 }
 
+// WASTED and BUSTED: slow motion, the shard, then the respawn at the hospital or the police station
+static void TestWasted(World& w) {
+	printf("wasted\n");
+	auto g = w.game(true);
+	ToStreet(w, *g);
+	Player& p = *g->player;
+	p.money = 500;
+	p.giveWeapon("pistol", 50);
+	DamageInfo di; di.type = "fall";
+	p.takeDamage(1000, di);
+	g->frame(1.0 / 30);
+	printf("  state %s, time scale %.2f, wasted %d\n", g->gameplay->state.c_str(), g->timeScale, (int)g->stats.wasted);
+	Check(g->gameplay->state == "dead" && g->stats.wasted == 1, "dies: WASTED");
+	Check(std::fabs(g->timeScale - 0.28) < 1e-9, "slow motion 0.28");
+	Run(*g, 1.5);
+	printf("  after 1.5 s: shard '%s', desat %.2f, flash %.2f\n", g->hudModel->shard.c_str(), g->post.desat, g->post.flash);
+	Check(g->hudModel->shard == "wasted", "the shard comes up (no stinger: after 1.1 s)");
+	Run(*g, 6.5);
+	const Landmark& H = w.map.landmarks.at("hospital");
+	const P3 sp = H.pts.at("respawn");
+	printf("  after 8 s: state %s, at (%.1f, %.1f), hospital respawn (%.1f, %.1f), money %.0f, health %.0f, weapons %zu\n", g->gameplay->state.c_str(), p.pos.x, p.pos.z, sp.x, sp.z, p.money, p.health, p.weapons.size());
+	Check(g->gameplay->state == "playing" && !p.dead, "respawns");
+	Check(Hypot(p.pos.x - sp.x, p.pos.z - sp.z) < 1, "at the hospital");
+	Check(p.money == 400 && p.weapons.size() == 1, "the hospital bill ($100) and the weapons gone");
+	Check(g->timeScale == 1 && !g->hudModel->dead, "back to normal");
+	printf("busted\n");
+	g->events.busted.emit();
+	g->frame(1.0 / 30);
+	Check(g->gameplay->state == "busted" && g->stats.busted == 1 && p.animState.handsUp, "BUSTED: hands up");
+	Run(*g, 8);
+	const P3 ps = w.map.landmarks.at("police").pts.at("respawn");
+	printf("  state %s at (%.1f, %.1f), police respawn (%.1f, %.1f), money %.0f\n", g->gameplay->state.c_str(), p.pos.x, p.pos.z, ps.x, ps.z, p.money);
+	Check(g->gameplay->state == "playing" && Hypot(p.pos.x - ps.x, p.pos.z - ps.z) < 1, "out at the police station");
+}
+
 int main(int argc, char** argv) {
 	InstallCrashTrace();
 	setvbuf(stdout, nullptr, _IONBF, 0);
@@ -270,6 +307,7 @@ int main(int argc, char** argv) {
 	if (want("city")) TestCity(w);
 	if (want("rail")) TestRail(w);
 	if (want("board")) TestBoard(w);
+	if (want("wasted")) TestWasted(w);
 	printf(fails ? "%d FAILED\n" : "all passed\n", fails);
 	return fails ? 1 : 0;
 }

@@ -7,6 +7,7 @@
 #include "ATGHUD.generated.h"
 
 class AATGWorld;
+namespace atg { class Game; }
 class UFont;
 
 UCLASS()
@@ -28,4 +29,10 @@ private:
 	void DrawLoading(AATGWorld* W);
 	void DrawRadar(AATGWorld* W, double Px, double Pz, double Heading, float Dt, double CarSpeed);
 	void DrawBigMap(AATGWorld* W, double Px, double Pz, double Heading);
+	// the HUD model's messages (help, big messages, subtitles, the bar, money, dispatch) and the full-screen
+	// layers (damage vignette, white flash, the fade, the WASTED / BUSTED shard)
+	void DrawMessages(atg::Game* G, float Dt);
+	void DrawOverlays(atg::Game* G, float Dt);
+	void WrappedBox(const FString& S, float X, float Y, float MaxW, UFont* Font, float Scale, float Alpha);
+	float HelpAlpha = 0, BigAlpha = 0, SubsAlpha = 0, DeadAlpha = 1;
 };

@@ -570,6 +570,18 @@ const FATGVehicleMeshes& AATGWorld::TrainMeshes(const atg::TrainModel& Model) {
 	return M;
 }
 
+void AATGWorld::SetDeathLook(double Desat, double Death, double Boost) {
+	FPostProcessSettings& S = Post->Settings;
+	// grey = mix(colour, luma, desat) then mix(..., luma, death * 1.3)
+	const double Sat = (1 - FMath::Clamp(Desat, 0.0, 1.0)) * (1 - FMath::Clamp(Death * 1.3, 0.0, 1.0));
+	const bool bOn = Desat > 0 || Death > 0;
+	S.bOverride_ColorSaturation = bOn; S.ColorSaturation = FVector4(1, 1, 1, Sat);
+	// brighter by death * boost, darker by 18% of death unless the night boost lifts it
+	const double Gain = (1 + Death * Boost) * (1 - 0.18 * Death * (1 - FMath::Clamp(Boost * 0.5, 0.0, 1.0)));
+	S.bOverride_ColorGain = bOn; S.ColorGain = FVector4(1, 1, 1, Gain);
+	S.bOverride_VignetteIntensity = bOn; S.VignetteIntensity = 0.4f + 0.9f * (float)Death;
+}
+
 USkeletalMesh* AATGWorld::HumanMesh(const atg::Appearance& A) {
 	const FString Key = ATGHuman::Key(A);
 	if (TWeakObjectPtr<USkeletalMesh>* M = HumanCache.Find(Key)) if (M->IsValid()) return M->Get();

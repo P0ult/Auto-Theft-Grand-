@@ -24,6 +24,12 @@ public:
 	// free fall and the parachute
 	bool skydive = false; double skydiveT = 0; bool skydiveAuto = false;
 	bool chute = false;
+	double swimTime = 0;
+	// set by the gameplay rules (gameplay.js: p.onDeath, p.onDamaged)
+	std::function<void()> deathHook;
+	std::function<void(Character*, double)> damagedHook;
+	void onDeath(const DamageInfo&) override { if (deathHook) deathHook(); }
+	void onDamaged(Character* src, double dmg, const DamageInfo&) override { if (damagedHook) damagedHook(src, dmg); }
 
 	void control(double dt, Input& input, CameraRig& rig);
 	void update(double dt) override;

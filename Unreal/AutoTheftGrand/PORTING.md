@@ -33,6 +33,8 @@ pad, and will play its sounds.
 | game/traffic.js | `Sim/Traffic` | Lane following, traffic lights (the shaders' clock is the simulation's, so the lamps and the cars agree), give way, roundabouts, merges, queues, passing broken-down cars, panic at gunfire, spawning and despawning. |
 | game/peds.js | `Sim/Peds` | Spawning on the walk graph, wandering, fleeing, gangs on their turf, followers and guards. Cops and street crime call into the police and crime systems (phase 3). |
 | game/railsystem.js, entities/train.js | `Sim/Rail`, `Sim/Train`, `Gen/TrainModels` | The timetable, the single-track sections and the Fern Creek passing loop, level crossings, boarding, driving from the cab. The trains run to the metre as in the browser game. |
+| game/gameplay.js | `Sim/Gameplay` | Stats, WASTED and BUSTED (slow motion, the death camera, the respawn at the hospital or the police station, the bill), drift and stunt bonuses, smoke and fire on damaged cars, skid marks, first-time hints. |
+| ui/hud.js (messages and overlays) | `Sim/Hud` (`HudModel`), `ATGHUD` | Help, big messages, subtitles, objectives, the bar, money pops, dispatch, the fade, the damage flash, the shard: the state and timers in the simulation, drawn by `ATGHUD`. The modern GTA V layout comes in phase 3b. |
 | main.js (the systems) | `Sim/Setup` | Registers the systems in main.js order and populates the streets. |
 | ui/mapimage.js, hud.js | `Gen/MapImage.cpp`, `ATGHUD` | The map is drawn by a small software rasteriser. The HUD is a first cut. |
 
@@ -41,7 +43,8 @@ pad, and will play its sounds.
 **Status.** Phase 1 builds and runs on UE 5.8.3 (Visual Studio 2026). The game logic has moved into the
 simulation layer (above): walking, getting in and out, driving, crashes and parked cars run there and are
 drawn by Unreal. Phase 2 is done: traffic, people, traffic lights, trains and the skinned humanoid. Phase 3
-has started on a second branch (`oc-phase3`, worked by a second agent and merged here once checked).
+is under way: WASTED and BUSTED are done here; combat, police and pickups are on a second branch
+(`oc-phase3`, worked by a second agent and merged here once checked).
 
 **Phase 1: the world and driving (done).**
 - World generation.
@@ -63,7 +66,8 @@ has started on a second branch (`oc-phase3`, worked by a second agent and merged
 - Pickups and shops.
 - Wanted level and police (police.js).
 - Car damage, fire and explosions; vehicle tumbling (vehicle.js `_tumble`).
-- WASTED and BUSTED screens. Replace the WASTED sound clip with your own before sharing the game.
+- WASTED and BUSTED screens. Done (the stinger plays once audio is ported). Replace the WASTED sound clip
+  with your own before sharing the game.
 
 **Phase 3b: the GTA V layer** (added to the browser game after phase 1).
 - The modern HUD: a rectangular minimap with health, armour and special bars, and the police's vision cones
@@ -105,4 +109,8 @@ has started on a second branch (`oc-phase3`, worked by a second agent and merged
 - The radar and the map show blips as plain squares until the HUD is ported (phase 3b).
 - Online, the trains follow the host's timetable; that comes with multiplayer (phase 6).
 - No sounds yet: the simulation asks for them, nothing plays them (phase 6, audio).
+- The HUD uses the engine's default font, scaled up; the browser game's fonts (Anton for the shard) come
+  with the phase 3b HUD.
+- The WASTED look approximates postfx.js with Unreal's post-process (saturation, gain, vignette); the radial
+  blur of the death effect is not there yet.
 - Headlight beams on the road and the debris of torn-off panels need the effects system (phase 3).

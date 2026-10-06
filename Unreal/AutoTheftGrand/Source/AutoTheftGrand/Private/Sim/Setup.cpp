@@ -1,5 +1,7 @@
 #include "Setup.h"
 #include "Game.h"
+#include "Gameplay.h"
+#include "Hud.h"
 #include "Peds.h"
 #include "Rail.h"
 #include "Traffic.h"
@@ -7,11 +9,25 @@
 namespace atg {
 
 void InstallSystems(Game& g) {
+	auto hud = std::make_unique<HudModel>(g);
+	g.hudModel = hud.get();
+	g.hud = hud.get();
+	g.ownedHud = std::move(hud);
 	// (effects and combat come first in main.js; they arrive with phase 3)
 	g.peds = g.addSystem("peds", std::make_unique<PedManager>(g));
 	g.traffic = g.addSystem("traffic", std::make_unique<Traffic>(g));
 	// (police, npcCrime, pickups, military, army, roadblocks, heists, weaponWheel, special, phone: later phases)
 	g.rail = g.addSystem("rail", std::make_unique<RailSystem>(g));
+	// (shops, wildlife, pets, skateparks, boats, shipRaid, missions, audio: later)
+	g.gameplay = g.addSystem("gameplay", std::make_unique<Gameplay>(g));
+}
+
+void StartGame(Game& g) {
+	g.player->visible = true;
+	g.rig.clearCinematic();
+	g.env.timeScale = 1;
+	if (g.gameplay) g.gameplay->state = "playing";
+	g.input.enabled = true;
 }
 
 void PopulateWorld(Game& g) {

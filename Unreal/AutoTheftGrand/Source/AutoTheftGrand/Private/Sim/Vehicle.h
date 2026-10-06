@@ -77,6 +77,7 @@ public:
 	bool flipped = false;
 	double crouch = 0;  // (skateboards)
 	// set by the systems that own a vehicle
+	bool ownedByPlayer = false, skidding = false; // (gameplay.js: stats, skid marks)
 	bool proxy = false; // (a train carriage's stand-in for the contact code)
 	bool traffic = false, policeUnit = false, armyUnit = false, remote = false, npcRemote = false, flat = false, stable = false, heistVan = false, roadblock = false;
 

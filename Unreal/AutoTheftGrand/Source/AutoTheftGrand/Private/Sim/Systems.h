@@ -28,6 +28,11 @@ public:
 	virtual ~IAudio() = default;
 	virtual void play(const std::string& name, double vol = 1) = 0;
 	virtual void playAt(const std::string& name, const V3& pos, double vol = 1) = 0;
+	// recorded clips (the WASTED stinger); false when there is no such sample
+	virtual bool playSample(const std::string&, double = 1) { return false; }
+	virtual void stopSample(const std::string&, double = 0) {}
+	virtual void muffle(bool) {}
+	virtual double clock() const { return -1; } // (the audio context's time; -1 without audio)
 };
 
 // particles, debris, decals (src/game/effects.js)
@@ -43,6 +48,12 @@ public:
 	virtual void hydrantSpray(double x, double y, double z) = 0;
 	// a panel torn off a vehicle flies off as debris
 	virtual void panelDebris(Vehicle* v, const std::string& part, const V3& vel) = 0;
+	// smoke and fire on damaged and burning cars, tyre smoke and skid marks (gameplay.js)
+	virtual void engineSmoke(const V3&, double) {}
+	virtual void fire(const V3&, double) {}
+	virtual void tireSmoke(const V3&, double) {}
+	virtual void skidAdd(const std::string& /*key*/, double, double, double, double /*width*/, double /*alpha*/) {}
+	virtual void skidBreak(const std::string& /*key*/) {}
 };
 
 // on-screen help and messages (src/ui/hud.js)
@@ -51,6 +62,20 @@ public:
 	virtual ~IHud() = default;
 	virtual void help(const std::string& text, double seconds = 4) = 0;
 	virtual void speech(Character* who, const std::string& text) = 0;
+	virtual void bigMessage(const std::string&, const std::string& = "title", double = 4, const std::string& = "") {}
+	virtual void subtitle(const std::string&, const std::string& = "", double = 4) {}
+	virtual void objective(const std::string&, double = 7) {}
+	virtual void clearObjective() {}
+	virtual void setBar(const std::string* /*label (null hides it)*/, double = 0, const std::string& = "#e63946") {}
+	virtual void moneyFlash(double) {}
+	virtual void dispatch(const std::string&, const std::string& = "") {}
+	virtual void interact(const std::string&) {}
+	// fade to black over dur seconds, call mid, fade back in
+	virtual void fade(double = 0.5, std::function<void()> mid = nullptr) { if (mid) mid(); }
+	virtual void fadeTo(double, double = 0.5) {}
+	virtual void damage(double) {}
+	virtual void showWasted(const std::string&) {}
+	virtual void deathMode(bool) {}
 };
 
 // weapons and damage (src/game/combat.js)
@@ -77,6 +102,8 @@ class IPolice {
 public:
 	virtual ~IPolice() = default;
 	virtual void copThink(Ped* cop, double dt) = 0;
+	virtual int wantedLevel() const { return 0; }
+	virtual void clearWanted() {} // (police.reset() after WASTED / BUSTED)
 };
 
 // street crime (src/game/npccrime.js)

@@ -1,4 +1,5 @@
 #include "Game.h"
+#include "Hud.h"
 
 namespace atg {
 
@@ -117,6 +118,7 @@ void Game::frame(double dt) {
 	input.inVehicle = player && player->vehicle;
 	const double sdt = paused ? 0 : dt * timeScale * fxScale();
 	if (!paused) update(sdt, dt);
+	if (hudModel) hudModel->update(dt);
 	input.endFrame();
 	// timers run on real time
 	for (size_t i = 0; i < timers.size();) {

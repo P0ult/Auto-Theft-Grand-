@@ -81,6 +81,8 @@ public:
 	TArray<FATGMapLabel> MapLabels;
 
 	// ---- models (built on first use)
+	// the WASTED / BUSTED look (postfx.js uDesat, uDeath, uDeathBoost): desaturated, darker, a heavy vignette
+	void SetDeathLook(double Desat, double Death, double Boost);
 	const FATGVehicleMeshes& VehicleMeshes(const atg::VehicleDef& Def);
 	// the trains' rolling stock (one entry per TrainModel)
 	const FATGVehicleMeshes& TrainMeshes(const atg::TrainModel& Model);

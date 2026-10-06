@@ -1,0 +1,18 @@
+# WASTED: slow motion, the flash, black and white, the shard, then the hospital. Then BUSTED.
+wait 1
+ATG.Teleport -622 330 0
+ATG.Cam 0.5 -0.2
+wait 1
+ATG.Kill
+wait 0.15
+shot wasted_flash
+wait 2.6
+shot wasted_shard
+wait 6
+shot wasted_hospital
+ATG.Bust
+wait 3
+shot busted_shard
+wait 6
+shot busted_station
+quit
