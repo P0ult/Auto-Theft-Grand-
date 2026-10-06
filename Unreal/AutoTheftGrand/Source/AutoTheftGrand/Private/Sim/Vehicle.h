@@ -58,7 +58,7 @@ public:
 	double health, maxHealth, burnTime = 0;
 	bool onFire = false, exploded = false, sunk = false;
 	std::shared_ptr<Character> occupants[4];
-	bool sirenOn = false, lightsOn = false, horn = false;
+	bool sirenOn = false, sirenMute = false, lightsOn = false, horn = false; // (sirenMute: lights only)
 	double bodyPitch = 0, bodyRoll = 0, bodyPitchV = 0, bodyRollV = 0, bodyY = 0, bodyYV = 0;
 	bool airborne = false;
 	double vy = 0, lastGroundY = 0, groundVy = 0, groundPitch = 0, groundRoll = 0;

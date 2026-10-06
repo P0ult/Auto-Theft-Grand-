@@ -150,7 +150,10 @@ export class Roadblocks {
         const sx = cx - tx * SPIKE_AHEAD, sz = cz - tz * SPIKE_AHEAD;
         const m = spikeMesh(W);
         const mid = (wU - wD) / 2;
-        m.position.set(sx + ux * mid, g.collision.surfaceHeight?.(sx, sz, y + 0.6) ?? y, sz + uz * mid);
+        // on the road surface (the ground under a road can sit a few centimetres below it and bury the strip)
+        const rs = net.closest(sx + ux * mid, sz + uz * mid, (e2) => !e2.removed && e2.type !== 'rail', 18, y);
+        const sy = Math.max(g.collision.surfaceHeight?.(sx, sz, y + 0.6) ?? y, rs ? rs.y + 0.035 : -Infinity);
+        m.position.set(sx + ux * mid, sy, sz + uz * mid);
         m.rotation.y = Math.atan2(ux, uz) - Math.PI / 2;
         g.scene.add(m);
         b.spike = { x: sx + ux * mid, z: sz + uz * mid, half: W / 2, mesh: m };

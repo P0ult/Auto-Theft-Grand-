@@ -8,6 +8,7 @@
 #include "Sim/Game.h"
 #include "Sim/Peds.h"
 #include "Sim/Police.h"
+#include "Sim/Roadblocks.h"
 #include "Sim/Rail.h"
 #include "Sim/Traffic.h"
 
@@ -177,6 +178,28 @@ ATG_CMD(CmdCamHeli, "ATG.CamHeli", "ATG.CamHeli [0]: hold the camera behind the 
 	const atg::V3 H = G->policeSys->heli->pos, P = G->player->pos;
 	atg::V3 Back = P - H; Back.y = 0; Back = Back.normalized();
 	G->rig.setCinematic(P + Back * 8 + atg::V3(0, 3, 0), H, 50);
+})
+ATG_CMD(CmdRoadblock, "ATG.Roadblock", "ATG.Roadblock: the police close the road ahead of the player's car now", {
+	atg::Game* G = Sim(W);
+	atg::Roadblocks* R = G ? dynamic_cast<atg::Roadblocks*>(G->roadblocks) : nullptr;
+	if (!R || !G->player->vehicle) return;
+	const bool Ok = R->place(G->player->vehicle);
+	UE_LOG(LogATG, Display, TEXT("ATG roadblock: %s, %d standing"), Ok ? TEXT("placed") : TEXT("nowhere to put it"), (int32)R->blocks.size());
+	for (const auto& B : R->blocks) UE_LOG(LogATG, Display, TEXT("ATG roadblock at (%.1f, %.2f, %.1f), %d cars, %d cops, spike %d at (%.1f, %.2f, %.1f) len %.1f, car y %.2f"), B.x, B.y, B.z, (int32)B.cars.size(), (int32)B.cops.size(), B.hasSpike ? 1 : 0, B.spike.x, B.spike.y, B.spike.z, B.spike.len, G->player->vehicle->pos.y);
+})
+ATG_CMD(CmdCamRoadblock, "ATG.CamRoadblock", "ATG.CamRoadblock [spike|0]: look at the first roadblock from in front of its spike strip (spike: at the strip; 0: let go)", {
+	atg::Game* G = Sim(W);
+	atg::Roadblocks* R = G ? dynamic_cast<atg::Roadblocks*>(G->roadblocks) : nullptr;
+	if (!R) return;
+	if ((Args.Num() && Args[0] == TEXT("0")) || R->blocks.empty()) { G->rig.clearCinematic(); return; }
+	const auto& B = R->blocks[0];
+	if (Args.Num() && Args[0] == TEXT("spike") && B.hasSpike) {
+		const auto& S = B.spike;
+		G->rig.setCinematic(atg::V3(S.x - B.tx * 5 + B.ux * 1.5, S.y + 1.4, S.z - B.tz * 5 + B.uz * 1.5), atg::V3(S.x, S.y, S.z), 50);
+		return;
+	}
+	const atg::V3 At(B.x, B.y + 0.8, B.z);
+	G->rig.setCinematic(atg::V3(B.x - B.tx * 24 + B.ux * 3, B.y + 2.5, B.z - B.tz * 24 + B.uz * 3), At, 50);
 })
 ATG_CMD(CmdPolice, "ATG.Police", "ATG.Police: log the wanted level, the units and the helicopter", {
 	atg::Game* G = Sim(W);

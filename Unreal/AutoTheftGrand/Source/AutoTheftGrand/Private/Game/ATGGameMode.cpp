@@ -4,7 +4,7 @@
 #include "Game/ATGCoords.h"
 #include "Game/ATGEffects.h"
 #include "Game/ATGPickups.h"
-#include "Game/ATGPoliceHeli.h"
+#include "Game/ATGPoliceView.h"
 #include "Game/ATGHUD.h"
 #include "Game/ATGPerson.h"
 #include "Game/ATGPlayerController.h"
@@ -117,8 +117,8 @@ void AATGGameMode::SyncViews(float Dt) {
 	World->SetDeathLook(G->post.desat, G->post.death, G->post.deathBoost);
 	if (!Effects) { FActorSpawnParameters P; P.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn; Effects = W->SpawnActor<AATGEffects>(AATGEffects::StaticClass(), FTransform::Identity, P); }
 	if (Effects) Effects->Sync(G);
-	if (!PoliceHeli) { FActorSpawnParameters P; P.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn; PoliceHeli = W->SpawnActor<AATGPoliceHeli>(AATGPoliceHeli::StaticClass(), FTransform::Identity, P); }
-	if (PoliceHeli) PoliceHeli->Sync(G);
+	if (!PoliceView) { FActorSpawnParameters P; P.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn; PoliceView = W->SpawnActor<AATGPoliceView>(AATGPoliceView::StaticClass(), FTransform::Identity, P); }
+	if (PoliceView) PoliceView->Sync(G);
 	if (!PickupsView) { FActorSpawnParameters P; P.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn; PickupsView = W->SpawnActor<AATGPickups>(AATGPickups::StaticClass(), FTransform::Identity, P); }
 	if (PickupsView) PickupsView->Sync(G);
 	// the world streams round the player

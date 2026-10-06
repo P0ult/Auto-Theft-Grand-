@@ -218,6 +218,8 @@ void AATGHUD::DrawMinimap(atg::Game* G, AATGWorld* W, float Dt, float Left, floa
 		G->police->radarCops(Cops);
 		for (const atg::V3& q : Cops) { atg::Blip b; b.x = q.x; b.z = q.z; b.color = ((int)std::floor(G->time * 4) % 2) ? 0x3355ff : 0xff3333; b.icon = "dot"; b.small = true; b.noEdge = true; List.Add(b); }
 	}
+	// the systems' moving blips (roadblocks, the army, NPC suspects)
+	for (const auto& Src : G->radarSources) { std::vector<atg::Blip> More; Src(More); for (const atg::Blip& b : More) List.Add(b); }
 	const float edgeX0 = -C + 9, edgeX1 = Wd - C - 9, edgeY0 = -CY + 9, edgeY1 = Ht - CY - 9;
 	for (const atg::Blip& b : List) {
 		P2 r = toRadar(b.x, b.z);

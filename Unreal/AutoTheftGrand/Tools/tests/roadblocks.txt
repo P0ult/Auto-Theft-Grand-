@@ -1,0 +1,28 @@
+# Roadblocks: at four stars the police close the road ahead with cruisers, the Enforcer and a spike strip.
+wait 1
+ATG.God 1
+ATG.NoBust 1
+ATG.Time 14
+ATG.Teleport -870 541 -1.538
+ATG.Spawn zenith
+wait 0.5
+ATG.Enter
+wait 1
+ATG.Teleport -870 541 -1.538
+wait 0.2
+ATG.Wanted 4
+ATG.Press KeyW
+wait 2
+ATG.Roadblock
+ATG.Release
+ATG.CamRoadblock spike
+wait 2
+ATG.CamRoadblock spike
+wait 0.1
+shot roadblock_spike
+ATG.CamRoadblock
+wait 2
+ATG.CamRoadblock
+wait 0.1
+shot roadblock_close
+quit

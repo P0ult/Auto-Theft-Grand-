@@ -116,7 +116,7 @@ public:
 	std::map<std::string, double> gangDensity; // (missions thin gangs out)
 	bool disableAmbient = false;               // (no ambient traffic or pedestrians: some missions)
 	// what the missions and other systems tell the police (missions.js maxWanted / noBust, vigilante.active)
-	double missionMaxWanted = NaN(); bool missionNoBust = false, missionNoSpray = false, vigilanteActive = false;
+	double missionMaxWanted = NaN(); bool missionNoBust = false, missionNoSpray = false, missionNoRoadblocks = false, vigilanteActive = false;
 	// (systems the police reset after WASTED / BUSTED)
 	System* army = nullptr; System* roadblocks = nullptr;
 	class Pickups* pickupsSys = nullptr; // (the pickups and markers, for the systems that place them)
@@ -145,6 +145,8 @@ public:
 
 	// map blips
 	std::vector<std::shared_ptr<Blip>> blips;
+	// moving blips the systems add to the radar each frame (the roadblocks, the army, NPC suspects), in order
+	std::vector<std::function<void(std::vector<Blip>&)>> radarSources;
 	std::shared_ptr<Blip> addBlip(const Blip& b) { auto p = std::make_shared<Blip>(b); blips.push_back(p); return p; }
 	void removeBlip(const std::shared_ptr<Blip>& b) { for (size_t i = 0; i < blips.size(); i++) if (blips[i] == b) { blips.erase(blips.begin() + i); return; } }
 

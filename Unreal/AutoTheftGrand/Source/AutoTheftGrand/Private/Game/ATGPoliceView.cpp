@@ -1,10 +1,11 @@
-#include "Game/ATGPoliceHeli.h"
+#include "Game/ATGPoliceView.h"
 #include "Game/ATGCoords.h"
 #include "Game/ATGMaterials.h"
 #include "Game/ATGMeshUtil.h"
 #include "Gen/MeshBuf.h"
 #include "Sim/Game.h"
 #include "Sim/Police.h"
+#include "Sim/Roadblocks.h"
 
 #include "Components/SpotLightComponent.h"
 #include "Components/StaticMeshComponent.h"
@@ -22,7 +23,7 @@ UMaterialInstanceDynamic* Std(UObject* Outer, uint32 Hex, double Rough, double M
 }
 }
 
-AATGPoliceHeli::AATGPoliceHeli() {
+AATGPoliceView::AATGPoliceView() {
 	PrimaryActorTick.bCanEverTick = false;
 	Root = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
 	RootComponent = Root;
@@ -57,7 +58,7 @@ AATGPoliceHeli::AATGPoliceHeli() {
 	Spot->SetCastShadows(false);
 }
 
-void AATGPoliceHeli::Build() {
+void AATGPoliceView::Build() {
 	bBuilt = true;
 	using atg::Mat4;
 	using namespace atg::Geo;
@@ -87,9 +88,53 @@ void AATGPoliceHeli::Build() {
 	TailRotor->SetMaterial(0, NavyMat);
 }
 
-void AATGPoliceHeli::Sync(atg::Game* G) {
+void AATGPoliceView::SyncSpikes(atg::Game* G) {
+	const atg::Roadblocks* R = G ? dynamic_cast<const atg::Roadblocks*>(G->roadblocks) : nullptr;
+	int32 Used = 0;
+	if (R) for (const atg::Roadblocks::Block& B : R->blocks) {
+		if (!B.hasSpike) continue;
+		if (!SpikeMesh) {
+			// BoxGeometry(1, 0.035, 0.42) on the ground and two rows of six silver cones, non-indexed with face normals
+			atg::MeshBuf M;
+			M.Color(0.08, 0.08, 0.09);
+			M.Add(atg::Geo::Box(1, 0.035, 0.42), atg::Mat4::Compose(0, 0.018, 0));
+			M.Color(0.75, 0.76, 0.78);
+			for (int K = 0; K < 6; K++) for (const double Z : { -0.1, 0.1 }) M.Add(atg::Geo::Cone(0.025, 0.09, 5), atg::Mat4::Compose(-0.42 + K * 0.17 + (Z > 0 ? 0.08 : 0), 0.08, Z));
+			atg::Geo::ComputeFlatNormals(M);
+			UMaterialInstanceDynamic* Mt = UMaterialInstanceDynamic::Create(ATGMaterials::Get(EATGMat::Standard), this);
+			Mt->SetVectorParameterValue(TEXT("Color"), FLinearColor::White);
+			Mt->SetVectorParameterValue(TEXT("Emissive"), FLinearColor::Black);
+			Mt->SetVectorParameterValue(TEXT("Surface"), FLinearColor(0.4f, 0.7f, 1.f, 0.f));
+			SpikeMesh = ATGMesh::BuildStaticMesh(this, TEXT("SpikeStrip"), TArray<FATGPart>{ { &M, Mt } }, EATGAxes::World);
+		}
+		const atg::Roadblocks::Spike& S = B.spike;
+		const int N = FMath::Max(1, (int)std::round(S.len));
+		for (int I = 0; I < N; I++) {
+			if (Used >= Spikes.Num()) {
+				UStaticMeshComponent* C = NewObject<UStaticMeshComponent>(this);
+				C->SetupAttachment(Root); C->SetMobility(EComponentMobility::Movable);
+				C->SetUsingAbsoluteLocation(true); C->SetUsingAbsoluteRotation(true); C->SetUsingAbsoluteScale(true);
+				C->SetCollisionEnabled(ECollisionEnabled::NoCollision); C->SetCastShadow(false);
+				C->SetStaticMesh(SpikeMesh); C->RegisterComponent();
+				Spikes.Add(C);
+			}
+			UStaticMeshComponent* C = Spikes[Used++];
+			// group (position, rotation.y) x segment (x along the strip, scale.x)
+			const atg::M4 Grp = atg::M4::Compose(atg::V3(S.x, S.y, S.z), atg::Quat::FromEuler(0, S.rotY, 0));
+			const atg::M4 Seg = atg::M4::Compose(atg::V3(-S.len / 2 + (I + 0.5) * (S.len / N), 0, 0), atg::Quat());
+			FTransform Tr = ATG::WorldToUE(Grp * Seg);
+			Tr.SetScale3D(FVector(S.len / N, 1, 1)); // (along the strip: game x is the mesh's X)
+			C->SetWorldTransform(Tr);
+			C->SetVisibility(true);
+		}
+	}
+	for (int32 I = Used; I < Spikes.Num(); I++) Spikes[I]->SetVisibility(false);
+}
+
+void AATGPoliceView::Sync(atg::Game* G) {
+	SyncSpikes(G);
 	const atg::PoliceHeli* H = G && G->policeSys ? G->policeSys->heli.get() : nullptr;
-	SetActorHiddenInGame(!H);
+	Body->SetVisibility(H != nullptr); Rotor->SetVisibility(H != nullptr); TailRotor->SetVisibility(H != nullptr); Cone->SetVisibility(H != nullptr);
 	if (!H) { Spot->SetIntensity(0.f); Cone->ClearAllMeshSections(); return; }
 	if (!bBuilt) Build();
 	// group.rotation (pitch, yaw, 0, 'YXZ'); spinning while it comes down

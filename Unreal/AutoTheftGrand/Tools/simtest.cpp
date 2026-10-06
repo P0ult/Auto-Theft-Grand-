@@ -9,6 +9,7 @@
 #include "Sim/Pickups.h"
 #include "Sim/Police.h"
 #include "Sim/Rail.h"
+#include "Sim/Roadblocks.h"
 #include "Sim/Setup.h"
 #include "Sim/Traffic.h"
 #include "crashtrace.h"
@@ -495,6 +496,64 @@ static void TestPickups(World& w) {
 	Check(g->policeSys->level == 0, "and the cops lose you");
 }
 
+// roadblocks: at four stars a driving suspect meets a line of cruisers ahead with cops in cover and a spike
+// strip in front that bursts the tyres; the block is cleared away once left behind
+static void TestRoadblocks(World& w) {
+	printf("roadblocks\n");
+	auto g = w.game(true);
+	Player& p = *g->player;
+	p.invincible = true;
+	g->missionNoBust = true;
+	Roadblocks* rb = dynamic_cast<Roadblocks*>(g->roadblocks);
+	Check(rb != nullptr, "installed");
+	if (!rb) return;
+	// a long straight avenue
+	const RoadNet& net = w.map.roads;
+	int best = -1;
+	for (int i = 0; i < (int)net.edges.size(); i++) {
+		const REdge& e = net.edges[i];
+		if (e.removed || e.type == ERoad::Rail || e.type == ERoad::Ramp || e.type == ERoad::Freeway || e.len < 320) continue;
+		const EdgePoint a = net.At(e, 40), b = net.At(e, 240);
+		if (a.tx * b.tx + a.tz * b.tz > 0.999) { best = i; break; }
+	}
+	Check(best >= 0, "a long straight road");
+	if (best < 0) return;
+	const REdge& e = net.edges[best];
+	const EdgePoint a = net.At(e, 40);
+	const double yaw = std::atan2(a.tx, a.tz);
+	printf("  on the road at (%.1f, %.1f) heading %.3f\n", a.x, a.z, yaw);
+	g->respawnPlayer(a.x, a.z, yaw);
+	Vehicle* v = g->vehicles.spawn("zenith", a.x, a.z, yaw);
+	g->vehicles.seatNow(&p, v, 0);
+	g->policeSys->setLevel(4);
+	v->vel = V3(a.tx * 25, 0, a.tz * 25);
+	rb->timer = 0;
+	rb->update(1.0 / 30);
+	printf("  %zu roadblocks, next in %.0f s\n", rb->blocks.size(), rb->timer);
+	Check(rb->blocks.size() == 1, "a roadblock goes up ahead");
+	if (rb->blocks.empty()) return;
+	const Roadblocks::Block& b = rb->blocks[0];
+	const double ahead = (b.x - v->pos.x) * a.tx + (b.z - v->pos.z) * a.tz;
+	int enforcer = 0, holding = 0;
+	for (auto& c : b.cars) if (c.get() && c->def.id == "enforcer") enforcer++;
+	for (auto& c : b.cops) if (c.get() && c->hasHoldPos) holding++;
+	printf("  %.0f m ahead, %zu cars (%d Enforcer), %zu cops (%d holding), spike %d, %.1f m wide\n", ahead, b.cars.size(), enforcer, b.cops.size(), holding, b.hasSpike ? 1 : 0, b.spike.len);
+	Check(ahead > 80 && ahead < 180, "90 to 165 m ahead");
+	Check(b.cars.size() >= 2 && enforcer == 1 && (int)b.cops.size() == holding && holding >= 3, "cruisers, the Enforcer and cops in cover");
+	Check(b.hasSpike && rb->timer == 17, "a stinger at four stars; the next in 17 s");
+	// over the stinger
+	v->pos = V3(b.spike.x, b.spike.y, b.spike.z);
+	v->vel = V3(-b.tx * 20, 0, -b.tz * 20);
+	rb->update(1.0 / 30);
+	Check(v->flat, "the stinger bursts the tyres");
+	// left behind
+	const Landmark& H = w.map.landmarks.at("hospital");
+	g->respawnPlayer(H.x, H.z, 0);
+	Run(*g, 6);
+	printf("  far away: %zu roadblocks\n", rb->blocks.size());
+	Check(rb->blocks.empty(), "cleared away once you're gone");
+}
+
 int main(int argc, char** argv) {
 	InstallCrashTrace();
 	setvbuf(stdout, nullptr, _IONBF, 0);
@@ -516,6 +575,7 @@ int main(int argc, char** argv) {
 	if (want("combat")) TestCombat(w);
 	if (want("police")) TestPolice(w);
 	if (want("pickups")) TestPickups(w);
+	if (want("roadblocks")) TestRoadblocks(w);
 	printf(fails ? "%d FAILED\n" : "all passed\n", fails);
 	return fails ? 1 : 0;
 }
