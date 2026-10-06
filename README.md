@@ -377,6 +377,9 @@ src/game/army.js          five-star army response; roadblocks.js (roadblocks & s
 src/ui/                   HUD, radar, pause menu & map, controller menu navigation, weaponwheel.js, phone.js
 vendor/three/             Three.js r186 (MIT), bundled
 server.mjs                zero-dependency static server + multiplayer relay
+tools/bundle.mjs          bundles the game into one page + game.js (npm run bundle -> dist/)
+tools/browser-test/       headless Chromium test runner and test scripts (see CLAUDE.md)
+CLAUDE.md                 working notes: how the game is wired, testing, the Unreal port's status
 Unreal/AutoTheftGrand/    the Unreal Engine 5 port (C++)
 ```
 

@@ -21,7 +21,12 @@ number, so the Unreal world has the same streets, buildings and parking spots as
 
 ## Phases
 
-**Phase 1: the world and driving (done).**
+**Status.** Phase 1 is written, but it has not yet been compiled against the real engine. It was developed
+in a Linux container: the generator was compiled and diffed against the JavaScript with g++, and the Unreal
+code was only syntax-checked against stand-in headers. The next step is building it on Windows with
+UE 5.8.3 and fixing what the real compiler finds. `CLAUDE.md` at the repo root has the steps.
+
+**Phase 1: the world and driving (written; first real build pending).**
 - World generation.
 - Every static mesh: terrain with streamed detail, roads, bridges, the railway, city ground, buildings,
   props, trees, water.
@@ -42,6 +47,15 @@ number, so the Unreal world has the same streets, buildings and parking spots as
 - Wanted level and police (police.js).
 - Car damage, fire and explosions; vehicle tumbling (vehicle.js `_tumble`).
 - WASTED and BUSTED screens. Replace the WASTED sound clip with your own before sharing the game.
+
+**Phase 3b: the GTA V layer** (added to the browser game after phase 1).
+- The modern HUD: a rectangular minimap with health, armour and special bars, and the police's vision cones
+  while they search.
+- The weapon wheel (weaponwheel.js) and the special ability (special.js), both with slow motion.
+- The phone (phone.js): contacts, timed cheats, photo mode.
+- Roadblocks and spike strips (roadblocks.js), and the army at five stars (army.js).
+- Armoured van heists (heists.js), the cinematic car camera, and the new vehicles: Stockade, Enforcer,
+  Sheriff SUV, Buffalo S, Baller, Tempest.
 
 **Phase 4: the rest of the vehicles.**
 - Motorbikes and bicycles, boats and police boats, planes, jets, helicopters, tanks (Fort Carver)

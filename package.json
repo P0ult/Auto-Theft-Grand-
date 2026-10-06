@@ -1,11 +1,17 @@
 {
   "name": "auto-theft-grand",
   "version": "1.0.0",
-  "description": "An open-world crime game in the browser: procedural city, driving with drifting, shooting, police, and a 22-mission story.",
+  "description": "An open-world crime game in the browser (procedural cities, driving, shooting, police up to the army, a 35-mission story), plus its Unreal Engine 5 port in Unreal/.",
   "type": "module",
   "private": true,
   "scripts": {
-    "start": "node server.mjs"
+    "start": "node server.mjs",
+    "bundle": "node tools/bundle.mjs",
+    "test:browser": "node tools/browser-test/run.mjs"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "esbuild": "^0.28.2",
+    "playwright": "^1.56.1"
+  }
 }
