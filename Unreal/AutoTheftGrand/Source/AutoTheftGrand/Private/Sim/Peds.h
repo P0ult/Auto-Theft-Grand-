@@ -58,9 +58,13 @@ public:
 	int jaywalker = -1;                   // -1 unset, 0 never
 	bool hasFleeSpeed = false; double fleeSpeed = 0;
 	double moneyDrop = 0;
-	// street crime (npccrime.js) keeps its state here
-	bool crimeTask = false, npcCase = false;
-	void* npcTask = nullptr;              // (a cop answering an NPC crime call: npccrime.js's record)
+	// street crime (npccrime.js) keeps its state here: what they're up to, their case, the case a cop is on
+	std::shared_ptr<struct CrimeTask> crimeTask;
+	std::shared_ptr<struct NpcCase> npcCase, npcTask;
+	int npcWanted = 0;                    // (the stars over their head)
+	bool shopClerk = false;
+	double loot = 0, crimeClock = NaN();
+	bool hasNpcAim = false; double npcAimAccuracy = 0, npcAimDamageMul = 0; // (a cop's aim before a shoot-out)
 	bool criminal = false;                // (vigilante targets: killing them is no crime)
 	// police (police.js): the car a cop came in, the spot a roadblock cop holds, when they next shout
 	Ref<Vehicle> homeCar;

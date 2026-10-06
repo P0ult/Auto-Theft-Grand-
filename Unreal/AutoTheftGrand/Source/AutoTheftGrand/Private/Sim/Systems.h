@@ -129,6 +129,7 @@ public:
 };
 
 // street crime (src/game/npccrime.js)
+struct NpcTag { Character* c; int n; bool hot; }; // (a suspect with stars showing)
 class INpcCrime {
 public:
 	virtual ~INpcCrime() = default;
@@ -136,6 +137,8 @@ public:
 	virtual bool jaywalk(Ped* p) = 0;
 	// a cop on a call to an NPC suspect (police copThink): true when that took care of the cop this frame
 	virtual bool copThink(Ped*, double) { return false; }
+	// everyone with stars over their head, for the HUD and the radar
+	virtual void tagged(std::vector<NpcTag>&) const {}
 };
 
 // animals (src/game/wildlife.js)

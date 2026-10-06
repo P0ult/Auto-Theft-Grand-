@@ -59,6 +59,9 @@ public:
 	bool onFire = false, exploded = false, sunk = false;
 	std::shared_ptr<Character> occupants[4];
 	bool sirenOn = false, sirenMute = false, lightsOn = false, horn = false; // (sirenMute: lights only)
+	// street crime (npccrime.js): the case a police car is on, the last bump, the last person hit, the last honk
+	std::shared_ptr<struct NpcCase> npcJob;
+	double crashT = -99, pedHitT = -99, hornT = 0;
 	double bodyPitch = 0, bodyRoll = 0, bodyPitchV = 0, bodyRollV = 0, bodyY = 0, bodyYV = 0;
 	bool airborne = false;
 	double vy = 0, lastGroundY = 0, groundVy = 0, groundPitch = 0, groundRoll = 0;

@@ -41,7 +41,7 @@ public:
 	bool fixedCruise = false;
 	std::vector<std::shared_ptr<LanePath>> paths;
 	double s = 0, blockedTime = 0, honkTimer = 0, panic = 0;
-	bool ignoreLights = false;
+	bool ignoreLights = false, reckless = false; // (reckless: npccrime.js speeders)
 	double stuck = 0, impatient = 0, wait = 0, jam = 0;
 	bool queued = false, waitingLight = false;
 	struct Bypass { Ref<Vehicle> v; double side; double t; };
@@ -50,7 +50,7 @@ public:
 	Vehicle* obsObj = nullptr;
 
 	void update(double dt) override;
-	void resnap();
+	virtual void resnap();
 	void start(const LaneStart& st);
 	std::shared_ptr<LanePath> lanePath(int e, int dir, int lane);
 	V3 pointAhead(double ahead);

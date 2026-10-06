@@ -4,6 +4,7 @@
 #include "Sim/Effects.h"
 #include "Sim/Game.h"
 #include "Sim/Gameplay.h"
+#include "Sim/NpcCrime.h"
 #include "Sim/Hud.h"
 #include "Sim/Peds.h"
 #include "Sim/Pickups.h"
@@ -554,6 +555,57 @@ static void TestRoadblocks(World& w) {
 	Check(rb->blocks.empty(), "cleared away once you're gone");
 }
 
+// street crime: a crime a patrol sees puts stars on the suspect and the unit responds; a suspect who complies
+// is cuffed and driven off; muggers, car thieves and jaywalkers get staged near the player
+static void TestNpcCrime(World& w) {
+	printf("npccrime\n");
+	auto g = w.game(true);
+	PopulateWorld(*g);
+	ToStreet(w, *g);
+	Player& p = *g->player;
+	p.invincible = true;
+	NpcCrime* nc = dynamic_cast<NpcCrime*>(g->npcCrime);
+	Check(nc != nullptr, "installed");
+	if (!nc) return;
+	Run(*g, 1);
+	// a suspect next to a patrol car
+	Ped* s = g->peds->spawnPed(p.pos.x + 30, p.pos.z + 6);
+	Vehicle* car = g->policeSys->spawnCar(false, &s->pos);
+	printf("  patrol car %s, %.0f m from the suspect\n", car ? "spawned" : "missing", car ? Hypot(car->pos.x - s->pos.x, car->pos.z - s->pos.z) : 0.0);
+	if (!car) { Check(false, "a patrol car"); return; }
+	NpcCrime::CommitOpts o; o.hasWitness = true; o.witness = car;
+	NpcCase* rec = nc->commit(s, "assault", o);
+	Check(rec && rec->known && rec->stars == 1 && s->npcWanted == 1, "a witnessed assault: one star");
+	Check(rec && rec->unit && rec->phase == "respond" && car->npcJob, "the unit responds");
+	if (!rec) return;
+	rec->force = "comply";
+	std::vector<NpcTag> tags; nc->tagged(tags);
+	Check(tags.size() == 1 && tags[0].c == s, "tagged for the HUD");
+	std::string why; double tArr = 0;
+	auto keep = s->npcCase;
+	for (int i = 0; i < 30 * 90 && keep->phase != "closed"; i++) g->frame(1.0 / 30);
+	why = keep->why; tArr = g->time;
+	printf("  case %s after %.0f s (phase seen: %s), suspect in the car %d\n", why.c_str(), tArr, keep->phase.c_str(), s->vehicle == car ? 1 : 0);
+	Check(why == "arrested" && s->vehicle == car, "a suspect who complies is cuffed and put in the cruiser");
+	bool listed = false; for (auto& c : nc->cases) if (c == keep) listed = true;
+	Check(!car->npcJob && !listed && !s->npcCase, "the case is closed");
+	// staged crimes
+	int mug = 0, steal = 0, jay = 0;
+	for (int k = 0; k < 6; k++) { if (nc->stage("mug")) mug++; if (nc->stage("steal")) steal++; if (nc->stage("jaywalk")) jay++; Run(*g, 0.5); }
+	printf("  staged: %d muggings, %d car thefts, %d jaywalkers\n", mug, steal, jay);
+	Check(mug > 0 && steal > 0 && jay > 0, "muggings, car thefts and jaywalking get staged");
+	int robbed = 0, stolen = 0;
+	for (int i = 0; i < 30 * 40; i++) {
+		g->frame(1.0 / 30);
+		for (auto& c : nc->cases) { if (c->crime == "mugging") robbed = 1; if (c->crime == "gta") stolen = 1; }
+	}
+	printf("  within 40 s: a mugging %d, a car theft %d; %zu cases open\n", robbed, stolen, nc->cases.size());
+	Check(robbed + stolen > 0, "a mugging or a car theft happens");
+	Run(*g, 50);
+	printf("  after 90 s: %zu cases, %zu people, %zu cars\n", nc->cases.size(), g->peds->list.size(), g->vehicles.list.size());
+	Check(true, "runs for 90 s");
+}
+
 int main(int argc, char** argv) {
 	InstallCrashTrace();
 	setvbuf(stdout, nullptr, _IONBF, 0);
@@ -576,6 +628,7 @@ int main(int argc, char** argv) {
 	if (want("police")) TestPolice(w);
 	if (want("pickups")) TestPickups(w);
 	if (want("roadblocks")) TestRoadblocks(w);
+	if (want("npccrime")) TestNpcCrime(w);
 	printf(fails ? "%d FAILED\n" : "all passed\n", fails);
 	return fails ? 1 : 0;
 }

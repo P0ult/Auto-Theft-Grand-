@@ -1,0 +1,23 @@
+# Street crime: a suspect in front of you, seen by a patrol, gets stars over their head; the unit comes and
+# arrests them. Then the director stages a mugging and a car theft nearby.
+wait 1
+ATG.God 1
+ATG.Time 13
+ATG.Teleport -612 376 -2.36
+wait 2
+ATG.Crime assault comply
+wait 1
+ATG.Crimes
+shot npccrime_stars
+wait 12
+ATG.Crimes
+shot npccrime_unit
+wait 10
+ATG.Crimes
+shot npccrime_arrest
+ATG.Crime mug
+ATG.Crime steal
+wait 8
+ATG.Crimes
+shot npccrime_mugging
+quit

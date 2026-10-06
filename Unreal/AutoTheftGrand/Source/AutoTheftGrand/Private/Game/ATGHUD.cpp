@@ -1,6 +1,9 @@
 #include "Game/ATGHUD.h"
 #include "Game/ATGPlayerController.h"
 #include "Game/ATGWorld.h"
+#include "Game/ATGCoords.h"
+#include "Game/ATGPainter.h"
+#include "Sim/Ragdoll.h"
 #include "Sim/Game.h"
 #include "Sim/Hud.h"
 
@@ -89,6 +92,7 @@ void AATGHUD::DrawHUD() {
 	const bool bDead = G->hudModel && G->hudModel->dead;
 	DeadAlpha = Approach(DeadAlpha, bDead ? 0.f : 1.f, 2.f, Dt);
 	if (DeadAlpha <= 0) { DrawOverlays(G, Dt); return; }
+	DrawTags(G);
 	// the minimap and its bars, bottom left (hud-radar: 300 x 190, left 28, bottom 26, the bars 13 px under it)
 	DrawMinimap(G, W, Dt, 28 * Ui, Canvas->ClipY - (26 + 13 + 190) * Ui);
 	DrawTopRight(G, Canvas->ClipX - 30 * Ui, 22 * Ui);
@@ -203,6 +207,55 @@ void AATGHUD::DrawMessages(atg::Game* G, float Dt) {
 	if (M->money.t > 0) Text(UTF8_TO_TCHAR(M->money.text.c_str()), Canvas->ClipX - 40 * Ui, 112 * Ui, Small, 1.6f * Ui, FLinearColor(0.49f, 1.f, 0.54f, FMath::Min(1.f, (float)M->money.t * 3.f) * A), 1.f);
 	if (M->dispatchLine.t > 0) Text(TEXT("DISPATCH ") + Plain(M->dispatchLine.text), Canvas->ClipX - 40 * Ui, 160 * Ui, Small, 1.3f * Ui, FLinearColor(0.87f, 0.9f, 1.f, FMath::Min(1.f, (float)M->dispatchLine.t * 3.f) * A), 1.f);
 	if (!M->objectiveText.empty() && M->subs.t <= 0) Text(Plain(M->objectiveText), Canvas->ClipX / 2, Canvas->ClipY * 0.92f, Small, 1.3f * Ui, FLinearColor(1, 1, 1, 0.8f * A), 0.5f);
+}
+
+// hud.js: the speech bubbles over people's heads and the wanted stars over NPC suspects
+void AATGHUD::DrawTags(atg::Game* G) {
+	if (!PlayerOwner) return;
+	const atg::V3 Cam = G->rig.camPos;
+	auto Screen = [&](const atg::V3& P, FVector2D& Out) { return PlayerOwner->ProjectWorldLocationToScreen(ATG::ToUE(P), Out, true); };
+	auto Head = [](const atg::Character* C) { return C->ragdolling && C->ragdoll ? C->ragdoll->center() : C->pos; };
+	FATGPainter c(Canvas);
+	UFont* Font = GEngine->GetSmallFont();
+	// the stars: yellow with a black edge, flashing red while the police are on them
+	std::vector<atg::NpcTag> Suspects;
+	if (G->npcCrime) G->npcCrime->tagged(Suspects);
+	for (const atg::NpcTag& T : Suspects) {
+		const atg::V3 H = T.c->vehicle ? T.c->vehicle->pos : Head(T.c);
+		const double D = (H - Cam).length();
+		FVector2D S;
+		if (D > 90 || !Screen(atg::V3(H.x, H.y + (T.c->vehicle ? 2.1 : 2.0), H.z), S)) continue;
+		const float Fs = FMath::Clamp(30 - (float)D * 0.22f, 13.f, 26.f) * Ui, R = Fs * 0.42f, Gap = Fs * 0.95f;
+		const bool Red = T.hot && FMath::Fmod((float)G->time, 0.5f) >= 0.25f;
+		for (int I = 0; I < T.n; I++) {
+			const float X = (float)S.X + (I - (T.n - 1) / 2.f) * Gap, Y = (float)S.Y - R;
+			c.BeginPath();
+			for (int K = 0; K < 10; K++) { const float Rr = K % 2 ? R * 0.43f : R, A = K / 10.f * PI * 2 - PI / 2; if (K == 0) c.MoveTo(X + FMath::Cos(A) * Rr, Y + FMath::Sin(A) * Rr); else c.LineTo(X + FMath::Cos(A) * Rr, Y + FMath::Sin(A) * Rr); }
+			c.ClosePath();
+			c.Fill = Red ? CssColor(0xff5a4a) : CssColor(0xf7d154); c.FillPath();
+			c.Stroke = FLinearColor::Black; c.LineWidth = 1.5f * Ui; c.StrokePath();
+		}
+	}
+	// speech: a white rounded bubble with a tail, bold dark text, fading over its last half second
+	if (atg::HudModel* M = G->hudModel) for (const auto& Sp : M->speeches) {
+		const atg::Character* C = Sp.who.get();
+		if (!C || C->removed) continue;
+		const atg::V3 H = Head(C);
+		FVector2D S;
+		if ((H - Cam).length() > 35 || !Screen(atg::V3(H.x, H.y + 2.1, H.z), S)) continue;
+		c.Alpha = FMath::Min(1.f, (float)Sp.t * 2.f);
+		const FString Str = Plain(Sp.text);
+		float Tw = 0, Th = 0;
+		Canvas->TextSize(Font, Str, Tw, Th);
+		const float Fs = 14 * Ui, K = Th > 0 ? Fs / Th : 1.f, W = Tw * K + 20 * Ui, Hh = Fs + 10 * Ui;
+		const float X = (float)S.X - W / 2, Y = (float)S.Y - Hh - 6 * Ui;
+		c.Fill = FLinearColor(1, 1, 1, 0.92f);
+		c.BeginPath(); c.RoundRect(X, Y, W, Hh, 12 * Ui); c.FillPath();
+		c.BeginPath(); c.MoveTo((float)S.X - 6 * Ui, Y + Hh); c.LineTo((float)S.X + 6 * Ui, Y + Hh); c.LineTo((float)S.X, Y + Hh + 6 * Ui); c.ClosePath(); c.FillPath();
+		c.Fill = CssColor(0x111111);
+		c.Text(Str, (float)S.X, Y + Hh / 2, Font, Fs, 0.5f, 0.5f);
+		c.Alpha = 1;
+	}
 }
 
 void AATGHUD::DrawOverlays(atg::Game* G, float Dt) {

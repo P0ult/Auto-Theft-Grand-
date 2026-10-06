@@ -23,7 +23,9 @@ browser game, knocked-over street furniture and torn-off panels fly, tyres leave
 marks, and explosions bloom into fireballs and smoke columns. Crimes bring the police: witnessed crimes
 raise the stars, patrol cars turn into pursuers that ram you, cops shoot or come to arrest you, and at three
 stars the helicopter circles overhead with its searchlight and roadblocks close the road ahead, with a spike
-strip at four stars. Stay out of sight long enough and they give up.
+strip at four stars. Stay out of sight long enough and they give up. The city has its own crime too:
+jaywalkers, speeders, road rage, muggings and car thefts, with stars over the culprit and a patrol that
+writes a ticket, gives chase or makes an arrest.
 Health, armour, cash and weapons lie about the city, dropped by the dead or waiting to respawn, with 30
 hidden packages to find; the Spray Shack repaints and repairs your car and loses the police for $100. The Sol Line's passenger and freight trains run
 their timetable; board one at a platform with F, or climb into the cab and drive it. Missions, roadblocks, the army
@@ -130,13 +132,14 @@ Unreal's axes (centimetres, Z up) only at the edges; `Game/ATGCoords.h` has the 
 screen with fixed 1/30 s frames and a script of console commands (`ATG.Teleport`, `ATG.Press KeyW`,
 `ATG.Spawn zenith`, `ATG.Enter`, `ATG.Time 21`, `ATG.State`, `ATG.City`, `ATG.Station union`, `ATG.Kill`,
 `ATG.Bust`, `ATG.Explode`, `ATG.Wreck`, `ATG.Fx`, `ATG.Give rpg 5`, `ATG.Wanted 3`, `ATG.NoBust 1`, `ATG.Police`,
-`ATG.CamHeli`, `ATG.Roadblock`, `ATG.CamRoadblock`, `ATG.Press MouseRight MouseLeft`, `shot name`,
+`ATG.CamHeli`, `ATG.Roadblock`, `ATG.CamRoadblock`, `ATG.Crime mug`, `ATG.Crimes`, `ATG.Press MouseRight MouseLeft`, `shot name`,
 `wait 2`, `quit`); screenshots go to `Saved/Screenshots/WindowsEditor/ATG/`. `Tools/tests/city.txt` and
 `city2.txt` look at the traffic, the people, the traffic lights and the trains; `human.txt` at a person
 up close, walking and running; `wasted.txt` at WASTED and BUSTED; `effects.txt` at an explosion and a burning
 car; `hud.txt` at the HUD on foot and in a car; `combat.txt` at aiming, shooting and the RPG; `police.txt` at a
 pursuit and the helicopter by night and by day; `pickups.txt` at a pickup and the save and Spray Shack
-markers; `roadblocks.txt` at a roadblock and its spike strip.
+markers; `roadblocks.txt` at a roadblock and its spike strip; `npccrime.txt` at a
+suspect's stars, the patrol that comes for them and a staged car theft.
 
 The simulation is tested without Unreal. `Tools/native.sh` builds a tool with MSVC from Git Bash:
 
@@ -145,7 +148,7 @@ cd Tools
 ./native.sh simtest.exe simtest.cpp && ./simtest.exe          # walking, driving, crashes, parked cars,
                                                                # traffic and people, trains, boarding,
                                                                # WASTED, effects, combat, police, pickups,
-                                                               # roadblocks
+                                                               # roadblocks, street crime
 DEBUG=1 ./native.sh simtestd.exe simtest.cpp                   # with symbols: a crash prints a stack trace
 ./simtest.exe vehcompare > cppveh.txt                          # the car physics against the browser game's:
 node --import ./three-hook.mjs vehcompare.mjs > jsveh.txt      # identical to 4 decimals

@@ -4,6 +4,7 @@
 #include "Game.h"
 #include "Gameplay.h"
 #include "Hud.h"
+#include "NpcCrime.h"
 #include "Peds.h"
 #include "Pickups.h"
 #include "Police.h"
@@ -24,7 +25,7 @@ void InstallSystems(Game& g) {
 	g.traffic = g.addSystem("traffic", std::make_unique<Traffic>(g));
 	g.policeSys = g.addSystem("police", std::make_unique<Police>(g));
 	g.police = g.policeSys;
-	// (npcCrime: next)
+	g.npcCrime = g.addSystem("npcCrime", std::make_unique<NpcCrime>(g));
 	g.pickupsSys = g.addSystem("pickups", std::make_unique<Pickups>(g));
 	g.pickups = g.pickupsSys;
 	// (military, army: next)

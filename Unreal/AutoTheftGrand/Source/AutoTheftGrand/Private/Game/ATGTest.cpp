@@ -7,6 +7,7 @@
 #include "Sim/Weapons.h"
 #include "Sim/Game.h"
 #include "Sim/Peds.h"
+#include "Sim/NpcCrime.h"
 #include "Sim/Police.h"
 #include "Sim/Roadblocks.h"
 #include "Sim/Rail.h"
@@ -200,6 +201,30 @@ ATG_CMD(CmdCamRoadblock, "ATG.CamRoadblock", "ATG.CamRoadblock [spike|0]: look a
 	}
 	const atg::V3 At(B.x, B.y + 0.8, B.z);
 	G->rig.setCinematic(atg::V3(B.x - B.tx * 24 + B.ux * 3, B.y + 2.5, B.z - B.tz * 24 + B.uz * 3), At, 50);
+})
+ATG_CMD(CmdCrime, "ATG.Crime", "ATG.Crime mug|steal|speed|jaywalk|assault: stage a street crime near the player (assault: a suspect in front of you, seen by a patrol)", {
+	atg::Game* G = Sim(W);
+	atg::NpcCrime* N = G ? dynamic_cast<atg::NpcCrime*>(G->npcCrime) : nullptr;
+	if (!N || !Args.Num()) return;
+	const std::string K = TCHAR_TO_UTF8(*Args[0]);
+	if (K == "assault") {
+		atg::Player& P = *G->player;
+		atg::Ped* S = G->peds->spawnPed(P.pos.x + std::sin(P.yaw) * 7, P.pos.z + std::cos(P.yaw) * 7);
+		atg::Vehicle* Car = G->policeSys ? G->policeSys->spawnCar(false, &S->pos) : nullptr;
+		atg::NpcCrime::CommitOpts O; O.hasWitness = true; O.witness = Car;
+		atg::NpcCase* R = N->commit(S, "assault", O);
+		if (R && Args.Num() > 1) R->force = TCHAR_TO_UTF8(*Args[1]);
+		UE_LOG(LogATG, Display, TEXT("ATG crime: assault, case %s, unit %s"), R ? TEXT("open") : TEXT("refused"), Car ? TEXT("on its way") : TEXT("none"));
+		return;
+	}
+	UE_LOG(LogATG, Display, TEXT("ATG crime: %s %s"), *Args[0], N->stage(K) ? TEXT("staged") : TEXT("found nobody"));
+})
+ATG_CMD(CmdCrimes, "ATG.Crimes", "ATG.Crimes: log the open street-crime cases", {
+	atg::Game* G = Sim(W);
+	atg::NpcCrime* N = G ? dynamic_cast<atg::NpcCrime*>(G->npcCrime) : nullptr;
+	if (!N) return;
+	for (const auto& R : N->cases) UE_LOG(LogATG, Display, TEXT("ATG case: %s, %d stars, %s, phase %s, reaction %s, unit %d"), UTF8_TO_TCHAR(R->crime.c_str()), R->stars, R->known ? TEXT("known") : TEXT("unknown"), UTF8_TO_TCHAR(R->phase.c_str()), UTF8_TO_TCHAR(R->reaction.c_str()), R->unit ? 1 : 0);
+	UE_LOG(LogATG, Display, TEXT("ATG crimes: %d open"), (int32)N->cases.size());
 })
 ATG_CMD(CmdPolice, "ATG.Police", "ATG.Police: log the wanted level, the units and the helicopter", {
 	atg::Game* G = Sim(W);
