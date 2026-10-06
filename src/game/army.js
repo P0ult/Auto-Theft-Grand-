@@ -200,7 +200,7 @@ export class Army {
     const lead = clamp(d / 190, 0, 1.2);
     v.aimAt = (v.aimAt || new THREE.Vector3()).set(tp.x + tv.x * lead + u.miss.x, tp.y + 0.8, tp.z + tv.z * lead + u.miss.z);
     u.fireT -= dt;
-    if (see && u.fireT <= 0 && v.reload <= 0 && d > 12) {
+    if (see && u.fireT <= 0 && v.reload <= 0 && d > 12 && !this._friendlyNear(v.aimAt, 11, v)) {
       const want = wrapAngle(Math.atan2(v.aimAt.x - v.pos.x, v.aimAt.z - v.pos.z) - v.yaw);
       if (Math.abs(wrapAngle(want - v.turretYaw)) < 0.07) { v.fireCannon(); u.fireT = rand(3.5, 5.5); }
     }
@@ -255,7 +255,15 @@ export class Army {
       u.burst -= dt;
       if (v.gunT <= 0 && see) { v.fireMinigun(); v.gunT = 0.09; }
     } else if (u.burstT <= 0 && see && d < 170) { u.burst = 1.4; u.burstT = rand(3, 5); }
-    if (u.rocketT <= 0 && see && d > 30 && d < 200) { v.fireRocket(); u.rocketT = rand(5, 8); }
+    if (u.rocketT <= 0 && see && d > 30 && d < 200 && !this._friendlyNear(v.aimAt, 9, v)) { v.fireRocket(); u.rocketT = rand(5, 8); }
+  }
+
+  // own troops or vehicles near where a shell or rocket would land (they hold fire rather than hit them)
+  _friendlyNear(p, r, self) {
+    const r2 = r * r;
+    for (const s of this.troops) if (!s.dead && !s.removed && (s.pos.x - p.x) ** 2 + (s.pos.z - p.z) ** 2 < r2) return true;
+    for (const o of this.units) { const w = o.veh; if (w !== self && !w.removed && !w.isWrecked && !o.leaving && (w.pos.x - p.x) ** 2 + (w.pos.z - p.z) ** 2 < r2) return true; }
+    return false;
   }
 
   // ------------------------------------------------------------------ tidy-up
