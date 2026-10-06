@@ -48,6 +48,12 @@ void HudModel::setBar(const std::string* label, double v, const std::string& col
 	bar = { true, *label, Clamp(v, 0, 1), color };
 }
 
+// the safehouse: no saving on a job or in free roam (the save menu itself comes with save and load)
+void HudModel::promptSave() {
+	if (game.missionActive) { help("You can't save during a mission."); return; }
+	if (game.freeRoam) { help("Free roam isn't saved \xe2\x80\x94 your story save is left untouched."); return; }
+}
+
 void HudModel::moneyFlash(double amount) {
 	std::string s = FormatMoney(std::fabs(amount));
 	// (.replace('$0000', '$').replace(/^\$0+/, '$'))

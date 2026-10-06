@@ -1,0 +1,16 @@
+# Pickups: a health pickup over its glow, the safehouse's save marker by night, the Spray Shack's marker.
+wait 1
+ATG.God 1
+ATG.Time 15
+ATG.Teleport 64 -256 3.14
+wait 1
+shot pickups_health
+ATG.Teleport -594.8 348 3.14
+ATG.Time 22
+wait 1
+shot pickups_save
+ATG.Time 15
+ATG.Teleport -302 -312 3.14
+wait 1
+shot pickups_spray
+quit

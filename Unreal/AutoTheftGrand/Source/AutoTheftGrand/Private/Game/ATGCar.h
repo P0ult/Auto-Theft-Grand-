@@ -53,6 +53,7 @@ private:
 	void BuildTrain(atg::Train* T);
 	void SyncTrain(atg::Train* T);
 	int32 DentVersion = 0;
+	uint32 PaintColor = 0; // (the colour of a respray)
 	int32 Detached = 0;
 	bool bGlassBroken = false, bBurnt = false, bLights = false;
 	int32 TailState = -1;

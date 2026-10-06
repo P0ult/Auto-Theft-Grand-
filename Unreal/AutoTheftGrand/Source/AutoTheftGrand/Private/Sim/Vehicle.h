@@ -45,6 +45,7 @@ public:
 	std::string type;
 	const VehicleDef& def;
 	uint32_t color;
+	bool painted = false; // (resprayed: the paint is color, even on a police livery)
 	const VehicleModel* model = nullptr; // cars, vans and trucks (vehiclemodels.js)
 	VehicleLayout layout;
 

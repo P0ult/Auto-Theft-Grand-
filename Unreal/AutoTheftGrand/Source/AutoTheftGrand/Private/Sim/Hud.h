@@ -41,6 +41,7 @@ public:
 	void clearObjective() override { objectiveText.clear(); }
 	void setBar(const std::string* label, double v = 0, const std::string& color = "#e63946") override;
 	void moneyFlash(double amount) override;
+	void promptSave() override;
 	void dispatch(const std::string& text, const std::string& where = "") override;
 	void interact(const std::string& text) override { interactText = text; }
 	void fade(double dur = 0.5, std::function<void()> mid = nullptr) override;

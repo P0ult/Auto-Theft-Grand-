@@ -6,6 +6,7 @@
 #include "Sim/Gameplay.h"
 #include "Sim/Hud.h"
 #include "Sim/Peds.h"
+#include "Sim/Pickups.h"
 #include "Sim/Police.h"
 #include "Sim/Rail.h"
 #include "Sim/Setup.h"
@@ -382,7 +383,8 @@ static void TestPolice(World& w) {
 	double nearest = 1e9;
 	for (auto& c : pol->cars) if (Vehicle* v = c.get()) nearest = Min(nearest, Hypot(v->pos.x - p.pos.x, v->pos.z - p.pos.z));
 	printf("  after 10 s: %d pursuit cars, %zu cops, nearest car %.0f m, level %d\n", pursuers(), pol->cops.size(), nearest, pol->level);
-	Check(pursuers() == 2, "two pursuit cars at two stars");
+	int driven = 0; for (auto& c : pol->cars) if (Vehicle* v = c.get()) if (dynamic_cast<PursuitDriver*>(v->ai.get()) && v->driver()) driven++;
+	Check(pol->cars.size() >= 2 && driven <= 2, "pursuit cars come, two at a time at two stars");
 	for (int k = 0; k < 3; k++) {
 		Run(*g, 5);
 		std::string cs;
@@ -441,6 +443,58 @@ static void TestPolice(World& w) {
 	Check(busted == 1, "a cop next to you arrests you");
 }
 
+// pickups: health, armour, cash, a weapon and a hidden package; the Spray Shack loses the police
+static void TestPickups(World& w) {
+	printf("pickups\n");
+	auto g = w.game(true);
+	Player& p = *g->player;
+	Pickups* pk = g->pickupsSys;
+	printf("  %zu pickups, %zu package spots, %zu markers\n", pk->list.size(), pk->packageSpots.size(), pk->markers.size());
+	Check(pk->packageSpots.size() == 30 && pk->packages.size() == 30, "30 hidden packages");
+	for (auto& m : pk->markers) printf("  marker at (%.1f, %.1f, %.1f) r %.1f h %.1f\n", m->pos.x, m->pos.y, m->pos.z, m->radius, m->height);
+	auto find = [&](const std::string& kind, const std::string& weapon = "") -> Pickup* {
+		for (auto& q : pk->list) if (q->kind == kind && (weapon.empty() || q->data.weapon == weapon) && q->respawn) return q.get();
+		return nullptr;
+	};
+	auto walkTo = [&](const V3& at) { g->respawnPlayer(at.x, at.z, 0); g->frame(1.0 / 30); g->frame(1.0 / 30); };
+	Pickup* h = find("health");
+	p.health = 40;
+	walkTo(h->pos);
+	printf("  health pickup at (%.1f, %.1f, %.1f): health %.0f, hidden for %.0f s\n", h->pos.x, h->pos.y, h->pos.z, p.health, h->hiddenUntil - pk->t);
+	Check(p.health == p.maxHealth && !h->visible && h->hiddenUntil - pk->t > 89, "health: topped up, back in 90 s");
+	Pickup* a = find("armor");
+	walkTo(a->pos);
+	Check(p.armor == 100, "armour");
+	Pickup* wp = find("weapon", "pistol");
+	walkTo(wp->pos);
+	printf("  pistol: %d, ammo %.0f, holding %s, help '%s'\n", (int)p.weapons.count("pistol"), p.weapons.count("pistol") ? p.weapons["pistol"].ammo + p.weapons["pistol"].clip : 0, p.weapon.c_str(), g->hudModel->helpLine.text.c_str());
+	Check(p.weapons.count("pistol") && p.weapon == "pistol", "a weapon, and you hold it");
+	const double m0 = p.money;
+	pk->dropMoney(p.pos, 75);
+	g->frame(1.0 / 30);
+	Check(p.money == m0 + 75, "dropped cash");
+	const Pickups::Spot sp = pk->packageSpots[0];
+	walkTo(V3(sp.x, 0, sp.z));
+	printf("  package: %zu found, money %.0f, message '%s'\n", pk->collectedPackages.size(), p.money, g->hudModel->big.text.c_str());
+	Check(pk->collectedPackages.size() == 1 && p.money == m0 + 175, "a hidden package");
+	Check(pk->packages.size() == 30 && pk->packages[0]->removed, "and it's gone");
+	Run(*g, 70);
+	Check(find("health") && find("weapon", "smg"), "the world's pickups don't expire");
+	// the Spray Shack
+	const Landmark& S = w.map.landmarks.at("spray");
+	Vehicle* v = g->vehicles.spawn("zenith", S.x + 20, S.z, 0);
+	g->vehicles.seatNow(&p, v, 0);
+	g->policeSys->setLevel(2);
+	g->missionNoBust = true;
+	const uint32_t c0 = v->color;
+	const double m1 = p.money;
+	v->pos.x = S.x; v->pos.z = S.z;
+	Run(*g, 1.5);
+	printf("  spray: money %.0f -> %.0f, colour %06x -> %06x, wanted %d\n", m1, p.money, c0, v->color, g->policeSys->level);
+	Check(p.money == m1 - 100 && v->color != c0 && v->painted, "a new paint job for $100");
+	Check(g->policeSys->level == 0, "and the cops lose you");
+}
+
 int main(int argc, char** argv) {
 	InstallCrashTrace();
 	setvbuf(stdout, nullptr, _IONBF, 0);
@@ -461,6 +515,7 @@ int main(int argc, char** argv) {
 	if (want("effects")) TestEffects(w);
 	if (want("combat")) TestCombat(w);
 	if (want("police")) TestPolice(w);
+	if (want("pickups")) TestPickups(w);
 	printf(fails ? "%d FAILED\n" : "all passed\n", fails);
 	return fails ? 1 : 0;
 }

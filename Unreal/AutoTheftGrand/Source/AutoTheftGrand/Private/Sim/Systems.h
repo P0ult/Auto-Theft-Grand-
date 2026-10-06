@@ -79,6 +79,7 @@ public:
 	virtual void clearObjective() {}
 	virtual void setBar(const std::string* /*label (null hides it)*/, double = 0, const std::string& = "#e63946") {}
 	virtual void moneyFlash(double) {}
+	virtual void promptSave() {} // (the safehouse's save point)
 	virtual void dispatch(const std::string&, const std::string& = "") {}
 	virtual void interact(const std::string&) {}
 	// fade to black over dur seconds, call mid, fade back in

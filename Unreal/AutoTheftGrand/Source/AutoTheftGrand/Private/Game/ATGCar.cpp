@@ -129,6 +129,8 @@ void AATGCar::Sync(float Dt) {
 	if (V && bTrain) { SyncTrain(static_cast<atg::Train*>(V)); return; }
 	if (!V || !Model) return;
 	SetActorTransform(ATG::ToUE(V->groupMatrix()));
+	// a respray (the Spray Shack)
+	if (V->painted && V->color != PaintColor && PaintMat) { PaintColor = V->color; PaintMat->SetVectorParameterValue(TEXT("Color"), Hex(V->color)); }
 	const double Y = FMath::Clamp(V->bodyY, -0.15, 0.15) + (V->def.hydraulics ? FMath::Clamp(V->hydraulic, -0.1, 0.5) : 0) - (V->flat ? 0.07 : 0);
 	Body->SetRelativeTransform(ATG::LocalToUE(atg::M4::Compose(atg::V3(0, Y, 0), atg::Quat::FromEuler(V->bodyPitch, 0, V->bodyRoll))));
 	auto Hinge = [](USceneComponent* C, const atg::Pt3& P, const atg::Quat& Q) { if (C) C->SetRelativeTransform(ATG::LocalToUE(atg::M4::Compose(atg::V3(P[0], P[1], P[2]), Q))); };

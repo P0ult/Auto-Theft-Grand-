@@ -3,6 +3,7 @@
 #include "Game/ATGCar.h"
 #include "Game/ATGCoords.h"
 #include "Game/ATGEffects.h"
+#include "Game/ATGPickups.h"
 #include "Game/ATGPoliceHeli.h"
 #include "Game/ATGHUD.h"
 #include "Game/ATGPerson.h"
@@ -118,6 +119,8 @@ void AATGGameMode::SyncViews(float Dt) {
 	if (Effects) Effects->Sync(G);
 	if (!PoliceHeli) { FActorSpawnParameters P; P.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn; PoliceHeli = W->SpawnActor<AATGPoliceHeli>(AATGPoliceHeli::StaticClass(), FTransform::Identity, P); }
 	if (PoliceHeli) PoliceHeli->Sync(G);
+	if (!PickupsView) { FActorSpawnParameters P; P.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn; PickupsView = W->SpawnActor<AATGPickups>(AATGPickups::StaticClass(), FTransform::Identity, P); }
+	if (PickupsView) PickupsView->Sync(G);
 	// the world streams round the player
 	atg::Player& Pl = *G->player;
 	World->SetFocus(ATG::ToUE(Pl.vehicle ? Pl.vehicle->pos : Pl.pos));

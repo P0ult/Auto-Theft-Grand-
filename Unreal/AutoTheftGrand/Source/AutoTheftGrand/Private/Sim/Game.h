@@ -43,6 +43,8 @@ struct Blip {
 	std::string icon, letter;
 	uint32_t color = 0xffffff;
 	bool small = false, noEdge = false, square = false;
+	std::string label;   // (the map's legend)
+	bool marker = false; // (a mission or service marker's blip)
 };
 
 struct Quality { int peds = 38, traffic = 28; double drawDist = 3000; };
@@ -114,9 +116,10 @@ public:
 	std::map<std::string, double> gangDensity; // (missions thin gangs out)
 	bool disableAmbient = false;               // (no ambient traffic or pedestrians: some missions)
 	// what the missions and other systems tell the police (missions.js maxWanted / noBust, vigilante.active)
-	double missionMaxWanted = NaN(); bool missionNoBust = false, vigilanteActive = false;
+	double missionMaxWanted = NaN(); bool missionNoBust = false, missionNoSpray = false, vigilanteActive = false;
 	// (systems the police reset after WASTED / BUSTED)
 	System* army = nullptr; System* roadblocks = nullptr;
+	class Pickups* pickupsSys = nullptr; // (the pickups and markers, for the systems that place them)
 	class Police* policeSys = nullptr; // (the police itself, for the systems that spawn units through it)
 	double viewAspect = 16.0 / 9.0;            // (the screen's, for what the camera can see)
 

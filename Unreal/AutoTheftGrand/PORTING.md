@@ -32,6 +32,7 @@ pad, and will play its sounds.
 | world/environment.js | `Sim/Env` | The clock and the weather; `ATGWorld` lights the sky from it. |
 | game/traffic.js | `Sim/Traffic` | Lane following, traffic lights (the shaders' clock is the simulation's, so the lamps and the cars agree), give way, roundabouts, merges, queues, passing broken-down cars, panic at gunfire, spawning and despawning. |
 | game/peds.js | `Sim/Peds` | Spawning on the walk graph, wandering, fleeing, gangs on their turf, followers and guards. Cops think in the police system; street crime comes with npccrime.js. |
+| game/pickups.js | `Sim/Pickups`, `ATGPickups` | Health, armour, cash and weapon pickups (the world's respawn after 90 s; drops last 40 to 45 s), the 30 hidden packages and the safehouse rewards, the markers (the cylinder's shader evaluated per ring of vertices), the Spray Shack (paint, repairs, loses the police) and the save point (the save menu comes with save and load). Big Bun's `eat` is there for the shops. |
 | game/police.js | `Sim/Police`, `ATGPoliceHeli` | All of it: heat and the six thresholds, witnesses, evading (10 + 5 x stars seconds out of sight), patrol cars, pursuit drivers that route along the roads and then ram, cops on foot who shoot or come to arrest you, roadblock cops holding their line, BUSTED, and the helicopter with its searchlight and its sniper at four stars. The helicopter's rotor sound comes with the audio. |
 | game/railsystem.js, entities/train.js | `Sim/Rail`, `Sim/Train`, `Gen/TrainModels` | The timetable, the single-track sections and the Fern Creek passing loop, level crossings, boarding, driving from the cab. The trains run to the metre as in the browser game. |
 | game/gameplay.js | `Sim/Gameplay` | Stats, WASTED and BUSTED (slow motion, the death camera, the respawn at the hospital or the police station, the bill), drift and stunt bonuses, smoke and fire on damaged cars, skid marks, first-time hints. |
@@ -47,7 +48,7 @@ pad, and will play its sounds.
 **Status.** Phase 1 builds and runs on UE 5.8.3 (Visual Studio 2026). The game logic has moved into the
 simulation layer (above): walking, getting in and out, driving, crashes and parked cars run there and are
 drawn by Unreal. Phase 2 is done: traffic, people, traffic lights, trains and the skinned humanoid. Phase 3
-is under way: WASTED and BUSTED, the effects, combat and the police are done here; pickups and shops are on a second branch
+is under way: WASTED and BUSTED, the effects, combat, the police and the pickups are done here; shops are on a second branch
 (`oc-phase3`, worked by a second agent and merged here once checked).
 
 **Phase 1: the world and driving (done).**
@@ -67,7 +68,7 @@ is under way: WASTED and BUSTED, the effects, combat and the police are done her
 
 **Phase 3: action.**
 - Weapons, melee, damage and effects (combat.js, effects.js). Done.
-- Pickups and shops.
+- Pickups (done) and shops.
 - Wanted level and police (police.js). Done.
 - Car damage, fire and explosions; vehicle tumbling (vehicle.js `_tumble`).
 - WASTED and BUSTED screens. Done (the stinger plays once audio is ported). Replace the WASTED sound clip
