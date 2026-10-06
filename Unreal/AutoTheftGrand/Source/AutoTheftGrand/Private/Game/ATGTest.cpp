@@ -7,6 +7,7 @@
 #include "Sim/Weapons.h"
 #include "Sim/Game.h"
 #include "Sim/Peds.h"
+#include "Sim/Heists.h"
 #include "Sim/NpcCrime.h"
 #include "Sim/Police.h"
 #include "Sim/Roadblocks.h"
@@ -226,6 +227,26 @@ ATG_CMD(CmdCrimes, "ATG.Crimes", "ATG.Crimes: log the open street-crime cases", 
 	if (!N) return;
 	for (const auto& R : N->cases) UE_LOG(LogATG, Display, TEXT("ATG case: %s, %d stars, %s, phase %s, reaction %s, unit %d"), UTF8_TO_TCHAR(R->crime.c_str()), R->stars, R->known ? TEXT("known") : TEXT("unknown"), UTF8_TO_TCHAR(R->phase.c_str()), UTF8_TO_TCHAR(R->reaction.c_str()), R->unit ? 1 : 0);
 	UE_LOG(LogATG, Display, TEXT("ATG crimes: %d open"), (int32)N->cases.size());
+})
+ATG_CMD(CmdHeist, "ATG.Heist", "ATG.Heist [here|open]: an armoured van on a lane nearby (here: parked 12 m ahead of the player; open: shoot its doors open)", {
+	atg::Game* G = Sim(W);
+	atg::Heists* H = G ? dynamic_cast<atg::Heists*>(G->system("heists")) : nullptr;
+	if (!H) return;
+	const FString A = Args.Num() ? Args[0] : FString();
+	if (A == TEXT("open")) {
+		if (!H->van || !H->van->v.get()) return;
+		atg::Vehicle* V = H->van->v.get();
+		const double Fx = std::sin(V->yaw), Fz = std::cos(V->yaw);
+		const atg::V3 Back(V->pos.x - Fx * (V->def.L / 2 - 0.3), V->pos.y + V->def.clearance + 0.8, V->pos.z - Fz * (V->def.L / 2 - 0.3));
+		for (int I = 0; I < 4; I++) G->events.vehicleShot.emit(V, G->player.get(), Back);
+	} else if (!H->van && H->spawn() && A == TEXT("here")) {
+		atg::Vehicle* V = H->van->v.get();
+		atg::Player& P = *G->player;
+		V->pos.set(P.pos.x + std::sin(P.yaw) * 12, V->pos.y, P.pos.z + std::cos(P.yaw) * 12);
+		V->pos.y = G->map.GroundHeight(V->pos.x, V->pos.z);
+		V->yaw = P.yaw; V->vel.set(0, 0, 0);
+	}
+	if (H->van) if (atg::Vehicle* V = H->van->v.get()) UE_LOG(LogATG, Display, TEXT("ATG heist: %s at (%.1f, %.1f), state %s, %d bags"), UTF8_TO_TCHAR(V->def.id.c_str()), V->pos.x, V->pos.z, UTF8_TO_TCHAR(H->van->state.c_str()), (int32)H->van->cash.size());
 })
 ATG_CMD(CmdPolice, "ATG.Police", "ATG.Police: log the wanted level, the units and the helicopter", {
 	atg::Game* G = Sim(W);

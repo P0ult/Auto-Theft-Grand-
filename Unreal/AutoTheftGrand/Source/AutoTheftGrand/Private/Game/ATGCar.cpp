@@ -139,7 +139,7 @@ void AATGCar::Sync(float Dt) {
 	if (Model->hasTrunk) Hinge(TrunkPivot, Model->trunkHinge, atg::Quat::FromEuler(V->trunkAngle, 0, 0));
 	for (int32 I = 0; I < RearPivots.Num() && I < (int32)Model->rearDoors.size(); I++) {
 		const auto& R = Model->rearDoors[I];
-		Hinge(RearPivots[I], R.pivot, atg::Quat::FromEuler(0, -R.side * V->rearDoorOpen[I] * 1.9, 0));
+		Hinge(RearPivots[I], R.pivot, atg::Quat::FromEuler(0, -R.side * V->rearDoorOpen[I] * 1.85, 0)); // (heists.js swings them)
 	}
 	for (int32 I = 0; I < WheelPivots.Num(); I++) {
 		const auto& Wh = Model->wheels[I];

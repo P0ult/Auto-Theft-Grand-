@@ -18,10 +18,17 @@ namespace {
 const FLinearColor Gold(1.f, 0.78f, 0.25f), Paper(0.95f, 0.93f, 0.88f), Ink(0.02f, 0.02f, 0.03f);
 }
 
-// the browser HUD's markup (<b>key</b>, <small>) as plain text
+// the browser HUD's markup (<b>key</b>, <b style="...">, <small>, <br>) as plain text: every tag goes
 static FString Plain(const std::string& S) {
-	FString R = UTF8_TO_TCHAR(S.c_str());
-	for (const TCHAR* Tag : { TEXT("<b>"), TEXT("</b>"), TEXT("<small>"), TEXT("</small>"), TEXT("<br>") }) R.ReplaceInline(Tag, TEXT(""));
+	const FString In = UTF8_TO_TCHAR(S.c_str());
+	FString R;
+	R.Reserve(In.Len());
+	bool bTag = false;
+	for (const TCHAR Ch : In) {
+		if (Ch == TEXT('<')) bTag = true;
+		else if (Ch == TEXT('>') && bTag) bTag = false;
+		else if (!bTag) R.AppendChar(Ch);
+	}
 	return R;
 }
 static FLinearColor CssHex(const std::string& S, const FLinearColor& Def) {

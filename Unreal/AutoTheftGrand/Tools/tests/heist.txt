@@ -1,0 +1,15 @@
+# An armoured van: its back doors shot open, the cash bags on the road, the guards out with their guns.
+wait 1
+ATG.God 1
+ATG.NoBust 1
+ATG.Time 14
+ATG.Teleport -612 376 -2.36
+wait 1
+ATG.Heist here
+wait 0.5
+shot heist_van
+ATG.Heist open
+wait 2.5
+ATG.Heist
+shot heist_open
+quit

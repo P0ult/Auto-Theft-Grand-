@@ -4,6 +4,7 @@
 #include "Sim/Effects.h"
 #include "Sim/Game.h"
 #include "Sim/Gameplay.h"
+#include "Sim/Heists.h"
 #include "Sim/NpcCrime.h"
 #include "Sim/Hud.h"
 #include "Sim/Peds.h"
@@ -666,6 +667,45 @@ static void TestSpecial(World& w) {
 	Check(!sp->active, "not with less than 0.12 in the meter");
 }
 
+// armoured vans: a Stockade with two armed guards does its rounds; four shots in the back doors open them, the
+// cash falls out, the guards come out fighting and the police come; picking up the bags robs the van
+static void TestHeists(World& w) {
+	printf("heists\n");
+	auto g = w.game(true);
+	ToStreet(w, *g);
+	Player& p = *g->player;
+	p.invincible = true;
+	g->missionNoBust = true;
+	Heists* hs = dynamic_cast<Heists*>(g->system("heists"));
+	Check(hs && hs->timer == 75, "the first van after 75 s");
+	if (!hs) return;
+	Check(hs->spawn(), "a van spawns on a lane nearby");
+	if (!hs->van) return;
+	Vehicle* v = hs->van->v.get();
+	int seated = 0; for (auto& q : hs->van->guards) if (q.get() && q->vehicle == v) seated++;
+	std::vector<Blip> bl; hs->blipList(bl);
+	printf("  %s at %.0f m, %d guards inside, blip %zu\n", v->def.id.c_str(), Hypot(v->pos.x - p.pos.x, v->pos.z - p.pos.z), seated, bl.size());
+	Check(v->def.id == "stockade" && seated == 2 && bl.size() == 1, "a Stockade with two guards, on the radar");
+	// slow it, then shoot the back doors
+	v->vel = V3(); // (its driver keeps the wheel: the guards bail out of a van that still has one)
+	const double fx = std::sin(v->yaw), fz = std::cos(v->yaw);
+	const V3 back(v->pos.x - fx * (v->def.L / 2 - 0.3), v->pos.y + v->def.clearance + 0.8, v->pos.z - fz * (v->def.L / 2 - 0.3));
+	g->respawnPlayer(v->pos.x - fx * 12, v->pos.z - fz * 12, v->yaw); // (behind it, close enough to fight)
+	for (int i = 0; i < 4; i++) g->events.vehicleShot.emit(v, &p, back);
+	Run(*g, 3);
+	int out = 0; for (auto& q : hs->van->guards) if (q.get() && !q->vehicle && q->state == "attack") out++;
+	printf("  state %s, %zu bags, %d guards out fighting, wanted %d, doors %.2f\n", hs->van->state.c_str(), hs->van->cash.size(), out, g->police->wantedLevel(), v->rearDoorOpen[0]);
+	Check(hs->van->state == "open" && hs->van->cash.size() == 4, "four shots open the doors and the cash falls out");
+	Check(out == 2 && g->police->wantedLevel() >= 2, "the guards come out fighting and the police come");
+	Check(v->rearDoorOpen[0] > 0.9, "the doors swing open");
+	// pick up the bags
+	const double m0 = p.money;
+	for (auto& c : std::vector<Heists::Cash>(hs->van->cash)) { g->respawnPlayer(c.pk->pos.x, c.pk->pos.z, 0); g->frame(1.0 / 30); g->frame(1.0 / 30); }
+	g->frame(1.0 / 30);
+	printf("  money +%.0f, robbed %d, message '%s' %s\n", p.money - m0, hs->robbed, g->hudModel->big.text.c_str(), g->hudModel->big.sub.c_str());
+	Check(hs->robbed == 1 && p.money - m0 >= 3000 && g->hudModel->big.text == "ARMORED VAN ROBBED", "grabbing the bags robs the van");
+}
+
 int main(int argc, char** argv) {
 	InstallCrashTrace();
 	setvbuf(stdout, nullptr, _IONBF, 0);
@@ -691,6 +731,7 @@ int main(int argc, char** argv) {
 	if (want("npccrime")) TestNpcCrime(w);
 	if (want("wheel")) TestWheel(w);
 	if (want("special")) TestSpecial(w);
+	if (want("heists")) TestHeists(w);
 	printf(fails ? "%d FAILED\n" : "all passed\n", fails);
 	return fails ? 1 : 0;
 }
