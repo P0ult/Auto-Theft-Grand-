@@ -19,6 +19,22 @@ bool TerrainChunkInCity(int i, int j);
 // ch0 = (r, g), ch1 = (b, farm / -urban), ch2 = (sand, forest), ch3 = (beach, 0)
 MeshBuf BuildTerrainChunk(const CityMap& map, int i, int j, int lod);
 
+// ------------------------------------------------------------------ collision primitives (collision.js)
+// What the browser game's builders add to its collision world, in the same order: boxes (axis-aligned),
+// oriented boxes, circles (props, trunks, islands) and decks (drivable / walkable sloped strips: bridges,
+// viaducts, raised pavements).
+struct ColPrim {
+	enum Kind : uint8_t { Box, OBox, Circle, Deck } kind = Box;
+	double minX = 0, minY = 0, minZ = 0, maxX = 0, maxY = 0, maxZ = 0; // box (minY / maxY also for oriented boxes)
+	double cx = 0, cz = 0, hx = 0, hz = 0, yaw = 0;                     // oriented box
+	double x = 0, z = 0, r = 0, h = NaN(), y0 = NaN();                  // circle (h: top height)
+	double ax = 0, az = 0, ay = 0, bx = 0, bz = 0, by = 0, hl = 0, hr = 0; // deck: centre line a -> b, half widths left / right
+	int edge = -1; bool pavement = false, skate = false;
+	std::string type;
+	bool soft = false, low = false, breakable = false;
+	int prop = -1; // circles: index of the prop instance they belong to
+};
+
 // ------------------------------------------------------------------ roads (roadmesh.js)
 // road: ch0 = (u across, v along mod 36), ch1 = (from start, from end), ch2 = (type, flags), ch3 = (half width, 0)
 // concrete (decks, barriers, pillars, islands, pavements, platforms): vertex-lit layout
@@ -27,6 +43,8 @@ struct Sleeper { double x, y, z, yaw; };
 struct RoadMeshes {
 	std::map<std::pair<int, int>, RoadChunk> chunks;
 	std::vector<Sleeper> sleepers;
+	std::vector<ColPrim> prims; // walls, barriers, pillars, platforms, posts, islands (added as built)
+	std::vector<ColPrim> decks; // deck surfaces (added after everything else)
 };
 RoadMeshes BuildRoadMeshes(const CityMap& map);
 

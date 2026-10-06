@@ -30,8 +30,8 @@
 
 namespace {
 // bump when the generated materials change: new assets are made under new names
-constexpr int32 GMatVersion = 1;
-const TCHAR* GMatNames[] = { TEXT("Terrain"), TEXT("Road"), TEXT("Street"), TEXT("Ground"), TEXT("Building"), TEXT("VertexLit"), TEXT("Frond"), TEXT("Water") };
+constexpr int32 GMatVersion = 2;
+const TCHAR* GMatNames[] = { TEXT("Terrain"), TEXT("Road"), TEXT("Street"), TEXT("Ground"), TEXT("Building"), TEXT("VertexLit"), TEXT("Frond"), TEXT("Water"), TEXT("Standard"), TEXT("Glass") };
 
 FString AssetName(const TCHAR* Base) { return FString::Printf(TEXT("M_ATG_%s_%d"), Base, GMatVersion); }
 FString MpcName() { return FString::Printf(TEXT("MPC_ATG_%d"), GMatVersion); }
@@ -782,6 +782,27 @@ UMaterial* MakeMaterial(EATGMat Which, UMaterialParameterCollection* C) {
 		Split(B.Custom(Out(Code, TEXT("return float4(col, lerp(0.04, 0.6, foam));")), CMOT_Float4, Ins(), TEXT("ATG water surface")));
 		UMaterialExpressionCustom* Nw = B.Custom(Out(Code, TEXT("return float4(wn.x, wn.z, wn.y, 0.0);")), CMOT_Float4, Ins(), TEXT("ATG water normal"));
 		B.Out()->Normal.Connect(0, B.Mask(Nw, true, true, true, false));
+		break;
+	}
+	case EATGMat::Standard:
+	case EATGMat::Glass: {
+		const bool bGlass = Which == EATGMat::Glass;
+		M->SetUsageByFlag(MATUSAGE_InstancedStaticMeshes, true);
+		M->SetUsageByFlag(MATUSAGE_SkeletalMesh, true);
+		if (bGlass) { M->BlendMode = BLEND_Translucent; M->TranslucencyLightingMode = TLM_SurfacePerPixelLighting; }
+		UMaterialExpression* U1 = B.UV(1); UMaterialExpression* U2 = B.UV(2);
+		UMaterialExpression* Col = B.VecParam(TEXT("Color"), FLinearColor::White);
+		UMaterialExpression* Em = B.VecParam(TEXT("Emissive"), FLinearColor::Black);
+		UMaterialExpression* Sf = B.VecParam(TEXT("Surface"), FLinearColor(0.5f, 0.f, 1.f, 0.f));
+		UMaterialExpression* Boost = B.Mpc(C, TEXT("EmissiveBoost"));
+		auto Ins = [&]() { TArray<TPair<FString, UMaterialExpression*>> I; I.Add({ TEXT("uv1"), U1 }); I.Add({ TEXT("uv2"), U2 }); I.Add({ TEXT("Color"), Col }); I.Add({ TEXT("Emissive"), Em }); I.Add({ TEXT("Surface"), Sf }); I.Add({ TEXT("Boost"), Boost }); return I; };
+		UMaterialExpressionCustom* A = B.Custom(TEXT("float3 vc = float3(uv1.x, uv1.y, uv2.x); return float4(vc * Color.rgb, Surface.r);"), CMOT_Float4, Ins(), TEXT("ATG standard colour"));
+		UMaterialExpressionCustom* E = B.Custom(TEXT("return float4(Emissive.rgb * Boost, Surface.g);"), CMOT_Float4, Ins(), TEXT("ATG standard light"));
+		UMaterialExpressionCustom* O = B.Custom(TEXT("return float4(Surface.b, 0, 0, 0);"), CMOT_Float4, Ins(), TEXT("ATG standard opacity"));
+		Split(A);
+		B.Out()->EmissiveColor.Connect(0, B.Mask(E, true, true, true, false));
+		B.Out()->Metallic.Connect(0, B.Mask(E, false, false, false, true));
+		if (bGlass) B.Out()->Opacity.Connect(0, B.Mask(O, true, false, false, false));
 		break;
 	}
 	default: break;

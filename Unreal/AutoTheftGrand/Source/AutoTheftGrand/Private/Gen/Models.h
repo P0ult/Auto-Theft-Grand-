@@ -1,37 +1,12 @@
-// Vehicle catalogue (src/entities/vehicledefs.js, road cars) and the procedural car and character models.
-// Plain C++ geometry in the game's own axes (x left, y up, z forward for vehicles; the character faces +z).
+// The segmented stand-in for a person (until the skinned humanoid of humanoid.js is ported). Plain C++
+// geometry in the game's own axes (the character faces +z). (The vehicle catalogue and models are in
+// VehicleDefs.h and VehicleModels.h.)
 #pragma once
 
 #include "MeshBuf.h"
+#include "VehicleDefs.h"
 
 namespace atg {
-
-enum class EDrive : uint8_t { RWD, FWD, AWD };
-struct CarDef {
-	const char* id;
-	const char* name;
-	const char* body;
-	double L, W, H, wheelbase, track, wheelR, clearance;
-	double mass, force, top, grip;
-	EDrive drive;
-	double steer, brake;
-	int rarity;
-	double camDist, camHeight;
-	std::vector<uint32_t> colors;
-	bool police = false, taxi = false, military = false, hydraulics = false;
-};
-const std::vector<CarDef>& CarDefs();
-const CarDef* FindCar(const std::string& id);
-
-struct CarModel {
-	MeshBuf paint;     // painted panels (tinted per car)
-	MeshBuf trim;      // glass, lights, bumpers, grille, interior
-	MeshBuf wheel;     // one wheel, axle along x, centred
-	double seat[3];    // driver's seat (hips)
-	double door[2];    // where you stand to get in (x, z)
-	double cgH;        // height of the centre of gravity above the ground
-};
-CarModel BuildCarModel(const CarDef& d);
 
 // A simple segmented person: each part is modelled from its joint (at the origin) downwards, so it swings
 // when its joint turns. Heights in metres for a 1.8 m figure standing at y = 0.

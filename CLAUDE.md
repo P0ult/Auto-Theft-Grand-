@@ -143,14 +143,11 @@ Claude session that has the Artifact tool; a plain local CLI may not have it.
 
 ### Where it stands
 
-- **Phase 1 is written but has never been compiled against the real engine.** It was written in a Linux
-  container. The checks it got:
-  - The world generator (plain C++ in `Private/Gen/`) compiles with g++ and matches the JavaScript world
-    exactly (`Tools/gentest` against `Tools/dumpworld.mjs`).
-  - The Unreal-facing code (`Private/Game/`) was only syntax-checked against hand-written stand-in headers.
-
-  Expect a first round of real compile errors in `Private/Game/`: wrong signatures, missing includes, API
-  differences in 5.8.
+- **Phase 1 builds and runs on the user's PC** (UE 5.8.3, Visual Studio 2026 Insiders, MSVC 14.51). The game
+  logic now lives in `Private/Sim/` (plain C++, ported line by line, with its own port of `collision.js`);
+  Unreal only draws it and feeds it input. `PORTING.md` has the status per phase, and
+  `Unreal/AutoTheftGrand/README.md` the build, run and test commands (`Tools/build.sh`, `Tools/run.sh`,
+  `Tools/native.sh` + `Tools/simtest.cpp`, the node comparisons with `Tools/three-hook.mjs`).
 - The user's earlier build failed with "Some Platforms were skipped due to invalid SDK setup: Win64" and
   "Unexpected ProjectFileFormat 'Default'". That was Visual Studio missing, and it's installed now.
   - If the ProjectFileFormat error comes back, look for a `ProjectFileFormat` entry in

@@ -61,7 +61,9 @@ struct MeshBuf {
 // three.js primitives (non-indexed like toNonIndexed(), with uvs), centred like the originals
 namespace Geo {
 MeshBuf Box(double w, double h, double d);
-MeshBuf Cylinder(double rTop, double rBottom, double h, int radial = 8, int heightSegs = 1, bool open = false);
+MeshBuf Cylinder(double rTop, double rBottom, double h, int radial = 8, int heightSegs = 1, bool open = false, double thetaStart = 0, double thetaLen = kTau);
+// three.js LatheGeometry: a profile of (x, y) points turned about y
+MeshBuf Lathe(const std::vector<std::array<double, 2>>& pts, int segments = 12, double phiStart = 0, double phiLen = kTau);
 MeshBuf Cone(double r, double h, int radial = 8, int heightSegs = 1);
 MeshBuf Sphere(double r, int wSegs = 8, int hSegs = 6, double phiStart = 0, double phiLen = kTau, double thetaStart = 0, double thetaLen = kPi);
 MeshBuf Icosahedron(double r, int detail = 0);

@@ -182,14 +182,14 @@ MeshBuf Box(double w, double h, double d) {
 	return g;
 }
 
-MeshBuf Cylinder(double rTop, double rBottom, double h, int radial, int heightSegs, bool open) {
+MeshBuf Cylinder(double rTop, double rBottom, double h, int radial, int heightSegs, bool open, double thetaStart, double thetaLen) {
 	MeshBuf g;
 	const double half = h / 2, slope = (rBottom - rTop) / h;
 	std::vector<std::vector<uint32_t>> idx(heightSegs + 1);
 	for (int y = 0; y <= heightSegs; y++) {
 		const double v = (double)y / heightSegs, r = v * (rBottom - rTop) + rTop;
 		for (int x = 0; x <= radial; x++) {
-			const double u = (double)x / radial, th = u * kTau, s = std::sin(th), c = std::cos(th);
+			const double u = (double)x / radial, th = thetaStart + u * thetaLen, s = std::sin(th), c = std::cos(th);
 			const double nl = Hypot3(s, slope, c);
 			Vert(g, r * s, -v * h + half, r * c, s / nl, slope / nl, c / nl, u, 1 - v);
 			idx[y].push_back((uint32_t)g.Count() - 1);
@@ -208,12 +208,46 @@ MeshBuf Cylinder(double rTop, double rBottom, double h, int radial, int heightSe
 			const uint32_t c0 = (uint32_t)g.Count();
 			for (int x = 1; x <= radial; x++) Vert(g, 0, yy, 0, 0, sign, 0, 0.5, 0.5);
 			const uint32_t r0 = (uint32_t)g.Count();
-			for (int x = 0; x <= radial; x++) { const double th = (double)x / radial * kTau; Vert(g, r * std::sin(th), yy, r * std::cos(th), 0, sign, 0, std::cos(th) * 0.5 + 0.5, std::sin(th) * 0.5 * sign + 0.5); }
+			for (int x = 0; x <= radial; x++) { const double th = thetaStart + (double)x / radial * thetaLen; Vert(g, r * std::sin(th), yy, r * std::cos(th), 0, sign, 0, std::cos(th) * 0.5 + 0.5, std::sin(th) * 0.5 * sign + 0.5); }
 			for (int x = 0; x < radial; x++) {
 				const uint32_t c = c0 + x, i = r0 + x;
 				if (top) g.Tri(i, i + 1, c); else g.Tri(i + 1, i, c);
 			}
 		}
+	}
+	return g;
+}
+
+MeshBuf Lathe(const std::vector<std::array<double, 2>>& pts, int segments, double phiStart, double phiLen) {
+	MeshBuf g;
+	const int n = (int)pts.size();
+	std::vector<double> init((size_t)n * 3);
+	double px = 0, py = 0, pz = 0;
+	for (int j = 0; j < n; j++) {
+		if (j == 0) {
+			const double dx = pts[1][0] - pts[0][0], dy = pts[1][1] - pts[0][1];
+			px = dy; py = -dx; pz = 0;
+			const double l = Hypot3(px, py, pz);
+			init[0] = l > 0 ? px / l : 0; init[1] = l > 0 ? py / l : 0; init[2] = 0;
+		} else if (j == n - 1) {
+			init[j * 3] = px; init[j * 3 + 1] = py; init[j * 3 + 2] = pz;
+		} else {
+			const double dx = pts[j + 1][0] - pts[j][0], dy = pts[j + 1][1] - pts[j][1];
+			const double cx = dy, cy = -dx;
+			double nx = cx + px, ny = cy + py;
+			const double l = Hypot(nx, ny);
+			if (l > 0) { nx /= l; ny /= l; }
+			init[j * 3] = nx; init[j * 3 + 1] = ny; init[j * 3 + 2] = 0;
+			px = cx; py = cy; pz = 0;
+		}
+	}
+	for (int i = 0; i <= segments; i++) {
+		const double phi = phiStart + (double)i / segments * phiLen, s = std::sin(phi), c = std::cos(phi);
+		for (int j = 0; j < n; j++) Vert(g, pts[j][0] * s, pts[j][1], pts[j][0] * c, init[j * 3] * s, init[j * 3 + 1], init[j * 3] * c, (double)i / segments, (double)j / (n - 1));
+	}
+	for (int i = 0; i < segments; i++) for (int j = 0; j < n - 1; j++) {
+		const uint32_t base = j + i * n, a = base, b = base + n, c = base + n + 1, d = base + 1;
+		g.Tri(a, b, d); g.Tri(c, d, b);
 	}
 	return g;
 }

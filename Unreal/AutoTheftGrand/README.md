@@ -6,8 +6,14 @@ the browser version: the terrain, the road network, Los Soles, San Aurelio, the 
 props, the trees and the cars. The materials are built in C++ as well, the first time the editor opens the
 project.
 
-This is **phase 1** of the port. You can walk and drive around the whole world. Traffic, pedestrians,
-weapons, the police, missions and the rest are still to come; [PORTING.md](PORTING.md) has the plan.
+The game itself runs in plain C++ that knows nothing about Unreal (`Private/Sim`): a line-by-line port of
+the browser game's logic, including its own collision world, so it behaves the same. Unreal draws what the
+simulation says and feeds it the keyboard, mouse and pad.
+
+So far you can walk, sprint, jump and crouch, get into any car (the walk to the door, the door opening, the
+sit-down), drive with the browser game's full car physics (drifts, jumps, crashes, rollovers, dents, panels
+torn off, fire and explosions), and the parked cars stream in round you. Traffic, pedestrians, weapons, the
+police, missions and the rest are still to come; [PORTING.md](PORTING.md) has the plan and the progress.
 
 ## Build and run
 
@@ -46,52 +52,78 @@ exposure limits, the street lamp brightness and the speed of the clock.
 
 ## Controls
 
-| On foot | | In a car | |
+The keys are the browser game's (`Sim/Input.cpp` has the same bindings as `src/core/input.js`). What works so
+far:
+
+| On foot | | In a vehicle | |
 |---|---|---|---|
-| W A S D / left stick | move | W / right trigger | accelerate |
-| Mouse / right stick | look | S / left trigger | brake, reverse |
-| Shift / L3 | sprint | A D / left stick | steer |
-| Space / A | jump | Space / RB / B | handbrake |
-| F / Enter / Y | get in a car | F / Enter / Y | get out |
-| V | spawn a car next to you | C / R3 | camera distance |
-| M / Tab / View | map | Esc / Start | pause |
-| T | skip an hour | | |
+| W A S D / left stick | Move | W / S, RT / LT | Accelerate / brake and reverse |
+| Mouse / right stick | Look | A / D, left stick | Steer |
+| Shift / A (hold) | Sprint | Space / RB | Handbrake (drift) |
+| Space / X | Jump | H / LS click | Horn (Shift+H: siren in police cars) |
+| C / Ctrl / LS click | Crouch | G / D-pad ↑ | Hydraulics (lowriders) |
+| F / Enter / Y | Get in a car (carjack the driver) | F / Enter / Y | Get out (bail out at speed) |
+| M / D-pad ↓ | Map | V / View | Camera distance |
+| Esc / P / Menu | Pause | B / RS click | Look behind |
+| | | X / B (hold) | Cinematic camera |
 
 ## How it is put together
 
 ```
 Source/AutoTheftGrand/Private/Gen/    the world generator and mesh builders: plain C++ with no Unreal code,
-                                      ported line for line from src/world/*.js, src/entities/*models.js and
-                                      src/ui/mapimage.js
-Source/AutoTheftGrand/Private/Game/   the Unreal side
+                                      ported line for line from src/world/*.js, src/entities/*models.js,
+                                      loft.js, vehicledefs.js and src/ui/mapimage.js
+Source/AutoTheftGrand/Private/Sim/    the game: plain C++ with no Unreal code, ported line for line from
+                                      src/game and src/entities (Game, Input, Collision, Character, Player,
+                                      Animator, Ragdoll, Vehicle, Vehicles, Camera, Env, Weapons)
+Source/AutoTheftGrand/Private/Game/   the Unreal side: draws the simulation and feeds it input
   ATGWorld          runs the generator on a worker thread, then builds the world over a few frames:
                     procedural meshes for terrain, roads, ground, buildings and water; instanced meshes
                     for props, trees, containers and sleepers; hidden collision; the sky, sun, moon,
                     fog, clock and street lamps; fine terrain with collision streamed round the player
   ATGMaterials      the browser game's GLSL ported to HLSL custom nodes, built as material assets in C++
   ATGMeshUtil       generator buffers -> procedural mesh sections and runtime static meshes
-  ATGCar            vehicle.js physics: bicycle-model tyres with slip angles, weight transfer, traction
-                    circles, handbrake, jumps, walls, street furniture you can smash, other cars
-  ATGCharacter      walking, running and jumping, with a segmented procedural body and walk cycle
-  ATGPlayerController  keyboard, mouse and gamepad; camera.js's orbit and chase cameras
-  ATGGameMode       spawns the world and the player, streams parked cars (vehicles.js rules)
+  ATGCar            draws a simulated vehicle: its parts on the sprung body, doors and lids on their hinges,
+                    wheels, lights, dents, lost panels
+  ATGPerson         draws a simulated person (for now the segmented body, placed on the animator's bones)
+  ATGPlayerController  keyboard, mouse and gamepad into the simulation's input; shows its camera
+  ATGGameMode       runs the simulation each frame and keeps an actor for each of its vehicles and people
   ATGHUD            loading screen, radar, full-screen map, zone name, clock, speedometer
+  ATGTest           test hooks: ATG.* console commands and scripts (see below)
 Tools/              command-line checks that need no Unreal (see below)
 ```
 
 The generator runs in the game's own axes: metres, y up, the same numbers as the JavaScript. It is mapped to
 Unreal's axes (centimetres, Z up) only at the edges; `Game/ATGCoords.h` has the mapping.
 
+### Testing
+
+`Tools/build.sh` builds the editor target from Git Bash. `Tools/run.sh Tools/tests/smoke.txt` runs the game off
+screen with fixed 1/30 s frames and a script of console commands (`ATG.Teleport`, `ATG.Press KeyW`,
+`ATG.Spawn zenith`, `ATG.Enter`, `ATG.Time 21`, `ATG.State`, `shot name`, `wait 2`, `quit`); screenshots go to
+`Saved/Screenshots/WindowsEditor/ATG/`.
+
+The simulation is tested without Unreal. `Tools/native.sh` builds a tool with MSVC from Git Bash:
+
+```bash
+cd Tools
+./native.sh simtest.exe simtest.cpp && ./simtest.exe          # walking, driving, crashes, parked cars
+./simtest.exe vehcompare > cppveh.txt                          # the car physics against the browser game's:
+node --import ./three-hook.mjs vehcompare.mjs > jsveh.txt      # identical to 4 decimals
+diff jsveh.txt cppveh.txt
+```
+
 ### Checking the generator without Unreal
 
 ```bash
 cd Tools
-g++ -std=c++20 -O2 -I../Source/AutoTheftGrand/Private/Gen gentest.cpp ../Source/AutoTheftGrand/Private/Gen/*.cpp -o gentest
-./gentest > cpp.txt && node dumpworld.mjs > js.txt && diff js.txt cpp.txt    # C++ world vs the JavaScript one
-g++ -std=c++20 -O2 -I../Source/AutoTheftGrand/Private/Gen meshpreview.cpp ../Source/AutoTheftGrand/Private/Gen/*.cpp -o meshpreview
-./meshpreview out       # software renders of props, cars, parts of the city
-./meshpreview out map   # the radar map
-./meshpreview out seat  # a driver in a car (checks the seated pose)
+./native.sh gentest.exe gentest.cpp && ./gentest.exe > cpp.txt
+node --import ./three-hook.mjs dumpworld.mjs > js.txt && diff js.txt cpp.txt   # C++ world vs the JavaScript one
+./native.sh carstest.exe carstest.cpp && ./carstest.exe > cppcars.txt          # car models vs vehiclemodels.js
+node --import ./three-hook.mjs dumpcars.mjs > jscars.txt && diff jscars.txt cppcars.txt
+./native.sh meshpreview.exe meshpreview.cpp && mkdir -p out
+./meshpreview.exe out       # software renders of props, cars, parts of the city
+./meshpreview.exe out map   # the radar map
 ```
 
 *Auto Theft Grand is an original fan-made parody. All names, places and characters are fictional.*

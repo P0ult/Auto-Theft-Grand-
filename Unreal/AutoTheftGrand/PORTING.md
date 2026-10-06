@@ -4,6 +4,16 @@ The port is done in phases, and each phase leaves a game you can play. The rule 
 JavaScript's behaviour rather than approximate it. The world generator matches the original number for
 number, so the Unreal world has the same streets, buildings and parking spots as the browser one.
 
+## How it is built
+
+The game logic is plain C++ under `Private/Sim`, with no Unreal code, ported line by line from the
+JavaScript: the game loop and its systems, input, the collision world (`collision.js`), characters, the
+animator, ragdolls, vehicles and the camera rig. It builds and runs in a native test runner
+(`Tools/simtest.cpp`), and its numbers can be checked against the browser game run in node: the car
+physics comes out identical to 4 decimals (`Tools/vehcompare.mjs`). Unreal's own physics and collision are
+not used. The Unreal side (`Private/Game`) draws the simulation's state, feeds it the keyboard, mouse and
+pad, and will play its sounds.
+
 ## How the systems map
 
 | Browser (src/…) | Unreal | Notes |
@@ -14,19 +24,22 @@ number, so the Unreal world has the same streets, buildings and parking spots as
 | entities/vehiclemodels.js, humanoid.js | `Gen/Models.cpp` | Lofted car bodies; a segmented person (not skinned yet). |
 | world/environment.js, render/sky.js | `ATGWorld` sky | SkyAtmosphere, a sun and a moon as atmosphere lights, a real-time sky light, height fog, the same clock and sun path. |
 | world/collision.js | Unreal collision + `ATGWorld` circles | World geometry collides (hidden boxes for walls, prisms for posts and trunks, fine terrain near the player). Cars use traces plus the original circle and box tests. |
-| entities/vehicle.js | `ATGCar` | `_step`, `_afterPhysics` and `_resolveStatic` ported. Tumbling, damage visuals and fire are not ported yet. |
-| game/player.js, camera.js, core/input.js | `ATGCharacter`, `ATGPlayerController` | Character movement for walking; the camera rig is ported as is. |
-| game/vehicles.js (parked cars) | `ATGGameMode` | Same spots, same odds, same car choices. |
+| entities/vehicledefs.js, vehiclemodels.js, loft.js | `Gen/VehicleDefs`, `Gen/VehicleModels`, `Gen/Loft` | The whole catalogue; car models identical to the JavaScript's (`Tools/carstest.cpp`). |
+| world/collision.js (+ the colliders city.js, roadmesh.js and vegetation.js add) | `Sim/Collision`, `Gen/RoadMesh` | The same boxes, oriented boxes, circles and decks, in the same order (`Tools/coltest.cpp`). |
+| game/game.js, core/input.js, core/events.js | `Sim/Game`, `Sim/Input`, `Sim/Events` | The frame order and slow motion as in the browser game. |
+| entities/character.js, animator.js, ragdoll.js, game/player.js | `Sim/Character`, `Sim/Animator`, `Sim/Ragdoll`, `Sim/Player` | All of it; drawn for now with the segmented body (`ATGPerson`). |
+| entities/vehicle.js, game/vehicles.js | `Sim/Vehicle`, `Sim/Vehicles` | All of it: physics, tumbling, damage, dents, lost panels, fire, explosions, enter / exit / carjack sequences, parked cars. Drawn by `ATGCar`. |
+| game/camera.js | `Sim/Camera` | All the cameras, including the cinematic and flight cameras. |
+| world/environment.js | `Sim/Env` | The clock and the weather; `ATGWorld` lights the sky from it. |
 | ui/mapimage.js, hud.js | `Gen/MapImage.cpp`, `ATGHUD` | The map is drawn by a small software rasteriser. The HUD is a first cut. |
 
 ## Phases
 
-**Status.** Phase 1 is written, but it has not yet been compiled against the real engine. It was developed
-in a Linux container: the generator was compiled and diffed against the JavaScript with g++, and the Unreal
-code was only syntax-checked against stand-in headers. The next step is building it on Windows with
-UE 5.8.3 and fixing what the real compiler finds. `CLAUDE.md` at the repo root has the steps.
+**Status.** Phase 1 builds and runs on UE 5.8.3 (Visual Studio 2026). The game logic has moved into the
+simulation layer (above): walking, getting in and out, driving, crashes and parked cars run there and are
+drawn by Unreal. Phase 2 is next.
 
-**Phase 1: the world and driving (written; first real build pending).**
+**Phase 1: the world and driving (done).**
 - World generation.
 - Every static mesh: terrain with streamed detail, roads, bridges, the railway, city ground, buildings,
   props, trees, water.
@@ -76,9 +89,12 @@ UE 5.8.3 and fixing what the real compiler finds. `CLAUDE.md` at the repo root h
 - Wildlife and pets.
 - Multiplayer, likely with Unreal's own replication.
 
-## Known gaps in phase 1
+## Known gaps
 
-- Shops are solid boxes for now. Their interiors come in phase 6.
-- The Santa Luz pier is a plain deck.
-- There is no swimming yet. Deep water sends you back to the safehouse.
-- Cars can't flip over yet. Hard landings and crashes cost health, and a wrecked engine stops the car.
+- Shops are solid boxes for now (their shells' colliders are replaced by a solid box). The interiors, and
+  the colliders of their furniture, come in phase 6.
+- The Santa Luz pier is a plain deck; the landmarks' own colliders come with them (phase 6).
+- Billboards (and their colliders) are not built yet.
+- People are drawn with the segmented phase 1 body until the skinned humanoid is ported (phase 2).
+- No sounds yet: the simulation asks for them, nothing plays them (phase 6, audio).
+- Headlight beams on the road and the debris of torn-off panels need the effects system (phase 3).

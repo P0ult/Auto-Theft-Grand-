@@ -1,25 +1,28 @@
-# Phase 1 smoke test: the world appears, the player walks, gets into a car and drives.
-wait 2
-shot smoke_foot
+# Smoke test: the world appears, the player walks, gets into a car and drives, day and night.
+wait 1
+ATG.Teleport -628 344 0
+wait 0.5
 ATG.State
-ATG.Walk 1 0
+shot smoke_foot
+ATG.Press KeyW
 wait 2
-ATG.Walk
+ATG.Release
 ATG.State
 ATG.Spawn zenith
 wait 0.5
 ATG.Enter
-ATG.State
-ATG.Drive 1 0
+wait 0.5
+ATG.Press KeyW
 wait 3
 ATG.State
 shot smoke_drive
-ATG.Drive 1 1
-wait 2
-ATG.State
+ATG.Press KeyW KeyA
+wait 1.5
+ATG.Release
 ATG.Time 21
-ATG.Drive 0 0 1
+ATG.Press KeyS
 wait 2
+ATG.Release
 shot smoke_night
 ATG.State
 quit

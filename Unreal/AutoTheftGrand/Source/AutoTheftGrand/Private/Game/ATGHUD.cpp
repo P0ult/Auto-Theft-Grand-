@@ -1,9 +1,7 @@
 #include "Game/ATGHUD.h"
-#include "Game/ATGCar.h"
-#include "Game/ATGCharacter.h"
 #include "Game/ATGPlayerController.h"
 #include "Game/ATGWorld.h"
-#include "Gen/Models.h"
+#include "Sim/Game.h"
 
 #include "CanvasItem.h"
 #include "Engine/Canvas.h"
@@ -62,17 +60,17 @@ void AATGHUD::DrawHUD() {
 	LastTime = Now;
 	AATGWorld* W = AATGWorld::Get(this);
 	AATGPlayerController* PC = Cast<AATGPlayerController>(PlayerOwner);
-	if (!W || !W->IsReady() || !PC || !PC->Body) { DrawLoading(W); return; }
+	atg::Game* G = W ? W->Game() : nullptr;
+	if (!G || !PC) { DrawLoading(W); return; }
 
 	UFont* Big = GEngine->GetLargeFont();
 	UFont* Small = GEngine->GetSmallFont();
-	AATGCar* Car = PC->CurrentCar();
-	double Px, Py, Pz, Heading;
-	if (Car) { Px = Car->X; Pz = Car->Z; Heading = Car->Yaw; }
-	else { PC->Body->GamePos(Px, Py, Pz); Heading = PC->Body->Heading(); }
+	atg::Player& Pl = *G->player;
+	atg::Vehicle* Car = Pl.vehicle;
+	const double Px = Car ? Car->pos.x : Pl.pos.x, Pz = Car ? Car->pos.z : Pl.pos.z, Heading = Car ? Car->yaw : Pl.yaw;
 
 	if (PC->bMapOpen) { DrawBigMap(W, Px, Pz, Heading); return; }
-	DrawRadar(W, Px, Pz, Heading, Dt, Car ? Car->SpeedAbs() : 0);
+	DrawRadar(W, Px, Pz, Heading, Dt, Car ? Car->speedAbs() : 0);
 
 	// zone name (shown for a while when it changes) and the clock
 	const FString Zone = W->ZoneName(Px, Pz);
@@ -84,23 +82,23 @@ void AATGHUD::DrawHUD() {
 
 	// speedometer (mph, as in the browser game)
 	if (Car) {
-		const int32 Mph = FMath::RoundToInt(FMath::Abs(Car->Speed()) * 2.23694);
+		const int32 Mph = FMath::RoundToInt(FMath::Abs(Car->speed()) * 2.23694);
 		Text(FString::Printf(TEXT("%d"), Mph), Right, Bottom - 70 * Ui, Big, 2.4f * Ui, Paper, 1.f);
 		Text(TEXT("MPH"), Right, Bottom - 12 * Ui, Small, 1.2f * Ui, Gold, 1.f);
-		if (Car->Def) Text(FString(UTF8_TO_TCHAR(Car->Def->name)), Right - 120 * Ui, Bottom - 12 * Ui, Small, 1.2f * Ui, Paper, 1.f);
-		if (Car->Health <= 0) Text(TEXT("ENGINE DEAD"), Canvas->ClipX / 2, 120 * Ui, Big, 1.2f * Ui, FLinearColor(1, 0.3f, 0.2f), 0.5f);
+		Text(FString(UTF8_TO_TCHAR(Car->def.name.c_str())), Right - 120 * Ui, Bottom - 12 * Ui, Small, 1.2f * Ui, Paper, 1.f);
+		if (Car->health <= 0) Text(TEXT("ENGINE DEAD"), Canvas->ClipX / 2, 120 * Ui, Big, 1.2f * Ui, FLinearColor(1, 0.3f, 0.2f), 0.5f);
 	} else {
 		// stamina bar while sprinting
-		if (PC->Body->Stamina < 0.99f) {
+		if (Pl.stamina < 0.99) {
 			const float Bw = 220 * Ui, Bh = 8 * Ui, Bx = Right - Bw, By = Bottom - 8 * Ui;
 			DrawRect(FLinearColor(0, 0, 0, 0.5f), Bx, By, Bw, Bh);
-			DrawRect(Gold, Bx, By, Bw * PC->Body->Stamina, Bh);
+			DrawRect(Gold, Bx, By, Bw * (float)Pl.stamina, Bh);
 		}
-		if (AATGCar* Near = PC->Body->FindCarToEnter()) if (Near->Def)
-			Text(FString::Printf(TEXT("Press F to drive the %s"), UTF8_TO_TCHAR(Near->Def->name)), Canvas->ClipX / 2, Canvas->ClipY * 0.72f, Small, 1.4f * Ui, Paper, 0.5f);
+		if (atg::Vehicle* Near = G->vehicles.nearestEnterable(Pl.pos, 5)) if (!G->vehicles.isBusy(&Pl))
+			Text(FString::Printf(TEXT("Press F to drive the %s"), UTF8_TO_TCHAR(Near->def.name.c_str())), Canvas->ClipX / 2, Canvas->ClipY * 0.72f, Small, 1.4f * Ui, Paper, 0.5f);
 	}
 	if (PC->MessageTime > 0) Text(PC->Message, Canvas->ClipX / 2, 70 * Ui, Small, 1.5f * Ui, FLinearColor(Paper.R, Paper.G, Paper.B, FMath::Min(1.f, PC->MessageTime)), 0.5f);
-	if (PC->IsPaused()) {
+	if (G->paused) {
 		DrawRect(FLinearColor(0, 0, 0, 0.55f), 0, 0, Canvas->ClipX, Canvas->ClipY);
 		Text(TEXT("PAUSED"), Canvas->ClipX / 2, Canvas->ClipY * 0.42f, Big, 3.f * Ui, Gold, 0.5f);
 		Text(TEXT("Esc / Start to carry on"), Canvas->ClipX / 2, Canvas->ClipY * 0.42f + 90 * Ui, Small, 1.4f * Ui, Paper, 0.5f);
@@ -128,9 +126,10 @@ void AATGHUD::DrawRadar(AATGWorld* W, double Px, double Pz, double Heading, floa
 	DrawMapLayers(W, Px - RadarRange, Pz - RadarRange, Px + RadarRange, Pz + RadarRange, X, Y, S, S);
 	// parked cars
 	const float K = S / (float)(RadarRange * 2);
-	for (AATGCar* C : AATGCar::All()) {
-		if (C->Driver) continue;
-		const float Dx = (float)(C->X - Px) * K, Dz = (float)(C->Z - Pz) * K;
+	atg::Game* G = W->Game();
+	if (G) for (const auto& C : G->vehicles.list) {
+		if (C->driver()) continue;
+		const float Dx = (float)(C->pos.x - Px) * K, Dz = (float)(C->pos.z - Pz) * K;
 		if (FMath::Abs(Dx) < S / 2 - 3 && FMath::Abs(Dz) < S / 2 - 3) DrawRect(FLinearColor(0.35f, 0.75f, 1.f), X + S / 2 + Dx - 2.5f * Ui, Y + S / 2 + Dz - 2.5f * Ui, 5 * Ui, 5 * Ui);
 	}
 	Arrow(X + S / 2, Y + S / 2, Heading, 9 * Ui, FLinearColor::White);

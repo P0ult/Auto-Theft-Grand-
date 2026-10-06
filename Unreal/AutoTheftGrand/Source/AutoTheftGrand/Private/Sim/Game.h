@@ -1,0 +1,146 @@
+// The game (port of src/game/game.js minus the renderer): owns the collision world, the player, the
+// vehicles, the camera rig, the clock and weather, the input and the systems, and runs a frame in the
+// browser game's order:
+//   1. systems' earlyInput   2. player control   3. getting in and out   4. drive-by aiming
+//   5. systems' preUpdate    6. vehicles         7. the player           8. systems' update
+//   9. environment, camera (real time)
+// Sim time is the frame time scaled by game.timeScale and the slow motion in game.slowmo (the lowest wins).
+#pragma once
+
+#include "Camera.h"
+#include "Collision.h"
+#include "Env.h"
+#include "Events.h"
+#include "Input.h"
+#include "Player.h"
+#include "Systems.h"
+#include "Vehicles.h"
+#include "WorldMeshes.h"
+
+namespace atg {
+
+struct Cheats {
+	bool god = false, vehGod = false, neverWanted = false, superJump = false, superRun = false, infSprint = false, lowGravity = false;
+	bool explosive = false, oneHit = false, freezeTime = false, slowmo = false, riot = false;
+};
+
+struct Settings {
+	std::string quality = "high";
+	double volume = 0.8, music = 0.6, sensitivity = 1;
+	bool invertY = false;
+	std::string npcCrime = "normal";
+};
+
+struct Quality { int peds = 38, traffic = 28; double drawDist = 3000; };
+const Quality& QualityPreset(const std::string& name);
+
+// everything the generator makes that the game needs (the world, its collision primitives, the props)
+struct WorldData {
+	const CityMap* map = nullptr;
+	std::vector<ColPrim> roadPrims, roadDecks;
+	std::vector<PropInstance> props;
+	std::map<std::string, PropTemplate>* propDefs = nullptr;
+};
+
+class Game {
+public:
+	explicit Game(const WorldData& world, const Settings& settings = Settings());
+	~Game();
+
+	const CityMap& map;
+	std::unique_ptr<CollisionWorld> collision;
+	Events events;
+	Input input;
+	Settings settings;
+	Quality quality;
+	double time = 0;
+	bool paused = false;
+	double timeScale = 1;
+	std::map<std::string, double> slowmo;
+	double fxScale() const { double k = 1; for (const auto& s : slowmo) k = Min(k, s.second); return k; }
+	double gravity = 1;
+	double specialGrip = 1;         // (the special ability grips harder)
+	bool cutscene = false;
+	Cheats cheats, cheatsOn;
+	bool freeRoam = false, missionActive = false;
+	bool freeroamActive() const { return freeRoam && !missionActive; }
+	bool wheelOpen = false, phoneOpen = false;
+	bool weaponWheelOpen() const { return wheelOpen; }
+	struct Stats { double kills = 0, copKills = 0, headshots = 0, carsStolen = 0, carsDestroyed = 0, runOver = 0, wasted = 0, busted = 0, maxWanted = 0, bestDrift = 0, driven = 0, walked = 0, playTime = 0, missions = 0, sprays = 0; } stats;
+
+	Environment env;
+	CameraRig rig;
+	VehicleManager vehicles;
+	std::shared_ptr<Player> player;
+
+	// systems in registration order, and the ones other code calls into
+	std::vector<std::pair<std::string, System*>> systems;
+	std::vector<std::unique_ptr<System>> ownedSystems;
+	template <typename T> T* addSystem(const std::string& name, std::unique_ptr<T> s) { T* p = s.get(); systems.push_back({ name, p }); ownedSystems.push_back(std::move(s)); return p; }
+	System* system(const std::string& name) const { for (const auto& s : systems) if (s.first == name) return s.second; return nullptr; }
+	IAudio* audio = nullptr;
+	IEffects* effects = nullptr;
+	IHud* hud = nullptr;
+	ICombat* combat = nullptr;
+
+	// characters: a registry of everyone alive (the renderer draws these), and who counts for collisions
+	template <typename T, typename... A> std::shared_ptr<T> makeCharacter(A&&... args) {
+		auto c = std::make_shared<T>(*this, std::forward<A>(args)...);
+		characterRegistry.push_back(c);
+		return c;
+	}
+	std::vector<std::weak_ptr<Character>> characterRegistry;
+	std::vector<std::function<void(std::vector<Character*>&)>> characterSources; // (pedestrians, other players)
+	std::vector<Character*> allCharacters();
+	std::function<void(Character*)> characterRemover; // (the pedestrian system removes its own)
+	void removeCharacter(Character* c);
+	std::vector<Character*> liveCharacters();
+
+	// things removed this frame stay alive until the frame ends
+	void graveyard(std::shared_ptr<Vehicle> v) { if (v) graveV.push_back(std::move(v)); }
+	void graveyard(std::shared_ptr<Character> c) { if (c) graveC.push_back(std::move(c)); }
+
+	// setTimeout (real seconds)
+	void setTimeout(double seconds, std::function<void()> fn) { timers.push_back({ seconds, std::move(fn) }); }
+
+	// sounds (null-safe)
+	void sound(const std::string& name, double vol = 1) { if (audio) audio->play(name, vol); }
+	void soundAt(const std::string& name, const V3& p, double vol = 1) { if (audio) audio->playAt(name, p, vol); }
+
+	// props: smashing street furniture (the renderer hides broken ones)
+	std::vector<PropInstance> props;
+	std::vector<CollObj*> propColliders;
+	std::set<int> brokenProps;
+	int propVersion = 0;
+	void breakProp(CollObj* o);
+	void restoreProp(int index);
+	std::string propType(int i) const { return i >= 0 && i < (int)props.size() ? props[i].type : std::string(); }
+	double propY(int i) const { return i >= 0 && i < (int)props.size() ? props[i].y : 0; }
+
+	// the player's headlight (one spot light, reused)
+	struct Headlight { V3 pos, target; double intensity = 0; } headlight;
+
+	// one frame: input already fed; dt is the real frame time (capped at 1/20 s)
+	void frame(double dt);
+	void update(double dt, double realDt);
+	void tryEnterExit();
+	// hooks for the missions (no stealing the mission car), taxis (riding in the back) and multiplayer
+	std::function<bool(Vehicle*)> canEnterVehicle;
+	std::function<int(Vehicle*, Character*)> cabSeatFor;
+	std::function<bool(Character*)> taxiHandleExit;
+	std::function<void(Vehicle*)> takeRemoteCar;
+	void respawnPlayer(double x, double z, double yaw);
+
+private:
+	struct Timer { double t; std::function<void()> fn; };
+	std::vector<Timer> timers;
+	std::vector<std::shared_ptr<Vehicle>> graveV;
+	std::vector<std::shared_ptr<Character>> graveC;
+};
+
+// the collision world's extra primitives in the browser game's order: the props' circles, the road
+// network's walls and barriers, its decks, then the trees and rocks
+std::vector<ColPrim> PropCircles(const std::vector<PropInstance>& props, const std::map<std::string, PropTemplate>& defs);
+std::vector<ColPrim> VegetationCircles(const CityMap& map);
+
+} // namespace atg

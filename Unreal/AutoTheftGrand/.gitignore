@@ -16,3 +16,8 @@ Content/ATG/
 Tools/*.exe
 Tools/*.obj
 Tools/out/
+Tools/obj/
+Tools/cpp.txt
+Tools/js.txt
+Tools/*.txt
+!Tools/tests/*.txt

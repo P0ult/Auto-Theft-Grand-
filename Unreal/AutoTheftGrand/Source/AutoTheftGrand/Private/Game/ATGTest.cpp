@@ -1,16 +1,12 @@
 #include "Game/ATGTest.h"
 #include "AutoTheftGrand.h"
-#include "Game/ATGCar.h"
-#include "Game/ATGCharacter.h"
-#include "Game/ATGCoords.h"
+#include "Game/ATGGameMode.h"
 #include "Game/ATGPlayerController.h"
 #include "Game/ATGWorld.h"
-#include "Gen/Models.h"
+#include "Sim/Game.h"
 
 #include "Engine/Engine.h"
-#include "Engine/GameViewportClient.h"
 #include "Engine/World.h"
-#include "GameFramework/CharacterMovementComponent.h"
 #include "HAL/IConsoleManager.h"
 #include "Misc/CommandLine.h"
 #include "Misc/FileHelper.h"
@@ -56,92 +52,68 @@ void FATGTestScript::Tick(UWorld* World, float Dt) {
 
 // ------------------------------------------------------------------ console commands
 namespace {
+atg::Game* Sim(UWorld* W) { AATGWorld* Wd = AATGWorld::Get(W); return Wd ? Wd->Game() : nullptr; }
 AATGPlayerController* PlayerPC(UWorld* W) { return W ? Cast<AATGPlayerController>(W->GetFirstPlayerController()) : nullptr; }
+#define ATG_CMD(Var, Name, Help, ...) FAutoConsoleCommandWithWorldAndArgs Var(TEXT(Name), TEXT(Help), FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* W) __VA_ARGS__));
+double Arg(const TArray<FString>& A, int32 I, double Def = 0) { return A.IsValidIndex(I) ? FCString::Atod(*A[I]) : Def; }
 
-FAutoConsoleCommandWithWorldAndArgs CmdScript(TEXT("ATG.Script"), TEXT("ATG.Script path: run a test script"),
-	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld*) { if (Args.Num()) ATGTest::Script().Load(Args[0]); }));
+ATG_CMD(CmdScript, "ATG.Script", "ATG.Script path: run a test script", { if (Args.Num()) ATGTest::Script().Load(Args[0]); })
+ATG_CMD(CmdShot, "ATG.Shot", "ATG.Shot name: screenshot to Saved/Screenshots/ATG/name.png", { ATGTest::Shot(Args.Num() ? Args[0] : FString(TEXT("shot"))); })
 
-FAutoConsoleCommandWithWorldAndArgs CmdShot(TEXT("ATG.Shot"), TEXT("ATG.Shot name: screenshot to Saved/Screenshots/ATG/name.png"),
-	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld*) { ATGTest::Shot(Args.Num() ? Args[0] : FString(TEXT("shot"))); }));
+ATG_CMD(CmdTeleport, "ATG.Teleport", "ATG.Teleport x z [heading]: move the player (or their vehicle) to game coordinates", {
+	atg::Game* G = Sim(W);
+	if (!G || Args.Num() < 2) return;
+	const double X = Arg(Args, 0), Z = Arg(Args, 1);
+	atg::Player& P = *G->player;
+	const double H = Args.Num() > 2 ? Arg(Args, 2) : (P.vehicle ? P.vehicle->yaw : P.yaw);
+	if (atg::Vehicle* V = P.vehicle) { V->pos.set(X, G->map.GroundHeight(X, Z), Z); V->yaw = H; V->vel.set(0, 0, 0); V->r = 0; return; }
+	G->respawnPlayer(X, Z, H);
+})
 
-FAutoConsoleCommandWithWorldAndArgs CmdTeleport(TEXT("ATG.Teleport"), TEXT("ATG.Teleport x z [heading]: move the player (or their car) to game coordinates"),
-	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* W) {
-		AATGPlayerController* PC = PlayerPC(W);
-		AATGWorld* Wd = AATGWorld::Get(W);
-		if (!PC || !PC->Body || !Wd || Args.Num() < 2) return;
-		const double X = FCString::Atod(*Args[0]), Z = FCString::Atod(*Args[1]);
-		const double H = Args.Num() > 2 ? FCString::Atod(*Args[2]) : PC->Body->Heading();
-		const double Y = Wd->GroundHeight(X, Z);
-		if (AATGCar* C = PC->CurrentCar()) { C->X = X; C->Z = Z; C->Y = Y; C->Yaw = H; C->VelX = C->VelZ = 0; return; }
-		PC->Body->SetActorLocationAndRotation(ATG::ToUE(X, Y + 1.0, Z), FRotator(0, ATG::HeadingYaw(H), 0));
-		PC->Body->GetCharacterMovement()->StopMovementImmediately();
-		Wd->SetFocus(ATG::ToUE(X, Y, Z));
-	}));
+ATG_CMD(CmdTime, "ATG.Time", "ATG.Time hours: set the clock", { if (atg::Game* G = Sim(W)) if (Args.Num()) G->env.setTime(Arg(Args, 0)); })
+ATG_CMD(CmdWeather, "ATG.Weather", "ATG.Weather clear|cloudy|rain|storm|fog", { if (atg::Game* G = Sim(W)) if (Args.Num()) G->env.setWeather(TCHAR_TO_UTF8(*Args[0]), true); })
+ATG_CMD(CmdGod, "ATG.God", "ATG.God 0|1: the player takes no damage", { if (atg::Game* G = Sim(W)) { G->cheats.god = Arg(Args, 0, 1) != 0; G->player->invincible = G->cheats.god; } })
 
-FAutoConsoleCommandWithWorldAndArgs CmdTime(TEXT("ATG.Time"), TEXT("ATG.Time hours: set the clock"),
-	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* W) {
-		if (AATGWorld* Wd = AATGWorld::Get(W)) if (Args.Num()) Wd->Hours = FCString::Atof(*Args[0]);
-	}));
+ATG_CMD(CmdSpawn, "ATG.Spawn", "ATG.Spawn type: a vehicle in front of the player", {
+	atg::Game* G = Sim(W);
+	if (!G || !Args.Num()) return;
+	const atg::VehicleDef* D = atg::FindVehicle(TCHAR_TO_UTF8(*Args[0]));
+	if (!D) { UE_LOG(LogATG, Warning, TEXT("ATG.Spawn: no vehicle %s"), *Args[0]); return; }
+	atg::Player& P = *G->player;
+	const double H = P.yaw, Ahead = 4 + D->L / 2;
+	G->vehicles.spawn(D->id, P.pos.x + std::sin(H) * Ahead, P.pos.z + std::cos(H) * Ahead, H + atg::kPi / 2);
+})
 
-FAutoConsoleCommandWithWorldAndArgs CmdSpawn(TEXT("ATG.Spawn"), TEXT("ATG.Spawn type: a car in front of the player"),
-	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* W) {
-		AATGPlayerController* PC = PlayerPC(W);
-		if (!PC || !PC->Body || !Args.Num()) return;
-		const atg::CarDef* D = atg::FindCar(TCHAR_TO_UTF8(*Args[0]));
-		if (!D) { UE_LOG(LogATG, Warning, TEXT("ATG.Spawn: no vehicle %s"), *Args[0]); return; }
-		double X, Y, Z;
-		PC->Body->GamePos(X, Y, Z);
-		const double H = PC->Body->Heading(), Ahead = 4 + D->L / 2;
-		AATGCar::SpawnCar(W, Args[0], X + FMath::Sin(H) * Ahead, Z + FMath::Cos(H) * Ahead, H + UE_DOUBLE_PI / 2, 0, true);
-	}));
+ATG_CMD(CmdEnter, "ATG.Enter", "ATG.Enter: sit straight in the nearest vehicle within 12 m (or get out of this one)", {
+	atg::Game* G = Sim(W);
+	if (!G) return;
+	atg::Player& P = *G->player;
+	if (P.vehicle) { G->vehicles.exit(&P); return; }
+	atg::Vehicle* Best = nullptr;
+	double Bd = 12;
+	for (const auto& V : G->vehicles.list) { const double D = atg::Dist(V->pos.x, V->pos.z, P.pos.x, P.pos.z); if (D < Bd && !V->driver()) { Bd = D; Best = V.get(); } }
+	if (Best) G->vehicles.seatNow(&P, Best, 0);
+	else UE_LOG(LogATG, Warning, TEXT("ATG.Enter: no vehicle in reach"));
+})
 
-FAutoConsoleCommandWithWorldAndArgs CmdEnter(TEXT("ATG.Enter"), TEXT("ATG.Enter: get into the nearest car (or out of this one)"),
-	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>&, UWorld* W) {
-		AATGPlayerController* PC = PlayerPC(W);
-		if (!PC || !PC->Body) return;
-		if (AATGCar* C = PC->CurrentCar()) { PC->Body->ExitCar(); PC->Possess(PC->Body); return; }
-		// (any car within 12 m: a test doesn't walk to the door first)
-		double X, Y, Z;
-		PC->Body->GamePos(X, Y, Z);
-		AATGCar* Near = nullptr;
-		double Best = 12;
-		for (AATGCar* C : AATGCar::All()) {
-			const double D = FMath::Sqrt(FMath::Square(C->X - X) + FMath::Square(C->Z - Z));
-			if (!C->Driver && D < Best) { Best = D; Near = C; }
-		}
-		if (Near) { PC->Body->EnterCar(Near); PC->Possess(Near); }
-		else UE_LOG(LogATG, Warning, TEXT("ATG.Enter: no car in reach"));
-	}));
+ATG_CMD(CmdPress, "ATG.Press", "ATG.Press KeyW ...: hold keys (KeyboardEvent codes) until ATG.Release", { if (AATGPlayerController* PC = PlayerPC(W)) for (const FString& K : Args) PC->ScriptKeys.Add(K); })
+ATG_CMD(CmdRelease, "ATG.Release", "ATG.Release KeyW ...: let go of keys (no names: all of them)", {
+	if (AATGPlayerController* PC = PlayerPC(W)) { if (!Args.Num()) PC->ScriptKeys.Empty(); for (const FString& K : Args) PC->ScriptKeys.Remove(K); }
+})
+ATG_CMD(CmdCam, "ATG.Cam", "ATG.Cam yaw pitch: point the camera (radians; yaw is from the player towards the camera)", {
+	if (atg::Game* G = Sim(W)) { G->rig.yaw = Arg(Args, 0, G->rig.yaw); G->rig.pitch = Arg(Args, 1, G->rig.pitch); }
+})
+ATG_CMD(CmdStep, "ATG.Step", "ATG.Step frames [dt]: advance the game (with -ATGManual it only moves when stepped)", {
+	if (AATGGameMode* GM = W ? Cast<AATGGameMode>(W->GetAuthGameMode()) : nullptr) GM->StepFrames((int32)Arg(Args, 0, 1), Arg(Args, 1, 1.0 / 30));
+})
 
-FAutoConsoleCommandWithWorldAndArgs CmdDrive(TEXT("ATG.Drive"), TEXT("ATG.Drive throttle steer [brake]: hold the car's controls (until changed)"),
-	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* W) {
-		AATGPlayerController* PC = PlayerPC(W);
-		if (!PC) return;
-		PC->ScriptDrive[0] = Args.Num() > 0 ? FCString::Atof(*Args[0]) : 0.f;
-		PC->ScriptDrive[1] = Args.Num() > 1 ? FCString::Atof(*Args[1]) : 0.f;
-		PC->ScriptDrive[2] = Args.Num() > 2 ? FCString::Atof(*Args[2]) : 0.f;
-		PC->bScriptDrive = Args.Num() > 0;
-	}));
-
-FAutoConsoleCommandWithWorldAndArgs CmdWalk(TEXT("ATG.Walk"), TEXT("ATG.Walk forward right: hold the move stick (relative to the camera)"),
-	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* W) {
-		AATGPlayerController* PC = PlayerPC(W);
-		if (!PC) return;
-		PC->ScriptMove[0] = Args.Num() > 0 ? FCString::Atof(*Args[0]) : 0.f;
-		PC->ScriptMove[1] = Args.Num() > 1 ? FCString::Atof(*Args[1]) : 0.f;
-		PC->bScriptMove = Args.Num() > 0;
-	}));
-
-FAutoConsoleCommandWithWorldAndArgs CmdState(TEXT("ATG.State"), TEXT("ATG.State: log the player's position, vehicle and speed"),
-	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>&, UWorld* W) {
-		AATGPlayerController* PC = PlayerPC(W);
-		if (!PC || !PC->Body) { UE_LOG(LogATG, Display, TEXT("ATG state: no player")); return; }
-		if (AATGCar* C = PC->CurrentCar())
-			UE_LOG(LogATG, Display, TEXT("ATG state: driving %s at (%.2f, %.2f, %.2f) yaw %.3f speed %.2f m/s health %.0f"), *C->Type, C->X, C->Y, C->Z, C->Yaw, C->Speed(), C->Health)
-		else {
-			double X, Y, Z;
-			PC->Body->GamePos(X, Y, Z);
-			UE_LOG(LogATG, Display, TEXT("ATG state: on foot at (%.2f, %.2f, %.2f) heading %.3f"), X, Y, Z, PC->Body->Heading());
-		}
-	}));
+ATG_CMD(CmdState, "ATG.State", "ATG.State: log the player's position, vehicle and speed", {
+	atg::Game* G = Sim(W);
+	if (!G) { UE_LOG(LogATG, Display, TEXT("ATG state: no game")); return; }
+	atg::Player& P = *G->player;
+	if (atg::Vehicle* V = P.vehicle)
+		UE_LOG(LogATG, Display, TEXT("ATG state: t %.2f driving %s at (%.2f, %.2f, %.2f) yaw %.3f speed %.2f m/s health %.0f"), G->time, UTF8_TO_TCHAR(V->type.c_str()), V->pos.x, V->pos.y, V->pos.z, V->yaw, V->speed(), V->health)
+	else UE_LOG(LogATG, Display, TEXT("ATG state: t %.2f on foot at (%.2f, %.2f, %.2f) yaw %.3f health %.0f vehicles %d"), G->time, P.pos.x, P.pos.y, P.pos.z, P.yaw, P.health, (int32)G->vehicles.list.size());
+})
+#undef ATG_CMD
 }

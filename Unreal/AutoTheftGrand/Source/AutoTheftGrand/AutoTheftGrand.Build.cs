@@ -22,5 +22,6 @@ public class AutoTheftGrand : ModuleRules
 			PrivateDependencyModuleNames.AddRange(new string[] { "AssetRegistry" });
 		}
 		PrivateIncludePaths.Add(ModuleDirectory + "/Private");
+		PrivateIncludePaths.Add(ModuleDirectory + "/Private/Gen"); // (the simulation includes the generator by plain names)
 	}
 }

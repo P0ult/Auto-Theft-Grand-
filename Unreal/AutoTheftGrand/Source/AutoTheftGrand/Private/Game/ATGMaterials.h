@@ -12,6 +12,9 @@
 //               1..3 = tint; a "Tint" vector parameter for per-object colours (car paint, clothes)
 //   Frond:      uv0 = (across, along) for the leaflet mask, uv1 / uv2 colour
 //   Water:      uv0 = (depth, pool?)
+//   Standard:   uv1 = (r, g), uv2.x = b; vector parameters Color (times the vertex colour), Emissive and Surface
+//               (roughness, metalness, opacity): three.js's MeshStandardMaterial (vehicles, people, weapons)
+//   Glass:      the same, translucent
 // The procedural mesh components sit at the world origin, so the materials read world position through the
 // Local Position node (no large-world-coordinate types in the custom code).
 #pragma once
@@ -21,7 +24,7 @@
 class UMaterialInterface;
 class UMaterialParameterCollection;
 
-enum class EATGMat : uint8 { Terrain, Road, Street, Ground, Building, VertexLit, Frond, Water, Count };
+enum class EATGMat : uint8 { Terrain, Road, Street, Ground, Building, VertexLit, Frond, Water, Standard, Glass, Count };
 
 namespace ATGMaterials {
 	// the material (falls back to the engine default if the generated one is missing)

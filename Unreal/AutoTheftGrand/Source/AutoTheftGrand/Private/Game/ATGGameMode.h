@@ -1,5 +1,6 @@
-// Starts the game: spawns the world, puts the player at the safehouse once it is built, and keeps parked
-// cars round the player (vehicles.js _streamParked).
+// Starts the game: spawns the world (which generates everything and creates the simulation), then every
+// frame feeds the simulation the player's input, advances it, and keeps an actor drawing each of its
+// vehicles and people.
 #pragma once
 
 #include "CoreMinimal.h"
@@ -7,7 +8,9 @@
 #include "ATGGameMode.generated.h"
 
 class AATGCar;
+class AATGPerson;
 class AATGWorld;
+class USpotLightComponent;
 
 UCLASS()
 class AATGGameMode : public AGameModeBase {
@@ -16,15 +19,18 @@ public:
 	AATGGameMode();
 	virtual void StartPlay() override;
 	virtual void Tick(float Dt) override;
-	virtual void HandleStartingNewPlayer_Implementation(APlayerController* NewPlayer) override;
 
-	UPROPERTY(EditAnywhere, Category = "ATG") int32 MaxParked = 26;
+	// fixed steps for tests (ATG.Step): the game advances only when asked
+	bool bManual = false;
+	void StepFrames(int32 Frames, double Dt);
 
 private:
 	UPROPERTY(Transient) TObjectPtr<AATGWorld> World = nullptr;
-	TMap<int32, TWeakObjectPtr<AATGCar>> Parked; // parking spot -> car
-	TSet<int32> Consumed;
-	double StreamTimer = 0, WaitForGround = 0;
-	void SpawnPlayers();
-	void StreamParked();
+	UPROPERTY(Transient) TArray<TObjectPtr<AATGCar>> Cars;
+	UPROPERTY(Transient) TArray<TObjectPtr<AATGPerson>> People;
+	UPROPERTY(Transient) TObjectPtr<USpotLightComponent> Headlight;
+	bool bStarted = false;
+	void StartGame();
+	void Frame(double Dt);
+	void SyncViews(float Dt);
 };

@@ -5,7 +5,10 @@
 #include "Game/ATGMeshUtil.h"
 #include "Gen/MapImage.h"
 #include "Gen/Models.h"
+#include "Gen/VehicleModels.h"
+#include "Gen/WeaponModels.h"
 #include "Gen/WorldMeshes.h"
+#include "Sim/Game.h"
 
 #include "Async/Async.h"
 #include "Components/DirectionalLightComponent.h"
@@ -34,42 +37,20 @@ struct FATGWorldData {
 	std::map<std::string, atg::PropTemplate> PropDefs;
 	std::vector<atg::PropInstance> Props;
 	std::map<std::string, atg::VegTemplate> VegDefs;
-	std::map<std::pair<int, int>, atg::MeshBuf> Boxes;        // walls, fences, containers (collision only)
-	std::map<std::pair<int, int>, atg::MeshBuf> VegColliders; // trunks and rocks (collision only)
 	struct FTerrain { int I, J; atg::MeshBuf Mesh; };
 	std::vector<FTerrain> Terrain;
 	std::vector<atg::MeshBuf> Sea;
 	atg::MapImages MapImg;
+	std::unique_ptr<atg::Game> Sim; // the game itself (collision, player, vehicles, systems)
 };
 
 namespace {
-constexpr double COLLIDER_CH = 400;   // collision chunk size (m)
-constexpr double CIRCLE_CELL = 24;    // circle lookup grid (m)
-constexpr int32 PROP_CHUNKS_X = 64;   // prop collision chunk key stride
-
-int64 CellKey(int64 I, int64 J) { return I * 1000003 + J; }
-
 double SrgbToLinear(double c) { return c <= 0.04045 ? c / 12.92 : std::pow((c + 0.055) / 1.055, 2.4); }
 FLinearColor HexLinear(uint32 Hex) {
 	return FLinearColor((float)SrgbToLinear(((Hex >> 16) & 255) / 255.0), (float)SrgbToLinear(((Hex >> 8) & 255) / 255.0), (float)SrgbToLinear((Hex & 255) / 255.0), 1.f);
 }
 double SmoothStep(double A, double B, double X) { const double T = FMath::Clamp((X - A) / (B - A), 0.0, 1.0); return T * T * (3 - 2 * T); }
 FString Str(const std::string& S) { return FString(UTF8_TO_TCHAR(S.c_str())); }
-
-// a hexagonal prism standing at (x, z): the collision stand-in for a post, a trunk or a rock
-void Prism(atg::MeshBuf& G, double X, double Z, double R, double Y0, double Y1) {
-	if (R <= 0) return;
-	const int N = 6;
-	uint32_t Bot[N], Top[N];
-	for (int K = 0; K < N; K++) {
-		const double A = (double)K / N * 2 * UE_DOUBLE_PI, C = std::cos(A), S = std::sin(A);
-		Bot[K] = G.V(X + C * R, Y0, Z + S * R, C, 0, S);
-		Top[K] = G.V(X + C * R, Y1, Z + S * R, C, 0, S);
-	}
-	for (int K = 0; K < N; K++) G.QuadAuto(Bot[K], Bot[(K + 1) % N], Top[(K + 1) % N], Top[K]);
-	const uint32_t Cn = G.V(X, Y1, Z, 0, 1, 0);
-	for (int K = 0; K < N; K++) G.Tri(Cn, Top[(K + 1) % N], Top[K]);
-}
 
 // The sea: a grid (8 m) over the world wherever the ground is below sea level, carrying the depth for the
 // shoreline foam (the browser game used a depth texture), plus the open ocean round the world's edges
@@ -172,44 +153,6 @@ FATGWorldData* Generate(std::atomic<int32>& Stage) {
 	D->VegDefs = BuildVegTemplates();
 	D->Container = ContainerGeo();
 	{ MeshBuf S; S.ColorHex(0x4d443c); S.Rough(0.95); S.Add(Geo::Box(2.6, 0.16, 0.26), Mat4::Identity()); D->Sleeper = std::move(S); }
-	// walls: the map's colliders, except the walk-in shops' shells (their interiors come later: for now
-	// the shops are solid)
-	{
-		size_t Shells = 0;
-		for (const InteriorShell& It : M.interiors) Shells += It.colliders.size();
-		const size_t N = M.colliders.size() - (std::min)(Shells, M.colliders.size());
-		auto Chunk = [&](double X, double Z) -> MeshBuf& { return D->Boxes[{ (int)std::floor(X / COLLIDER_CH), (int)std::floor(Z / COLLIDER_CH) }]; };
-		for (size_t I = 0; I < N; I++) {
-			const Collider& C = M.colliders[I];
-			if (C.oriented) {
-				MeshBuf& G = Chunk(C.cx, C.cz);
-				const size_t S = G.Count();
-				G.Box(C.cx - C.hx, C.minY, C.cz - C.hz, C.cx + C.hx, C.maxY, C.cz + C.hz, true, true, true);
-				G.RotateFrom(S, C.cx, C.cz, C.yaw);
-			} else {
-				Chunk((C.minX + C.maxX) / 2, (C.minZ + C.maxZ) / 2).Box(C.minX, C.minY, C.minZ, C.maxX, C.maxY, C.maxZ, true, true, true);
-			}
-		}
-		for (const InteriorShell& It : M.interiors) {
-			const Building& B = M.buildings[It.building];
-			Chunk((B.x0 + B.x1) / 2, (B.z0 + B.z1) / 2).Box(B.x0, B.y0 - 0.2, B.z0, B.x1, B.y1 + (B.roof == "gable" ? 2.5 : 0), B.z1, true, true, true);
-		}
-	}
-	// trunks and rocks
-	{
-		const std::pair<const char*, const std::vector<float>*> Lists[] = { { "pine", &M.vegetation.pine }, { "oak", &M.vegetation.oak }, { "cactus", &M.vegetation.cactus },
-			{ "rock", &M.vegetation.rock }, { "deadtree", &M.vegetation.deadtree }, { "palm", &M.vegetation.palm } };
-		const std::map<std::string, std::pair<double, double>> K = { { "pine", { 0.45, 12 } }, { "oak", { 0.4, 6 } }, { "cactus", { 0.4, 5 } }, { "rock", { 1.3, 1.4 } }, { "deadtree", { 0.3, 4 } }, { "palm", { 0.35, 9 } } };
-		for (const auto& L : Lists) {
-			const auto Kr = K.at(L.first);
-			const bool Rock = std::string(L.first) == "rock";
-			const std::vector<float>& A = *L.second;
-			for (size_t I = 0; I + 4 < A.size(); I += 5) {
-				const double Sc = A[I + 4];
-				Prism(D->VegColliders[{ (int)std::floor(A[I] / COLLIDER_CH), (int)std::floor(A[I + 2] / COLLIDER_CH) }], A[I], A[I + 2], Kr.first * (Rock ? Sc : atg::Min(1.3, Sc)), A[I + 1] - 1, A[I + 1] + Kr.second * Sc);
-			}
-		}
-	}
 	Stage = 5;
 	for (int J = 0; J < TerrainChunksZ(); J++) for (int I = 0; I < TerrainChunksX(); I++) {
 		if (TerrainChunkInCity(I, J)) continue;
@@ -220,6 +163,11 @@ FATGWorldData* Generate(std::atomic<int32>& Stage) {
 	D->Lake = BuildLake();
 	Stage = 7;
 	D->MapImg = BuildMapImages(M);
+	{
+		WorldData W;
+		W.map = &D->Map; W.roadPrims = D->Roads.prims; W.roadDecks = D->Roads.decks; W.props = D->Props; W.propDefs = &D->PropDefs;
+		D->Sim = std::make_unique<Game>(W);
+	}
 	UE_LOG(LogATG, Log, TEXT("World generated in %.1f s"), FPlatformTime::Seconds() - T0);
 	Stage = 8;
 	return D;
@@ -302,6 +250,7 @@ void AATGWorld::BeginPlay() {
 	S.bOverride_AutoExposureMinBrightness = true; S.AutoExposureMinBrightness = MinExposureEV100;
 	S.bOverride_AutoExposureMaxBrightness = true; S.AutoExposureMaxBrightness = MaxExposureEV100;
 	S.bOverride_BloomIntensity = true; S.BloomIntensity = 0.6f;
+	S.bOverride_MotionBlurAmount = true; S.MotionBlurAmount = 0.f; // (the browser game has none)
 	// warm up the materials (in the editor they are generated here if missing)
 	for (int32 I = 0; I < (int32)EATGMat::Count; I++) ATGMaterials::Get((EATGMat)I);
 	for (int32 I = 0; I < 12; I++) {
@@ -355,15 +304,15 @@ FString AATGWorld::TimeString() const {
 	return FString::Printf(TEXT("%02d:%02d"), H, M);
 }
 
+atg::Game* AATGWorld::Game() const { return Data && bReady ? Data->Sim.get() : nullptr; }
+
 // ------------------------------------------------------------------ building the components
 UProceduralMeshComponent* AATGWorld::NewMeshComponent(const TCHAR* Name, bool bCollision) {
 	UProceduralMeshComponent* C = NewObject<UProceduralMeshComponent>(this, MakeUniqueObjectName(this, UProceduralMeshComponent::StaticClass(), FName(Name)));
 	C->SetupAttachment(Root);
 	C->SetMobility(EComponentMobility::Static);
-	C->bUseAsyncCooking = true;
-	C->bUseComplexAsSimpleCollision = true;
-	if (bCollision) C->SetCollisionProfileName(UCollisionProfile::BlockAll_ProfileName);
-	else C->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	(void)bCollision; // (nothing collides in Unreal: the simulation has its own collision world)
+	C->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	C->RegisterComponent();
 	return C;
 }
@@ -467,27 +416,14 @@ void AATGWorld::QueueBuild() {
 		L->SetCastShadow(false);
 		D->Sea.clear();
 	});
-	// ---- collision: walls, trunks and rocks (hidden)
-	Steps.Add([this, D]() {
-		auto Hidden = [this](const TCHAR* Name, const MeshBuf& B, bool bCamera) {
-			UProceduralMeshComponent* C = NewMeshComponent(Name, true);
-			ATGMesh::ToCollisionSection(C, 0, B);
-			C->SetVisibility(false);
-			C->SetCastShadow(false);
-			if (!bCamera) C->SetCollisionResponseToChannel(ECC_Camera, ECR_Ignore);
-			return C;
-		};
-		for (const auto& B : D->Boxes) Hidden(TEXT("Walls"), B.second, true);
-		for (const auto& B : D->VegColliders) { UProceduralMeshComponent* C = Hidden(TEXT("Trunks"), B.second, false); C->ComponentTags.Add(TEXT("ATGCircles")); }
-		D->Boxes.clear(); D->VegColliders.clear();
-	});
-	// ---- props: one instanced mesh per kind, plus their circles and collision chunks
+	// ---- props: one instanced mesh per kind (their collision circles are in the simulation)
 	Steps.Add([this, D, MLit, MFrond]() {
 		TMap<FString, int32> MeshOf;
 		TArray<TArray<FTransform>> Xf;
 		TArray<TArray<float>> Phase;
-		TMap<int32, int32> ChunkIndex;
-		for (const PropInstance& P : D->Props) {
+		PropInstances.Init(TPair<int32, int32>(-1, -1), (int32)D->Props.size());
+		for (int32 PropIdx = 0; PropIdx < (int32)D->Props.size(); PropIdx++) {
+			const PropInstance& P = D->Props[PropIdx];
 			auto Def = D->PropDefs.find(P.type);
 			if (Def == D->PropDefs.end()) continue;
 			const FString Type = Str(P.type);
@@ -506,15 +442,7 @@ void AATGWorld::QueueBuild() {
 			}
 			const int32 Inst = Xf[*M].Add(FTransform(FRotator(0, ATG::MeshYaw(P.rot), 0), ATG::ToUE(P.x, P.y, P.z), FVector(P.scale)));
 			Phase[*M].Add((float)P.phase);
-			const bool bMulti = P.type == "boothbar" || P.type == "sandbags";
-			FATGCircle Ci;
-			Ci.X = P.x; Ci.Z = P.z; Ci.R = bMulti ? 1.4 : Def->second.r; Ci.Y0 = P.y - 0.5; Ci.Top = P.y + Def->second.h;
-			Ci.bBreakable = Def->second.breakable; Ci.Mesh = *M; Ci.Instance = Inst;
-			const int32 Key = (int32)std::floor(P.x / COLLIDER_CH) + 32 + ((int32)std::floor(P.z / COLLIDER_CH) + 32) * PROP_CHUNKS_X;
-			int32* Chunk = ChunkIndex.Find(Key);
-			if (!Chunk) { Chunk = &ChunkIndex.Add(Key, PropColliderCircles.Num()); PropColliderCircles.AddDefaulted(); }
-			Ci.Chunk = *Chunk;
-			PropColliderCircles[*Chunk].Add(Circles.Add(Ci));
+			PropInstances[PropIdx] = TPair<int32, int32>(*M, Inst);
 		}
 		for (int32 M = 0; M < PropMeshes.Num(); M++) {
 			PropMeshes[M]->AddInstances(Xf[M], false, true);
@@ -524,8 +452,6 @@ void AATGWorld::QueueBuild() {
 			}
 			PropMeshes[M]->MarkRenderStateDirty();
 		}
-		PropColliders.SetNum(PropColliderCircles.Num());
-		for (int32 K = 0; K < PropColliderCircles.Num(); K++) BuildPropColliderChunk(K);
 		// the lamp heads, for the few real lights that follow the player at night
 		for (const PropInstance& P : D->Props) if (P.type == "streetlight") LampPositions.Add(FVector(P.x + std::sin(P.rot) * 3.1, P.y + 7.6, P.z + std::cos(P.rot) * 3.1));
 	});
@@ -534,8 +460,6 @@ void AATGWorld::QueueBuild() {
 		const Vegetation& V = D->Map.vegetation;
 		const std::pair<const char*, const std::vector<float>*> Lists[] = { { "pine", &V.pine }, { "oak", &V.oak }, { "bush", &V.bush }, { "cactus", &V.cactus },
 			{ "rock", &V.rock }, { "deadtree", &V.deadtree }, { "palm", &V.palm } };
-		const std::map<std::string, double> CircleR = { { "pine", 0.45 }, { "oak", 0.4 }, { "cactus", 0.4 }, { "rock", 1.3 }, { "deadtree", 0.3 }, { "palm", 0.35 } };
-		const std::map<std::string, double> CircleH = { { "pine", 12 }, { "oak", 6 }, { "cactus", 5 }, { "rock", 1.4 }, { "deadtree", 4 }, { "palm", 9 } };
 		for (const auto& L : Lists) {
 			auto Def = D->VegDefs.find(L.first);
 			if (Def == D->VegDefs.end() || L.second->empty()) continue;
@@ -554,17 +478,7 @@ void AATGWorld::QueueBuild() {
 			H->SetCullDistances(FarCm * 9 / 10, FarCm);
 			TArray<FTransform> Xf;
 			const std::vector<float>& A = *L.second;
-			const bool Rock = std::string(L.first) == "rock";
-			auto R = CircleR.find(L.first);
-			for (size_t I = 0; I + 4 < A.size(); I += 5) {
-				Xf.Add(FTransform(FRotator(0, ATG::MeshYaw(A[I + 3]), 0), ATG::ToUE(A[I], A[I + 1], A[I + 2]), FVector(A[I + 4])));
-				if (R != CircleR.end()) {
-					FATGCircle Ci;
-					Ci.X = A[I]; Ci.Z = A[I + 2]; Ci.R = R->second * (Rock ? A[I + 4] : atg::Min(1.3, (double)A[I + 4]));
-					Ci.Y0 = A[I + 1] - 1; Ci.Top = A[I + 1] + CircleH.at(L.first) * A[I + 4];
-					Circles.Add(Ci);
-				}
-			}
+			for (size_t I = 0; I + 4 < A.size(); I += 5) Xf.Add(FTransform(FRotator(0, ATG::MeshYaw(A[I + 3]), 0), ATG::ToUE(A[I], A[I + 1], A[I + 2]), FVector(A[I + 4])));
 			H->AddInstances(Xf, false, true);
 		}
 	});
@@ -605,12 +519,6 @@ void AATGWorld::QueueBuild() {
 		MapCityRect = FBox2D(FVector2D(C.minX, C.minZ), FVector2D(C.maxX, C.maxZ));
 		for (const MapLabel& L : D->MapImg.labels) MapLabels.Add({ Str(L.name), L.x, L.z, L.big });
 		D->MapImg = MapImages();
-		for (int32 I = 0; I < Circles.Num(); I++) {
-			const FATGCircle& Ci = Circles[I];
-			const int64 X0 = (int64)FMath::FloorToDouble((Ci.X - Ci.R) / CIRCLE_CELL), X1 = (int64)FMath::FloorToDouble((Ci.X + Ci.R) / CIRCLE_CELL);
-			const int64 Z0 = (int64)FMath::FloorToDouble((Ci.Z - Ci.R) / CIRCLE_CELL), Z1 = (int64)FMath::FloorToDouble((Ci.Z + Ci.R) / CIRCLE_CELL);
-			for (int64 X = X0; X <= X1; X++) for (int64 Z = Z0; Z <= Z1; Z++) CircleCells.FindOrAdd(CellKey(X, Z)).Add(I);
-		}
 		if (!bHasFocus) {
 			double X, Y, Z, Yaw;
 			PlayerStart(X, Y, Z, Yaw);
@@ -620,55 +528,59 @@ void AATGWorld::QueueBuild() {
 	});
 }
 
-void AATGWorld::BuildPropColliderChunk(int32 Chunk) {
-	atg::MeshBuf G;
-	for (int32 I : PropColliderCircles[Chunk]) {
-		const FATGCircle& C = Circles[I];
-		if (!C.bBroken) Prism(G, C.X, C.Z, C.R, C.Y0, C.Top);
-	}
-	UProceduralMeshComponent* Comp = PropColliders[Chunk];
-	if (!Comp) {
-		Comp = NewMeshComponent(TEXT("PropColliders"), true);
-		PropColliders[Chunk] = Comp;
-		Comp->SetVisibility(false);
-		Comp->SetCastShadow(false);
-		Comp->SetCollisionResponseToChannel(ECC_Camera, ECR_Ignore);
-		Comp->ComponentTags.Add(TEXT("ATGCircles"));
-	}
-	Comp->ClearAllMeshSections();
-	if (!G.Empty()) ATGMesh::ToCollisionSection(Comp, 0, G);
-}
-
-void AATGWorld::QueryCircles(double X, double Z, double R, TArray<int32>& Out) const {
-	Out.Reset();
-	const int64 X0 = (int64)FMath::FloorToDouble((X - R) / CIRCLE_CELL), X1 = (int64)FMath::FloorToDouble((X + R) / CIRCLE_CELL);
-	const int64 Z0 = (int64)FMath::FloorToDouble((Z - R) / CIRCLE_CELL), Z1 = (int64)FMath::FloorToDouble((Z + R) / CIRCLE_CELL);
-	for (int64 CX = X0; CX <= X1; CX++) for (int64 CZ = Z0; CZ <= Z1; CZ++) {
-		if (const TArray<int32>* A = CircleCells.Find(CellKey(CX, CZ))) for (int32 I : *A) Out.AddUnique(I);
+void AATGWorld::SyncBrokenProps() {
+	atg::Game* G = Game();
+	if (!G || G->propVersion == PropVersion) return;
+	PropVersion = G->propVersion;
+	for (int32 I = 0; I < PropInstances.Num(); I++) {
+		const TPair<int32, int32> Pi = PropInstances[I];
+		if (Pi.Key < 0 || !PropMeshes.IsValidIndex(Pi.Key)) continue;
+		const atg::PropInstance& P = G->props[I];
+		const bool bBroken = G->brokenProps.count(I) > 0;
+		FTransform T;
+		PropMeshes[Pi.Key]->GetInstanceTransform(Pi.Value, T, true);
+		const bool bGone = T.GetScale3D().X < 0.01;
+		if (bBroken == bGone) continue;
+		const FTransform Want = bBroken ? FTransform(FRotator::ZeroRotator, ATG::ToUE(P.x, -200, P.z), FVector(0.001))
+			: FTransform(FRotator(0, ATG::MeshYaw(P.rot), 0), ATG::ToUE(P.x, P.y, P.z), FVector(P.scale));
+		PropMeshes[Pi.Key]->UpdateInstanceTransform(Pi.Value, Want, true, true, true);
 	}
 }
 
-void AATGWorld::BreakProp(int32 CircleIndex) {
-	FATGCircle& C = Circles[CircleIndex];
-	if (C.bBroken || !C.bBreakable) return;
-	C.bBroken = true;
-	if (PropMeshes.IsValidIndex(C.Mesh)) {
-		FTransform Gone(FRotator::ZeroRotator, ATG::ToUE(C.X, -200, C.Z), FVector(0.001));
-		PropMeshes[C.Mesh]->UpdateInstanceTransform(C.Instance, Gone, true, true, true);
-	}
-	if (C.Chunk >= 0) DirtyPropChunks.Add(C.Chunk);
+const FATGVehicleMeshes& AATGWorld::VehicleMeshes(const atg::VehicleDef& Def) {
+	const FString Id = Str(Def.id);
+	if (const FATGVehicleMeshes* M = VehicleCache.Find(Id)) return *M;
+	FATGVehicleMeshes& M = VehicleCache.Add(Id);
+	const atg::VehicleModel& Model = atg::BuildVehicleModel(Def);
+	UMaterialInterface* Std = ATGMaterials::Get(EATGMat::Standard);
+	for (const atg::VPart& P : Model.parts) M.Parts.Add(ATGMesh::BuildStaticMesh(this, *(TEXT("Veh_") + Id + TEXT("_") + Str(P.name)), TArray<FATGPart>{ { &P.mesh, Std } }, EATGAxes::Local));
+	M.Wheel = ATGMesh::BuildStaticMesh(this, *(TEXT("Veh_") + Id + TEXT("_Wheel")), TArray<FATGPart>{ { &Model.wheel, Std } }, EATGAxes::Local);
+	return M;
 }
 
-const FATGCarMeshes& AATGWorld::CarMeshes(const FString& Id) {
-	if (const FATGCarMeshes* M = CarCache.Find(Id)) return *M;
-	FATGCarMeshes& M = CarCache.Add(Id);
-	const atg::CarDef* Def = atg::FindCar(TCHAR_TO_UTF8(*Id));
-	if (!Def) return M;
-	const atg::CarModel Model = atg::BuildCarModel(*Def);
-	UMaterialInterface* Lit = ATGMaterials::Get(EATGMat::VertexLit);
-	M.Paint = ATGMesh::BuildStaticMesh(this, *(TEXT("Car_") + Id + TEXT("_Paint")), TArray<FATGPart>{ { &Model.paint, Lit } }, EATGAxes::Local);
-	M.Trim = ATGMesh::BuildStaticMesh(this, *(TEXT("Car_") + Id + TEXT("_Trim")), TArray<FATGPart>{ { &Model.trim, Lit } }, EATGAxes::Local);
-	M.Wheel = ATGMesh::BuildStaticMesh(this, *(TEXT("Car_") + Id + TEXT("_Wheel")), TArray<FATGPart>{ { &Model.wheel, Lit } }, EATGAxes::Local);
+const std::vector<atg::HumanPart>& AATGWorld::HumanLayout() {
+	static const std::vector<atg::HumanPart> L = atg::BuildHuman({ 0, 0, 0, 0, 0 });
+	return L;
+}
+
+const TArray<UStaticMesh*>& AATGWorld::HumanMeshes(const atg::HumanLook& Look) {
+	const FString Key = FString::Printf(TEXT("%06x_%06x_%06x_%06x_%06x"), Look.skin, Look.shirt, Look.pants, Look.shoes, Look.hair);
+	FATGMeshList* L = HumanCache.Find(Key);
+	if (!L) {
+		L = &HumanCache.Add(Key);
+		UMaterialInterface* Lit = ATGMaterials::Get(EATGMat::VertexLit);
+		for (const atg::HumanPart& P : atg::BuildHuman(Look)) L->Meshes.Add(ATGMesh::BuildStaticMesh(this, *(TEXT("Human_") + Key + TEXT("_") + FString(P.name)), TArray<FATGPart>{ { &P.mesh, Lit } }, EATGAxes::Local));
+	}
+	HumanTmp.Reset();
+	for (UStaticMesh* M : L->Meshes) HumanTmp.Add(M);
+	return HumanTmp;
+}
+
+UStaticMesh* AATGWorld::WeaponMesh(const FString& Id) {
+	if (TObjectPtr<UStaticMesh>* M = WeaponCache.Find(Id)) return *M;
+	const atg::MeshBuf& G = atg::WeaponGeometry(TCHAR_TO_UTF8(*Id));
+	UStaticMesh* M = G.Empty() ? nullptr : ATGMesh::BuildStaticMesh(this, *(TEXT("Weapon_") + Id), TArray<FATGPart>{ { &G, ATGMaterials::Get(EATGMat::VertexLit) } }, EATGAxes::Local);
+	WeaponCache.Add(Id, M);
 	return M;
 }
 
@@ -733,12 +645,7 @@ void AATGWorld::Tick(float Dt) {
 	if (bReady) {
 		TerrainTimer -= Dt;
 		if (TerrainTimer <= 0) { TerrainTimer = 0.2; UpdateTerrain(false); }
-		DirtyTimer -= Dt;
-		if (DirtyTimer <= 0 && DirtyPropChunks.Num()) {
-			DirtyTimer = 0.5;
-			for (int32 K : DirtyPropChunks) BuildPropColliderChunk(K);
-			DirtyPropChunks.Empty();
-		}
+		SyncBrokenProps();
 		UpdateLamps(Dt);
 	}
 	UpdateSky(Dt);
@@ -746,8 +653,8 @@ void AATGWorld::Tick(float Dt) {
 
 // ------------------------------------------------------------------ sky, sun and moon (environment.js)
 void AATGWorld::UpdateSky(float Dt) {
-	Hours = FMath::Fmod(Hours + Dt * TimeScale / 60.f, 24.f);
-	if (Hours < 0) Hours += 24.f;
+	// (the clock runs in the simulation; before it exists, the loading screen shows the start time)
+	if (atg::Game* G = Game()) Hours = (float)G->env.hours;
 	const double Theta = (Hours - 6.0) / 24.0 * 2 * UE_DOUBLE_PI, Tilt = 0.45;
 	FVector SunDir(FMath::Cos(Theta), FMath::Sin(Theta) * FMath::Cos(Tilt) + 0.2, FMath::Sin(Theta) * FMath::Sin(Tilt) + 0.08); // game axes
 	SunDir.Normalize();

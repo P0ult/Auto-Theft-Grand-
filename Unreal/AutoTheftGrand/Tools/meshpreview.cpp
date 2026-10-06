@@ -5,6 +5,7 @@
 //   ./meshpreview out_dir
 #include "WorldMeshes.h"
 #include "Models.h"
+#include "VehicleModels.h"
 #include "MapImage.h"
 #include <cstdio>
 #include <cstring>
@@ -129,42 +130,6 @@ void Draw(Img& im, const Cam& cam, const MeshBuf& g, Layout lay, const double fi
 
 int main(int argc, char** argv) {
 	const std::string out = argc > 1 ? argv[1] : ".";
-	// ---- a driver in the seat (the pose ATGCharacter uses), the car cut away above the waist
-	if (argc > 2 && std::string(argv[2]) == "seat") {
-		Img im(1200, 800);
-		const double e[3] = { 4.2, 2.6, 3.4 }, t[3] = { 0, 0.7, 0 };
-		Cam cam(e, t, 50);
-		const CarDef& d = *FindCar("meridian");
-		const CarModel cm = BuildCarModel(d);
-		auto clip = [](const MeshBuf& g, double maxY) {
-			MeshBuf o; o.Append(g);
-			std::vector<uint32_t> keep;
-			for (size_t k = 0; k + 2 < o.I.size(); k += 3) {
-				bool ok = true;
-				for (int q = 0; q < 3; q++) if (o.P[o.I[k + q] * 3 + 1] > maxY) ok = false;
-				if (ok) { keep.push_back(o.I[k]); keep.push_back(o.I[k + 1]); keep.push_back(o.I[k + 2]); }
-			}
-			o.I = keep;
-			return o;
-		};
-		Draw(im, cam, clip(cm.paint, 0.95), Layout::VL);
-		Draw(im, cam, clip(cm.trim, 0.95), Layout::VL);
-		for (int sx : { -1, 1 }) for (int sz : { -1, 1 }) { MeshBuf w; w.Append(cm.wheel, Mat4::Compose(sx * d.track / 2, d.wheelR, sz * d.wheelbase / 2)); Draw(im, cam, w, Layout::VL); }
-		// ATGCharacter::Animate (Unreal pitch forward = rotation about -x here)
-		const std::map<std::string, double> pose = { { "torso", -0.08 }, { "head", 0.05 }, { "thighL", 1.45 }, { "thighR", 1.45 }, { "shinL", -1.35 }, { "shinR", -1.35 },
-			{ "armL", 0.95 }, { "armR", 0.95 }, { "foreL", 0.55 }, { "foreR", 0.55 } };
-		const auto parts = BuildHuman({ 0x8a5536, 0xf2f2f2, 0x2b3a55, 0xeeeeee, 0x111111 });
-		std::map<std::string, Mat4> joints;
-		for (const HumanPart& hp : parts) {
-			const Mat4 parent = hp.parent[0] ? joints[hp.parent] : Mat4::Compose(cm.seat[0], cm.seat[1] + 0.1 - 0.98, cm.seat[2]);
-			auto it = pose.find(hp.name);
-			joints[hp.name] = parent * Mat4::Compose(hp.joint[0], hp.joint[1], hp.joint[2], it == pose.end() ? 0 : -it->second, 0, 0);
-			MeshBuf g; g.Append(hp.mesh, joints[hp.name]); Draw(im, cam, g, Layout::VL);
-		}
-		WritePng(im, out + "/seat.png");
-		printf("seat %.2f %.2f %.2f door %.2f %.2f\n", cm.seat[0], cm.seat[1], cm.seat[2], cm.door[0], cm.door[1]);
-		return 0;
-	}
 	// ---- the map (world layer with the city layer composited over it, and the city layer alone)
 	if (argc > 2 && std::string(argv[2]) == "map") {
 		CityMap map;
@@ -226,17 +191,24 @@ int main(int argc, char** argv) {
 		const double e[3] = { 14, 7, 16 }, t[3] = { 14, 0.6, -4 };
 		Cam cam(e, t, 55);
 		int i = 0;
-		for (const CarDef& d : CarDefs()) {
-			const CarModel cm = BuildCarModel(d);
+		for (const VehicleDef& d : VehicleDefs()) {
+			if (!d.kind.empty() || !d.bike.empty()) continue;
+			const VehicleModel& cm = BuildVehicleModel(d);
 			const double x = (i % 7) * 5.2 - 1, z = (i / 7) * -8;
 			const Mat4 at = Mat4::Compose(x, 0, z, 0, 0.6, 0);
-			MeshBuf pm; pm.Append(cm.paint, at);
-			const double rgb[3] = { ((d.colors[0] >> 16) & 255) / 255.0, ((d.colors[0] >> 8) & 255) / 255.0, (d.colors[0] & 255) / 255.0 };
-			for (size_t v = 0; v < pm.Count(); v++) { pm.C[1][v * 2] = (float)std::pow(rgb[0], 2.2); pm.C[1][v * 2 + 1] = (float)std::pow(rgb[1], 2.2); pm.C[2][v * 2] = (float)std::pow(rgb[2], 2.2); }
-			Draw(im, cam, pm, Layout::VL);
-			MeshBuf tm; tm.Append(cm.trim, at); Draw(im, cam, tm, Layout::VL);
-			for (int sx : { -1, 1 }) for (int sz : { -1, 1 }) {
-				MeshBuf w; w.Append(cm.wheel, at * Mat4::Compose(sx * d.track / 2, d.wheelR, sz * d.wheelbase / 2));
+			const uint32_t col = d.police ? (IsSet(d.livery) ? (uint32_t)d.livery : 0xffffff) : d.colors[0];
+			const double rgb[3] = { std::pow(((col >> 16) & 255) / 255.0, 2.2), std::pow(((col >> 8) & 255) / 255.0, 2.2), std::pow((col & 255) / 255.0, 2.2) };
+			for (const VPart& p : cm.parts) {
+				Pt3 piv = { 0, 0, 0 };
+				if (p.pivot == "door") piv = cm.doorHinge; else if (p.pivot == "hood") piv = cm.hoodHinge; else if (p.pivot == "trunk") piv = cm.trunkHinge;
+				else if (p.pivot == "rear0") piv = cm.rearDoors[0].pivot; else if (p.pivot == "rear1") piv = cm.rearDoors[1].pivot;
+				MeshBuf pm; pm.Append(p.mesh, at * Mat4::Compose(piv[0], piv[1], piv[2]));
+				if (p.mat == EVMat::Paint) for (size_t v = 0; v < pm.Count(); v++) { pm.C[1][v * 2] *= (float)rgb[0]; pm.C[1][v * 2 + 1] *= (float)rgb[1]; pm.C[2][v * 2] *= (float)rgb[2]; }
+				if (p.mat == EVMat::Glass) for (size_t v = 0; v < pm.Count(); v++) { pm.C[1][v * 2] = 0.01f; pm.C[1][v * 2 + 1] = 0.012f; pm.C[2][v * 2] = 0.015f; }
+				Draw(im, cam, pm, Layout::VL);
+			}
+			for (const auto& wh : cm.wheels) {
+				MeshBuf w; w.Append(cm.wheel, at * Mat4::Compose(wh.x, wh.y, wh.z, 0, wh.x < 0 ? kPi : 0, 0));
 				Draw(im, cam, w, Layout::VL);
 			}
 			i++;

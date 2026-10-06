@@ -6,6 +6,7 @@
 
 #include "CoreMinimal.h"
 #include <atomic>
+#include <vector>
 #include "Async/Future.h"
 #include "GameFramework/Actor.h"
 #include "ATGWorld.generated.h"
@@ -21,22 +22,19 @@ class USkyLightComponent;
 class UStaticMesh;
 class UTexture2D;
 struct FATGWorldData;
-namespace atg { class CityMap; struct MeshBuf; }
+namespace atg { class CityMap; class Game; struct MeshBuf; struct VehicleDef; struct HumanLook; struct HumanPart; }
 
 USTRUCT()
-struct FATGCarMeshes {
+struct FATGVehicleMeshes {
 	GENERATED_BODY()
-	UPROPERTY() TObjectPtr<UStaticMesh> Paint = nullptr;
-	UPROPERTY() TObjectPtr<UStaticMesh> Trim = nullptr;
+	UPROPERTY() TArray<TObjectPtr<UStaticMesh>> Parts; // (one per VehicleModel part)
 	UPROPERTY() TObjectPtr<UStaticMesh> Wheel = nullptr;
 };
 
-// street furniture, trunks and rocks as circles (what the vehicles hit; the breakable ones get smashed)
-struct FATGCircle {
-	double X = 0, Z = 0, R = 0, Y0 = 0, Top = 0;
-	bool bBreakable = false, bBroken = false;
-	int32 Mesh = -1, Instance = -1; // the instanced mesh it is drawn by (props only)
-	int32 Chunk = -1;               // its collision chunk (props only)
+USTRUCT()
+struct FATGMeshList {
+	GENERATED_BODY()
+	UPROPERTY() TArray<TObjectPtr<UStaticMesh>> Meshes;
 };
 
 struct FATGMapLabel { FString Name; double X = 0, Z = 0; bool bBig = false; };
@@ -63,9 +61,11 @@ public:
 	FString ZoneName(double X, double Z) const;
 	void PlayerStart(double& X, double& Y, double& Z, double& Yaw) const;
 
-	// ---- the clock (hours) and how fast it runs (game minutes per real second)
-	UPROPERTY(EditAnywhere, Category = "ATG|Time") float Hours = 8.5f;
-	UPROPERTY(EditAnywhere, Category = "ATG|Time") float TimeScale = 1.f;
+	// ---- the simulation (the whole game; valid once ready)
+	atg::Game* Game() const;
+
+	// ---- the clock comes from the simulation (Hours mirrors it)
+	float Hours = 8.5f;
 	UPROPERTY(EditAnywhere, Category = "ATG|Lighting") float SunLux = 10.f;
 	UPROPERTY(EditAnywhere, Category = "ATG|Lighting") float MoonLux = 0.3f;
 	UPROPERTY(EditAnywhere, Category = "ATG|Lighting") float MinExposureEV100 = 1.f;
@@ -77,10 +77,6 @@ public:
 	// ---- streaming focus (the player, in Unreal space)
 	void SetFocus(const FVector& Where) { Focus = Where; bHasFocus = true; }
 
-	// ---- circles near a point (vehicles), and smashing one
-	void QueryCircles(double X, double Z, double R, TArray<int32>& Out) const;
-	FATGCircle& Circle(int32 I) { return Circles[I]; }
-	void BreakProp(int32 CircleIndex);
 
 	// ---- the map (radar and full-screen map)
 	UPROPERTY(Transient) TObjectPtr<UTexture2D> MapWorldTex = nullptr;
@@ -88,8 +84,11 @@ public:
 	FBox2D MapWorldRect, MapCityRect; // game metres: (x, z)
 	TArray<FATGMapLabel> MapLabels;
 
-	// ---- vehicle models (built on first use)
-	const FATGCarMeshes& CarMeshes(const FString& Id);
+	// ---- models (built on first use)
+	const FATGVehicleMeshes& VehicleMeshes(const atg::VehicleDef& Def);
+	const TArray<UStaticMesh*>& HumanMeshes(const atg::HumanLook& Look);
+	const std::vector<atg::HumanPart>& HumanLayout();
+	UStaticMesh* WeaponMesh(const FString& Id);
 
 private:
 	// generation
@@ -103,22 +102,19 @@ private:
 	void QueueBuild();
 	UProceduralMeshComponent* NewMeshComponent(const TCHAR* Name, bool bCollision);
 	UHierarchicalInstancedStaticMeshComponent* NewInstances(const TCHAR* Name, UStaticMesh* Mesh, int32 CustomFloats);
-	void BuildPropColliderChunk(int32 Chunk);
 
 	UPROPERTY(Transient) TObjectPtr<USceneComponent> Root;
 	UPROPERTY(Transient) TArray<TObjectPtr<UStaticMesh>> Meshes;
 	UPROPERTY(Transient) TArray<TObjectPtr<UHierarchicalInstancedStaticMeshComponent>> PropMeshes;
-	UPROPERTY(Transient) TMap<FString, FATGCarMeshes> CarCache;
+	UPROPERTY(Transient) TMap<FString, FATGVehicleMeshes> VehicleCache;
+	UPROPERTY(Transient) TMap<FString, FATGMeshList> HumanCache;
+	UPROPERTY(Transient) TMap<FString, TObjectPtr<UStaticMesh>> WeaponCache;
+	TArray<UStaticMesh*> HumanTmp;
 
-	// props' collision chunks (rebuilt when something breaks)
-	UPROPERTY(Transient) TArray<TObjectPtr<UProceduralMeshComponent>> PropColliders;
-	TArray<TArray<int32>> PropColliderCircles;
-	TSet<int32> DirtyPropChunks;
-	double DirtyTimer = 0;
-
-	// circles
-	TArray<FATGCircle> Circles;
-	TMap<int64, TArray<int32>> CircleCells;
+	// props: which instanced mesh and instance draws each (to hide smashed ones)
+	TArray<TPair<int32, int32>> PropInstances;
+	int32 PropVersion = 0;
+	void SyncBrokenProps();
 
 	// terrain: coarse chunks everywhere, fine ones (with collision) near the player
 	UPROPERTY(Transient) TArray<TObjectPtr<UProceduralMeshComponent>> TerrainFar;

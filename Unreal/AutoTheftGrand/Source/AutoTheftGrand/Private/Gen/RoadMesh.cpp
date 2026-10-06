@@ -38,6 +38,15 @@ struct Builder {
 	}
 	double ground(double x, double z) const { return map.GroundHeight(x, z); }
 
+	void deck(double ax, double az, double ay, double bx, double bz, double by, double hl, double hr, int edge, bool pavement) {
+		ColPrim d; d.kind = ColPrim::Deck; d.ax = ax; d.az = az; d.ay = ay; d.bx = bx; d.bz = bz; d.by = by; d.hl = hl; d.hr = hr; d.edge = edge; d.pavement = pavement;
+		out.decks.push_back(d);
+	}
+	void obox(double cx, double cz, double hx, double hz, double yaw, double minY, double maxY, const char* type, bool low = false) {
+		ColPrim o; o.kind = ColPrim::OBox; o.cx = cx; o.cz = cz; o.hx = hx; o.hz = hz; o.yaw = yaw; o.minY = minY; o.maxY = maxY; o.type = type; o.low = low;
+		out.prims.push_back(o);
+	}
+
 	void trims(const REdge& e, double& t0, double& t1) const {
 		auto t = [&](const RNode& n, double x, double z) -> double {
 			if (n.hasGrid || n.city) return Max(0, 10.2 - Hypot(x - n.x, z - n.z));
@@ -161,6 +170,7 @@ struct Builder {
 		a = A.V(p.lx, yb0l, p.lz, 0, -1, 0); b = A.V(p.Rx, yb0r, p.Rz, 0, -1, 0);
 		c = A.V(q.Rx, yb1r, q.Rz, 0, -1, 0); d = A.V(q.lx, yb1l, q.lz, 0, -1, 0);
 		A.QuadAuto(a, b, c, d);
+		deck(p.r.x, p.r.z, p.r.y, q.r.x, q.r.z, q.r.y, e.wL + 0.1, e.wR + 0.1, e.id, false);
 		// low solid ramps in the city: fill the gap under a low deck down to the ground with the side walls
 		const double ga = ground(p.r.x, p.r.z), gb = ground(q.r.x, q.r.z);
 		if (p.r.y - DECK_H - ga < 2.4 || q.r.y - DECK_H - gb < 2.4) {
@@ -173,6 +183,8 @@ struct Builder {
 				const double g0 = ground(px, pz) - 0.2, g1 = ground(qx, qz) - 0.2;
 				const uint32_t i0 = A.V(px, y0, pz, nn[0], 0, nn[2]), i1 = A.V(qx, y1, qz, nn[0], 0, nn[2]), i2 = A.V(qx, g1, qz, nn[0], 0, nn[2]), i3 = A.V(px, g0, pz, nn[0], 0, nn[2]);
 				A.QuadAuto(i0, i1, i2, i3);
+				const double cx = (px + qx) / 2, cz = (pz + qz) / 2, len = Hypot(qx - px, qz - pz);
+				obox(cx - nn[0] * 0.3, cz - nn[2] * 0.3, 0.3, len / 2 + 0.05, std::atan2(qx - px, qz - pz), Min(g0, g1), Min(p.r.y, q.r.y) - 0.35, "wall");
 			}
 		}
 		(void)e;
@@ -188,6 +200,7 @@ struct Builder {
 	}
 
 	void deckEnd(MeshBuf& A, const REdge& e, const Side& p, const Side& q) {
+		deck(p.r.x, p.r.z, p.r.y, q.r.x, q.r.z, q.r.y, e.wL + 0.1, e.wR + 0.1, e.id, false);
 		const double col[3] = { 0.45, 0.44, 0.42 };
 		colorOf(A, col);
 		for (int side : { -1, 1 }) {
@@ -221,6 +234,7 @@ struct Builder {
 			const uint32_t i2 = A.V(b1[0], b1[1], b1[2], Nx, Ny, Nz), i3 = A.V(a1[0], a1[1], a1[2], Nx, Ny, Nz);
 			A.QuadAuto(i0, i1, i2, i3);
 		}
+		obox((x0 + x1) / 2 - rx * inset, (z0 + z1) / 2 - rz * inset, 0.3, l / 2 + 0.05, std::atan2(dx, dz), Min(y0, y1) - 0.2, Max(y0, y1) + 0.85, "barrier", true);
 	}
 
 	static void box(MeshBuf& A, double cx, double cz, double hx, double hz, double yaw, double y0, double y1, const double col[3], bool top = false) {
@@ -250,7 +264,10 @@ struct Builder {
 		const double w = Max(e.wL, e.wR);
 		const double rx = -r.tz, rz = r.tx;
 		std::vector<double> cols; if (w > 5) { cols.push_back(-w * 0.45); cols.push_back(w * 0.45); } else cols.push_back(0);
-		for (double o : cols) box(A, r.x + rx * o, r.z + rz * o, 0.75, 0.75, std::atan2(r.tx, r.tz), g - 1, top - 0.6, col);
+		for (double o : cols) {
+			box(A, r.x + rx * o, r.z + rz * o, 0.75, 0.75, std::atan2(r.tx, r.tz), g - 1, top - 0.6, col);
+			obox(r.x + rx * o, r.z + rz * o, 0.8, 0.8, std::atan2(r.tx, r.tz), g - 1, top - 0.6, "pillar");
+		}
 		box(A, r.x, r.z, 0.7, w * 0.9, std::atan2(r.tx, r.tz), top - 0.7, top, col, true);
 	}
 
@@ -319,6 +336,15 @@ struct Builder {
 			std::vector<PvPt> pts;
 			for (const R& r : rows) { const double rx = -r.tz * side, rz = r.tx * side; pts.push_back({ r.x + rx * w, r.z + rz * w, r.x + rx * (w + W), r.z + rz * (w + W), r.y, rx, rz }); }
 			for (size_t k = 1; k < pts.size(); k++) pvQuad(chunk((rows[k - 1].x + rows[k].x) / 2, (rows[k - 1].z + rows[k].z) / 2).conc, pts[k - 1], pts[k], TOP);
+			// walkable decks, ~12 m apiece
+			size_t k0 = 0;
+			for (size_t k = 1; k < pts.size(); k++) {
+				if (k < pts.size() - 1 && rows[k].s - rows[k0].s < 12) continue;
+				const PvPt &a = pts[k0], &b = pts[k];
+				const double ax = (a.ix + a.ox) / 2, az = (a.iz + a.oz) / 2, bx = (b.ix + b.ox) / 2, bz = (b.iz + b.oz) / 2;
+				if (Hypot(bx - ax, bz - az) > 0.5) deck(ax, az, a.y + TOP, bx, bz, b.y + TOP, W / 2 + 0.05, W / 2 + 0.05, -1, true);
+				k0 = k;
+			}
 		}
 	}
 	void pavementCorners(const RNode& n) {
@@ -362,6 +388,8 @@ struct Builder {
 			double nx = n.x - (sa.ix + sb.ix) / 2, nz = n.z - (sa.iz + sb.iz) / 2; double l = Hypot(nx, nz); if (l == 0) l = 1; nx /= l; nz /= l;
 			colorOf(A, kerb);
 			A.QuadAuto(A.V(sa.ix, y - 0.03, sa.iz, nx, 0, nz), A.V(sb.ix, y - 0.03, sb.iz, nx, 0, nz), A.V(sb.ix, y + TOP, sb.iz, nx, 0, nz), A.V(sa.ix, y + TOP, sa.iz, nx, 0, nz));
+			const double ax = (sa.ix + sa.ox) / 2, az = (sa.iz + sa.oz) / 2, bx = (sb.ix + sb.ox) / 2, bz = (sb.iz + sb.oz) / 2;
+			if (Hypot(bx - ax, bz - az) > 0.5) deck(ax, az, y + TOP, bx, bz, y + TOP, a.W / 2 + 0.3, a.W / 2 + 0.3, -1, true);
 		}
 	}
 	template <typename F>
@@ -379,6 +407,10 @@ struct Builder {
 				const PvPt cur{ n.x + c * R0, n.z + s * R0, n.x + c * R1, n.z + s * R1, y, c, s };
 				if (have) pvQuad(A, prev, cur, TOP);
 				prev = cur; have = true;
+			}
+			for (int q = 0; q < seg; q += 3) {
+				const double ta = a0 + (a1 - a0) * q / seg, tb = a0 + (a1 - a0) * (std::min)(seg, q + 3) / seg, Rm = (R0 + R1) / 2;
+				deck(n.x + std::cos(ta) * Rm, n.z + std::sin(ta) * Rm, y + TOP, n.x + std::cos(tb) * Rm, n.z + std::sin(tb) * Rm, y + TOP, W / 2 + 0.2, W / 2 + 0.2, -1, true);
 			}
 		}
 	}
@@ -418,6 +450,8 @@ struct Builder {
 			C.Tri(cc, rim[k + 1][0], rim[k][0]);
 			C.QuadAuto(rim[k][1], rim[k + 1][1], rim[k + 1][2], rim[k][2]);
 		}
+		ColPrim ci; ci.kind = ColPrim::Circle; ci.x = nx; ci.z = nz; ci.r = rin; ci.h = y + 0.4; ci.type = "island";
+		out.prims.push_back(ci);
 	}
 
 	void railway(const RailInfo& rail) {
@@ -476,10 +510,12 @@ struct Builder {
 			const double pc[3] = { 0.58, 0.57, 0.54 }, yl[3] = { 0.85, 0.7, 0.12 }, post[3] = { 0.3, 0.32, 0.34 }, roof[3] = { 0.42, 0.44, 0.46 };
 			box(A, cx, cz, 2.5, 56, yaw, st.y - 0.6, top, pc, true);
 			box(A, st.x + rx * 2.1, st.z + rz * 2.1, 0.14, 56, yaw, top - 0.004, top + 0.004, yl, true);
+			obox(cx, cz, 2.5, 56, yaw, st.y - 1, top, "platform");
 			const double posts[4][2] = { { -1.6, -9 }, { 1.6, -9 }, { -1.6, 9 }, { 1.6, 9 } };
 			for (const auto& q : posts) {
 				const double px = cx + q[0] * std::cos(yaw) + q[1] * std::sin(yaw), pz = cz - q[0] * std::sin(yaw) + q[1] * std::cos(yaw);
 				box(A, px, pz, 0.09, 0.09, yaw, top, top + 3.1, post);
+				obox(px, pz, 0.12, 0.12, yaw, top, top + 3.1, "post");
 			}
 			box(A, cx, cz, 2.3, 10.5, yaw, top + 3.1, top + 3.3, roof, true);
 		}
