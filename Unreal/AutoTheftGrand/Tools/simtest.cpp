@@ -1,5 +1,6 @@
 // Native tests for the simulation (no Unreal): Tools/native.sh simtest.exe simtest.cpp && ./simtest.exe [test ...]
 // Each test sets up a game on the generated world, runs fixed 1/30 s frames and prints what it measured.
+#include "Sim/Effects.h"
 #include "Sim/Game.h"
 #include "Sim/Gameplay.h"
 #include "Sim/Hud.h"
@@ -291,6 +292,31 @@ static void TestWasted(World& w) {
 	Check(g->gameplay->state == "playing" && Hypot(p.pos.x - ps.x, p.pos.z - ps.z) < 1, "out at the police station");
 }
 
+// effects: an explosion fills the pools, leaves a scorch and lingering fire, then clears
+static void TestEffects(World& w) {
+	printf("effects\n");
+	auto g = w.game(true);
+	ToStreet(w, *g);
+	Effects* fx = dynamic_cast<Effects*>(g->effects);
+	Check(fx != nullptr, "effects installed first");
+	if (!fx) return;
+	const V3 at = g->player->pos + V3(0, 0.5, 12);
+	const double foot[4] = { 1, 2.3, 0, 1 };
+	fx->explosion(at, 6.75, foot);
+	g->frame(1.0 / 30);
+	int decals = 0; for (auto& d : fx->decals) if (d.live) decals++;
+	printf("  after the blast: %zu smoke, %zu fire, %zu dots, %zu emitters, %d decals, flash %.0f\n", fx->alphaPool.parts.size(), fx->addPool.parts.size(), fx->dotAlpha.parts.size(), fx->emitters.size(), decals, fx->lights[0].intensity + fx->lights[1].intensity + fx->lights[2].intensity);
+	Check(fx->addPool.parts.size() > 40 && fx->alphaPool.parts.size() > 30 && decals == 1, "fireball, smoke and a scorch mark");
+	Run(*g, 20);
+	printf("  after 20 s: %zu smoke, %zu fire, %zu emitters\n", fx->alphaPool.parts.size(), fx->addPool.parts.size(), fx->emitters.size());
+	Check(fx->emitters.empty() && fx->addPool.parts.size() < 20, "burns out");
+	fx->skidAdd("k", 0, 0, 0, 0.24, 1);
+	g->frame(1.0 / 30);
+	const int v0 = fx->skidVersion;
+	fx->skidAdd("k", 0.5, 0, 0, 0.24, 1);
+	Check(fx->skidVersion == v0 + 1, "skid marks join up frame to frame");
+}
+
 int main(int argc, char** argv) {
 	InstallCrashTrace();
 	setvbuf(stdout, nullptr, _IONBF, 0);
@@ -308,6 +334,7 @@ int main(int argc, char** argv) {
 	if (want("rail")) TestRail(w);
 	if (want("board")) TestBoard(w);
 	if (want("wasted")) TestWasted(w);
+	if (want("effects")) TestEffects(w);
 	printf(fails ? "%d FAILED\n" : "all passed\n", fails);
 	return fails ? 1 : 0;
 }

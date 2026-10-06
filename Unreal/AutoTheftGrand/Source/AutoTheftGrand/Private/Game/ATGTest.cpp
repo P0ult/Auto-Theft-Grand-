@@ -3,6 +3,7 @@
 #include "Game/ATGGameMode.h"
 #include "Game/ATGPlayerController.h"
 #include "Game/ATGWorld.h"
+#include "Sim/Effects.h"
 #include "Sim/Game.h"
 #include "Sim/Peds.h"
 #include "Sim/Rail.h"
@@ -138,5 +139,26 @@ ATG_CMD(CmdKill, "ATG.Kill", "ATG.Kill: the player dies (WASTED)", {
 	if (atg::Game* G = Sim(W)) { atg::DamageInfo D; D.type = "fall"; G->player->invincible = false; G->cheats.god = false; G->player->takeDamage(10000, D); }
 })
 ATG_CMD(CmdBust, "ATG.Bust", "ATG.Bust: the police arrest the player (BUSTED)", { if (atg::Game* G = Sim(W)) G->events.busted.emit(); })
+ATG_CMD(CmdExplode, "ATG.Explode", "ATG.Explode [metres] [radius]: an explosion that far in front of the player (effects only)", {
+	if (atg::Game* G = Sim(W)) if (G->effects) {
+		atg::Player& P = *G->player;
+		const double D = Arg(Args, 0, 15), R = Arg(Args, 1, 6.75);
+		const atg::V3 At(P.pos.x + std::sin(P.yaw) * D, G->map.GroundHeight(P.pos.x + std::sin(P.yaw) * D, P.pos.z + std::cos(P.yaw) * D) + 0.5, P.pos.z + std::cos(P.yaw) * D);
+		G->effects->explosion(At, R);
+	}
+})
+ATG_CMD(CmdSmoke, "ATG.Wreck", "ATG.Wreck health: the nearest car's health (below 400 it smokes, below 150 black smoke and fire)", {
+	if (atg::Game* G = Sim(W)) {
+		atg::Vehicle* Best = nullptr; double Bd = 30;
+		for (const auto& V : G->vehicles.list) { const double D = atg::Dist(V->pos.x, V->pos.z, G->player->pos.x, G->player->pos.z); if (D < Bd) { Bd = D; Best = V.get(); } }
+		if (Best) { Best->health = Arg(Args, 0, 100); Best->onFire = Best->health < 150; }
+	}
+})
+ATG_CMD(CmdFx, "ATG.Fx", "ATG.Fx: log the effects pools", {
+	if (atg::Game* G = Sim(W)) if (atg::Effects* F = dynamic_cast<atg::Effects*>(G->effects)) {
+		UE_LOG(LogATG, Display, TEXT("ATG fx: %d smoke, %d fire, %d dots, %d emitters; player (%.1f, %.1f, %.1f) cam (%.1f, %.1f, %.1f)"), (int32)F->alphaPool.parts.size(), (int32)F->addPool.parts.size(), (int32)F->dotAlpha.parts.size(), (int32)F->emitters.size(), G->player->pos.x, G->player->pos.y, G->player->pos.z, G->rig.camPos.x, G->rig.camPos.y, G->rig.camPos.z);
+		if (!F->addPool.parts.empty()) { const atg::Particle& P = F->addPool.parts.back(); UE_LOG(LogATG, Display, TEXT("ATG fx: last fire at (%.1f, %.1f, %.1f) size %.2f a %.2f col %.1f %.1f %.1f"), P.x, P.y, P.z, P.size, P.a, P.col[0], P.col[1], P.col[2]); }
+	}
+})
 #undef ATG_CMD
 }

@@ -570,6 +570,12 @@ const FATGVehicleMeshes& AATGWorld::TrainMeshes(const atg::TrainModel& Model) {
 	return M;
 }
 
+UStaticMesh* AATGWorld::PropMesh(int32 PropIndex) const {
+	if (!PropInstances.IsValidIndex(PropIndex)) return nullptr;
+	const int32 M = PropInstances[PropIndex].Key;
+	return PropMeshes.IsValidIndex(M) ? PropMeshes[M]->GetStaticMesh() : nullptr;
+}
+
 void AATGWorld::SetDeathLook(double Desat, double Death, double Boost) {
 	FPostProcessSettings& S = Post->Settings;
 	// grey = mix(colour, luma, desat) then mix(..., luma, death * 1.3)

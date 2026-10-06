@@ -17,7 +17,9 @@ its lanes, stops at the traffic lights and gives way at junctions and roundabout
 pavements, with gang members standing guard on their turf. Everyone is the browser game's smooth-skinned
 person, built for each look and posed by the same animator: walking, running, sitting, ragdolls. Die and
 the screen goes black and white in slow motion under the WASTED shard before you wake up at the hospital;
-get arrested and it is BUSTED and the police station. Drifts and big jumps pay a cash bonus. The Sol Line's passenger and freight trains run
+get arrested and it is BUSTED and the police station. Drifts and big jumps pay a cash bonus. Wrecked cars
+smoke and burn, crashes throw sparks, knocked-over street furniture and torn-off panels fly, tyres leave skid
+marks, and explosions bloom into fireballs and smoke columns. The Sol Line's passenger and freight trains run
 their timetable; board one at a platform with F, or climb into the cab and drive it. Weapons, the police,
 missions and the rest are still to come; [PORTING.md](PORTING.md) has the plan and the progress.
 
@@ -82,8 +84,8 @@ Source/AutoTheftGrand/Private/Gen/    the world generator and mesh builders: pla
 Source/AutoTheftGrand/Private/Sim/    the game: plain C++ with no Unreal code, ported line for line from
                                       src/game and src/entities (Game, Input, Collision, Character, Player,
                                       Animator, Ragdoll, Vehicle, Vehicles, Camera, Env, Weapons, Peds,
-                                      Traffic, Rail, Train, Humanoid, Gameplay, Hud); Setup puts the systems
-                                      together as main.js does
+                                      Traffic, Rail, Train, Humanoid, Gameplay, Hud, Effects); Setup puts the
+                                      systems together as main.js does
 Source/AutoTheftGrand/Private/Game/   the Unreal side: draws the simulation and feeds it input
   ATGWorld          runs the generator on a worker thread, then builds the world over a few frames:
                     procedural meshes for terrain, roads, ground, buildings and water; instanced meshes
@@ -95,6 +97,8 @@ Source/AutoTheftGrand/Private/Game/   the Unreal side: draws the simulation and 
                     wheels, lights, dents, lost panels; trains with their carriages and wagons
   ATGHumanMesh      builds a person's skinned mesh at runtime (Sim/Humanoid, the port of humanoid.js)
   ATGPerson         draws a simulated person: that mesh on a poseable component that copies the pose's bones
+  ATGEffects        draws the effects: particles as camera-facing quads, decals, skid marks, tracers, the flash
+                    lights, and debris
   ATGPlayerController  keyboard, mouse and gamepad into the simulation's input; shows its camera
   ATGGameMode       runs the simulation each frame and keeps an actor for each of its vehicles and people
   ATGHUD            loading screen, radar, full-screen map, zone name, clock, cash, speedometer, and what the
@@ -112,10 +116,11 @@ Unreal's axes (centimetres, Z up) only at the edges; `Game/ATGCoords.h` has the 
 `Tools/build.sh` builds the editor target from Git Bash. `Tools/run.sh Tools/tests/smoke.txt` runs the game off
 screen with fixed 1/30 s frames and a script of console commands (`ATG.Teleport`, `ATG.Press KeyW`,
 `ATG.Spawn zenith`, `ATG.Enter`, `ATG.Time 21`, `ATG.State`, `ATG.City`, `ATG.Station union`, `ATG.Kill`,
-`ATG.Bust`, `shot name`,
+`ATG.Bust`, `ATG.Explode`, `ATG.Wreck`, `ATG.Fx`, `shot name`,
 `wait 2`, `quit`); screenshots go to `Saved/Screenshots/WindowsEditor/ATG/`. `Tools/tests/city.txt` and
 `city2.txt` look at the traffic, the people, the traffic lights and the trains; `human.txt` at a person
-up close, walking and running; `wasted.txt` at WASTED and BUSTED.
+up close, walking and running; `wasted.txt` at WASTED and BUSTED; `effects.txt` at an explosion and a burning
+car.
 
 The simulation is tested without Unreal. `Tools/native.sh` builds a tool with MSVC from Git Bash:
 

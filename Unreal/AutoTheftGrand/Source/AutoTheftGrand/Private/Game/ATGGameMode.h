@@ -8,6 +8,7 @@
 #include "ATGGameMode.generated.h"
 
 class AATGCar;
+class AATGEffects;
 class AATGPerson;
 class AATGWorld;
 class USpotLightComponent;
@@ -29,6 +30,7 @@ private:
 	UPROPERTY(Transient) TArray<TObjectPtr<AATGCar>> Cars;
 	UPROPERTY(Transient) TArray<TObjectPtr<AATGPerson>> People;
 	UPROPERTY(Transient) TObjectPtr<USpotLightComponent> Headlight;
+	UPROPERTY(Transient) TObjectPtr<AATGEffects> Effects = nullptr;
 	bool bStarted = false;
 	void StartGame();
 	void Frame(double Dt);

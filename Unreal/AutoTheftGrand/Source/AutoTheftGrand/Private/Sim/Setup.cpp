@@ -1,4 +1,5 @@
 #include "Setup.h"
+#include "Effects.h"
 #include "Game.h"
 #include "Gameplay.h"
 #include "Hud.h"
@@ -13,7 +14,8 @@ void InstallSystems(Game& g) {
 	g.hudModel = hud.get();
 	g.hud = hud.get();
 	g.ownedHud = std::move(hud);
-	// (effects and combat come first in main.js; they arrive with phase 3)
+	g.effects = g.addSystem("effects", std::make_unique<Effects>(g));
+	// (combat: on its way)
 	g.peds = g.addSystem("peds", std::make_unique<PedManager>(g));
 	g.traffic = g.addSystem("traffic", std::make_unique<Traffic>(g));
 	// (police, npcCrime, pickups, military, army, roadblocks, heists, weaponWheel, special, phone: later phases)

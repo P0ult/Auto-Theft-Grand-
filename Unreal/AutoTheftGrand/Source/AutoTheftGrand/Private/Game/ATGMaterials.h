@@ -24,7 +24,8 @@
 class UMaterialInterface;
 class UMaterialParameterCollection;
 
-enum class EATGMat : uint8 { Terrain, Road, Street, Ground, Building, VertexLit, Frond, Water, Standard, Glass, Count };
+// FxAlpha / FxAdd: the effects (ATGEffects): particles, decals, skid marks and tracers, alpha blended or additive
+enum class EATGMat : uint8 { Terrain, Road, Street, Ground, Building, VertexLit, Frond, Water, Standard, Glass, FxAlpha, FxAdd, Count };
 
 namespace ATGMaterials {
 	// the material (falls back to the engine default if the generated one is missing)

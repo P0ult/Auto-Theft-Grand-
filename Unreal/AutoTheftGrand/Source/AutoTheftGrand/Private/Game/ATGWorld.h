@@ -83,6 +83,8 @@ public:
 	// ---- models (built on first use)
 	// the WASTED / BUSTED look (postfx.js uDesat, uDeath, uDeathBoost): desaturated, darker, a heavy vignette
 	void SetDeathLook(double Desat, double Death, double Boost);
+	// a prop's mesh (built in the world's axes), for its debris when it is knocked over
+	UStaticMesh* PropMesh(int32 PropIndex) const;
 	const FATGVehicleMeshes& VehicleMeshes(const atg::VehicleDef& Def);
 	// the trains' rolling stock (one entry per TrainModel)
 	const FATGVehicleMeshes& TrainMeshes(const atg::TrainModel& Model);

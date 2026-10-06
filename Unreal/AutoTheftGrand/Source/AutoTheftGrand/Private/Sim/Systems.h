@@ -54,6 +54,17 @@ public:
 	virtual void tireSmoke(const V3&, double) {}
 	virtual void skidAdd(const std::string& /*key*/, double, double, double, double /*width*/, double /*alpha*/) {}
 	virtual void skidBreak(const std::string& /*key*/) {}
+	// weapons, explosions (combat.js and others)
+	virtual void muzzleFlash(const V3&, const V3& /*dir*/, bool /*big*/) {}
+	virtual void impact(const V3&, const V3& /*normal*/, const std::string& /*kind: concrete, metal*/) {}
+	virtual void bloodPool(const V3&) {}
+	virtual void tracer(const V3& /*from*/, const V3& /*to*/) {}
+	// radius: visual size (6.75 = a car); foot: halfWidth, halfLength, sin(yaw), cos(yaw) of a vehicle, or null
+	virtual void explosion(const V3&, double /*radius*/ = 6, const double* /*foot*/ = nullptr, bool /*secondary*/ = false) {}
+	virtual void flash(const V3&, uint32_t /*color*/, double /*intensity*/, double /*life*/, double /*range*/ = 30) {}
+	// boats: foam behind the stern, spray off the bow (s, c: the heading's sine and cosine)
+	virtual void foam(const V3&, double, double, double, double) {}
+	virtual void bowSpray(const V3&, double, double, double, double) {}
 };
 
 // on-screen help and messages (src/ui/hud.js)

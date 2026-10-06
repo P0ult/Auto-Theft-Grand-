@@ -1,0 +1,15 @@
+wait 1
+ATG.Teleport -622 330 3.1416
+ATG.Cam 0 -0.05
+wait 1
+ATG.Teleport -610 330 1.5708
+ATG.Cam -1.5708 -0.08
+wait 0.5
+ATG.Explode 18
+wait 0.3
+shot fxd_a
+wait 0.7
+shot fxd_b
+wait 1.5
+shot fxd_c
+quit

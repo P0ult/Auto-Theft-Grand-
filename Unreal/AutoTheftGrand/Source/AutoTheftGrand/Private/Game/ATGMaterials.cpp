@@ -30,8 +30,8 @@
 
 namespace {
 // bump when the generated materials change: new assets are made under new names
-constexpr int32 GMatVersion = 4;
-const TCHAR* GMatNames[] = { TEXT("Terrain"), TEXT("Road"), TEXT("Street"), TEXT("Ground"), TEXT("Building"), TEXT("VertexLit"), TEXT("Frond"), TEXT("Water"), TEXT("Standard"), TEXT("Glass") };
+constexpr int32 GMatVersion = 5;
+const TCHAR* GMatNames[] = { TEXT("Terrain"), TEXT("Road"), TEXT("Street"), TEXT("Ground"), TEXT("Building"), TEXT("VertexLit"), TEXT("Frond"), TEXT("Water"), TEXT("Standard"), TEXT("Glass"), TEXT("FxAlpha"), TEXT("FxAdd") };
 
 FString AssetName(const TCHAR* Base) { return FString::Printf(TEXT("M_ATG_%s_%d"), Base, GMatVersion); }
 FString MpcName() { return FString::Printf(TEXT("MPC_ATG_%d"), GMatVersion); }
@@ -600,6 +600,77 @@ FString StreetCode() {
 	Code = Code.Replace(TEXT("%NX%"), *FString::FromInt((int32)atg::XS.size())).Replace(TEXT("%NZ%"), *FString::FromInt((int32)atg::ZS.size())).Replace(TEXT("%NRB%"), *FString::FromInt((int32)atg::CITY_ROUNDABOUTS.size()));
 	return Code.Replace(TEXT("%XS%"), *Xs).Replace(TEXT("%ZS%"), *Zs).Replace(TEXT("%RB%"), *Rb);
 }
+// ---- effects (effects.js): the particle and decal "textures" of the browser game, drawn per pixel. uv0 is the
+// quad's corner, uv1 = (r, g), uv2 = (b, a), uv3 = (kind, light). Kinds: 0 smoke, 1 soft dot, 2 flat, 3 bullet
+// hole, 4 blood pool, 5 scorch, 6 blood splat.
+FString FxTexCode() {
+	FString Code = TEXT("float kind = floor(uv3.x + 0.5);\nfloat2 px = uv0 * 128.0;\nfloat4 acc = float4(1, 1, 1, 1);\n");
+	// 0: smoke (textures.js smokeTexture: RNG(11), 30 soft white blobs, 0.22 at their centre)
+	{
+		atg::RNG r(11);
+		Code += TEXT("if (kind < 0.5) { acc = float4(1, 1, 1, 0);\n");
+		for (int i = 0; i < 30; i++) {
+			const double x = 64 + r.Range(-26, 26), y = 64 + r.Range(-26, 26), rad = r.Range(18, 40);
+			Code += FString::Printf(TEXT("{ float t = saturate(length(px - float2(%.4f, %.4f)) / %.4f); float sa = 0.22 * (1 - t); acc.a = sa + acc.a * (1 - sa); }\n"), x, y, rad);
+		}
+		Code += TEXT("}\n");
+	}
+	// 1: soft dot (softDotTexture), 2: flat
+	Code += TEXT("else if (kind < 1.5) { float rr = length(px - 64.0) / 64.0; float a = rr < 0.35 ? lerp(1.0, 0.45, rr / 0.35) : lerp(0.45, 0.0, saturate((rr - 0.35) / 0.65)); acc = float4(1, 1, 1, a); }\n");
+	Code += TEXT("else if (kind < 2.5) { acc = float4(1, 1, 1, 1); }\n");
+	// 3: bullet hole (decalAtlas tile 0)
+	Code += TEXT("else if (kind < 3.5) { float t = length(px - 64.0) / 60.0; float3 c; float a;\n"
+		" if (t < 0.18) { c = lerp(float3(10, 10, 10), float3(20, 20, 20), t / 0.18); a = 1; }\n"
+		" else if (t < 0.3) { float k = (t - 0.18) / 0.12; c = lerp(float3(20, 20, 20), float3(60, 60, 60), k); a = lerp(1.0, 0.7, k); }\n"
+		" else { c = float3(60, 60, 60); a = lerp(0.7, 0.0, saturate((t - 0.3) / 0.7)); }\n"
+		" acc = float4(pow(c / 255.0, 2.2), t < 1 ? a : 0); }\n");
+	// 4: blood pool (tile 1: 14 overlapping blobs; the browser game places them at random, these are fixed)
+	Code += TEXT("else if (kind < 4.5) { acc = float4(0, 0, 0, 0);\n");
+	Code += TEXT("{ float t = length(px - float2(39.196, 90.483)) / 10.563; if (t < 1) { float3 c = t < 0.7 ? lerp(float3(90, 0, 0), float3(70, 0, 0), t / 0.7) : lerp(float3(70, 0, 0), float3(60, 0, 0), (t - 0.7) / 0.3); float a = t < 0.7 ? lerp(0.95, 0.9, t / 0.7) : lerp(0.9, 0.0, (t - 0.7) / 0.3); float sa = a; float3 sc = c; float oa = sa + acc.a * (1 - sa); acc.rgb = oa > 0 ? (sc * sa + acc.rgb * acc.a * (1 - sa)) / oa : acc.rgb; acc.a = oa; } }\n");
+	Code += TEXT("{ float t = length(px - float2(39.482, 56.167)) / 32.857; if (t < 1) { float3 c = t < 0.7 ? lerp(float3(90, 0, 0), float3(70, 0, 0), t / 0.7) : lerp(float3(70, 0, 0), float3(60, 0, 0), (t - 0.7) / 0.3); float a = t < 0.7 ? lerp(0.95, 0.9, t / 0.7) : lerp(0.9, 0.0, (t - 0.7) / 0.3); float sa = a; float3 sc = c; float oa = sa + acc.a * (1 - sa); acc.rgb = oa > 0 ? (sc * sa + acc.rgb * acc.a * (1 - sa)) / oa : acc.rgb; acc.a = oa; } }\n");
+	Code += TEXT("{ float t = length(px - float2(64.215, 36.092)) / 16.619; if (t < 1) { float3 c = t < 0.7 ? lerp(float3(90, 0, 0), float3(70, 0, 0), t / 0.7) : lerp(float3(70, 0, 0), float3(60, 0, 0), (t - 0.7) / 0.3); float a = t < 0.7 ? lerp(0.95, 0.9, t / 0.7) : lerp(0.9, 0.0, (t - 0.7) / 0.3); float sa = a; float3 sc = c; float oa = sa + acc.a * (1 - sa); acc.rgb = oa > 0 ? (sc * sa + acc.rgb * acc.a * (1 - sa)) / oa : acc.rgb; acc.a = oa; } }\n");
+	Code += TEXT("{ float t = length(px - float2(49.829, 45.768)) / 26.750; if (t < 1) { float3 c = t < 0.7 ? lerp(float3(90, 0, 0), float3(70, 0, 0), t / 0.7) : lerp(float3(70, 0, 0), float3(60, 0, 0), (t - 0.7) / 0.3); float a = t < 0.7 ? lerp(0.95, 0.9, t / 0.7) : lerp(0.9, 0.0, (t - 0.7) / 0.3); float sa = a; float3 sc = c; float oa = sa + acc.a * (1 - sa); acc.rgb = oa > 0 ? (sc * sa + acc.rgb * acc.a * (1 - sa)) / oa : acc.rgb; acc.a = oa; } }\n");
+	Code += TEXT("{ float t = length(px - float2(54.288, 81.916)) / 26.953; if (t < 1) { float3 c = t < 0.7 ? lerp(float3(90, 0, 0), float3(70, 0, 0), t / 0.7) : lerp(float3(70, 0, 0), float3(60, 0, 0), (t - 0.7) / 0.3); float a = t < 0.7 ? lerp(0.95, 0.9, t / 0.7) : lerp(0.9, 0.0, (t - 0.7) / 0.3); float sa = a; float3 sc = c; float oa = sa + acc.a * (1 - sa); acc.rgb = oa > 0 ? (sc * sa + acc.rgb * acc.a * (1 - sa)) / oa : acc.rgb; acc.a = oa; } }\n");
+	Code += TEXT("{ float t = length(px - float2(46.268, 89.487)) / 17.757; if (t < 1) { float3 c = t < 0.7 ? lerp(float3(90, 0, 0), float3(70, 0, 0), t / 0.7) : lerp(float3(70, 0, 0), float3(60, 0, 0), (t - 0.7) / 0.3); float a = t < 0.7 ? lerp(0.95, 0.9, t / 0.7) : lerp(0.9, 0.0, (t - 0.7) / 0.3); float sa = a; float3 sc = c; float oa = sa + acc.a * (1 - sa); acc.rgb = oa > 0 ? (sc * sa + acc.rgb * acc.a * (1 - sa)) / oa : acc.rgb; acc.a = oa; } }\n");
+	Code += TEXT("{ float t = length(px - float2(51.351, 48.205)) / 31.384; if (t < 1) { float3 c = t < 0.7 ? lerp(float3(90, 0, 0), float3(70, 0, 0), t / 0.7) : lerp(float3(70, 0, 0), float3(60, 0, 0), (t - 0.7) / 0.3); float a = t < 0.7 ? lerp(0.95, 0.9, t / 0.7) : lerp(0.9, 0.0, (t - 0.7) / 0.3); float sa = a; float3 sc = c; float oa = sa + acc.a * (1 - sa); acc.rgb = oa > 0 ? (sc * sa + acc.rgb * acc.a * (1 - sa)) / oa : acc.rgb; acc.a = oa; } }\n");
+	Code += TEXT("{ float t = length(px - float2(81.885, 61.518)) / 20.649; if (t < 1) { float3 c = t < 0.7 ? lerp(float3(90, 0, 0), float3(70, 0, 0), t / 0.7) : lerp(float3(70, 0, 0), float3(60, 0, 0), (t - 0.7) / 0.3); float a = t < 0.7 ? lerp(0.95, 0.9, t / 0.7) : lerp(0.9, 0.0, (t - 0.7) / 0.3); float sa = a; float3 sc = c; float oa = sa + acc.a * (1 - sa); acc.rgb = oa > 0 ? (sc * sa + acc.rgb * acc.a * (1 - sa)) / oa : acc.rgb; acc.a = oa; } }\n");
+	Code += TEXT("{ float t = length(px - float2(57.185, 88.206)) / 16.475; if (t < 1) { float3 c = t < 0.7 ? lerp(float3(90, 0, 0), float3(70, 0, 0), t / 0.7) : lerp(float3(70, 0, 0), float3(60, 0, 0), (t - 0.7) / 0.3); float a = t < 0.7 ? lerp(0.95, 0.9, t / 0.7) : lerp(0.9, 0.0, (t - 0.7) / 0.3); float sa = a; float3 sc = c; float oa = sa + acc.a * (1 - sa); acc.rgb = oa > 0 ? (sc * sa + acc.rgb * acc.a * (1 - sa)) / oa : acc.rgb; acc.a = oa; } }\n");
+	Code += TEXT("{ float t = length(px - float2(61.330, 76.008)) / 10.981; if (t < 1) { float3 c = t < 0.7 ? lerp(float3(90, 0, 0), float3(70, 0, 0), t / 0.7) : lerp(float3(70, 0, 0), float3(60, 0, 0), (t - 0.7) / 0.3); float a = t < 0.7 ? lerp(0.95, 0.9, t / 0.7) : lerp(0.9, 0.0, (t - 0.7) / 0.3); float sa = a; float3 sc = c; float oa = sa + acc.a * (1 - sa); acc.rgb = oa > 0 ? (sc * sa + acc.rgb * acc.a * (1 - sa)) / oa : acc.rgb; acc.a = oa; } }\n");
+	Code += TEXT("{ float t = length(px - float2(77.193, 46.686)) / 18.249; if (t < 1) { float3 c = t < 0.7 ? lerp(float3(90, 0, 0), float3(70, 0, 0), t / 0.7) : lerp(float3(70, 0, 0), float3(60, 0, 0), (t - 0.7) / 0.3); float a = t < 0.7 ? lerp(0.95, 0.9, t / 0.7) : lerp(0.9, 0.0, (t - 0.7) / 0.3); float sa = a; float3 sc = c; float oa = sa + acc.a * (1 - sa); acc.rgb = oa > 0 ? (sc * sa + acc.rgb * acc.a * (1 - sa)) / oa : acc.rgb; acc.a = oa; } }\n");
+	Code += TEXT("{ float t = length(px - float2(42.105, 80.509)) / 35.618; if (t < 1) { float3 c = t < 0.7 ? lerp(float3(90, 0, 0), float3(70, 0, 0), t / 0.7) : lerp(float3(70, 0, 0), float3(60, 0, 0), (t - 0.7) / 0.3); float a = t < 0.7 ? lerp(0.95, 0.9, t / 0.7) : lerp(0.9, 0.0, (t - 0.7) / 0.3); float sa = a; float3 sc = c; float oa = sa + acc.a * (1 - sa); acc.rgb = oa > 0 ? (sc * sa + acc.rgb * acc.a * (1 - sa)) / oa : acc.rgb; acc.a = oa; } }\n");
+	Code += TEXT("{ float t = length(px - float2(75.598, 66.944)) / 36.846; if (t < 1) { float3 c = t < 0.7 ? lerp(float3(90, 0, 0), float3(70, 0, 0), t / 0.7) : lerp(float3(70, 0, 0), float3(60, 0, 0), (t - 0.7) / 0.3); float a = t < 0.7 ? lerp(0.95, 0.9, t / 0.7) : lerp(0.9, 0.0, (t - 0.7) / 0.3); float sa = a; float3 sc = c; float oa = sa + acc.a * (1 - sa); acc.rgb = oa > 0 ? (sc * sa + acc.rgb * acc.a * (1 - sa)) / oa : acc.rgb; acc.a = oa; } }\n");
+	Code += TEXT("{ float t = length(px - float2(63.091, 89.959)) / 32.971; if (t < 1) { float3 c = t < 0.7 ? lerp(float3(90, 0, 0), float3(70, 0, 0), t / 0.7) : lerp(float3(70, 0, 0), float3(60, 0, 0), (t - 0.7) / 0.3); float a = t < 0.7 ? lerp(0.95, 0.9, t / 0.7) : lerp(0.9, 0.0, (t - 0.7) / 0.3); float sa = a; float3 sc = c; float oa = sa + acc.a * (1 - sa); acc.rgb = oa > 0 ? (sc * sa + acc.rgb * acc.a * (1 - sa)) / oa : acc.rgb; acc.a = oa; } }\n");
+	Code += TEXT("acc.rgb = pow(acc.rgb / 255.0, 2.2); }\n");
+	// 5: scorch (tile 2)
+	Code += TEXT("else if (kind < 5.5) { float t = length(px - 64.0) / 62.0; float3 c; float a;\n"
+		" if (t < 0.6) { float k = t / 0.6; c = lerp(float3(5, 5, 5), float3(15, 12, 10), k); a = lerp(0.95, 0.7, k); }\n"
+		" else { float k = saturate((t - 0.6) / 0.4); c = lerp(float3(15, 12, 10), float3(20, 15, 10), k); a = lerp(0.7, 0.0, k); }\n"
+		" acc = float4(pow(c / 255.0, 2.2), t < 1 ? a : 0); }\n");
+	// 6: blood splat (tile 3: 20 drops)
+	Code += TEXT("else { acc = float4(0, 0, 0, 0);\n");
+	Code += TEXT("{ if (length(px - float2(61.926, 42.043)) < 8.933) { float sa = 0.9; float oa = sa + acc.a * (1 - sa); acc.rgb = float3(110, 0, 0); acc.a = oa; } }\n");
+	Code += TEXT("{ if (length(px - float2(45.939, 99.363)) < 11.554) { float sa = 0.9; float oa = sa + acc.a * (1 - sa); acc.rgb = float3(110, 0, 0); acc.a = oa; } }\n");
+	Code += TEXT("{ if (length(px - float2(76.194, 94.008)) < 12.969) { float sa = 0.9; float oa = sa + acc.a * (1 - sa); acc.rgb = float3(110, 0, 0); acc.a = oa; } }\n");
+	Code += TEXT("{ if (length(px - float2(83.995, 41.395)) < 9.259) { float sa = 0.9; float oa = sa + acc.a * (1 - sa); acc.rgb = float3(110, 0, 0); acc.a = oa; } }\n");
+	Code += TEXT("{ if (length(px - float2(98.250, 36.678)) < 3.657) { float sa = 0.9; float oa = sa + acc.a * (1 - sa); acc.rgb = float3(110, 0, 0); acc.a = oa; } }\n");
+	Code += TEXT("{ if (length(px - float2(65.008, 62.825)) < 6.531) { float sa = 0.9; float oa = sa + acc.a * (1 - sa); acc.rgb = float3(110, 0, 0); acc.a = oa; } }\n");
+	Code += TEXT("{ if (length(px - float2(86.160, 50.873)) < 10.496) { float sa = 0.9; float oa = sa + acc.a * (1 - sa); acc.rgb = float3(110, 0, 0); acc.a = oa; } }\n");
+	Code += TEXT("{ if (length(px - float2(66.923, 62.347)) < 10.028) { float sa = 0.9; float oa = sa + acc.a * (1 - sa); acc.rgb = float3(110, 0, 0); acc.a = oa; } }\n");
+	Code += TEXT("{ if (length(px - float2(63.463, 65.091)) < 12.470) { float sa = 0.9; float oa = sa + acc.a * (1 - sa); acc.rgb = float3(110, 0, 0); acc.a = oa; } }\n");
+	Code += TEXT("{ if (length(px - float2(40.504, 76.155)) < 12.919) { float sa = 0.9; float oa = sa + acc.a * (1 - sa); acc.rgb = float3(110, 0, 0); acc.a = oa; } }\n");
+	Code += TEXT("{ if (length(px - float2(55.959, 104.215)) < 4.344) { float sa = 0.9; float oa = sa + acc.a * (1 - sa); acc.rgb = float3(110, 0, 0); acc.a = oa; } }\n");
+	Code += TEXT("{ if (length(px - float2(58.381, 40.044)) < 6.012) { float sa = 0.9; float oa = sa + acc.a * (1 - sa); acc.rgb = float3(110, 0, 0); acc.a = oa; } }\n");
+	Code += TEXT("{ if (length(px - float2(80.352, 74.037)) < 4.532) { float sa = 0.9; float oa = sa + acc.a * (1 - sa); acc.rgb = float3(110, 0, 0); acc.a = oa; } }\n");
+	Code += TEXT("{ if (length(px - float2(62.044, 30.832)) < 12.936) { float sa = 0.9; float oa = sa + acc.a * (1 - sa); acc.rgb = float3(110, 0, 0); acc.a = oa; } }\n");
+	Code += TEXT("{ if (length(px - float2(69.683, 43.936)) < 3.505) { float sa = 0.9; float oa = sa + acc.a * (1 - sa); acc.rgb = float3(110, 0, 0); acc.a = oa; } }\n");
+	Code += TEXT("{ if (length(px - float2(72.308, 35.384)) < 7.772) { float sa = 0.9; float oa = sa + acc.a * (1 - sa); acc.rgb = float3(110, 0, 0); acc.a = oa; } }\n");
+	Code += TEXT("{ if (length(px - float2(82.505, 98.078)) < 9.345) { float sa = 0.9; float oa = sa + acc.a * (1 - sa); acc.rgb = float3(110, 0, 0); acc.a = oa; } }\n");
+	Code += TEXT("{ if (length(px - float2(87.484, 94.079)) < 6.527) { float sa = 0.9; float oa = sa + acc.a * (1 - sa); acc.rgb = float3(110, 0, 0); acc.a = oa; } }\n");
+	Code += TEXT("{ if (length(px - float2(64.588, 64.335)) < 10.174) { float sa = 0.9; float oa = sa + acc.a * (1 - sa); acc.rgb = float3(110, 0, 0); acc.a = oa; } }\n");
+	Code += TEXT("{ if (length(px - float2(58.455, 76.732)) < 11.169) { float sa = 0.9; float oa = sa + acc.a * (1 - sa); acc.rgb = float3(110, 0, 0); acc.a = oa; } }\n");
+	Code += TEXT("acc.rgb = pow(acc.rgb / 255.0, 2.2); }\n");
+	return Code;
+}
 } // namespace ATGHlsl
 
 // ------------------------------------------------------------------ editor: building the assets
@@ -805,6 +876,24 @@ UMaterial* MakeMaterial(EATGMat Which, UMaterialParameterCollection* C) {
 		B.Out()->EmissiveColor.Connect(0, B.Mask(E, true, true, true, false));
 		B.Out()->Metallic.Connect(0, B.Mask(E, false, false, false, true));
 		if (bGlass) B.Out()->Opacity.Connect(0, B.Mask(O, true, false, false, false));
+		break;
+	}
+	case EATGMat::FxAlpha:
+	case EATGMat::FxAdd: {
+		const bool bAdd = Which == EATGMat::FxAdd;
+		M->SetShadingModel(MSM_Unlit);
+		M->BlendMode = bAdd ? BLEND_Additive : BLEND_Translucent;
+		M->TwoSided = true;
+		TArray<TPair<FString, UMaterialExpression*>> Ins; UVs(Ins);
+		const FString Tex = FxTexCode();
+		// alpha blended: colour x light x texture, opacity = texture alpha x vertex alpha (effects.js PFRAG);
+		// additive: colour x texture x alpha
+		const FString Body = bAdd
+			? Tex + TEXT("float a = acc.a * uv2.y; return float4(float3(uv1.x, uv1.y, uv2.x) * acc.rgb * a, 1);")
+			: Tex + TEXT("float a = acc.a * uv2.y; return float4(float3(uv1.x, uv1.y, uv2.x) * uv3.y * acc.rgb, a);");
+		UMaterialExpressionCustom* E = B.Custom(Body, CMOT_Float4, Ins, TEXT("ATG effects"));
+		B.Out()->EmissiveColor.Connect(0, B.Mask(E, true, true, true, false));
+		if (!bAdd) B.Out()->Opacity.Connect(0, B.Mask(E, false, false, false, true));
 		break;
 	}
 	default: break;

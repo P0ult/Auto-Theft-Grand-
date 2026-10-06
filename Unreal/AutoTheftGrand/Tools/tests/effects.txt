@@ -1,0 +1,20 @@
+# Effects: an explosion in front of the player (fireball, smoke, sparks, debris trails, scorch), then a
+# damaged car smoking and burning.
+wait 1
+ATG.God 1
+ATG.Teleport -622 330 3.1416
+ATG.Cam 0 -0.15
+wait 1
+ATG.Explode 18
+wait 0.25
+shot fx_blast
+wait 1.5
+shot fx_smoke
+wait 6
+shot fx_after
+ATG.Spawn zenith
+wait 0.5
+ATG.Wreck 100
+wait 3
+shot fx_wreck
+quit
