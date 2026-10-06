@@ -1,4 +1,5 @@
 #include "Setup.h"
+#include "Combat.h"
 #include "Effects.h"
 #include "Game.h"
 #include "Gameplay.h"
@@ -15,7 +16,7 @@ void InstallSystems(Game& g) {
 	g.hud = hud.get();
 	g.ownedHud = std::move(hud);
 	g.effects = g.addSystem("effects", std::make_unique<Effects>(g));
-	// (combat: on its way)
+	g.combat = g.addSystem("combat", std::make_unique<Combat>(g));
 	g.peds = g.addSystem("peds", std::make_unique<PedManager>(g));
 	g.traffic = g.addSystem("traffic", std::make_unique<Traffic>(g));
 	// (police, npcCrime, pickups, military, army, roadblocks, heists, weaponWheel, special, phone: later phases)

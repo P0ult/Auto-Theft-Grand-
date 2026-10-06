@@ -34,6 +34,7 @@ pad, and will play its sounds.
 | game/peds.js | `Sim/Peds` | Spawning on the walk graph, wandering, fleeing, gangs on their turf, followers and guards. Cops and street crime call into the police and crime systems (phase 3). |
 | game/railsystem.js, entities/train.js | `Sim/Rail`, `Sim/Train`, `Gen/TrainModels` | The timetable, the single-track sections and the Fern Creek passing loop, level crossings, boarding, driving from the cab. The trains run to the metre as in the browser game. |
 | game/gameplay.js | `Sim/Gameplay` | Stats, WASTED and BUSTED (slow motion, the death camera, the respawn at the hospital or the police station, the bill), drift and stunt bonuses, smoke and fire on damaged cars, skid marks, first-time hints. |
+| game/combat.js | `Sim/Combat`, `ATGEffects` (projectiles) | Hitscan with spread and pellets (aimed from the camera, fired from the muzzle), hits on people, vehicles and the world, melee with its combos and the bat denting cars, explosions sized to the vehicle, rockets, homing missiles, tank shells, grenades, molotovs and their burning pools, people on fire. The police helicopter and the animals join the ray once they are ported. |
 | game/effects.js | `Sim/Effects`, `ATGEffects`, `ATGMaterials` (FxAlpha, FxAdd) | The three particle pools, decals, skid marks, tracers, flash lights, explosions with their fire, flying wreckage, smoke columns and secondary blasts, prop and panel debris, broken props restored far away. The canvas textures (smoke, soft dot, the decal atlas) are drawn per pixel in the materials. Boat wakes and rain come with boats and the weather. |
 | ui/hud.js (messages and overlays) | `Sim/Hud` (`HudModel`), `ATGHUD` | Help, big messages, subtitles, objectives, the bar, money pops, dispatch, the fade, the damage flash, the shard: the state and timers in the simulation, drawn by `ATGHUD`. |
 | ui/hud.js (the modern layout) | `ATGHudModern.cpp`, `ATGPainter` | The minimap (`_drawRadar`: the map turned with the camera, the city layer clipped in, police flashes and search cones, blips and their icons, north, the player arrow), the health, armour and special bars, the stars, cash, weapon icon and ammo, the zone and vehicle names, the speedometer (`_drawSpeedo`: dial, red zone, gear, damage bar, the altimeter for aircraft). Still to come: the GPS route, the classic round radar, the browser game's fonts. |
@@ -45,7 +46,7 @@ pad, and will play its sounds.
 **Status.** Phase 1 builds and runs on UE 5.8.3 (Visual Studio 2026). The game logic has moved into the
 simulation layer (above): walking, getting in and out, driving, crashes and parked cars run there and are
 drawn by Unreal. Phase 2 is done: traffic, people, traffic lights, trains and the skinned humanoid. Phase 3
-is under way: WASTED and BUSTED and the effects are done here; combat, police and pickups are on a second branch
+is under way: WASTED and BUSTED, the effects and combat are done here; police, pickups and shops are on a second branch
 (`oc-phase3`, worked by a second agent and merged here once checked).
 
 **Phase 1: the world and driving (done).**
@@ -64,7 +65,7 @@ is under way: WASTED and BUSTED and the effects are done here; combat, police an
 - A skinned humanoid with the procedural animator, and ragdolls. Done.
 
 **Phase 3: action.**
-- Weapons, melee, damage and effects (combat.js, effects.js).
+- Weapons, melee, damage and effects (combat.js, effects.js). Done.
 - Pickups and shops.
 - Wanted level and police (police.js).
 - Car damage, fire and explosions; vehicle tumbling (vehicle.js `_tumble`).

@@ -18,7 +18,8 @@ pavements, with gang members standing guard on their turf. Everyone is the brows
 person, built for each look and posed by the same animator: walking, running, sitting, ragdolls. Die and
 the screen goes black and white in slow motion under the WASTED shard before you wake up at the hospital;
 get arrested and it is BUSTED and the police station. Drifts and big jumps pay a cash bonus. Wrecked cars
-smoke and burn, crashes throw sparks, knocked-over street furniture and torn-off panels fly, tyres leave skid
+smoke and burn, crashes throw sparks, guns, knives, bats, grenades, molotovs and the RPG work as in the
+browser game, knocked-over street furniture and torn-off panels fly, tyres leave skid
 marks, and explosions bloom into fireballs and smoke columns. The Sol Line's passenger and freight trains run
 their timetable; board one at a platform with F, or climb into the cab and drive it. Weapons, the police,
 missions and the rest are still to come; [PORTING.md](PORTING.md) has the plan and the progress.
@@ -84,7 +85,7 @@ Source/AutoTheftGrand/Private/Gen/    the world generator and mesh builders: pla
 Source/AutoTheftGrand/Private/Sim/    the game: plain C++ with no Unreal code, ported line for line from
                                       src/game and src/entities (Game, Input, Collision, Character, Player,
                                       Animator, Ragdoll, Vehicle, Vehicles, Camera, Env, Weapons, Peds,
-                                      Traffic, Rail, Train, Humanoid, Gameplay, Hud, Effects); Setup puts the
+                                      Traffic, Rail, Train, Humanoid, Gameplay, Hud, Effects, Combat); Setup puts the
                                       systems together as main.js does
 Source/AutoTheftGrand/Private/Game/   the Unreal side: draws the simulation and feeds it input
   ATGWorld          runs the generator on a worker thread, then builds the world over a few frames:
@@ -120,11 +121,11 @@ Unreal's axes (centimetres, Z up) only at the edges; `Game/ATGCoords.h` has the 
 `Tools/build.sh` builds the editor target from Git Bash. `Tools/run.sh Tools/tests/smoke.txt` runs the game off
 screen with fixed 1/30 s frames and a script of console commands (`ATG.Teleport`, `ATG.Press KeyW`,
 `ATG.Spawn zenith`, `ATG.Enter`, `ATG.Time 21`, `ATG.State`, `ATG.City`, `ATG.Station union`, `ATG.Kill`,
-`ATG.Bust`, `ATG.Explode`, `ATG.Wreck`, `ATG.Fx`, `shot name`,
+`ATG.Bust`, `ATG.Explode`, `ATG.Wreck`, `ATG.Fx`, `ATG.Give rpg 5`, `ATG.Press MouseRight MouseLeft`, `shot name`,
 `wait 2`, `quit`); screenshots go to `Saved/Screenshots/WindowsEditor/ATG/`. `Tools/tests/city.txt` and
 `city2.txt` look at the traffic, the people, the traffic lights and the trains; `human.txt` at a person
 up close, walking and running; `wasted.txt` at WASTED and BUSTED; `effects.txt` at an explosion and a burning
-car; `hud.txt` at the HUD on foot and in a car.
+car; `hud.txt` at the HUD on foot and in a car; `combat.txt` at aiming, shooting and the RPG.
 
 The simulation is tested without Unreal. `Tools/native.sh` builds a tool with MSVC from Git Bash:
 

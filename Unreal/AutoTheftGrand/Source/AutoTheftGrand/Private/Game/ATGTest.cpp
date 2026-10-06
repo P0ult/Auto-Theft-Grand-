@@ -4,6 +4,7 @@
 #include "Game/ATGPlayerController.h"
 #include "Game/ATGWorld.h"
 #include "Sim/Effects.h"
+#include "Sim/Weapons.h"
 #include "Sim/Game.h"
 #include "Sim/Peds.h"
 #include "Sim/Rail.h"
@@ -159,6 +160,9 @@ ATG_CMD(CmdFx, "ATG.Fx", "ATG.Fx: log the effects pools", {
 		UE_LOG(LogATG, Display, TEXT("ATG fx: %d smoke, %d fire, %d dots, %d emitters; player (%.1f, %.1f, %.1f) cam (%.1f, %.1f, %.1f)"), (int32)F->alphaPool.parts.size(), (int32)F->addPool.parts.size(), (int32)F->dotAlpha.parts.size(), (int32)F->emitters.size(), G->player->pos.x, G->player->pos.y, G->player->pos.z, G->rig.camPos.x, G->rig.camPos.y, G->rig.camPos.z);
 		if (!F->addPool.parts.empty()) { const atg::Particle& P = F->addPool.parts.back(); UE_LOG(LogATG, Display, TEXT("ATG fx: last fire at (%.1f, %.1f, %.1f) size %.2f a %.2f col %.1f %.1f %.1f"), P.x, P.y, P.z, P.size, P.a, P.col[0], P.col[1], P.col[2]); }
 	}
+})
+ATG_CMD(CmdGive, "ATG.Give", "ATG.Give weapon [ammo]: give the player a weapon and hold it", {
+	if (atg::Game* G = Sim(W)) if (Args.Num()) { const std::string Id = TCHAR_TO_UTF8(*Args[0]); if (atg::FindWeapon(Id)) { G->player->giveWeapon(Id, Arg(Args, 1, 200)); G->player->equip(Id); } }
 })
 #undef ATG_CMD
 }

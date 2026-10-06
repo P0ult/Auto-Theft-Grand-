@@ -4,6 +4,9 @@
 #include "Game/ATGWorld.h"
 #include "Gen/VehicleDefs.h"
 #include "Gen/VehicleModels.h"
+#include "Game/ATGMeshUtil.h"
+#include "Gen/MeshBuf.h"
+#include "Sim/Combat.h"
 #include "Sim/Effects.h"
 #include "Sim/Game.h"
 
@@ -187,4 +190,41 @@ void AATGEffects::Sync(atg::Game* G) {
 		if (Pieces[I].Mat && C->GetMaterial(0) != Pieces[I].Mat) C->SetMaterial(0, Pieces[I].Mat);
 		C->SetWorldTransform(Pieces[I].T);
 	}
+	// projectiles
+	atg::Combat* Cb = dynamic_cast<atg::Combat*>(G->combat);
+	const int32 NShots = Cb ? (int32)Cb->projectiles.size() : 0;
+	while (Shots.Num() < NShots) {
+		UStaticMeshComponent* C = NewObject<UStaticMeshComponent>(this);
+		C->SetupAttachment(Root);
+		C->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		C->SetMobility(EComponentMobility::Movable);
+		C->RegisterComponent();
+		Shots.Add(C);
+	}
+	for (int32 I = 0; I < Shots.Num(); I++) {
+		UStaticMeshComponent* C = Shots[I];
+		C->SetVisibility(I < NShots);
+		if (I >= NShots) continue;
+		const atg::Combat::Projectile& P = Cb->projectiles[I];
+		UStaticMesh* M = P.type == "molotov" && W ? W->WeaponMesh(TEXT("molotov")) : ShotMesh(P.type == "grenade" ? TEXT("grenade") : FString(UTF8_TO_TCHAR(P.kind.c_str())));
+		if (C->GetStaticMesh() != M) C->SetStaticMesh(M);
+		atg::Quat Q;
+		if (P.type == "rocket") { const atg::V3 D = P.vel.normalized(); Q = atg::Quat::FromUnitVectors(atg::V3(0, 0, 1), D); }
+		else Q = atg::Quat::FromEuler(P.spin, 0, 0);
+		const double Sc = P.scale;
+		C->SetWorldTransform(ATG::ToUE(atg::M4::Compose(P.pos, Q, atg::V3(Sc, Sc, Sc))));
+	}
+}
+
+// combat.js's projectile meshes, facing +z (the Local axes): rocket, missile, shell, grenade
+UStaticMesh* AATGEffects::ShotMesh(const FString& Kind) {
+	if (TObjectPtr<UStaticMesh>* M = ShotMeshes.Find(Kind)) return *M;
+	atg::MeshBuf B;
+	if (Kind == TEXT("grenade")) { B.ColorHex(0x3b4a2a); B.Rough(0.7); B.Add(atg::Geo::Sphere(0.06, 8, 6), atg::Mat4::Identity()); }
+	else if (Kind == TEXT("missile")) { B.ColorHex(0xe8e8e2); B.Rough(0.4); B.Add(atg::Geo::Cylinder(0.1, 0.1, 2.4, 8), atg::Mat4::Compose(0, 0, 0, atg::kPi / 2, 0, 0)); }
+	else if (Kind == TEXT("shell")) { B.Color(1, 0.65, 0.3); B.Glow(4); B.Add(atg::Geo::Cylinder(0.07, 0.07, 0.9, 6), atg::Mat4::Compose(0, 0, 0, atg::kPi / 2, 0, 0)); }
+	else { B.ColorHex(0x3e4a2f); B.Rough(0.6); B.Add(atg::Geo::Cylinder(0.05, 0.05, 0.6, 8), atg::Mat4::Compose(0, 0, 0, atg::kPi / 2, 0, 0)); }
+	UStaticMesh* M = ATGMesh::BuildStaticMesh(this, *(TEXT("Shot_") + Kind), TArray<FATGPart>{ { &B, ATGMaterials::Get(EATGMat::VertexLit) } }, EATGAxes::Local);
+	ShotMeshes.Add(Kind, M);
+	return M;
 }

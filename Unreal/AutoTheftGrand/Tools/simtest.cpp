@@ -1,5 +1,6 @@
 // Native tests for the simulation (no Unreal): Tools/native.sh simtest.exe simtest.cpp && ./simtest.exe [test ...]
 // Each test sets up a game on the generated world, runs fixed 1/30 s frames and prints what it measured.
+#include "Sim/Combat.h"
 #include "Sim/Effects.h"
 #include "Sim/Game.h"
 #include "Sim/Gameplay.h"
@@ -317,6 +318,46 @@ static void TestEffects(World& w) {
 	Check(fx->skidVersion == v0 + 1, "skid marks join up frame to frame");
 }
 
+// combat: the player shoots a pedestrian in front of them; a grenade hurts the people round it
+static void TestCombat(World& w) {
+	printf("combat\n");
+	auto g = w.game(true);
+	ToStreet(w, *g);
+	Player& p = *g->player;
+	g->cheats.god = true;
+	for (auto& q : g->peds->list) g->peds->remove(q.get());
+	Ped* v = g->peds->spawnPed(p.pos.x, p.pos.z + 6);
+	v->yaw = kPi; v->setState("idle");
+	g->frame(1.0 / 30);
+	p.giveWeapon("pistol", 100); p.equip("pistol");
+	int kills = 0; std::string part;
+	g->events.kill.on([&](Character* k, Character*, const std::string&, const std::string& pt) { if (k == &p) { kills++; part = pt; } });
+	Combat* cb = dynamic_cast<Combat*>(g->combat);
+	const double h0 = v->health;
+	for (int i = 0; i < 20 && !v->dead; i++) {
+		const V3 from = p.pos + V3(0, 1.5, 0);
+		const V3 to = v->pos + V3(0, 1.1, 0);
+		cb->fireWeapon(&p, *FindWeapon("pistol"), from, (to - from).normalized());
+		g->frame(1.0 / 30);
+	}
+	printf("  health %.0f -> %.0f, dead %d, kills %d (%s)\n", h0, v->health, v->dead ? 1 : 0, kills, part.c_str());
+	Check(v->health < h0, "the shot hurts");
+	Check(v->dead && kills == 1, "a kill event when they die");
+	Ped* a = g->peds->spawnPed(p.pos.x + 8, p.pos.z + 20);
+	Ped* b = g->peds->spawnPed(p.pos.x + 9, p.pos.z + 21);
+	g->frame(1.0 / 30);
+	const double ha = a->health, hb = b->health;
+	cb->explosion(V3(p.pos.x + 8.5, a->pos.y + 0.3, p.pos.z + 20.5), 7, 170, &p);
+	g->frame(1.0 / 30);
+	printf("  grenade: %.0f -> %.0f, %.0f -> %.0f\n", ha, a->health, hb, b->health);
+	Check(a->health < ha && b->health < hb, "an explosion hurts the people round it");
+	cb->throwGrenade(&p, p.forward(), "grenade");
+	Run(*g, 0.5);
+	Check(cb->projectiles.size() == 1, "a thrown grenade flies");
+	Run(*g, 3);
+	Check(cb->projectiles.empty(), "and goes off after 3 s");
+}
+
 int main(int argc, char** argv) {
 	InstallCrashTrace();
 	setvbuf(stdout, nullptr, _IONBF, 0);
@@ -335,6 +376,7 @@ int main(int argc, char** argv) {
 	if (want("board")) TestBoard(w);
 	if (want("wasted")) TestWasted(w);
 	if (want("effects")) TestEffects(w);
+	if (want("combat")) TestCombat(w);
 	printf(fails ? "%d FAILED\n" : "all passed\n", fails);
 	return fails ? 1 : 0;
 }

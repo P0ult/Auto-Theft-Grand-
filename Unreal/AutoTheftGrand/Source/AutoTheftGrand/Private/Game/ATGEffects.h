@@ -28,6 +28,10 @@ private:
 	UPROPERTY(Transient) TMap<uint32, TObjectPtr<UMaterialInstanceDynamic>> PaintMats;
 	UPROPERTY(Transient) TObjectPtr<UMaterialInstanceDynamic> GlassMat;
 	UPROPERTY(Transient) TObjectPtr<UMaterialInstanceDynamic> TrimMat;
+	// projectiles in flight (combat.js meshes: rocket, missile, shell, grenade; a molotov is the weapon itself)
+	UPROPERTY(Transient) TArray<TObjectPtr<UStaticMeshComponent>> Shots;
+	UPROPERTY(Transient) TMap<FString, TObjectPtr<UStaticMesh>> ShotMeshes;
+	UStaticMesh* ShotMesh(const FString& Kind);
 	int32 DecalVersion = -1, SkidVersion = -1;
 	bool bInit = false;
 	void Init();

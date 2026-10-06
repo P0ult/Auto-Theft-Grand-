@@ -64,7 +64,8 @@ public:
 	Ref<Character> lastDamager;
 	double lastHitTime = -10;
 	bool removed = false, visible = true, invincible = false;
-	bool hiddenInVehicle = false; // (inside a train or a plane's cabin: not drawn)
+	bool hiddenInVehicle = false;
+	double onFire = 0;             // (seconds still burning: combat.js fires) // (inside a train or a plane's cabin: not drawn)
 	double protectUntil = 0;
 	bool remote = false, npcProxy = false;   // (multiplayer avatars)
 	// in a vehicle: the body's root relative to the vehicle's body (position, Euler XYZ)

@@ -357,3 +357,43 @@ void AATGHUD::DrawSpeedo(atg::Game* G, float Dt) {
 	c.Fill = CssColor(0x111111); c.Stroke = CssColor(0xe8b64c); c.LineWidth = 2;
 	c.BeginPath(); c.Arc(C, C, 8, 0, 2 * PI); c.FillPath(); c.StrokePath();
 }
+
+// ------------------------------------------------------------------ crosshair and sniper scope (hud.js / CSS)
+void AATGHUD::DrawCrosshair(atg::Game* G) {
+	atg::Player& p = *G->player;
+	const atg::WeaponDef& def = p.weaponDef();
+	const bool aimVisible = (p.aiming && (def.type == "gun" || def.type == "launcher") && !p.dead) || (p.vehicle && p.aiming);
+	const bool scoped = G->rig.scopeBlend > 0.55;
+	FATGPainter c(Canvas);
+	const float W = Canvas->ClipX, H = Canvas->ClipY;
+	if (scoped) {
+		// a dark ring outside 38 vmin, cross lines, a red dot and the zoom
+		const float Vmin = FMath::Min(W, H) / 100.f, R = 38 * Vmin;
+		// (UCanvas can't cut holes: the dark ring is an annulus of quads)
+		const int32 N = 72;
+		for (int32 i = 0; i < N; i++) {
+			const float a0 = 2 * PI * i / N, a1 = 2 * PI * (i + 1) / N, Ro = FMath::Max(W, H);
+			c.BeginPath();
+			c.MoveTo(W / 2 + FMath::Cos(a0) * R, H / 2 + FMath::Sin(a0) * R); c.LineTo(W / 2 + FMath::Cos(a0) * Ro, H / 2 + FMath::Sin(a0) * Ro);
+			c.LineTo(W / 2 + FMath::Cos(a1) * Ro, H / 2 + FMath::Sin(a1) * Ro); c.LineTo(W / 2 + FMath::Cos(a1) * R, H / 2 + FMath::Sin(a1) * R); c.ClosePath();
+			c.Fill = FLinearColor::Black; c.FillPath();
+		}
+		c.Fill = FLinearColor(0, 0, 0, 0.85f);
+		c.FillRect(W / 2 - R, H / 2 - 0.75f, R * 2, 1.5f);
+		c.FillRect(W / 2 - 0.75f, H / 2 - R, 1.5f, R * 2);
+		c.Fill = CssColor(0xe0322a); c.BeginPath(); c.Arc(W / 2, H / 2, 2.5f, 0, 2 * PI); c.FillPath();
+		c.Fill = FLinearColor::White;
+		c.Text(FString::Printf(TEXT("%.1f×"), 60 / G->rig.scopeFov), W / 2, H / 2 + 30 * Vmin, GEngine->GetMediumFont(), 14 * Ui, 0.5f, 0, true);
+		return;
+	}
+	if (!aimVisible) return;
+	// four bars (30 px box; 44 px for the shotgun and SMG)
+	const bool wide = def.id == "shotgun" || def.id == "smg";
+	const float S = (wide ? 44 : 30) * Ui, Half = S / 2, L = 9 * Ui, T = 2 * Ui;
+	const float X0 = W / 2 - Half, Y0 = H / 2 - Half;
+	auto Bar = [&](float x, float y, float w, float h) { c.Fill = FLinearColor(0, 0, 0, 0.8f); c.FillRect(x - 1, y - 1, w + 2, h + 2); c.Fill = FLinearColor::White; c.FillRect(x, y, w, h); };
+	Bar(X0 + Half - T / 2, Y0, T, L);
+	Bar(X0 + Half - T / 2, Y0 + S - L, T, L);
+	Bar(X0, Y0 + Half - T / 2, L, T);
+	Bar(X0 + S - L, Y0 + Half - T / 2, L, T);
+}
