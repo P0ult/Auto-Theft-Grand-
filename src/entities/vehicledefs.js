@@ -40,6 +40,39 @@ export const VEHICLES = {
     mass: 1650, force: 12500, top: 56, grip: 1.08, drive: 'rwd', steer: 0.6, brake: 18000, rarity: 0, police: true,
     colors: [0x111111],
   },
+  // the law at three stars and up: Sheriff SUVs on rural roadblocks, the SWAT Enforcer at four
+  sheriff: {
+    name: 'Sheriff SUV', body: 'suv', L: 4.95, W: 2.0, H: 1.85, wheelbase: 2.9, track: 1.7, wheelR: 0.4, clearance: 0.32,
+    mass: 2200, force: 13500, top: 50, grip: 1.0, drive: 'awd', steer: 0.58, brake: 18000, rarity: 0, police: true, livery: 0xe6e1d3, camDist: 8.2, camHeight: 1.9,
+    colors: [0xe6e1d3],
+  },
+  enforcer: {
+    name: 'Enforcer', body: 'van', L: 5.5, W: 2.1, H: 2.45, wheelbase: 3.35, track: 1.8, wheelR: 0.42, clearance: 0.34, armored: true,
+    mass: 3900, force: 15500, top: 42, grip: 0.92, drive: 'rwd', steer: 0.54, brake: 21000, rarity: 0, police: true, livery: 0x1c2534, camDist: 10, camHeight: 2.6,
+    health: 2000, bulletMul: 0.45, colors: [0x1c2534],
+  },
+  // Gruppe-style cash-in-transit van: bullet resistant; shoot the back doors open (heists.js)
+  stockade: {
+    name: 'Stockade', body: 'van', L: 5.7, W: 2.15, H: 2.5, wheelbase: 3.45, track: 1.82, wheelR: 0.43, clearance: 0.34, armored: true,
+    mass: 4300, force: 15000, top: 36, grip: 0.9, drive: 'rwd', steer: 0.52, brake: 22000, rarity: 0, camDist: 10.5, camHeight: 2.7,
+    health: 2600, bulletMul: 0.3, colors: [0xf0f0ec],
+  },
+  // more on the streets
+  buffalo: {
+    name: 'Buffalo S', body: 'sedan', L: 4.95, W: 1.92, H: 1.42, wheelbase: 2.95, track: 1.62, wheelR: 0.36, clearance: 0.22,
+    mass: 1650, force: 13500, top: 58, grip: 1.08, drive: 'awd', steer: 0.6, brake: 18000, rarity: 4,
+    colors: [0x0b0b0d, 0x2f3d4c, 0xb8bcc2, 0x7a0f14, 0xf2f2f2, 0x1f4e3d],
+  },
+  baller: {
+    name: 'Baller', body: 'suv', L: 5.05, W: 2.02, H: 1.82, wheelbase: 3.0, track: 1.72, wheelR: 0.42, clearance: 0.3,
+    mass: 2350, force: 13000, top: 50, grip: 0.98, drive: 'awd', steer: 0.57, brake: 18000, rarity: 4, camDist: 8.3, camHeight: 1.9,
+    colors: [0x0b0b0d, 0xf4f4f2, 0x3c3f44, 0x5b4a3a, 0x1b2a41],
+  },
+  tempest: {
+    name: 'Tempest', body: 'super', L: 4.75, W: 2.04, H: 1.12, wheelbase: 2.8, track: 1.74, wheelR: 0.36, clearance: 0.13,
+    mass: 1450, force: 18500, top: 76, grip: 1.28, drive: 'awd', steer: 0.57, brake: 23000, rarity: 1,
+    colors: [0x2dd4bf, 0xff6b00, 0xf8f8f8, 0x7c3aed, 0x111111, 0xd90429],
+  },
   zenith: {
     name: 'Zenith', body: 'super', L: 4.6, W: 2.0, H: 1.15, wheelbase: 2.7, track: 1.7, wheelR: 0.35, clearance: 0.14,
     mass: 1400, force: 17000, top: 72, grip: 1.25, drive: 'awd', steer: 0.58, brake: 22000, rarity: 1,

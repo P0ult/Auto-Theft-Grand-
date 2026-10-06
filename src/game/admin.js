@@ -8,10 +8,10 @@ import { PET_BREEDS } from '../entities/animals.js';
 
 // what the spawner offers, by group (trains need their rails, so they're left out)
 export const SPAWN_GROUPS = [
-  ['Cars', ['meridian', 'pico', 'kestrel', 'brawler', 'zenith', 'bouncer', 'summit', 'taxi']],
+  ['Cars', ['meridian', 'pico', 'buffalo', 'kestrel', 'brawler', 'zenith', 'tempest', 'bouncer', 'summit', 'baller', 'taxi']],
   ['Bikes & boards', ['razor', 'trail', 'bmx', 'roadbike', 'skateboard']],
   ['Boats', ['dinghy', 'jetski', 'speedboat', 'cruiser', 'policeboat']],
-  ['Work & emergency', ['hauler', 'parcel', 'boxer', 'police']],
+  ['Work & emergency', ['hauler', 'parcel', 'boxer', 'stockade', 'police', 'sheriff', 'enforcer']],
   ['Military', ['ranger', 'barracks', 'mammoth']],
   ['Aircraft', ['skipper', 'skylark', 'hercules', 'warhawk', 'raptor']],
 ];

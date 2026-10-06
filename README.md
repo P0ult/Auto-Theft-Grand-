@@ -47,6 +47,9 @@ game is being ported in phases ([plan](Unreal/AutoTheftGrand/PORTING.md)).
 | F / Enter | Enter or steal a car (carjack drivers) | F | Exit (bail out at speed) |
 | K | Whistle for your pet (stay / come; aiming at someone: set your dog on them) | Q / E, wheel | Switch drive-by weapon |
 | Wheel (sniper scope) | Zoom | Shift | Nitrous (fitted at a Customs garage) |
+| **Tab** (hold) | **Weapon wheel** (the game slows; point with the mouse, let go to pick) | **X** (hold) | **Cinematic camera** |
+| **Caps Lock** / Z | **Special ability**: slow motion (the yellow bar under the map) | Caps Lock / Z | Special ability: slow motion with extra grip |
+| **I** | **Phone** (arrows, Enter, Backspace) | I | Phone |
 
 Motorbikes and bicycles drive like cars (W / S / A / D, Space for the handbrake on a motorbike); crash hard
 into something and you're thrown off. Boats and jet skis steer the same way. On a **skateboard**, W pushes off,
@@ -76,6 +79,7 @@ ground hard, nose-first or with the gear up tears the aircraft apart.
 | J (driving a cab) | Taxi driver side job on / off |
 | J (driving a police car) | Vigilante patrol on / off |
 | F by the train | Board a carriage, or climb into the cab at the front to drive it (W / S) |
+| I | Phone: Contacts (cab, Benny's car delivery, Lester, Merryweather, Pegasus), Cheats, Snapmatic, Map, Weather, Stats |
 | T (free roam) | Teleport menu |
 | ` (backtick, free roam) | Admin console (type `help`) |
 | / (multiplayer) | Chat |
@@ -94,12 +98,14 @@ names, and on-screen hints switch to controller buttons while you play with one.
 | Left / right stick | Move / look | RT / LT | Accelerate / brake-reverse |
 | RT | Fire, punch, throw (hip fire) | Left stick | Steer |
 | LT (hold) | Aim (RT to shoot) | RB | Handbrake |
-| LB / RB | Previous / next weapon | LB (hold) + RB | Drive-by |
+| LB tap / RB | Previous / next weapon | LB (hold) + RB | Drive-by |
+| LB (hold) | Weapon wheel (point with the right stick) | B (hold) | Cinematic camera |
 | A (hold) / X | Sprint / jump (parachute) | LS / RS click | Horn / look behind |
 | B / Y | Reload / enter vehicle | View / Y | Camera / exit |
-| LS click | Crouch | D-pad → / ↑ / ← | Radio / hydraulics / taxi job |
+| LS click | Crouch | D-pad → / ↑ / ← | Radio / phone (hydraulics in a lowrider) / taxi job |
+| LS + RS click | Special ability | LS + RS click | Special ability |
 | RS click | Whistle for your pet | | |
-| D-pad ↑ / → / ← / ↓ | Teleport / hail a cab / ride as passenger / map | Menu | Pause |
+| D-pad ↑ / → / ← / ↓ | Phone / hail a cab / ride as passenger / map | Menu | Pause |
 
 Aircraft and the tank: RT / LT throttle (planes) or climb / descend (helicopters), RB guns, LB missiles or
 rockets, B wheel brakes. In menus the D-pad or left stick moves, A selects, B backs out and LB / RB switch tabs.
@@ -192,7 +198,9 @@ timetable for everyone, and the longest-connected player's clock and weather are
 - **Models.** Characters are one smooth-skinned body each (shoulders, elbows and knees bend instead of
   splitting), with faces (eyes, nose, lips, brows), fingers, clothing details and fabric textures. Cars have
   slatted grilles, headlight housings with projector lenses, indicators, number plates, mirrors, wipers, panel
-  lines, door handles and detailed wheels with tyres, spokes and brake discs.
+  lines, door handles and detailed wheels with tyres, spokes and brake discs. New on the streets: the Buffalo S
+  sports saloon, the Baller luxury SUV and the Tempest supercar; and for the law, the Sheriff SUV, the SWAT
+  Enforcer van and the Stockade cash van, whose twin back doors swing open on a hold full of cash bags.
 - **Animation.** Characters use one skinned mesh each. Walk, run and sprint gaits use leg IK with planted feet,
   including strafing and backpedalling, heel-to-toe foot roll, hip sway and leaning into turns. Characters can crouch, jump, fall, swim, sit and drive with their hands
   on the wheel. Other animations include pistol and rifle aiming (guns point at the crosshair), reloading, a
@@ -257,10 +265,39 @@ timetable for everyone, and the longest-connected player's clock and weather are
     honks at you and steers around wrecks and stalled cars.
   - Gangs hold their turf: the Cedar Row Kings are friendly, while the Vipers, Los Cuervos and San Aurelio's
     Harbor Saints are hostile.
+- **GTA V-style HUD.** A rectangular minimap with health, armour and special-ability bars under it; it flashes
+  red and blue while the police can see you, and while they're searching it shows their vision cones (blue
+  cones for cars and officers on foot, a circle under the helicopter) so you can slip between them. Stars and
+  cash sit top right, the weapon with its ammo under them, the district and vehicle names bottom right. The
+  older round radar is still there: Settings → HUD style → Classic.
+- **Weapon wheel.** Hold Tab (or LB) and time slows right down while every weapon you carry fans out in a ring;
+  point at one and let go. In a car it offers what you can shoot from a seat.
+- **Special ability.** The yellow bar fills as you drive fast, drift, get air and land headshots. Caps Lock (or
+  both sticks) slows the world down: bullet time on foot, and in a car a slowed world with extra grip to thread
+  the traffic. Press again to stop early. (On a Mac, use Z: Caps Lock only sends every other press there.)
+- **Phone.** I (or D-pad up) takes out the iFruit. **Contacts:** Downtown Cab Co. sends a cab; Benny's
+  Motorworks delivers your last car (or a Kestrel) to the kerb nearby, with a blip; Lester makes the police lose
+  your file, for $500 a star; Merryweather Security sends three armed contractors in black who follow you for
+  ten minutes; Pegasus drops a Skylark helicopter off (free roam). **Cheats:** PAINKILLER, TURTLE, TOOLUP,
+  LAWYERUP, FUGITIVE, SKYFALL, BUZZOFF, COMET, OFFROAD, HOPTOIT, CATCHME, HIGHEX, POWERUP, SLOWMO, MAKEITRAIN
+  (in story mode the timed ones last five minutes; cheats are off online). **Snapmatic** hides the HUD for
+  photos; also Map, Weather and Stats.
 - **Police.** Five-star wanted levels with witnesses and line-of-sight evasion (the stars flash while the cops
   have lost you). Patrol cars route through the grid, then ram you. Cops on foot chase, shoot or arrest you
   (**BUSTED**), and a helicopter with a searchlight joins at three stars. Spray Shacks repaint your car and clear
   your wanted level.
+- **The army at five stars.** Hit five stars and the National Guard joins in: Barracks trucks and Ranger jeeps
+  run you down and unload squads of soldiers, a Warhawk gunship circles overhead strafing you with its chin gun
+  and rocket pods, and a Mammoth tank hunts you down and shells you. They pull out when the stars drop.
+- **Roadblocks.** From three stars, while you drive, the police close the road ahead of you with a line of
+  cruisers and officers firing from behind them (Sheriff SUVs out in the country). At four stars the SWAT
+  Enforcer joins the line and a spike strip goes down in front of it: run over it and your tyres burst, so you
+  limp on at reduced speed and grip, with sparks, until a Customs garage fixes them.
+- **Armoured vans.** Every few minutes a Stockade cash-in-transit van does its rounds nearby (a green $ on the
+  radar). It's bullet resistant and the two guards are armed. Shoot the back doors (or blow them) and the cash
+  bags spill out; the guards bail out and fight, the van may make a run for it, and the alarm brings two stars.
+- **Cinematic camera.** Hold X (or B) while driving and the camera cuts between a roadside camera you blast
+  past, a low tracking shot, a high chase and a head-on shot, with letterbox bars.
 - **Street crime.** The people of Los Soles break the law too:
   - Pedestrians jaywalk across the middle of the block, and drivers honk at them.
   - Some drivers speed and run red lights.
@@ -335,7 +372,9 @@ src/game/boats.js         marinas, cruising boats and police boats; skatepark.js
 src/game/modshop.js       Customs garages; races.js, vigilante.js, properties.js
 src/net/                  multiplayer: transports (claude.ai live room, WebSocket relay), remote players,
                           shared NPCs / traffic / trains, Online tab
-src/ui/                   HUD, radar, pause menu & map, controller menu navigation
+src/game/army.js          five-star army response; roadblocks.js (roadblocks & spike strips), heists.js
+                          (armoured vans), special.js (special ability)
+src/ui/                   HUD, radar, pause menu & map, controller menu navigation, weaponwheel.js, phone.js
 vendor/three/             Three.js r186 (MIT), bundled
 server.mjs                zero-dependency static server + multiplayer relay
 Unreal/AutoTheftGrand/    the Unreal Engine 5 port (C++)

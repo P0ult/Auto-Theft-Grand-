@@ -548,7 +548,7 @@ export class Vehicle {
     const r = this.r;
     const wet = U.uWet.value;
     const surf = this._surface || 1;
-    const mu = d.grip * (1 - wet * 0.18) * surf * (this.driver?.isPlayer ? this.game.special?.grip ?? 1 : 1); // (the special ability grips harder)
+    const mu = d.grip * (1 - wet * 0.18) * surf * (this.driver?.isPlayer ? this.game.special?.grip ?? 1 : 1) * (this.flat ? 0.6 : 1); // (the special ability grips harder; burst tyres don't)
 
     if (this.airborne) {
       this.vel.x -= vx * 0.02 * h; this.vel.z -= vz * 0.02 * h;
@@ -581,7 +581,7 @@ export class Vehicle {
     const thr = this.exploded ? 0 : inp.throttle;
     const brk = inp.brake;
     let driveF = 0;
-    if (thr > 0 && vLong > -0.8) { const k = clamp(vLong / d.top, 0, 1); driveF = thr * d.force * (1 - 0.92 * k * k); }
+    if (thr > 0 && vLong > -0.8) { const k = clamp(vLong / (this.flat ? d.top * 0.45 : d.top), 0, 1); driveF = thr * d.force * (this.flat ? 0.6 : 1) * (1 - 0.92 * k * k); }
     if (brk > 0 && vLong < 0.8 && vLong > -12) driveF = -brk * d.force * 0.55;
     let brakeF = 0;
     if (brk > 0 && vLong > 0.8) brakeF = brk * d.brake;
@@ -874,7 +874,7 @@ export class Vehicle {
     const bg = this.model.bodyGroup;
     bg.rotation.x = this.bodyPitch;
     bg.rotation.z = this.bodyRoll;
-    bg.position.y = clamp(this.bodyY, -0.15, 0.15) + (this.def.hydraulics ? clamp(this.hydraulic, -0.1, 0.5) : 0);
+    bg.position.y = clamp(this.bodyY, -0.15, 0.15) + (this.def.hydraulics ? clamp(this.hydraulic, -0.1, 0.5) : 0) - (this.flat ? 0.07 : 0);
     // wheels
     for (const w of this.model.wheels) {
       w.spin.rotation.x = this.wheelRot;

@@ -249,14 +249,21 @@ export class Police {
       if (hd < 40) { const seat = cop.homeCar.occupants.findIndex((o) => !o); if (seat >= 0) { game.vehicles.enter(cop, cop.homeCar, seat, { force: true }); return; } }
     }
     const lethal = this.level >= 2 || cop.threat === pl;
-    const hasLOS = d < 60 && game.collision.lineOfSight(cop.pos.x, cop.pos.y + 1.6, cop.pos.z, tp.x, tp.y + 1.2, tp.z);
+    const hasLOS = d < (cop.holdPos ? 85 : 60) && game.collision.lineOfSight(cop.pos.x, cop.pos.y + 1.6, cop.pos.z, tp.x, tp.y + 1.2, tp.z);
     if (hasLOS) { this.seen = true; this.lastSeen = game.time; this.lastKnown.copy(tp); }
     if (cop.lineT === undefined) cop.lineT = rand(0, 3);
     cop.lineT -= dt;
     if (cop.lineT <= 0 && hasLOS && d < 30) { cop.lineT = rand(6, 12); cop.say(pick(COP_LINES)); }
-    if (lethal && hasLOS && d < 45 && cop.weaponDef.type === 'gun') {
+    if (lethal && hasLOS && d < (cop.holdPos ? 75 : 45) && cop.weaponDef.type === 'gun') {
       cop.threat = pl;
       cop._attack(dt);
+      return;
+    }
+    // a roadblock: hold the line behind the cars until the suspect is on foot and close
+    if (cop.holdPos && (pl.vehicle || d > 28)) {
+      const h = cop.holdPos;
+      if (Math.hypot(h.x - cop.pos.x, h.z - cop.pos.z) > 1.2) cop.goTo(h.x, h.z, 3, dt, 1.0);
+      else { cop.stop(); cop.faceTowards(tp.x, tp.z, dt, 6); }
       return;
     }
     // chase to arrest
@@ -365,6 +372,7 @@ export class Police {
 
   reset() {
     this.game.army?.reset();
+    this.game.roadblocks?.reset();
     this.clear();
     for (const v of this.cars) { for (const o of v.occupants) if (o && !o.isPlayer) this.game.peds.remove(o); v.occupants.fill(null); this.game.vehicles.remove(v); }
     for (const c of this.cops) this.game.peds.remove(c);

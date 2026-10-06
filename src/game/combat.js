@@ -140,7 +140,7 @@ export class Combat {
       game.audio?.playAt('bulletmetal', hit.point, 0.5);
       // tires & fuel: small chance to ignite when already damaged
       if (v.health < 250 && Math.random() < 0.05 && !v.def.tank) v.health = 0;
-      game.events.emit('vehicleShot', v, shooter);
+      game.events.emit('vehicleShot', v, shooter, hit.point);
     } else if (hit.kind === 'heli') {
       hit.obj.hit(def.damage * (shooter.isPlayer ? 1 : 0.3));
       game.effects.impact(hit.point, hit.normal, 'metal');

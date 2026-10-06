@@ -125,7 +125,7 @@ function carDesign(def) {
       cab: { bf: f - 0.95, tf: f - 1.6, tr: r + 0.07, br: r, top: H, belt: 0.08, inset: 0.12, rr: 0.1 },
       rt: 0.08, tumble: 0.03, doors: 2, doorLen: 0.92, pillarC: 0.0, trunk: false, rearGlass: false, sideGlass: [f - 2.05, f],
       nose: { z: 0.36, x: 0.16, vz: 0.16, top: 0.06, chin: 0.1 }, tail: { z: 0.12, x: 0.05, vz: 0.05, top: 0.02, chin: 0.08 },
-      bumper: 'dark', bumperH: 0.24, grille: 'tall', lamps: 'tall', tails: 'tall', extras: { slider: true },
+      bumper: 'dark', bumperH: 0.24, grille: 'tall', lamps: 'tall', tails: 'tall', extras: { slider: !def.armored },
     }); break;
     case 'truck': set({
       line: [[f, 1.2], [f - 0.3, 1.3], [f - 0.6, 1.35], [f - 2.3, 1.36], [r, 1.36]],
@@ -795,7 +795,7 @@ export function buildVehicleModel(def, color) {
   const group = new THREE.Group();
   const bodyGroup = new THREE.Group(); // tilts with suspension
   group.add(bodyGroup);
-  const bodyMat = bodyMaterial(def.police ? 0xffffff : color);
+  const bodyMat = bodyMaterial(def.police ? (def.livery ?? 0xffffff) : color);
   const mesh = (g, mat, shadow = true, cast = shadow) => { const m = new THREE.Mesh(g, mat); m.castShadow = cast; m.receiveShadow = shadow; return m; };
   // painted panels get their own geometry (they dent); everything else is shared per model
   const own = (k) => (geos[k] ? geos[k].clone() : null);
@@ -875,6 +875,64 @@ export function buildVehicleModel(def, color) {
     bodyGroup.add(st);
   }
 
+  // ---------------- armoured vans: a livery band, a roof beacon, push bar and twin rear doors that can be blown open
+  let rearDoors = null;
+  if (def.armored) {
+    const band = new GeoBuilder({ position: 3, normal: 3, uv: 2, color: 3 });
+    const bandCol = def.police ? [0.85, 0.85, 0.8] : [0.08, 0.22, 0.5];
+    const y0 = c + 0.42, y1 = c + 0.62;
+    for (const sd of [1, -1]) {
+      for (let z = D.door.z0 - 0.05; z > D.r + 0.25; z -= 0.25) {
+        const s = sectionAt(D, z), x = (sideX(D, s, (y0 + y1) / 2) + 0.006) * sd;
+        band.set('color', ...bandCol);
+        band.box(Math.min(x, x + sd * 0.006), y0, z - 0.25, Math.max(x, x + sd * 0.006), y1, z, { top: false });
+      }
+    }
+    // front push bar
+    band.set('color', 0.06, 0.06, 0.06);
+    band.box(-W * 0.36, c + 0.05, L / 2 - 0.02, W * 0.36, c + 0.12, L / 2 + 0.12);
+    for (const x of [-0.42, 0.42]) band.box(x - 0.04, c + 0.05, L / 2 + 0.02, x + 0.04, c + 0.62, L / 2 + 0.12);
+    bodyGroup.add(mesh(band.build(), M.trim, true, false));
+    // roof beacon (amber for the cash van; the Enforcer has the police light bar)
+    if (!def.police) {
+      const bm = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 0.14, 12), patch(new THREE.MeshStandardMaterial({ color: 0xffa31a, emissive: new THREE.Color(1.6, 0.7, 0.05), roughness: 0.3 }), { key: 'vlight' }));
+      bm.position.set(0, roofY + 0.07, C.tf - 0.25);
+      bodyGroup.add(bm);
+    }
+    // rear doors: hinged at the outer edges
+    const zb = D.r - 0.004, dh = def.H - 0.42 - c;
+    const dw = W / 2 - 0.14;
+    // the hold behind the doors: dark, with cash bags on the shelves (seen when they're open)
+    const hold = new GeoBuilder({ position: 3, normal: 3, uv: 2, color: 3 });
+    hold.set('color', 0.03, 0.03, 0.035);
+    hold.box(-W / 2 + 0.12, c + 0.3, zb - 0.0035, W / 2 - 0.12, c + 0.3 + dh, zb - 0.002, { top: false });
+    if (!def.police) {
+      hold.set('color', 0.2, 0.45, 0.16);
+      for (const [x, y] of [[-0.45, 0.25], [0.05, 0.22], [0.5, 0.27], [-0.25, 0.95], [0.35, 0.92]]) hold.box(x - 0.17, c + 0.3 + y - 0.12, zb - 0.0075, x + 0.17, c + 0.3 + y + 0.12, zb - 0.004);
+      hold.set('color', 0.12, 0.12, 0.13);
+      hold.box(-W / 2 + 0.12, c + 0.3 + 0.66, zb - 0.0045, W / 2 - 0.12, c + 0.3 + 0.7, zb - 0.0036);
+    }
+    bodyGroup.add(mesh(hold.build(), M.trim, false));
+    rearDoors = [];
+    for (const sd of [1, -1]) {
+      const pv = new THREE.Group();
+      pv.position.set(sd * (W / 2 - 0.1), c + 0.3, zb);
+      const g = new GeoBuilder({ position: 3, normal: 3, uv: 2, color: 3 });
+      g.set('color', 1, 1, 1);
+      g.box(sd > 0 ? -dw : 0, 0, -0.03, sd > 0 ? 0 : dw, dh, 0.0, { bottom: true });
+      const door = mesh(g.build(), bodyMat, true, false);
+      pv.add(door);
+      const hg = new GeoBuilder({ position: 3, normal: 3, uv: 2, color: 3 });
+      hg.set('color', 0.05, 0.05, 0.05);
+      const hx = sd > 0 ? -dw + 0.08 : dw - 0.08;
+      hg.box(hx - 0.03, dh * 0.45, -0.06, hx + 0.03, dh * 0.6, -0.03); // handle
+      hg.box(sd > 0 ? -dw : dw - 0.012, 0, -0.035, sd > 0 ? -dw + 0.012 : dw, dh, -0.03); // seam
+      pv.add(mesh(hg.build(), M.trim, false));
+      bodyGroup.add(pv);
+      rearDoors.push({ pivot: pv, side: sd, open: 0 });
+    }
+  }
+
   // ---------------- driver door (left side, +x), hinged at the front
   const doorPivot = new THREE.Group();
   doorPivot.position.set(...T.hinge);
@@ -914,7 +972,7 @@ export function buildVehicleModel(def, color) {
   const rearZ = clamp(seatBase.z - 0.9, C.tr + 0.14, seatBase.z - 0.55);
   const dz0 = D.door.z0, dz1 = D.door.z1;
   return {
-    group, bodyGroup, body, bodyMat, glass, head, tail, lightbar, wheels, panels,
+    group, bodyGroup, body, bodyMat, glass, head, tail, lightbar, wheels, panels, rearDoors,
     door: { pivot: doorPivot, mesh: doorMesh, open: 0, max: -1.1 },
     seatHip: 0.09, // character hips sit this far above a seat point (sunk a little into the cushion)
     seats: [seatBase.clone(), seatBase.clone().setX(-0.38), seatBase.clone().setZ(rearZ).setY(seatBase.y - 0.04), seatBase.clone().set(-0.38, seatBase.y - 0.04, rearZ)],

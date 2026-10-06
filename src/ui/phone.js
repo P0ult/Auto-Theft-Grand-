@@ -12,7 +12,9 @@ import { randomAppearance } from '../entities/humanoid.js';
 import { VEHICLES } from '../entities/vehicledefs.js';
 import { WEAPONS } from '../game/weapondefs.js';
 import { GP } from '../core/input.js';
-import { RNG, formatMoney } from '../core/utils.js';
+import { RNG } from '../core/utils.js';
+
+const money = (n) => '$' + Math.round(n).toLocaleString('en-US');
 
 const h = (tag, cls, parent, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; if (parent) parent.appendChild(e); return e; };
 const CHEAT_TIME = 300; // seconds a timed cheat lasts outside free roam
@@ -149,7 +151,7 @@ export class Phone {
       this.items = [
         { name: 'Downtown Cab Co.', sub: 'A cab comes to you', go: () => this._call('Downtown Cab Co.', () => this._cab()) },
         { name: 'Benny\'s Motorworks', sub: this.lastCar ? `Deliver your ${VEHICLES[this.lastCar.type].name}${free ? '' : ' · $200'}` : `Deliver a car${free ? '' : ' · $200'}`, go: () => this._call('Benny', () => this._mechanic()) },
-        { name: 'Lester', sub: g.police?.level ? `Lose your ${g.police.level}-star wanted level${free ? '' : ` · ${formatMoney(this._lesterPrice())}`}` : 'Makes the cops lose your file', go: () => this._call('Lester', () => this._lester()) },
+        { name: 'Lester', sub: g.police?.level ? `Lose your ${g.police.level}-star wanted level${free ? '' : ` · ${money(this._lesterPrice())}`}` : 'Makes the cops lose your file', go: () => this._call('Lester', () => this._lester()) },
         { name: 'Merryweather Security', sub: `Three armed contractors${free ? '' : ' · $1,000'}`, go: () => this._call('Merryweather', () => this._merryweather()) },
       ];
       if (free) this.items.push({ name: 'Pegasus Concierge', sub: 'A Skylark helicopter dropped off nearby', go: () => this._call('Pegasus', () => this._pegasus()) });
@@ -177,7 +179,7 @@ export class Phone {
     this.body.innerHTML = '';
     this.body.className = 'phone-body ' + (this.screen === 'home' ? 'grid' : 'list');
     if (this.screen === 'home') {
-      h('div', 'phone-clock', this.body, `${g.env.timeString}<small>${g.player.money != null ? formatMoney(g.player.money) : ''}</small>`);
+      h('div', 'phone-clock', this.body, `${g.env.timeString}<small>${g.player.money != null ? money(g.player.money) : ''}</small>`);
       this.items.forEach((a, i) => {
         const e = h('div', 'phone-app' + (i === this.sel ? ' sel' : ''), this.body, `<i style="background:${a.color}">${a.icon}</i><span>${a.name}</span>`);
         e.onclick = () => { this.sel = i; a.go(); };
@@ -238,7 +240,7 @@ export class Phone {
     const g = this.game, pol = g.police;
     if (!pol || pol.level === 0) { g.hud?.subtitle('You\'re not wanted. Why are you calling me? Don\'t answer that.', 'Lester', 4); return; }
     if (g.missions?.active && g.missions.maxWanted != null) { g.hud?.subtitle('Not while you\'re on a job. They\'ll trace it straight back to me.', 'Lester', 4); return; }
-    if (!this._pay(this._lesterPrice())) { g.hud?.subtitle(`Clean records cost money. ${formatMoney(this._lesterPrice())}. Call me back.`, 'Lester', 4); return; }
+    if (!this._pay(this._lesterPrice())) { g.hud?.subtitle(`Clean records cost money. ${money(this._lesterPrice())}. Call me back.`, 'Lester', 4); return; }
     g.hud?.subtitle('Give me a minute. I\'m in the dispatch system now…', 'Lester', 3.5);
     this.pending.push({ t: g.time + 5, fn: () => { if (g.police.level > 0) { g.police.clear(); g.hud?.subtitle('Done. As far as the LSPD knows, you were never there.', 'Lester', 4); } } });
   }

@@ -35,6 +35,8 @@ import { NetSystem } from './net/net.js';
 import { HUD } from './ui/hud.js';
 import { WeaponWheel } from './ui/weaponwheel.js';
 import { Phone } from './ui/phone.js';
+import { Roadblocks } from './game/roadblocks.js';
+import { Heists } from './game/heists.js';
 
 const params = new URLSearchParams(location.search);
 const TIPS = [
@@ -86,6 +88,8 @@ async function boot() {
   game.addSystem('pickups', new Pickups(game));
   game.addSystem('military', new Military(game));
   game.addSystem('army', new Army(game));
+  game.addSystem('roadblocks', new Roadblocks(game));
+  game.addSystem('heists', new Heists(game));
   game.addSystem('weaponWheel', new WeaponWheel(game));
   game.addSystem('special', new Special(game));
   game.addSystem('phone', new Phone(game));

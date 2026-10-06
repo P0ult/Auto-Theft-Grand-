@@ -638,13 +638,13 @@ export class HUD {
       <tr><td>C / Ctrl</td><td>Crouch</td></tr><tr><td>Left mouse</td><td>Punch / fire</td></tr><tr><td>Right mouse</td><td>Aim</td></tr><tr><td>R</td><td>Reload</td></tr>
       <tr><td>Q / E, wheel, 1-9</td><td>Switch weapon</td></tr><tr><td>Tab (hold)</td><td>Weapon wheel (point with the mouse, let go to pick)</td></tr><tr><td>Wheel (sniper scope)</td><td>Zoom in / out</td></tr><tr><td>F / Enter</td><td>Enter / steal vehicle</td></tr><tr><td>K</td><td>Whistle for your pet: stay / come (aiming at someone: set your dog on them)</td></tr></table></div>
       <div><h3>In a vehicle</h3><table><tr><td>W / S</td><td>Accelerate / brake-reverse</td></tr><tr><td>A / D</td><td>Steer</td></tr><tr><td>Space</td><td>Handbrake (drift!)</td></tr>
-      <tr><td>H</td><td>Horn (Shift+H: siren in police cars)</td></tr><tr><td>N</td><td>Next radio station</td></tr><tr><td>V</td><td>Change camera</td></tr><tr><td>B</td><td>Look behind</td></tr>
+      <tr><td>H</td><td>Horn (Shift+H: siren in police cars)</td></tr><tr><td>N</td><td>Next radio station</td></tr><tr><td>V</td><td>Change camera</td></tr><tr><td>X (hold)</td><td>Cinematic camera</td></tr><tr><td>B</td><td>Look behind</td></tr>
       <tr><td>Right mouse + left mouse</td><td>Drive-by (pistol / SMG)</td></tr><tr><td>G</td><td>Hydraulics (lowriders)</td></tr><tr><td>Shift</td><td>Nitrous (fitted at Customs)</td></tr><tr><td>F</td><td>Exit (bail out when fast)</td></tr></table>
       </div><div><h3>Planes &amp; jets</h3><table><tr><td>W / S</td><td>Throttle up / down</td></tr><tr><td>Mouse, ↑ ↓</td><td>Pitch (↓ pulls up)</td></tr>
       <tr><td>A / D</td><td>Roll (bank to turn)</td></tr><tr><td>Q / E</td><td>Rudder</td></tr><tr><td>Space</td><td>Wheel brakes</td></tr><tr><td>Left / right mouse</td><td>Cannon / homing missile</td></tr><tr><td>F</td><td>Bail out (parachute)</td></tr></table>
       <h3>Helicopters</h3><table><tr><td>Space / Shift</td><td>Climb / descend</td></tr><tr><td>W / S</td><td>Fly forward / back</td></tr><tr><td>A / D</td><td>Turn</td></tr><tr><td>Q / E</td><td>Strafe</td></tr><tr><td>Left / right mouse</td><td>Minigun / rockets</td></tr></table>
       <h3>Tank</h3><table><tr><td>W / S, A / D</td><td>Drive, turn on the spot</td></tr><tr><td>Mouse / left mouse</td><td>Aim turret / fire</td></tr></table>
-      <h3>General</h3><table><tr><td>Esc / P</td><td>Pause, map & settings</td></tr><tr><td>I</td><td>Phone: contacts, cheats, Snapmatic (arrows, Enter, Backspace)</td></tr><tr><td>Caps Lock</td><td>Special ability (slow motion; the yellow bar)</td></tr><tr><td>M</td><td>Map</td></tr><tr><td>T</td><td>Teleport (free roam)</td></tr><tr><td>&#96; (backtick)</td><td>Admin console (free roam)</td></tr><tr><td>/</td><td>Chat (multiplayer)</td></tr><tr><td>H (on foot)</td><td>Whistle for a taxi</td></tr><tr><td>G (on foot)</td><td>Ride as a passenger</td></tr><tr><td>J (in a cab)</td><td>Taxi driver job on / off</td></tr><tr><td>J (in a police car)</td><td>Vigilante patrol on / off</td></tr><tr><td>Space (in a cab's back seat)</td><td>Skip the trip</td></tr><tr><td>Space / Enter</td><td>Skip cutscene line</td></tr></table></div></div>`;
+      <h3>General</h3><table><tr><td>Esc / P</td><td>Pause, map & settings</td></tr><tr><td>I</td><td>Phone: contacts, cheats, Snapmatic (arrows, Enter, Backspace)</td></tr><tr><td>Caps Lock / Z</td><td>Special ability (slow motion; the yellow bar)</td></tr><tr><td>M</td><td>Map</td></tr><tr><td>T</td><td>Teleport (free roam)</td></tr><tr><td>&#96; (backtick)</td><td>Admin console (free roam)</td></tr><tr><td>/</td><td>Chat (multiplayer)</td></tr><tr><td>H (on foot)</td><td>Whistle for a taxi</td></tr><tr><td>G (on foot)</td><td>Ride as a passenger</td></tr><tr><td>J (in a cab)</td><td>Taxi driver job on / off</td></tr><tr><td>J (in a police car)</td><td>Vigilante patrol on / off</td></tr><tr><td>Space (in a cab's back seat)</td><td>Skip the trip</td></tr><tr><td>Space / Enter</td><td>Skip cutscene line</td></tr></table></div></div>`;
     let glyphs = input.gp.family === 'playstation' ? 'playstation' : 'xbox';
     const pad = () => {
       const ps = glyphs === 'playstation';
@@ -665,7 +665,7 @@ export class HUD {
           ['D-pad ↑', 'Phone (D-pad, ' + G.A + ' / ' + G.B + ')'], ['D-pad →', 'Whistle for a taxi'], ['D-pad ←', 'Ride as a passenger'], ['D-pad ↓', 'Map'], [G.MENU, 'Pause']])}</div>
         <div><h3>In a vehicle</h3>${rows([
           [G.RT, 'Accelerate'], [G.LT, 'Brake / reverse'], [G.L, 'Steer'], [G.RB, 'Handbrake (drift!)'],
-          [`${G.LB} (hold) + ${G.RB}`, 'Drive-by: aim, shoot (pistol / SMG)'], [G.LS, 'Horn'], [G.RS, 'Look behind'], [G.VIEW, 'Change camera'],
+          [`${G.LB} (hold) + ${G.RB}`, 'Drive-by: aim, shoot (pistol / SMG)'], [G.LS, 'Horn'], [G.RS, 'Look behind'], [G.VIEW, 'Change camera'], [`${G.B} (hold)`, 'Cinematic camera'],
           ['D-pad →', 'Next radio station'], ['D-pad ↑', 'Phone · hydraulics in lowriders'], ['D-pad ←', 'Taxi job (cab) · vigilante (police car)'], [G.A, 'Nitrous (fitted at Customs)'], [G.Y, 'Exit (bail out when fast)'], [G.A, 'Skip the trip (in a cab\'s back seat)']])}</div>
         <div><h3>Aircraft &amp; tank</h3>${rows([
           [`${G.RT} / ${G.LT}`, 'Throttle (plane) · climb / descend (heli)'], [G.L, 'Pitch &amp; roll (plane) · fly &amp; turn (heli)'],
@@ -981,6 +981,7 @@ export class HUD {
     }
     // armoured vans you can rob (heists.js)
     if (game.heists) for (const b of game.heists.blipList()) drawList.push(b);
+    if (game.roadblocks) for (const b of game.roadblocks.blipList()) drawList.push(b);
     const edgeX0 = -C + 9, edgeX1 = W - C - 9, edgeY0 = -CY + 9, edgeY1 = H - CY - 9;
     for (const b of drawList) {
       let [rx, ry] = toRadar(b.x, b.z);

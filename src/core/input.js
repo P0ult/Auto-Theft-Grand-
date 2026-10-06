@@ -31,6 +31,7 @@ const BINDINGS = {
   console: ['Backquote'],
   pet: ['KeyK'],
   nitro: ['ShiftLeft', 'ShiftRight'],
+  cinematic: ['KeyX'],
 };
 
 // Gamepad buttons in the W3C "standard" layout, named the Xbox way (PlayStation: A=✕ B=○ X=□ Y=△,
@@ -63,6 +64,7 @@ const GP_BIND = {
   skip: [GP.A, GP.A],
   skipTrip: [null, GP.A],
   pet: [GP.RS, null],
+  cinematic: [null, GP.B],
 };
 
 // which glyphs to show for a pad

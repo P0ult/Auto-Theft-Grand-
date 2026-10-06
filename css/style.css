@@ -406,3 +406,6 @@ body.photo-mode .hud, body.photo-mode .phone { display: none !important; }
 @keyframes photoHint { 0%, 70% { opacity: 1; } 100% { opacity: 0; } }
 @media (max-width: 700px) { .phone { right: 8px; width: 210px; } .phone-frame { height: 360px; } }
 body.phone-open .hud-zone, body.phone-open .hud-vehname { opacity: 0 !important; }
+/* the vehicle cinematic camera (hold X / B): letterbox bars, the radar and speedo step aside */
+body.cine-cam .letterbox { height: 8vh; z-index: 4; transition: height 0.3s ease; }
+body.cine-cam .hud-speedo, body.cine-cam .hud-vehname { opacity: 0; transition: opacity 0.3s; }

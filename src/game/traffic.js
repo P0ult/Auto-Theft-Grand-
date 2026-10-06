@@ -563,7 +563,7 @@ export class Traffic {
 
   pickType(district) {
     const pool = TRAFFIC_POOL.slice();
-    const mult = { downtown: { taxi: 4, zenith: 2, kestrel: 2 }, hood: { bouncer: 4, brawler: 2, hauler: 2 }, docks: { boxer: 5, parcel: 4, hauler: 3 }, hills: { zenith: 4, kestrel: 4, summit: 3 }, beach: { kestrel: 2, bouncer: 2 }, corona: { bouncer: 3, hauler: 2 }, country: { hauler: 6, summit: 3, boxer: 2, taxi: 0.1 }, desert: { hauler: 5, summit: 3, brawler: 2, taxi: 0.1 }, forest: { summit: 5, hauler: 4, taxi: 0.1 } }[district] || {};
+    const mult = { downtown: { taxi: 4, zenith: 2, kestrel: 2, buffalo: 2, baller: 2 }, hood: { bouncer: 4, brawler: 2, hauler: 2 }, docks: { boxer: 5, parcel: 4, hauler: 3 }, hills: { zenith: 4, kestrel: 4, summit: 3, tempest: 3, baller: 3 }, beach: { kestrel: 2, bouncer: 2 }, corona: { bouncer: 3, hauler: 2 }, country: { hauler: 6, summit: 3, boxer: 2, taxi: 0.1 }, desert: { hauler: 5, summit: 3, brawler: 2, taxi: 0.1 }, forest: { summit: 5, hauler: 4, taxi: 0.1 } }[district] || {};
     return new RNG((Math.random() * 1e9) | 0).weighted(pool.map(([id, w]) => [id, w * (mult[id] ?? 1)]));
   }
 

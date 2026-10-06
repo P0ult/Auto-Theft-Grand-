@@ -109,7 +109,7 @@ export class ModShop {
       }
       row('Respray &amp; repair', game.police.level > 0 ? 'Fix it up and the cops won\'t recognise you' : 'Fix it up, good as new', `Respray ${money(RESPRAY_PRICE)}`, RESPRAY_PRICE, true, () => {
         v.model.bodyMat?.color.set(new THREE.Color().setHSL(Math.random(), rand(0.4, 0.8), rand(0.25, 0.55)));
-        v.health = v.maxHealth; v.onFire = false; v.burnTime = 0;
+        v.health = v.maxHealth; v.onFire = false; v.burnTime = 0; v.flat = false;
         v.undent?.();
         if (!game.missions?.active?.noSpray) game.police.clear();
         game.stats.sprays++;

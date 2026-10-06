@@ -1,6 +1,6 @@
 // The special ability (GTA V): a meter under the minimap that you fill by driving fast, drifting, landing
 // headshots and taking people down. Press Caps Lock (or click both sticks) and the world slows right down for a
-// few seconds: bullet time on foot, and on the road a slowed world with extra grip to thread the traffic.
+// few seconds (Z works too: Caps Lock only sends every other press on a Mac): bullet time on foot, and on the road a slowed world with extra grip to thread the traffic.
 // The screen loses some colour while it's on. The meter drains while it's active; press again to stop early.
 import { GP } from '../core/input.js';
 import { clamp } from '../core/utils.js';
@@ -27,7 +27,7 @@ export class Special {
 
   get pressed() {
     const input = this.game.input;
-    return input.keyHit('CapsLock') || (input.gpDown(GP.LS) && input.gpDown(GP.RS) && (input.gpHit(GP.LS) || input.gpHit(GP.RS)));
+    return input.keyHit('CapsLock') || input.keyHit('KeyZ') || (input.gpDown(GP.LS) && input.gpDown(GP.RS) && (input.gpHit(GP.LS) || input.gpHit(GP.RS)));
   }
 
   start() {

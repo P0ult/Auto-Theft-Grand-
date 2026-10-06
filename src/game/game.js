@@ -185,6 +185,7 @@ export class Game {
       if (input.hit('enter') && !player.dead && !player.ragdolling) this.tryEnterExit();
       if (player.vehicle) {
         this.rig.lookBehind = input.down('lookBehind');
+        this.rig.cineHeld = input.down('cinematic') && !this.phone?.open;
         if (input.hit('camera')) this.rig.vehicleCamIndex++;
         const pv0 = player.vehicle;
         if (pv0.armed && player.seat === 0) player.aiming = !!pv0.showCrosshair; // mounted guns fire from playerControl

@@ -30,6 +30,8 @@ export class CameraRig {
     this.vehDist = 7.5;
     this.vehicleCamIndex = 0;
     this.time = 0;
+    this.cineHeld = false; // hold X / pad B in a vehicle: the cinematic camera
+    this.cv = null;
   }
 
   addShake(a) { this.shake = Math.min(1.2, this.shake + a); }
@@ -63,6 +65,9 @@ export class CameraRig {
 
     const veh = player.vehicle;
     if (veh && (veh.def.kind === 'plane' || veh.def.kind === 'jet') && !player.dead) { this._flightCam(dt, veh); return; }
+    const cineOn = !!veh && this.cineHeld && !veh.def.tank && !player.dead;
+    if (cineOn !== !!this._cineBars) { this._cineBars = cineOn; document.body.classList.toggle('cine-cam', cineOn); if (!cineOn) this.cv = null; }
+    if (cineOn) { this._vehCine(dt, veh); return; }
     this.flightOff = null;
     if (veh && veh.def.tank) {
       // tank: free world-space orbit (the turret follows where you look)
@@ -169,6 +174,73 @@ export class CameraRig {
     this.curDist = dist;
     const spd = Math.max(0, veh.forwardSpeed);
     this.fov = damp(this.fov, 60 + clamp(spd / 160, 0, 1) * 16, 4, dt);
+    this._finish(dt);
+  }
+
+  // GTA V's cinematic camera: cuts between a roadside camera the car blasts past, a low tracking shot
+  // alongside, a high chase and a head-on shot looking back at the car.
+  _vehCine(dt, veh) {
+    const cam = this.cam, g = this.game;
+    const st = this.cv || (this.cv = { shot: -1, t: 0, len: 0, n: 0, anchor: new THREE.Vector3(), side: 1 });
+    st.t += dt;
+    const sp = Math.hypot(veh.vel.x, veh.vel.z);
+    const hy = sp > 2 ? Math.atan2(veh.vel.x, veh.vel.z) : veh.yaw;
+    const fx = Math.sin(hy), fz = Math.cos(hy), rx = -fz, rz = fx;
+    const h = Math.max(1, (veh.def.camHeight || 1.6) * 0.55);
+    const size = Math.max(4.5, veh.def.L || 4.5);
+    const tgt = _t.set(veh.pos.x, veh.pos.y + h, veh.pos.z);
+    const col = g.collision;
+    // next shot
+    let cut = st.shot < 0 || st.t > st.len;
+    if (st.shot === 0) {
+      const along = (veh.pos.x - st.anchor.x) * fx + (veh.pos.z - st.anchor.z) * fz;
+      if (along > 22 + size || Math.hypot(veh.pos.x - st.anchor.x, veh.pos.z - st.anchor.z) > 90) cut = true;
+    }
+    if (cut) {
+      st.n++;
+      const order = sp > 6 ? [0, 1, 2, 3] : [1, 2, 3];
+      st.shot = order[st.n % order.length];
+      st.t = 0; st.len = 4 + Math.random() * 2.5; st.side = Math.random() < 0.5 ? 1 : -1;
+      if (st.shot === 0) {
+        // a roadside camera up ahead, a little to one side
+        // (a few tries: the other side of the road, closer in; no clear view at all and it's the tracking shot)
+        let ok = false;
+        for (const [k, side] of [[1, st.side], [1, -st.side], [0.6, st.side], [0.6, -st.side]]) {
+          const ahead = clamp(sp * 2.4, 16, 55) * k, off = (5 + Math.random() * 4) * k;
+          st.anchor.set(veh.pos.x + fx * ahead + rx * off * side, 0, veh.pos.z + fz * ahead + rz * off * side);
+          st.anchor.y = Math.max(g.map.groundHeight(st.anchor.x, st.anchor.z), veh.pos.y - 2) + 1.1 + Math.random() * 1.6;
+          // (to just short of the car: the ray would otherwise stop on the car itself)
+          _d.subVectors(st.anchor, tgt).normalize();
+          if (col.lineOfSight(st.anchor.x, st.anchor.y, st.anchor.z, tgt.x + _d.x * 3.5, tgt.y + 0.4 + _d.y * 3.5, tgt.z + _d.z * 3.5)) { ok = true; break; }
+        }
+        st.len = 9;
+        if (!ok) { st.shot = 1; st.len = 4.5; }
+      }
+      st.fresh = true;
+    }
+    const want = _o;
+    let look = _c.copy(tgt), fov = 45, follow = 7;
+    switch (st.shot) {
+      case 0: want.copy(st.anchor); fov = 36; follow = 0; break;
+      case 1: want.set(veh.pos.x + rx * (size * 1.1) * st.side + fx * size * 0.35, tgt.y + 0.1, veh.pos.z + rz * (size * 1.1) * st.side + fz * size * 0.35); look.addScaledVector(_f.set(fx, 0, fz), size * 0.3); fov = 44; follow = 9; break;
+      case 2: want.set(veh.pos.x - fx * size * 3.4 + rx * 3 * st.side, tgt.y + size * 1.9, veh.pos.z - fz * size * 3.4 + rz * 3 * st.side); look.addScaledVector(_f.set(fx, 0, fz), size); fov = 40; follow = 4; break;
+      default: want.set(veh.pos.x + fx * size * 2.8 + rx * 1.4 * st.side, tgt.y + 0.45, veh.pos.z + fz * size * 2.8 + rz * 1.4 * st.side); fov = 46; follow = 12; break;
+    }
+    // keep a moving camera out of walls (pull in towards the car)
+    if (st.shot !== 0) {
+      _d.subVectors(want, tgt); const L = _d.length(); _d.divideScalar(L || 1);
+      const hit = col.raycast(tgt.x, tgt.y, tgt.z, _d.x, _d.y, _d.z, L + 0.3, { ignoreProps: true, ignoreSoft: true });
+      if (hit) want.copy(tgt).addScaledVector(_d, Math.max(1.5, hit.t - 0.4));
+    }
+    if (st.fresh || follow === 0) { this.pos.copy(want); st.fresh = false; }
+    else this.pos.lerp(want, 1 - Math.exp(-dt * follow));
+    const gh = g.map.groundHeight(this.pos.x, this.pos.z);
+    if (this.pos.y < gh + 0.35) this.pos.y = gh + 0.35;
+    cam.position.copy(this.pos);
+    cam.lookAt(look);
+    this.fov = fov;
+    // the chase camera picks up from behind the car when you let go
+    this.yaw = veh.yaw + Math.PI;
     this._finish(dt);
   }
 
