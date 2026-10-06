@@ -742,7 +742,7 @@ UMaterial* MakeMaterial(EATGMat Which, UMaterialParameterCollection* C) {
 		break;
 	}
 	case EATGMat::VertexLit: {
-		M->bUsedWithInstancedStaticMeshes = true;
+		M->SetUsageByFlag(MATUSAGE_InstancedStaticMeshes, true);
 		UMaterialExpression* U[4] = { B.UV(0), B.UV(1), B.UV(2), B.UV(3) };
 		UMaterialExpression* Lp = B.LocalPos(); UMaterialExpression* T = B.Time();
 		UMaterialExpression* Tint = B.VecParam(TEXT("Tint"), FLinearColor::White);
@@ -763,7 +763,7 @@ UMaterial* MakeMaterial(EATGMat Which, UMaterialParameterCollection* C) {
 		break;
 	}
 	case EATGMat::Frond: {
-		M->bUsedWithInstancedStaticMeshes = true;
+		M->SetUsageByFlag(MATUSAGE_InstancedStaticMeshes, true);
 		M->BlendMode = BLEND_Masked;
 		M->TwoSided = true;
 		M->OpacityMaskClipValue = 0.5f;

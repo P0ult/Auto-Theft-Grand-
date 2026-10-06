@@ -49,6 +49,11 @@ public:
 	float MessageTime = 0.f;
 	UPROPERTY(EditAnywhere, Category = "ATG") float MouseSensitivity = 1.f;
 
+	// held controls from test scripts (ATG.Drive, ATG.Walk)
+	bool bScriptDrive = false, bScriptMove = false;
+	float ScriptDrive[3] = { 0, 0, 0 }; // throttle, steer (left positive), brake
+	float ScriptMove[2] = { 0, 0 };     // forward, right
+
 private:
 	AATGWorld* World = nullptr;
 	// camera.js rig (game axes: yaw is the heading from the pivot towards the camera)

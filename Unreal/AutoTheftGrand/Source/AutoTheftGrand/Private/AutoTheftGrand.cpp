@@ -10,7 +10,7 @@ public:
 	virtual void StartupModule() override {
 #if WITH_EDITOR
 		// the materials are generated (and saved as assets) the first time the editor runs
-		FCoreDelegates::OnPostEngineInit.AddLambda([]() {
+		FCoreDelegates::GetOnPostEngineInit().AddLambda([]() {
 			if (GIsEditor && !IsRunningCommandlet()) ATGMaterials::EnsureAssets();
 		});
 #endif

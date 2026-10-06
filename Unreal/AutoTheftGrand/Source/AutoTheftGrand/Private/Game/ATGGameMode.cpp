@@ -5,6 +5,7 @@
 #include "Game/ATGCoords.h"
 #include "Game/ATGHUD.h"
 #include "Game/ATGPlayerController.h"
+#include "Game/ATGTest.h"
 #include "Game/ATGWorld.h"
 #include "Gen/CityMap.h"
 #include "Gen/Models.h"
@@ -27,6 +28,7 @@ void AATGGameMode::StartPlay() {
 		World = GetWorld()->SpawnActor<AATGWorld>(AATGWorld::StaticClass(), FTransform::Identity, P);
 	}
 	Super::StartPlay();
+	ATGTest::Script().Init();
 }
 
 void AATGGameMode::HandleStartingNewPlayer_Implementation(APlayerController* NewPlayer) {
@@ -37,6 +39,7 @@ void AATGGameMode::Tick(float Dt) {
 	Super::Tick(Dt);
 	if (!World || !World->IsReady()) return;
 	SpawnPlayers();
+	if (AATGPlayerController* PC = Cast<AATGPlayerController>(GetWorld()->GetFirstPlayerController())) if (PC->Body) ATGTest::Script().Tick(GetWorld(), Dt);
 	StreamTimer -= Dt;
 	if (StreamTimer <= 0) { StreamTimer = 0.5; StreamParked(); }
 }

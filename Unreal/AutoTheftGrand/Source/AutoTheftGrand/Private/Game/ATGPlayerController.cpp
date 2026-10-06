@@ -94,6 +94,7 @@ void AATGPlayerController::PlayerTick(float Dt) {
 	const double Lx = GetInputAnalogKeyState(EKeys::Gamepad_LeftX), Ly = GetInputAnalogKeyState(EKeys::Gamepad_LeftY);
 	if (FMath::Abs(Lx) > 0.15) MvX = Lx;
 	if (FMath::Abs(Ly) > 0.15) MvY = Ly;
+	if (bScriptMove) { MvY = ScriptMove[0]; MvX = ScriptMove[1]; }
 
 	if (Hit(KEnter())) ToggleCar();
 	if (WasInputKeyJustPressed(EKeys::V)) SpawnCarHere();
@@ -109,6 +110,7 @@ void AATGPlayerController::PlayerTick(float Dt) {
 		if (FMath::Abs(Lx) > 0.05) St = (float)-Lx;
 		Car->Steer = St;
 		Car->bHandbrake = Down(KHandbrake());
+		if (bScriptDrive) { Car->Throttle = ScriptDrive[0]; Car->Steer = ScriptDrive[1]; Car->Brake = ScriptDrive[2]; }
 		World->SetFocus(ATG::ToUE(Car->X, Car->Y, Car->Z));
 	} else {
 		// player.js: movement relative to the camera's heading

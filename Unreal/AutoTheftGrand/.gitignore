@@ -11,3 +11,8 @@ DerivedDataCache/
 Tools/gentest
 Tools/*.o
 Tools/meshpreview
+# generated on the first editor start (ATGMaterials)
+Content/ATG/
+Tools/*.exe
+Tools/*.obj
+Tools/out/

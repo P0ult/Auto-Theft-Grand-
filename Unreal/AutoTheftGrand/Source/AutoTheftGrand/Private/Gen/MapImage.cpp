@@ -1,15 +1,14 @@
 #include "MapImage.h"
 #include <algorithm>
 #include <array>
-#include <cstdio>
+#include <cstdlib>
 
 namespace atg {
 
 namespace {
 struct Rgba { double r, g, b, a; };
 Rgba Hex(const char* s, double a = 1) {
-	unsigned v = 0;
-	std::sscanf(s + 1, "%x", &v);
+	const unsigned v = (unsigned)std::strtoul(s + 1, nullptr, 16);
 	return { (double)((v >> 16) & 255), (double)((v >> 8) & 255), (double)(v & 255), a };
 }
 
