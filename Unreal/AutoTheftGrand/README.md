@@ -84,6 +84,7 @@ far:
 | R | Reload | | |
 | Q / E, wheel, 1-9, RB / LB tap | Switch weapon | | |
 | Tab / LB (hold) | Weapon wheel (the game slows; point with the mouse or right stick, let go to pick) | Tab (hold) | Weapon wheel |
+| Caps Lock / Z / LS + RS click | Special ability: slow motion (the yellow bar under the map) | Caps Lock / Z | Special ability: slow motion with extra grip |
 | M / D-pad ↓ | Map | V / View | Camera distance |
 | Esc / P / Menu | Pause | B / RS click | Look behind |
 | | | X / B (hold) | Cinematic camera |
@@ -144,7 +145,8 @@ up close, walking and running; `wasted.txt` at WASTED and BUSTED; `effects.txt` 
 car; `hud.txt` at the HUD on foot and in a car; `combat.txt` at aiming, shooting and the RPG; `police.txt` at a
 pursuit and the helicopter by night and by day; `pickups.txt` at a pickup and the save and Spray Shack
 markers; `roadblocks.txt` at a roadblock and its spike strip; `npccrime.txt` at a
-suspect's stars, the patrol that comes for them and a staged car theft; `wheel.txt` at the weapon wheel.
+suspect's stars, the patrol that comes for them and a staged car theft; `wheel.txt` at the weapon wheel; `special.txt` at the
+special ability.
 
 The simulation is tested without Unreal. `Tools/native.sh` builds a tool with MSVC from Git Bash:
 
@@ -153,7 +155,7 @@ cd Tools
 ./native.sh simtest.exe simtest.cpp && ./simtest.exe          # walking, driving, crashes, parked cars,
                                                                # traffic and people, trains, boarding,
                                                                # WASTED, effects, combat, police, pickups,
-                                                               # roadblocks, street crime, the wheel
+                                                               # roadblocks, street crime, the wheel, special
 DEBUG=1 ./native.sh simtestd.exe simtest.cpp                   # with symbols: a crash prints a stack trace
 ./simtest.exe vehcompare > cppveh.txt                          # the car physics against the browser game's:
 node --import ./three-hook.mjs vehcompare.mjs > jsveh.txt      # identical to 4 decimals

@@ -1,4 +1,5 @@
 #include "Setup.h"
+#include "Special.h"
 #include "Combat.h"
 #include "Effects.h"
 #include "Game.h"
@@ -33,7 +34,8 @@ void InstallSystems(Game& g) {
 	g.roadblocks = g.addSystem("roadblocks", std::make_unique<Roadblocks>(g));
 	// (heists: next)
 	g.wheel = g.addSystem("weaponWheel", std::make_unique<WeaponWheel>(g));
-	// (special, phone: next)
+	g.special = g.addSystem("special", std::make_unique<Special>(g));
+	// (phone: next)
 	g.rail = g.addSystem("rail", std::make_unique<RailSystem>(g));
 	// (shops, wildlife, pets, skateparks, boats, shipRaid, missions, audio: later)
 	g.gameplay = g.addSystem("gameplay", std::make_unique<Gameplay>(g));

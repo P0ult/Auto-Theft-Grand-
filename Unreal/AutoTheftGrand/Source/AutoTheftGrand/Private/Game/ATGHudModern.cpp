@@ -7,6 +7,7 @@
 #include "Sim/Game.h"
 #include "Sim/Hud.h"
 #include "Sim/Weapons.h"
+#include "Sim/Special.h"
 #include "Sim/WeaponWheel.h"
 
 #include "Engine/Canvas.h"
@@ -256,8 +257,17 @@ void AATGHUD::DrawMinimap(atg::Game* G, AATGWorld* W, float Dt, float Left, floa
 	};
 	Bar(X0, Wt / 2, CssColor(0x0e200e, 0.78f), hp, low ? CssColor(0xff7a7a) : CssColor(0x78cf73), low ? CssColor(0xc62f2f) : CssColor(0x4c9c48));
 	Bar(X0 + Wt / 2 + Gap, Wt / 4, CssColor(0x0c1a2e, 0.78f), FMath::Clamp((float)p.armor / 100.f, 0.f, 1.f), CssColor(0x7cc2f5), CssColor(0x3c86c8));
-	// (the special ability's meter: phase 3b)
-	Bar(X0 + Wt * 0.75f + Gap * 2, Wt / 4, CssColor(0x2e280a, 0.78f), 0, CssColor(0xf3d66a), CssColor(0xc9a529));
+	// the special ability's meter: glowing when full, brighter while it's on
+	if (const atg::Special* sp = G->special) {
+		const float x = X0 + Wt * 0.75f + Gap * 2, w = Wt / 4, v = FMath::Clamp((float)sp->meter, 0.f, 1.f);
+		const bool full = sp->meter >= 0.999 && !sp->active;
+		if (sp->active || full) for (int i = 1; i <= 4; i++) { // (box-shadow: 0 0 10px #ffe066 / 0 0 8px rgba(255,224,102,0.9))
+			const float r = i * (sp->active ? 2.5f : 2.f);
+			c.Fill = CssColor(0xffe066, (sp->active ? 0.22f : 0.2f) * (1 - (i - 1) / 4.f));
+			c.FillRect(x - r, By - r, w * v + 2 * r, Bh + 2 * r);
+		}
+		Bar(x, w, CssColor(0x2e280a, 0.78f), v, sp->active ? CssColor(0xfff6c4) : CssColor(0xf3d66a), sp->active ? CssColor(0xffd84a) : CssColor(0xc9a529));
+	}
 }
 
 // ------------------------------------------------------------------ top right: stars, cash, weapon

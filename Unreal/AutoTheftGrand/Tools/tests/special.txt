@@ -1,0 +1,12 @@
+# The special ability: a full meter glows under the minimap; Caps Lock slows the world and drains the colour.
+wait 1
+ATG.God 1
+ATG.Teleport -612 376 -2.36
+wait 1
+shot special_full
+ATG.Press CapsLock
+wait 0.1
+ATG.Release
+wait 2
+shot special_on
+quit

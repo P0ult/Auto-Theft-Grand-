@@ -12,6 +12,7 @@
 #include "Sim/Rail.h"
 #include "Sim/Roadblocks.h"
 #include "Sim/Setup.h"
+#include "Sim/Special.h"
 #include "Sim/Traffic.h"
 #include "Sim/WeaponWheel.h"
 #include "crashtrace.h"
@@ -636,6 +637,35 @@ static void TestWheel(World& w) {
 	Check(!ww->open && p.weapon == "smg" && g->fxScale() == 1, "letting go draws it and time runs again");
 }
 
+// the special ability: Caps Lock slows the world to 0.38 on foot; the meter drains in real time (about nine
+// seconds from full) and stops it; a kill refills a little
+static void TestSpecial(World& w) {
+	printf("special\n");
+	auto g = w.game(true);
+	ToStreet(w, *g);
+	Special* sp = g->special;
+	auto tap = [&](const char* k) { g->input.KeyDown(k); g->frame(1.0 / 30); g->input.KeyUp(k); g->frame(1.0 / 30); };
+	tap("CapsLock");
+	printf("  on %d, slow motion %.2f, meter %.3f\n", sp->active ? 1 : 0, g->fxScale(), sp->meter);
+	Check(sp->active && g->fxScale() == 0.38, "Caps Lock: bullet time on foot");
+	Run(*g, 3);
+	printf("  after 3 s: meter %.3f, desaturation %.2f\n", sp->meter, g->post.desat);
+	Check(std::fabs(sp->meter - (1 - 0.11 * 3.07)) < 0.02, "drains 0.11 a second of real time");
+	Check(g->post.desat > 0.35, "the colour drains");
+	tap("KeyZ");
+	Check(!sp->active && g->fxScale() == 1, "Z stops it early");
+	const double m0 = sp->meter;
+	g->events.kill.emit(g->player.get(), g->player.get(), "pistol", "head");
+	Check(std::fabs(sp->meter - m0 - 0.1) < 0.001, "a headshot kill refills 0.1");
+	tap("CapsLock");
+	Run(*g, 10);
+	printf("  run dry: on %d, meter %.3f\n", sp->active ? 1 : 0, sp->meter);
+	Check(!sp->active && g->fxScale() == 1, "it stops when the meter runs dry");
+	sp->meter = 0.05;
+	tap("CapsLock");
+	Check(!sp->active, "not with less than 0.12 in the meter");
+}
+
 int main(int argc, char** argv) {
 	InstallCrashTrace();
 	setvbuf(stdout, nullptr, _IONBF, 0);
@@ -660,6 +690,7 @@ int main(int argc, char** argv) {
 	if (want("roadblocks")) TestRoadblocks(w);
 	if (want("npccrime")) TestNpcCrime(w);
 	if (want("wheel")) TestWheel(w);
+	if (want("special")) TestSpecial(w);
 	printf(fails ? "%d FAILED\n" : "all passed\n", fails);
 	return fails ? 1 : 0;
 }

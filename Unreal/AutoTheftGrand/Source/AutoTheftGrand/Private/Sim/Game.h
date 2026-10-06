@@ -75,7 +75,7 @@ public:
 	std::map<std::string, double> slowmo;
 	double fxScale() const { double k = 1; for (const auto& s : slowmo) k = Min(k, s.second); return k; }
 	double gravity = 1;
-	double specialGrip = 1;         // (the special ability grips harder)
+	double specialGrip() const;     // (the special ability grips harder)
 	bool cutscene = false;
 	bool menuOpen = false; // (a full-screen menu: no weapon wheel)
 	Cheats cheats, cheatsOn;
@@ -121,6 +121,7 @@ public:
 	// (systems the police reset after WASTED / BUSTED)
 	System* army = nullptr; System* roadblocks = nullptr;
 	class WeaponWheel* wheel = nullptr;
+	class Special* special = nullptr;
 	class Pickups* pickupsSys = nullptr; // (the pickups and markers, for the systems that place them)
 	class Police* policeSys = nullptr; // (the police itself, for the systems that spawn units through it)
 	double viewAspect = 16.0 / 9.0;            // (the screen's, for what the camera can see)

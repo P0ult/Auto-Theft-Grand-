@@ -4,6 +4,7 @@
 #include "Game/ATGCoords.h"
 #include "Game/ATGEffects.h"
 #include "Game/ATGPickups.h"
+#include "Sim/Special.h"
 #include "Game/ATGPoliceView.h"
 #include "Game/ATGHUD.h"
 #include "Game/ATGPerson.h"
@@ -115,6 +116,7 @@ void AATGGameMode::SyncViews(float Dt) {
 	}
 	for (AATGPerson* P : People) P->Sync(Dt);
 	World->SetDeathLook(G->post.desat, G->post.death, G->post.deathBoost);
+	World->SetFringe(G->special ? G->special->chroma : 0.0022);
 	if (!Effects) { FActorSpawnParameters P; P.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn; Effects = W->SpawnActor<AATGEffects>(AATGEffects::StaticClass(), FTransform::Identity, P); }
 	if (Effects) Effects->Sync(G);
 	if (!PoliceView) { FActorSpawnParameters P; P.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn; PoliceView = W->SpawnActor<AATGPoliceView>(AATGPoliceView::StaticClass(), FTransform::Identity, P); }

@@ -588,6 +588,13 @@ void AATGWorld::SetDeathLook(double Desat, double Death, double Boost) {
 	S.bOverride_VignetteIntensity = bOn; S.VignetteIntensity = 0.4f + 0.9f * (float)Death;
 }
 
+void AATGWorld::SetFringe(double Chroma) {
+	FPostProcessSettings& S = Post->Settings;
+	// (the browser game's 0.0022 offsets the corners by about a pixel and a half: Unreal's 0.3)
+	S.bOverride_SceneFringeIntensity = true;
+	S.SceneFringeIntensity = (float)(Chroma / 0.0022 * 0.3);
+}
+
 USkeletalMesh* AATGWorld::HumanMesh(const atg::Appearance& A) {
 	const FString Key = ATGHuman::Key(A);
 	if (TWeakObjectPtr<USkeletalMesh>* M = HumanCache.Find(Key)) if (M->IsValid()) return M->Get();

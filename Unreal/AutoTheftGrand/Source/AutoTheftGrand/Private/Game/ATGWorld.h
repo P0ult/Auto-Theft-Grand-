@@ -83,6 +83,8 @@ public:
 	// ---- models (built on first use)
 	// the WASTED / BUSTED look (postfx.js uDesat, uDeath, uDeathBoost): desaturated, darker, a heavy vignette
 	void SetDeathLook(double Desat, double Death, double Boost);
+	// postfx.js uChroma (0.0022 normally, more with the special ability) as the scene's colour fringe
+	void SetFringe(double Chroma);
 	// a prop's mesh (built in the world's axes), for its debris when it is knocked over
 	UStaticMesh* PropMesh(int32 PropIndex) const;
 	const FATGVehicleMeshes& VehicleMeshes(const atg::VehicleDef& Def);

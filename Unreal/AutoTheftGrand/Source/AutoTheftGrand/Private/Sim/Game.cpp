@@ -1,4 +1,5 @@
 #include "Game.h"
+#include "Special.h"
 #include "WeaponWheel.h"
 #include "Hud.h"
 
@@ -203,6 +204,7 @@ void Game::tryEnterExit() {
 }
 
 bool Game::weaponWheelOpen() const { return wheel && wheel->open; }
+double Game::specialGrip() const { return special ? special->grip() : 1; }
 
 void Game::respawnPlayer(double x, double z, double yaw) {
 	Player& p = *player;

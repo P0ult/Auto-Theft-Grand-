@@ -465,7 +465,7 @@ void Vehicle::step(double h) {
 	const double rr = r;
 	const double wet = game.env.wet;
 	const double surf = surface ? surface : 1;
-	const double mu = def.grip * (1 - wet * 0.18) * surf * (driver() && driver()->isPlayer ? game.specialGrip : 1) * (flat ? 0.6 : 1);
+	const double mu = def.grip * (1 - wet * 0.18) * surf * (driver() && driver()->isPlayer ? game.specialGrip() : 1) * (flat ? 0.6 : 1);
 	if (airborne) {
 		vel.x -= vx * 0.02 * h; vel.z -= vz * 0.02 * h;
 		r *= 1 - 0.3 * h;
