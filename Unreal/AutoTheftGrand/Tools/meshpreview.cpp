@@ -4,7 +4,7 @@
 //   g++ -std=c++20 -O2 -I../Source/AutoTheftGrand/Private/Gen meshpreview.cpp ../Source/AutoTheftGrand/Private/Gen/*.cpp -o meshpreview
 //   ./meshpreview out_dir
 #include "WorldMeshes.h"
-#include "Models.h"
+#include "Sim/Humanoid.h"
 #include "VehicleModels.h"
 #include "MapImage.h"
 #include <cstdio>
@@ -213,15 +213,18 @@ int main(int argc, char** argv) {
 			}
 			i++;
 		}
-		const auto parts = BuildHuman({ 0xc68642, 0xf2f2f2, 0x2f4a78, 0x222222, 0x1a1a1a });
+		// two people in the rest pose (Sim/Humanoid: the skinned mesh of humanoid.js)
 		for (int copy = 0; copy < 2; copy++) {
-			std::map<std::string, Mat4> joints;
-			for (const HumanPart& hp : parts) {
-				Mat4 parent = hp.parent[0] ? joints[hp.parent] : Mat4::Compose(33 + copy * 1.5, 0, -2, 0, copy ? kPi : 0, 0);
-				const double swing = std::string(hp.name).find("thighL") == 0 ? 0.5 : std::string(hp.name).find("thighR") == 0 ? -0.5 : 0;
-				joints[hp.name] = parent * Mat4::Compose(hp.joint[0], hp.joint[1], hp.joint[2], swing, 0, 0);
-				MeshBuf g; g.Append(hp.mesh, joints[hp.name]); Draw(im, cam, g, Layout::VL);
+			Appearance a = RandomAppearance(copy == 0 ? 0 : 1, copy == 0 ? 0xc68863 : 0xf1c7a5);
+			const HumanoidMesh h = BuildHumanoidGeometry(a);
+			MeshBuf g;
+			for (size_t v = 0; v < h.Count(); v++) {
+				g.Color(h.C[v * 3], h.C[v * 3 + 1], h.C[v * 3 + 2]);
+				g.V(h.P[v * 3], h.P[v * 3 + 1], h.P[v * 3 + 2], h.N[v * 3], h.N[v * 3 + 1], h.N[v * 3 + 2]);
 			}
+			g.I = h.I;
+			MeshBuf w; w.Append(g, Mat4::Compose(33 + copy * 1.5, 0, -2, 0, copy ? kPi : 0, 0));
+			Draw(im, cam, w, Layout::VL);
 		}
 		WritePng(im, out + "/cars.png");
 	}

@@ -21,12 +21,12 @@ pad, and will play its sounds.
 | world/worldgen.js, roadnet.js, roadlayout.js, northcity.js, railway.js, citymap.js, countryside.js | `Gen/*` (plain C++) | Bit-exact port: Mulberry32, float32 storage where JS used Float32Array, stable sorts, V8's `Math.hypot`. `Tools/gentest` diffs it against `Tools/dumpworld.mjs`. |
 | world/terrainmesh.js, roadmesh.js, city.js, props.js, vegetation.js | `Gen/TerrainMesh.cpp`, `RoadMesh.cpp`, `CityMesh.cpp`, `PropMesh.cpp` | Same geometry. The four per-vertex channels carry what the shaders need (see `ATGMaterials.h`). |
 | world/shaders.js, render/materials.js | `ATGMaterials` | GLSL → HLSL custom nodes, generated as assets in the editor. No screen-space derivatives (ray-tracing safe). |
-| entities/humanoid.js | `Gen/Models.cpp` | A segmented person (not skinned yet). |
+| entities/humanoid.js | `Sim/Humanoid`, `ATGHumanMesh`, `ATGPerson` | The smooth-skinned mesh, identical to the JavaScript's (`Tools/humantest.cpp`), as a skeletal mesh built at runtime on a poseable component that copies the simulation's 17 bones. |
 | world/environment.js, render/sky.js | `ATGWorld` sky | SkyAtmosphere, a sun and a moon as atmosphere lights, a real-time sky light, height fog, the same clock and sun path. |
 | entities/vehicledefs.js, vehiclemodels.js, loft.js | `Gen/VehicleDefs`, `Gen/VehicleModels`, `Gen/Loft` | The whole catalogue; car models identical to the JavaScript's (`Tools/carstest.cpp`). |
 | world/collision.js (+ the colliders city.js, roadmesh.js and vegetation.js add) | `Sim/Collision`, `Gen/RoadMesh` | The same boxes, oriented boxes, circles and decks, in the same order (`Tools/coltest.cpp`). |
 | game/game.js, core/input.js, core/events.js | `Sim/Game`, `Sim/Input`, `Sim/Events` | The frame order and slow motion as in the browser game. |
-| entities/character.js, animator.js, ragdoll.js, game/player.js | `Sim/Character`, `Sim/Animator`, `Sim/Ragdoll`, `Sim/Player` | All of it; drawn for now with the segmented body (`ATGPerson`). |
+| entities/character.js, animator.js, ragdoll.js, game/player.js | `Sim/Character`, `Sim/Animator`, `Sim/Ragdoll`, `Sim/Player` | All of it; drawn with the skinned humanoid (`ATGPerson`). |
 | entities/vehicle.js, game/vehicles.js | `Sim/Vehicle`, `Sim/Vehicles` | All of it: physics, tumbling, damage, dents, lost panels, fire, explosions, enter / exit / carjack sequences, parked cars. Drawn by `ATGCar`. |
 | game/camera.js | `Sim/Camera` | All the cameras, including the cinematic and flight cameras. |
 | world/environment.js | `Sim/Env` | The clock and the weather; `ATGWorld` lights the sky from it. |
@@ -40,8 +40,8 @@ pad, and will play its sounds.
 
 **Status.** Phase 1 builds and runs on UE 5.8.3 (Visual Studio 2026). The game logic has moved into the
 simulation layer (above): walking, getting in and out, driving, crashes and parked cars run there and are
-drawn by Unreal. Phase 2 is under way: traffic, people, traffic lights and trains are done; the skinned
-humanoid is next.
+drawn by Unreal. Phase 2 is done: traffic, people, traffic lights, trains and the skinned humanoid. Phase 3
+has started on a second branch (`oc-phase3`, worked by a second agent and merged here once checked).
 
 **Phase 1: the world and driving (done).**
 - World generation.
@@ -56,8 +56,7 @@ humanoid is next.
 - Pedestrians and gangs on the walk graph (peds.js). Done.
 - Traffic lights. Done: the lamps read the simulation's clock (`SimTime` in the parameter collection).
 - Trains on the timetable (railsystem.js, train.js). Done.
-- A skinned humanoid with the procedural animator, and ragdolls. The animator and ragdoll run in the
-  simulation already; the skinned mesh is next.
+- A skinned humanoid with the procedural animator, and ragdolls. Done.
 
 **Phase 3: action.**
 - Weapons, melee, damage and effects (combat.js, effects.js).
@@ -100,7 +99,8 @@ humanoid is next.
   the colliders of their furniture, come in phase 6.
 - The Santa Luz pier is a plain deck; the landmarks' own colliders come with them (phase 6).
 - Billboards (and their colliders) are not built yet.
-- People are drawn with the segmented phase 1 body until the skinned humanoid is ported (phase 2).
+- The people's material takes each part's roughness from humanoidMaterial, but not yet its fine fabric,
+  hair and denim patterns, or the metalness of buckles and badges.
 - Motorbikes are left out of the traffic and the parked cars until bikes.js is ported (phase 4).
 - The radar and the map show blips as plain squares until the HUD is ported (phase 3b).
 - Online, the trains follow the host's timetable; that comes with multiplayer (phase 6).

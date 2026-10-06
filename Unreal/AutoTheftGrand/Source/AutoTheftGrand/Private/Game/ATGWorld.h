@@ -20,21 +20,17 @@ class UProceduralMeshComponent;
 class USkyAtmosphereComponent;
 class USkyLightComponent;
 class UStaticMesh;
+class USkeletalMesh;
+class USkeleton;
 class UTexture2D;
 struct FATGWorldData;
-namespace atg { class CityMap; class Game; struct MeshBuf; struct VehicleDef; struct TrainModel; struct HumanLook; struct HumanPart; }
+namespace atg { class CityMap; class Game; struct MeshBuf; struct VehicleDef; struct TrainModel; struct Appearance; }
 
 USTRUCT()
 struct FATGVehicleMeshes {
 	GENERATED_BODY()
 	UPROPERTY() TArray<TObjectPtr<UStaticMesh>> Parts; // (one per VehicleModel part)
 	UPROPERTY() TObjectPtr<UStaticMesh> Wheel = nullptr;
-};
-
-USTRUCT()
-struct FATGMeshList {
-	GENERATED_BODY()
-	UPROPERTY() TArray<TObjectPtr<UStaticMesh>> Meshes;
 };
 
 struct FATGMapLabel { FString Name; double X = 0, Z = 0; bool bBig = false; };
@@ -88,8 +84,8 @@ public:
 	const FATGVehicleMeshes& VehicleMeshes(const atg::VehicleDef& Def);
 	// the trains' rolling stock (one entry per TrainModel)
 	const FATGVehicleMeshes& TrainMeshes(const atg::TrainModel& Model);
-	const TArray<UStaticMesh*>& HumanMeshes(const atg::HumanLook& Look);
-	const std::vector<atg::HumanPart>& HumanLayout();
+	// a person's skinned mesh (shared by people who look the same, while any of them is alive)
+	USkeletalMesh* HumanMesh(const atg::Appearance& A);
 	UStaticMesh* WeaponMesh(const FString& Id);
 
 private:
@@ -109,9 +105,9 @@ private:
 	UPROPERTY(Transient) TArray<TObjectPtr<UStaticMesh>> Meshes;
 	UPROPERTY(Transient) TArray<TObjectPtr<UHierarchicalInstancedStaticMeshComponent>> PropMeshes;
 	UPROPERTY(Transient) TMap<FString, FATGVehicleMeshes> VehicleCache;
-	UPROPERTY(Transient) TMap<FString, FATGMeshList> HumanCache;
+	TMap<FString, TWeakObjectPtr<USkeletalMesh>> HumanCache;
+	UPROPERTY(Transient) TObjectPtr<USkeleton> HumanSkeleton;
 	UPROPERTY(Transient) TMap<FString, TObjectPtr<UStaticMesh>> WeaponCache;
-	TArray<UStaticMesh*> HumanTmp;
 
 	// props: which instanced mesh and instance draws each (to hide smashed ones)
 	TArray<TPair<int32, int32>> PropInstances;

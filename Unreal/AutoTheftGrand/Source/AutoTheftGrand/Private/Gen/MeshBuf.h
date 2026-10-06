@@ -68,7 +68,7 @@ MeshBuf Cone(double r, double h, int radial = 8, int heightSegs = 1);
 MeshBuf Sphere(double r, int wSegs = 8, int hSegs = 6, double phiStart = 0, double phiLen = kTau, double thetaStart = 0, double thetaLen = kPi);
 MeshBuf Icosahedron(double r, int detail = 0);
 MeshBuf Torus(double r, double tube, int radial = 8, int tubular = 16);
-MeshBuf Capsule(double r, double length, int capSegs = 4, int radial = 8);
+MeshBuf Capsule(double r, double length, int capSegs = 4, int radial = 8, int heightSegs = 1);
 MeshBuf Circle(double r, int segs = 8);
 MeshBuf Ring(double inner, double outer, int segs = 32);
 // flat-shade: recompute face normals (three.js computeVertexNormals on a non-indexed geometry)

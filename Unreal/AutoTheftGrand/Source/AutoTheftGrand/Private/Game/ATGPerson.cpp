@@ -2,31 +2,11 @@
 #include "Game/ATGCoords.h"
 #include "Game/ATGMaterials.h"
 #include "Game/ATGWorld.h"
-#include "Gen/Models.h"
 #include "Sim/Character.h"
 
+#include "Components/PoseableMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/World.h"
-
-namespace {
-// segmented part -> the bone it rides on
-int32 BoneFor(const char* Part) {
-	using namespace atg::Bone;
-	const FString P(Part);
-	if (P == TEXT("hips")) return hips;
-	if (P == TEXT("torso")) return spine;
-	if (P == TEXT("head")) return neck;
-	if (P == TEXT("armL")) return lUpperArm;
-	if (P == TEXT("armR")) return rUpperArm;
-	if (P == TEXT("foreL")) return lForearm;
-	if (P == TEXT("foreR")) return rForearm;
-	if (P == TEXT("thighL")) return lThigh;
-	if (P == TEXT("thighR")) return rThigh;
-	if (P == TEXT("shinL")) return lShin;
-	if (P == TEXT("shinR")) return rShin;
-	return hips;
-}
-}
 
 AATGPerson::AATGPerson() {
 	PrimaryActorTick.bCanEverTick = false;
@@ -46,23 +26,12 @@ void AATGPerson::Build(atg::Character* C) {
 	Person = atg::Ref<atg::Character>(C);
 	AATGWorld* W = AATGWorld::Get(this);
 	if (!W) return;
-	const atg::Appearance& A = C->appearance;
-	const uint32 Shirt = A.hasUniform ? A.uniformShirt : (A.shirtType == "jacket" ? A.jacketColor : A.shirt);
-	const atg::HumanLook Look{ A.skin, Shirt, A.hasUniform ? A.uniformPants : A.pants, A.shoes, A.hair };
-	const TArray<UStaticMesh*>& Meshes = W->HumanMeshes(Look);
-	const std::vector<atg::HumanPart>& Layout = W->HumanLayout();
+	Body = NewObject<UPoseableMeshComponent>(this);
+	Body->SetupAttachment(Root);
+	Body->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	Body->SetSkinnedAssetAndUpdate(W->HumanMesh(C->appearance));
+	Body->RegisterComponent();
 	UMaterialInterface* Lit = ATGMaterials::Get(EATGMat::VertexLit);
-	for (int32 I = 0; I < Meshes.Num(); I++) {
-		UStaticMeshComponent* M = NewObject<UStaticMeshComponent>(this);
-		M->SetupAttachment(Root);
-		M->SetStaticMesh(Meshes[I]);
-		M->SetMaterial(0, Lit);
-		M->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-		M->SetUsingAbsoluteLocation(true); M->SetUsingAbsoluteRotation(true); M->SetUsingAbsoluteScale(true);
-		M->RegisterComponent();
-		Parts.Add(M);
-		PartBones.Add(BoneFor(Layout[I].name));
-	}
 	Weapon = NewObject<UStaticMeshComponent>(this);
 	Weapon->SetupAttachment(Root);
 	Weapon->SetCollisionEnabled(ECollisionEnabled::NoCollision);
@@ -75,11 +44,16 @@ void AATGPerson::Build(atg::Character* C) {
 void AATGPerson::Sync(float Dt) {
 	atg::Character* C = Person.get();
 	if (!C) return;
-	SetActorLocation(ATG::ToUE(C->pos));
 	const bool bShow = C->visible && !C->removed;
-	for (int32 I = 0; I < Parts.Num(); I++) {
-		Parts[I]->SetVisibility(bShow);
-		if (bShow) Parts[I]->SetWorldTransform(ATG::ToUE(C->pose.world[PartBones[I]]));
+	Body->SetVisibility(bShow);
+	if (bShow) {
+		// the root group (position, heading, height scale; a seat when in a vehicle), then each bone on its parent
+		SetActorTransform(ATG::ToUE(C->rootMatrix()));
+		TArray<FTransform>& Bones = Body->BoneSpaceTransforms;
+		if (Bones.Num() == atg::Bone::COUNT) {
+			for (int32 I = 0; I < atg::Bone::COUNT; I++) Bones[I] = ATG::LocalToUE(atg::M4::Compose(C->pose.pos[I], C->pose.rot[I]));
+			Body->RefreshBoneTransforms();
+		}
 	}
 	const FString Want = C->hasWeaponModel() && C->weaponVisible ? FString(UTF8_TO_TCHAR(C->weapon.c_str())) : FString();
 	if (Want != WeaponId) {

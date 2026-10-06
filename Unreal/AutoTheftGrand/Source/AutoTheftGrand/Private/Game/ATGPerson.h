@@ -1,6 +1,6 @@
-// How a simulated person (atg::Character) is drawn: body parts placed on the pose's bones every frame, and
-// the weapon in the right hand. (A stand-in for the skinned humanoid of humanoid.js, which comes with the
-// living-city phase: the parts are the phase 1 segmented body, coloured from the person's appearance.)
+// How a simulated person (atg::Character) is drawn: the skinned humanoid of humanoid.js (ATGHumanMesh) on a
+// poseable mesh whose 17 bones copy the simulation's pose every frame (the animator's gait, actions and
+// ragdoll), and the weapon in the right hand.
 #pragma once
 
 #include "CoreMinimal.h"
@@ -9,6 +9,7 @@
 #include "ATGPerson.generated.h"
 
 class UStaticMeshComponent;
+class UPoseableMeshComponent;
 class UMaterialInstanceDynamic;
 namespace atg { class Character; }
 
@@ -24,8 +25,7 @@ public:
 private:
 	atg::Ref<atg::Character> Person;
 	UPROPERTY(VisibleAnywhere) TObjectPtr<USceneComponent> Root;
-	UPROPERTY(Transient) TArray<TObjectPtr<UStaticMeshComponent>> Parts;
-	TArray<int32> PartBones;
+	UPROPERTY(Transient) TObjectPtr<UPoseableMeshComponent> Body;
 	UPROPERTY(Transient) TObjectPtr<UStaticMeshComponent> Weapon;
 	FString WeaponId;
 	void Build(atg::Character* C);

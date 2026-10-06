@@ -4,7 +4,7 @@
 #include "Game/ATGMaterials.h"
 #include "Game/ATGMeshUtil.h"
 #include "Gen/MapImage.h"
-#include "Gen/Models.h"
+#include "Game/ATGHumanMesh.h"
 #include "Gen/TrainModels.h"
 #include "Gen/VehicleModels.h"
 #include "Gen/WeaponModels.h"
@@ -570,22 +570,16 @@ const FATGVehicleMeshes& AATGWorld::TrainMeshes(const atg::TrainModel& Model) {
 	return M;
 }
 
-const std::vector<atg::HumanPart>& AATGWorld::HumanLayout() {
-	static const std::vector<atg::HumanPart> L = atg::BuildHuman({ 0, 0, 0, 0, 0 });
-	return L;
-}
-
-const TArray<UStaticMesh*>& AATGWorld::HumanMeshes(const atg::HumanLook& Look) {
-	const FString Key = FString::Printf(TEXT("%06x_%06x_%06x_%06x_%06x"), Look.skin, Look.shirt, Look.pants, Look.shoes, Look.hair);
-	FATGMeshList* L = HumanCache.Find(Key);
-	if (!L) {
-		L = &HumanCache.Add(Key);
-		UMaterialInterface* Lit = ATGMaterials::Get(EATGMat::VertexLit);
-		for (const atg::HumanPart& P : atg::BuildHuman(Look)) L->Meshes.Add(ATGMesh::BuildStaticMesh(this, *(TEXT("Human_") + Key + TEXT("_") + FString(P.name)), TArray<FATGPart>{ { &P.mesh, Lit } }, EATGAxes::Local));
-	}
-	HumanTmp.Reset();
-	for (UStaticMesh* M : L->Meshes) HumanTmp.Add(M);
-	return HumanTmp;
+USkeletalMesh* AATGWorld::HumanMesh(const atg::Appearance& A) {
+	const FString Key = ATGHuman::Key(A);
+	if (TWeakObjectPtr<USkeletalMesh>* M = HumanCache.Find(Key)) if (M->IsValid()) return M->Get();
+	USkeleton* Skel = HumanSkeleton;
+	USkeletalMesh* M = ATGHuman::Build(this, A, Skel, ATGMaterials::Get(EATGMat::VertexLit));
+	HumanSkeleton = Skel;
+	HumanCache.Add(Key, M);
+	// (forget the ones nobody uses any more)
+	if (HumanCache.Num() > 400) for (auto It = HumanCache.CreateIterator(); It; ++It) if (!It.Value().IsValid()) It.RemoveCurrent();
+	return M;
 }
 
 UStaticMesh* AATGWorld::WeaponMesh(const FString& Id) {

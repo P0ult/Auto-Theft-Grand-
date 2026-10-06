@@ -30,7 +30,7 @@
 
 namespace {
 // bump when the generated materials change: new assets are made under new names
-constexpr int32 GMatVersion = 3;
+constexpr int32 GMatVersion = 4;
 const TCHAR* GMatNames[] = { TEXT("Terrain"), TEXT("Road"), TEXT("Street"), TEXT("Ground"), TEXT("Building"), TEXT("VertexLit"), TEXT("Frond"), TEXT("Water"), TEXT("Standard"), TEXT("Glass") };
 
 FString AssetName(const TCHAR* Base) { return FString::Printf(TEXT("M_ATG_%s_%d"), Base, GMatVersion); }
@@ -744,6 +744,7 @@ UMaterial* MakeMaterial(EATGMat Which, UMaterialParameterCollection* C) {
 	}
 	case EATGMat::VertexLit: {
 		M->SetUsageByFlag(MATUSAGE_InstancedStaticMeshes, true);
+		M->SetUsageByFlag(MATUSAGE_SkeletalMesh, true); // (people: ATGHumanMesh)
 		UMaterialExpression* U[4] = { B.UV(0), B.UV(1), B.UV(2), B.UV(3) };
 		UMaterialExpression* Lp = B.LocalPos(); UMaterialExpression* T = B.Mpc(C, TEXT("SimTime"));
 		UMaterialExpression* Tint = B.VecParam(TEXT("Tint"), FLinearColor::White);

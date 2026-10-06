@@ -14,7 +14,8 @@ So far you can walk, sprint, jump and crouch, get into any car (the walk to the 
 sit-down), drive with the browser game's full car physics (drifts, jumps, crashes, rollovers, dents, panels
 torn off, fire and explosions), and the parked cars stream in round you. The city is alive: traffic drives
 its lanes, stops at the traffic lights and gives way at junctions and roundabouts, and people walk the
-pavements, with gang members standing guard on their turf. The Sol Line's passenger and freight trains run
+pavements, with gang members standing guard on their turf. Everyone is the browser game's smooth-skinned
+person, built for each look and posed by the same animator: walking, running, sitting, ragdolls. The Sol Line's passenger and freight trains run
 their timetable; board one at a platform with F, or climb into the cab and drive it. Weapons, the police,
 missions and the rest are still to come; [PORTING.md](PORTING.md) has the plan and the progress.
 
@@ -32,7 +33,7 @@ Steps:
    **Generate Visual Studio project files**, then build the `AutoTheftGrandEditor` target in
    `Development Editor`.
 2. The first time the editor starts, it creates the game's materials in `Content/ATG/Materials`
-   (`M_ATG_*_3` and `MPC_ATG_3`; the number goes up when the materials change). The Output Log shows a
+   (`M_ATG_*_4` and `MPC_ATG_4`; the number goes up when the materials change). The Output Log shows a
    `LogATG` line for each one. After that, shaders compile once, which takes a while.
 3. Press **Play**. The world takes a few seconds to generate behind a loading screen. You start outside the
    Castillo house in Cedar Row, with traffic on the streets and people on the pavements.
@@ -79,7 +80,8 @@ Source/AutoTheftGrand/Private/Gen/    the world generator and mesh builders: pla
 Source/AutoTheftGrand/Private/Sim/    the game: plain C++ with no Unreal code, ported line for line from
                                       src/game and src/entities (Game, Input, Collision, Character, Player,
                                       Animator, Ragdoll, Vehicle, Vehicles, Camera, Env, Weapons, Peds,
-                                      Traffic, Rail, Train); Setup puts the systems together as main.js does
+                                      Traffic, Rail, Train, Humanoid); Setup puts the systems together as
+                                      main.js does
 Source/AutoTheftGrand/Private/Game/   the Unreal side: draws the simulation and feeds it input
   ATGWorld          runs the generator on a worker thread, then builds the world over a few frames:
                     procedural meshes for terrain, roads, ground, buildings and water; instanced meshes
@@ -89,7 +91,8 @@ Source/AutoTheftGrand/Private/Game/   the Unreal side: draws the simulation and 
   ATGMeshUtil       generator buffers -> procedural mesh sections and runtime static meshes
   ATGCar            draws a simulated vehicle: its parts on the sprung body, doors and lids on their hinges,
                     wheels, lights, dents, lost panels; trains with their carriages and wagons
-  ATGPerson         draws a simulated person (for now the segmented body, placed on the animator's bones)
+  ATGHumanMesh      builds a person's skinned mesh at runtime (Sim/Humanoid, the port of humanoid.js)
+  ATGPerson         draws a simulated person: that mesh on a poseable component that copies the pose's bones
   ATGPlayerController  keyboard, mouse and gamepad into the simulation's input; shows its camera
   ATGGameMode       runs the simulation each frame and keeps an actor for each of its vehicles and people
   ATGHUD            loading screen, radar, full-screen map, zone name, clock, speedometer
@@ -106,7 +109,8 @@ Unreal's axes (centimetres, Z up) only at the edges; `Game/ATGCoords.h` has the 
 screen with fixed 1/30 s frames and a script of console commands (`ATG.Teleport`, `ATG.Press KeyW`,
 `ATG.Spawn zenith`, `ATG.Enter`, `ATG.Time 21`, `ATG.State`, `ATG.City`, `ATG.Station union`, `shot name`,
 `wait 2`, `quit`); screenshots go to `Saved/Screenshots/WindowsEditor/ATG/`. `Tools/tests/city.txt` and
-`city2.txt` look at the traffic, the people, the traffic lights and the trains.
+`city2.txt` look at the traffic, the people, the traffic lights and the trains; `human.txt` at a person
+up close, walking and running.
 
 The simulation is tested without Unreal. `Tools/native.sh` builds a tool with MSVC from Git Bash:
 
@@ -132,6 +136,8 @@ cd Tools
 node --import ./three-hook.mjs dumpworld.mjs > js.txt && diff js.txt cpp.txt   # C++ world vs the JavaScript one
 ./native.sh carstest.exe carstest.cpp && ./carstest.exe > cppcars.txt          # car models vs vehiclemodels.js
 node --import ./three-hook.mjs dumpcars.mjs > jscars.txt && diff jscars.txt cppcars.txt
+./native.sh humantest.exe humantest.cpp && ./humantest.exe > cpphuman.txt      # people vs humanoid.js
+node --import ./three-hook.mjs dumphuman.mjs > jshuman.txt && diff --strip-trailing-cr jshuman.txt cpphuman.txt
 ./native.sh meshpreview.exe meshpreview.cpp && mkdir -p out
 ./meshpreview.exe out       # software renders of props, cars, parts of the city
 ./meshpreview.exe out map   # the radar map

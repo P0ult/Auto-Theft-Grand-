@@ -1,0 +1,20 @@
+# The skinned humanoid: the player from the front, walking seen from the side, and the people round about.
+wait 1
+ATG.God 1
+ATG.Teleport -622 330 0
+ATG.Cam 0 -0.05
+wait 1
+shot human_front
+ATG.Cam 1.57 -0.1
+ATG.Press KeyW
+wait 1.2
+shot human_walk
+ATG.Release
+ATG.Press ShiftLeft KeyW
+wait 1.5
+shot human_run
+ATG.Release
+ATG.Cam 0.6 -0.25
+wait 2
+shot human_crowd
+quit

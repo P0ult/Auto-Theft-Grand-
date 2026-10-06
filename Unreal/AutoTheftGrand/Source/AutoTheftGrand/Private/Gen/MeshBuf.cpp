@@ -353,27 +353,35 @@ MeshBuf Torus(double r, double tube, int radial, int tubular) {
 	return g;
 }
 
-MeshBuf Capsule(double r, double length, int capSegs, int radial) {
-	// lathe of the profile: bottom pole -> bottom hemisphere -> top hemisphere -> top pole
-	struct PP { double x, y; };
-	std::vector<PP> prof;
-	for (int k = 0; k <= capSegs; k++) { const double a = -kPi / 2 + (double)k / capSegs * kPi / 2; prof.push_back({ r * std::cos(a), -length / 2 + r * std::sin(a) }); }
-	for (int k = 0; k <= capSegs; k++) { const double a = (double)k / capSegs * kPi / 2; prof.push_back({ r * std::cos(a), length / 2 + r * std::sin(a) }); }
+MeshBuf Capsule(double r, double length, int capSegs, int radial, int heightSegs) {
+	// three.js CapsuleGeometry (r17x): rows from the bottom pole to the top pole, radial + 1 columns each
+	length = Max(0, length);
+	capSegs = (int)Max(1, std::floor(capSegs)); radial = (int)Max(3, std::floor(radial)); heightSegs = (int)Max(1, std::floor(heightSegs));
 	MeshBuf g;
-	const int np = (int)prof.size();
-	for (int i = 0; i <= radial; i++) {
-		const double phi = (double)i / radial * kTau, s = std::sin(phi), c = std::cos(phi);
-		for (int j = 0; j < np; j++) {
-			const double x = prof[j].x * s, y = prof[j].y, z = prof[j].x * c;
-			const double cy = y > length / 2 ? length / 2 : y < -length / 2 ? -length / 2 : y;
-			double nx = x, ny = y - cy, nz = z; const double l = Hypot3(nx, ny, nz);
-			if (l > 0) { nx /= l; ny /= l; nz /= l; } else { ny = y > 0 ? 1 : -1; }
-			g.V(x, y, z, nx, ny, nz, (double)i / radial, (double)j / (np - 1));
+	const double h = length / 2, capLen = kPi / 2 * r, cyl = length, total = 2 * capLen + cyl;
+	const int rows = capSegs * 2 + heightSegs, cols = radial + 1;
+	for (int S = 0; S <= rows; S++) {
+		double prof = 0, y = 0, rad = 0, ny = 0;
+		if (S <= capSegs) { const double A = (double)S / capSegs, I = A * kPi / 2; y = -h - r * std::cos(I); rad = r * std::sin(I); ny = -r * std::cos(I); prof = A * capLen; }
+		else if (S <= capSegs + heightSegs) { const double A = (double)(S - capSegs) / heightSegs; y = -h + A * length; rad = r; ny = 0; prof = capLen + A * cyl; }
+		else { const double A = (double)(S - capSegs - heightSegs) / capSegs, I = A * kPi / 2; y = h + r * std::sin(I); rad = r * std::cos(I); ny = r * std::sin(I); prof = capLen + cyl + A * capLen; }
+		const double v = Max(0, Min(1, prof / total));
+		double uOff = 0;
+		if (S == 0) uOff = 0.5 / radial; else if (S == rows) uOff = -0.5 / radial;
+		for (int A = 0; A <= radial; A++) {
+			const double I = (double)A / radial, L = I * kTau, F = std::sin(L), z = std::cos(L);
+			double nx = -rad * z, nny = ny, nz = rad * F;
+			const double l = Hypot3(nx, nny, nz);
+			if (l > 0) { nx /= l; nny /= l; nz /= l; }
+			g.V(-rad * z, y, rad * F, nx, nny, nz, I + uOff, v);
 		}
-	}
-	for (int i = 0; i < radial; i++) for (int j = 0; j < np - 1; j++) {
-		const uint32_t a = i * np + j, b = a + np, c = b + 1, d = a + 1;
-		g.Tri(a, b, d); g.Tri(b, c, d);
+		if (S > 0) {
+			const int base = (S - 1) * cols;
+			for (int I = 0; I < radial; I++) {
+				const uint32_t a = base + I, b = base + I + 1, c = S * cols + I, d = S * cols + I + 1;
+				g.Tri(a, b, c); g.Tri(b, d, c);
+			}
+		}
 	}
 	return g;
 }
