@@ -286,3 +286,74 @@ void AATGHUD::DrawTopRight(atg::Game* G, float Right, float Top) {
 	c.Fill = FLinearColor::White;
 	c.Text(Ammo, -96, 106, GEngine->GetLargeFont(), 22, 1.f, 0.5f, true);
 }
+
+// ------------------------------------------------------------------ the speedometer (hud.js _drawSpeedo)
+void AATGHUD::DrawSpeedo(atg::Game* G, float Dt) {
+	atg::Player& p = *G->player;
+	atg::Vehicle* v = p.vehicle && p.seat == 0 ? p.vehicle : nullptr;
+	SpeedoAlpha = FMath::Clamp(SpeedoAlpha + (v && !p.dead ? Dt : -Dt) / 0.25f, 0.f, 1.f);
+	if (!v || SpeedoAlpha <= 0) return;
+	// (a 220 px canvas shown at 190 px, right 26, bottom 22)
+	FATGPainter c(Canvas);
+	c.Translate(Canvas->ClipX - (26 + 190) * Ui, Canvas->ClipY - (22 + 190) * Ui);
+	c.Scale(Ui * 190 / 220, Ui * 190 / 220);
+	c.Alpha = SpeedoAlpha * DeadAlpha;
+	const float S = 220, C = S / 2, R = S / 2 - 12;
+	const bool air = v->def.aircraft;
+	const double mph = std::fabs(v->forwardSpeed()) * 2.23694;
+	const double max = air ? (atg::IsSet(v->def.maxDial) ? v->def.maxDial : 400) : v->def.tank ? 60 : 160;
+	SpeedoNeedle += (FMath::Min(mph, max * 1.03) - SpeedoNeedle) * FMath::Min(1.0, (double)Dt * 10);
+	const float a0 = PI * 0.75f, a1 = PI * 2.25f;
+	auto ang = [&](double val) { return a0 + (a1 - a0) * (float)FMath::Clamp(val / max, 0.0, 1.03); };
+	// face (the radial gradient as two discs)
+	c.Fill = FLinearColor(FColor(6, 7, 9)).CopyWithNewOpacity(0.92f); c.BeginPath(); c.Arc(C, C, R, 0, 2 * PI); c.FillPath();
+	c.Fill = FLinearColor(FColor(28, 30, 36)).CopyWithNewOpacity(0.5f); c.BeginPath(); c.Arc(C, C * 0.92f, R * 0.7f, 0, 2 * PI); c.FillPath();
+	c.LineWidth = 4; c.Stroke = FLinearColor::Black; c.BeginPath(); c.Arc(C, C, R, 0, 2 * PI); c.StrokePath();
+	c.LineWidth = 1.5f; c.Stroke = CssColor(0xe8b64c, 0.8f); c.BeginPath(); c.Arc(C, C, R - 4, 0, 2 * PI); c.StrokePath();
+	// red zone
+	c.LineWidth = 7; c.Stroke = CssColor(0xdc281e, 0.85f);
+	c.BeginPath(); c.Arc(C, C, R - 13, ang(max * 0.85), ang(max)); c.StrokePath();
+	// ticks and numbers
+	const double major = max <= 60 ? 10 : max <= 200 ? 20 : 50, minor = major / (max <= 60 ? 2 : 4);
+	for (double val = 0; val <= max + 0.01; val += minor) {
+		const float a = ang(val);
+		const bool big = std::fabs(val / major - std::round(val / major)) < 1e-6;
+		const float r0 = R - (big ? 24 : 18), r1 = R - 9;
+		c.Stroke = big ? CssColor(0xf4f4f4) : CssColor(0xf4f4f4, 0.55f); c.LineWidth = big ? 3.f : 1.5f;
+		c.BeginPath(); c.MoveTo(C + FMath::Cos(a) * r0, C + FMath::Sin(a) * r0); c.LineTo(C + FMath::Cos(a) * r1, C + FMath::Sin(a) * r1); c.StrokePath();
+		if (big) { c.Fill = CssColor(0xe9e9e9); c.Text(FString::FromInt((int32)std::round(val)), C + FMath::Cos(a) * (R - 38), C + FMath::Sin(a) * (R - 38), GEngine->GetMediumFont(), 17, 0.5f, 0.5f); }
+	}
+	// digital readout
+	c.Fill = FLinearColor::White;
+	FString Digits = FString::FromInt((int32)std::round(mph));
+	while (Digits.Len() < (air ? 3 : 2)) Digits = TEXT("0") + Digits;
+	c.Text(Digits, C, C + R * 0.42f, GEngine->GetLargeFont(), 38, 0.5f, 0.5f);
+	c.Fill = CssColor(0xe8b64c);
+	c.Text(air ? TEXT("MPH · AIRSPEED") : TEXT("MPH"), C, C + R * 0.62f, GEngine->GetMediumFont(), 14, 0.5f, 0.5f);
+	if (air) {
+		const double alt = FMath::Max(0.0, v->altitude());
+		c.Fill = CssColor(0x9fe3ff);
+		c.Text(TEXT("ALT FT"), C, C - R * 0.4f, GEngine->GetMediumFont(), 12, 0.5f, 0.5f);
+		c.Text(FString::FromInt((int32)std::round(alt * 3.281)), C, C - R * 0.22f, GEngine->GetMediumFont(), 19, 0.5f, 0.5f);
+		// (the throttle bar comes with the aircraft)
+	} else {
+		const double sp = v->speed();
+		const FString gear = sp < -0.5 ? FString(TEXT("R")) : mph < 1 ? FString(TEXT("N")) : FString::FromInt((int32)FMath::Min(6.0, 1 + std::floor(mph / (max / 6.2))));
+		c.Fill = gear == TEXT("R") ? CssColor(0xff6b5a) : FLinearColor::White;
+		c.Text(gear, C, C - R * 0.34f, GEngine->GetLargeFont(), 22, 0.5f, 0.5f);
+	}
+	// damage bar
+	const float hp = FMath::Clamp((float)(v->health / (v->maxHealth ? v->maxHealth : 1000)), 0.f, 1.f);
+	c.Fill = FLinearColor(1, 1, 1, 0.12f); c.FillRect(C - 34, C + R * 0.74f, 68, 5);
+	c.Fill = hp > 0.5f ? CssColor(0x6cd46c) : hp > 0.25f ? CssColor(0xffb13b) : CssColor(0xff4a3a); c.FillRect(C - 34, C + R * 0.74f, 68 * hp, 5);
+	// needle (its glow, then the needle)
+	const float na = ang(SpeedoNeedle);
+	c.Save(); c.Translate(C, C); c.Rotate(na);
+	c.Fill = CssColor(0xff7828, 0.3f);
+	c.BeginPath(); c.MoveTo(-12, -6); c.LineTo(R - 14, -3); c.LineTo(R - 14, 3); c.LineTo(-12, 6); c.ClosePath(); c.FillPath();
+	c.Fill = CssColor(0xff7a1a);
+	c.BeginPath(); c.MoveTo(-10, -3); c.LineTo(R - 16, -1); c.LineTo(R - 16, 1); c.LineTo(-10, 3); c.ClosePath(); c.FillPath();
+	c.Restore();
+	c.Fill = CssColor(0x111111); c.Stroke = CssColor(0xe8b64c); c.LineWidth = 2;
+	c.BeginPath(); c.Arc(C, C, 8, 0, 2 * PI); c.FillPath(); c.StrokePath();
+}

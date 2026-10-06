@@ -103,7 +103,7 @@ Source/AutoTheftGrand/Private/Game/   the Unreal side: draws the simulation and 
   ATGGameMode       runs the simulation each frame and keeps an actor for each of its vehicles and people
   ATGHUD            the HUD: the GTA V style minimap (turning with the camera, blips, police flashes and
                     search cones) with health, armour and special bars, the wanted stars, cash and weapon,
-                    zone and vehicle names, and what the simulation's HUD model holds: help, big messages,
+                    zone and vehicle names, the speedometer, and what the simulation's HUD model holds: help, big messages,
                     subtitles, the bar, the fade, the damage vignette, the WASTED / BUSTED shard; the
                     loading screen and the full-screen map
   ATGPainter        a small 2D canvas over UCanvas (paths, arcs, fill, stroke, transforms) so hud.js's

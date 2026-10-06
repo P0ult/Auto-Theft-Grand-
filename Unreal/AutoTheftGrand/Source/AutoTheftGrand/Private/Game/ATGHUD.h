@@ -32,6 +32,8 @@ private:
 	// the modern (GTA V) layout: ATGHudModern.cpp
 	void DrawMinimap(atg::Game* G, AATGWorld* W, float Dt, float Left, float Top);
 	void DrawTopRight(atg::Game* G, float Right, float Top);
+	void DrawSpeedo(atg::Game* G, float Dt);
+	double SpeedoNeedle = 0; float SpeedoAlpha = 0;
 	void DrawMessages(atg::Game* G, float Dt);
 	void DrawOverlays(atg::Game* G, float Dt);
 	void WrappedBox(const FString& S, float X, float Y, float MaxW, UFont* Font, float Scale, float Alpha);

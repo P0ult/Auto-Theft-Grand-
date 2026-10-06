@@ -100,12 +100,7 @@ void AATGHUD::DrawHUD() {
 		if (M->veh.t > 0) Text(Plain(M->veh.text), Right, Bottom - ((bIn ? 274 : 70) + 30) * Ui, Big, 1.25f * Ui, FLinearColor(FColor(0xff, 0xe0, 0x8a)).CopyWithNewOpacity(FMath::Min(1.f, (float)M->veh.t * 3.f) * DeadAlpha), 1.f);
 	}
 
-	// speedometer (mph): a plain readout until the dial (hud.js _drawSpeedo) is ported
-	if (Car && Pl.seat == 0) {
-		const int32 Mph = FMath::RoundToInt(FMath::Abs(Car->forwardSpeed()) * 2.23694);
-		Text(FString::Printf(TEXT("%d"), Mph), Right, Bottom - 110 * Ui, Big, 2.4f * Ui, FLinearColor(Paper.R, Paper.G, Paper.B, DeadAlpha), 1.f);
-		Text(TEXT("MPH"), Right, Bottom - 52 * Ui, Small, 1.2f * Ui, FLinearColor(Gold.R, Gold.G, Gold.B, DeadAlpha), 1.f);
-	}
+	DrawSpeedo(G, Dt);
 	if (PC->MessageTime > 0) Text(PC->Message, Canvas->ClipX / 2, 70 * Ui, Small, 1.5f * Ui, FLinearColor(Paper.R, Paper.G, Paper.B, FMath::Min(1.f, PC->MessageTime)), 0.5f);
 	DrawMessages(G, Dt);
 	DrawOverlays(G, Dt);
