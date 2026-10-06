@@ -11,6 +11,12 @@ std::vector<std::pair<std::function<bool(const VehicleDef&)>, VehicleManager::Fa
 	return F;
 }
 
+bool VehicleManager::Supported(const VehicleDef& def) {
+	if (def.kind.empty() && def.bike.empty()) return true;
+	for (auto& f : Factories()) if (f.first(def)) return true;
+	return false;
+}
+
 Vehicle* VehicleManager::spawn(const std::string& id, double x, double z, double yaw, const SpawnOpts& opts) {
 	const VehicleDef* def = FindVehicle(id);
 	if (!def) return nullptr;
@@ -127,7 +133,7 @@ void VehicleManager::carCar(Vehicle* A, Vehicle* Bc) {
 	Vehicle* tank = A->def.tank ? A : Bc->def.tank ? Bc : nullptr;
 	if (tank) {
 		Vehicle* other = tank == A ? Bc : A;
-		if (!other->def.tank && other->def.kind.empty() && tank->speedAbs() > 1.2 && game.time - other->crushT > 0.35) {
+		if (!other->def.tank && (other->def.kind.empty() || other->proxy) && tank->speedAbs() > 1.2 && game.time - other->crushT > 0.35) {
 			other->crushT = game.time;
 			other->damage(240, tank->driver());
 			other->dent(px, other->pos.y + 1.1, pz, 30);
@@ -443,6 +449,7 @@ void VehicleManager::streamParked() {
 		else if (s.district == "docks") type = rng.Weighted(std::vector<std::pair<std::string, double>>{ { "boxer", 2 }, { "parcel", 3 }, { "hauler", 3 } });
 		else if (rng.Chance(0.12)) type = rng.Pick(BikeIds());
 		else type = rng.Weighted(pool);
+		if (!Supported(*FindVehicle(type))) continue; // (parked motorbikes come with bikes.js)
 		SpawnOpts o; o.parked = true;
 		Vehicle* v = spawn(type, s.x, s.z, s.rot, o);
 		if (!v) continue;

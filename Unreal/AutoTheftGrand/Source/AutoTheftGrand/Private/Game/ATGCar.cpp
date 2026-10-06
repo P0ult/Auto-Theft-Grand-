@@ -4,6 +4,7 @@
 #include "Game/ATGMeshUtil.h"
 #include "Game/ATGWorld.h"
 #include "Sim/Game.h"
+#include "Sim/Train.h"
 
 #include "Components/SpotLightComponent.h"
 #include "Components/StaticMeshComponent.h"
@@ -45,6 +46,7 @@ void AATGCar::Build(atg::Vehicle* V) {
 	Vehicle = atg::Ref<atg::Vehicle>(V);
 	Model = V->model;
 	AATGWorld* W = AATGWorld::Get(this);
+	if (V->def.train && W) { BuildTrain(static_cast<atg::Train*>(V)); return; }
 	if (!Model || !W) return; // (bikes, boats and aircraft are drawn by their own views)
 	const FATGVehicleMeshes& Meshes = W->VehicleMeshes(V->def);
 	const atg::VehicleDef& D = V->def;
@@ -124,6 +126,7 @@ void AATGCar::Build(atg::Vehicle* V) {
 
 void AATGCar::Sync(float Dt) {
 	atg::Vehicle* V = Vehicle.get();
+	if (V && bTrain) { SyncTrain(static_cast<atg::Train*>(V)); return; }
 	if (!V || !Model) return;
 	SetActorTransform(ATG::ToUE(V->groupMatrix()));
 	const double Y = FMath::Clamp(V->bodyY, -0.15, 0.15) + (V->def.hydraulics ? FMath::Clamp(V->hydraulic, -0.1, 0.5) : 0) - (V->flat ? 0.07 : 0);
@@ -241,5 +244,68 @@ void AATGCar::ApplyDents() {
 		}
 		ATGMesh::ToSection(Pm, 0, M, false, EATGAxes::Local);
 		Pm->SetMaterial(0, bBurnt ? BurntMat.Get() : PaintMat.Get());
+	}
+}
+
+// ------------------------------------------------------------------ trains (train.js models)
+void AATGCar::BuildTrain(atg::Train* T) {
+	AATGWorld* W = AATGWorld::Get(this);
+	bTrain = true;
+	HeadMat = Std(this, Hex(0xdddddd), 0.1, 0.8, Hex(0x222222));
+	TailMat = Std(this, Hex(0x5a0000), 0.2, 0.3, FLinearColor(0.25f, 0, 0));
+	UMaterialInstanceDynamic* BodyMat = Std(this, FLinearColor::White, 0.32, 0.55);
+	UMaterialInstanceDynamic* Trim = Std(this, FLinearColor::White, 0.55, 0.35);
+	UMaterialInstanceDynamic* Glass = Std(this, Hex(0x070a0d), 0.04, 0.3, FLinearColor::Black, true, 0.8);
+	auto AddParts = [&](const atg::TrainModel& M, USceneComponent* Parent) {
+		const FATGVehicleMeshes& Meshes = W->TrainMeshes(M);
+		for (int32 I = 0; I < (int32)M.parts.size(); I++) {
+			const atg::VPart& P = M.parts[I];
+			UStaticMeshComponent* C = NewObject<UStaticMeshComponent>(this);
+			C->SetupAttachment(Parent);
+			C->SetStaticMesh(Meshes.Parts[I]);
+			C->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+			UMaterialInterface* Mat = Trim;
+			switch (P.mat) {
+			case atg::EVMat::Body: Mat = BodyMat; break;
+			case atg::EVMat::Glass: Mat = Glass; break;
+			case atg::EVMat::Head: Mat = HeadMat; break;
+			case atg::EVMat::Tail: Mat = TailMat; break;
+			default: break;
+			}
+			C->SetMaterial(0, Mat);
+			if (P.mat == atg::EVMat::Glass || P.mat == atg::EVMat::Head || P.mat == atg::EVMat::Tail) C->SetCastShadow(false);
+			C->RegisterComponent();
+			Parts.Add(C);
+		}
+	};
+	AddParts(*T->locoModel, Body);
+	for (const atg::Train::Car& Car : T->cars) {
+		USceneComponent* S = NewObject<USceneComponent>(this);
+		S->SetupAttachment(Root);
+		S->SetUsingAbsoluteLocation(true); S->SetUsingAbsoluteRotation(true);
+		S->RegisterComponent();
+		AddParts(*Car.model, S);
+		TrainCars.Add(S);
+	}
+	SyncTrain(T);
+}
+
+void AATGCar::SyncTrain(atg::Train* T) {
+	SetActorTransform(ATG::ToUE(T->groupMatrix()));
+	for (int32 I = 0; I < TrainCars.Num() && I < (int32)T->cars.size(); I++) {
+		const atg::Train::Car& C = T->cars[I];
+		TrainCars[I]->SetWorldTransform(ATG::ToUE(atg::M4::Compose(C.pos, atg::Quat::FromEuler(-C.pitch, C.yaw, 0, "YXZ"))));
+	}
+	const int32 Head = T->headOn ? 1 : 0;
+	if (Head != HeadState) {
+		HeadState = Head;
+		HeadMat->SetVectorParameterValue(TEXT("Color"), Head ? FLinearColor::White : Hex(0xdddddd));
+		HeadMat->SetVectorParameterValue(TEXT("Emissive"), Head ? FLinearColor(6.f, 5.6f, 4.6f) : Hex(0x222222));
+	}
+	const int32 Tail = T->tailOn ? 1 : 0;
+	if (Tail != TailState) {
+		TailState = Tail;
+		TailMat->SetVectorParameterValue(TEXT("Color"), Hex(Tail ? 0x8a0000 : 0x5a0000));
+		TailMat->SetVectorParameterValue(TEXT("Emissive"), Tail ? FLinearColor(1.6f, 0.05f, 0.03f) : FLinearColor(0.25f, 0, 0));
 	}
 }

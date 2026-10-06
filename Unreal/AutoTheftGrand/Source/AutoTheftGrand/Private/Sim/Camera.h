@@ -39,6 +39,8 @@ public:
 	bool hasFlightOff = false; V3 flightOff;
 
 	void addShake(double a) { shake = Min(1.2, shake + a); }
+	// is a point (or a sphere round it) inside the camera's view (near 0.25 m, far 9 km)?
+	bool inView(const V3& p, double radius = 0) const;
 	double forwardYaw() const { return yaw + kPi; }
 	V3 lookDir() const { return camQuat.rotate(V3(0, 0, -1)); }
 	void setCinematic(const V3& p, const V3& target, double f = 50) { hasCine = true; cine = { p, target, f }; }

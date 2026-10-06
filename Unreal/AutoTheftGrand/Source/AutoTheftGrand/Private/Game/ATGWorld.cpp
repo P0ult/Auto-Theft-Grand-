@@ -5,10 +5,12 @@
 #include "Game/ATGMeshUtil.h"
 #include "Gen/MapImage.h"
 #include "Gen/Models.h"
+#include "Gen/TrainModels.h"
 #include "Gen/VehicleModels.h"
 #include "Gen/WeaponModels.h"
 #include "Gen/WorldMeshes.h"
 #include "Sim/Game.h"
+#include "Sim/Setup.h"
 
 #include "Async/Async.h"
 #include "Components/DirectionalLightComponent.h"
@@ -167,6 +169,7 @@ FATGWorldData* Generate(std::atomic<int32>& Stage) {
 		WorldData W;
 		W.map = &D->Map; W.roadPrims = D->Roads.prims; W.roadDecks = D->Roads.decks; W.props = D->Props; W.propDefs = &D->PropDefs;
 		D->Sim = std::make_unique<Game>(W);
+		InstallSystems(*D->Sim);
 	}
 	UE_LOG(LogATG, Log, TEXT("World generated in %.1f s"), FPlatformTime::Seconds() - T0);
 	Stage = 8;
@@ -558,6 +561,15 @@ const FATGVehicleMeshes& AATGWorld::VehicleMeshes(const atg::VehicleDef& Def) {
 	return M;
 }
 
+const FATGVehicleMeshes& AATGWorld::TrainMeshes(const atg::TrainModel& Model) {
+	const FString Id = FString::Printf(TEXT("Train_%p"), (const void*)&Model);
+	if (const FATGVehicleMeshes* M = VehicleCache.Find(Id)) return *M;
+	FATGVehicleMeshes& M = VehicleCache.Add(Id);
+	UMaterialInterface* Std = ATGMaterials::Get(EATGMat::Standard);
+	for (const atg::VPart& P : Model.parts) M.Parts.Add(ATGMesh::BuildStaticMesh(this, *(Id + TEXT("_") + Str(P.name)), TArray<FATGPart>{ { &P.mesh, Std } }, EATGAxes::Local));
+	return M;
+}
+
 const std::vector<atg::HumanPart>& AATGWorld::HumanLayout() {
 	static const std::vector<atg::HumanPart> L = atg::BuildHuman({ 0, 0, 0, 0, 0 });
 	return L;
@@ -683,6 +695,7 @@ void AATGWorld::UpdateSky(float Dt) {
 		if (UWorld* W = GetWorld()) if (UMaterialParameterCollectionInstance* I = W->GetParameterCollectionInstance(C)) {
 			I->SetScalarParameterValue(TEXT("Night"), Night);
 			I->SetScalarParameterValue(TEXT("StreetLights"), StreetLights);
+			if (atg::Game* G = Game()) I->SetScalarParameterValue(TEXT("SimTime"), (float)G->env.uTime);
 		}
 	}
 }

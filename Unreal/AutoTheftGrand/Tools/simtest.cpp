@@ -1,6 +1,11 @@
 // Native tests for the simulation (no Unreal): Tools/native.sh simtest.exe simtest.cpp && ./simtest.exe [test ...]
 // Each test sets up a game on the generated world, runs fixed 1/30 s frames and prints what it measured.
 #include "Sim/Game.h"
+#include "Sim/Peds.h"
+#include "Sim/Rail.h"
+#include "Sim/Setup.h"
+#include "Sim/Traffic.h"
+#include "crashtrace.h"
 #include <chrono>
 #include <cstdio>
 #include <cstring>
@@ -12,9 +17,10 @@ struct World {
 	std::vector<PropInstance> props;
 	std::map<std::string, PropTemplate> defs;
 	World() : roads(BuildRoadMeshes(map)), props(PlaceProps(map)), defs(BuildPropTemplates()) {}
-	std::unique_ptr<Game> game() {
+	std::unique_ptr<Game> game(bool systems = false) {
 		WorldData w; w.map = &map; w.roadPrims = roads.prims; w.roadDecks = roads.decks; w.props = props; w.propDefs = &defs;
 		auto g = std::make_unique<Game>(w);
+		if (systems) InstallSystems(*g);
 		const Landmark& home = map.landmarks.at("home");
 		g->respawnPlayer(home.x, home.z, 0);
 		return g;
@@ -139,7 +145,118 @@ static void VehCompare(World& w) {
 	}
 }
 
+// the living city: traffic drives its lanes, people walk the pavements
+static void TestCity(World& w) {
+	printf("city\n");
+	auto g = w.game(true);
+	ToStreet(w, *g);
+	PopulateWorld(*g);
+	printf("  populated: %zu traffic cars, %zu people\n", g->traffic->cars.size(), g->peds->list.size());
+	Check(g->traffic->cars.size() > 5, "traffic populates");
+	Check(g->peds->list.size() > 5, "people populate");
+	std::map<Vehicle*, V3> start;
+	for (auto& c : g->traffic->cars) if (Vehicle* v = c.get()) start[v] = v->pos;
+	std::map<Character*, V3> pstart;
+	for (auto& p : g->peds->list) pstart[p.get()] = p->pos;
+	double maxLat = 0;
+	int crashes = 0;
+	g->events.carCrash.on([&](Vehicle*, Vehicle*, double) { crashes++; });
+	for (int i = 0; i < 30 * 20; i++) {
+		g->frame(1.0 / 30);
+		for (auto& c : g->traffic->cars) if (Vehicle* v = c.get()) if (auto* ai = dynamic_cast<LaneDriver*>(v->ai.get())) maxLat = Max(maxLat, ai->lat);
+	}
+	int moved = 0, total = 0;
+	double dist = 0;
+	for (auto& e : start) {
+		bool alive = false;
+		for (auto& c : g->traffic->cars) if (c.get() == e.first) alive = true;
+		if (!alive) continue;
+		total++;
+		const double d = Hypot(e.first->pos.x - e.second.x, e.first->pos.z - e.second.z);
+		dist += d;
+		if (d > 20) moved++;
+	}
+	int walked = 0, ptotal = 0;
+	for (auto& p : g->peds->list) { auto it = pstart.find(p.get()); if (it == pstart.end()) continue; ptotal++; if (Hypot(p->pos.x - it->second.x, p->pos.z - it->second.z) > 3) walked++; }
+	printf("  after 20 s: %d / %d cars moved over 20 m (mean %.0f m), max lane offset %.1f m, %d crashes\n", moved, total, total ? dist / total : 0, maxLat, crashes);
+	printf("  %d / %d people walked over 3 m; now %zu cars, %zu people\n", walked, ptotal, g->traffic->cars.size(), g->peds->list.size());
+	Check(total > 0 && moved * 2 > total, "most traffic drives");
+	// (the browser game has about a quarter of them walking that far in 20 s: the rest stand guard or idle)
+	Check(ptotal > 0 && walked * 5 > ptotal, "people walk");
+	int red = 0, green = 0;
+	for (int t = 0; t < 34; t++) { if (SignalState(t, 0) == ESignal::Red) red++; if (SignalState(t, 1) == ESignal::Green) green++; }
+	printf("  signal cycle: axis 0 red %d s, axis 1 green %d s\n", red, green);
+	Check(red == 18 && green == 13, "signal cycle matches shaders.js");
+}
+
+// the Sol Line: both trains appear at their stations and run the timetable
+static void TestRail(World& w) {
+	printf("rail\n");
+	auto g = w.game(true);
+	Run(*g, 0.1);
+	std::vector<Train*> ts = g->rail->trains();
+	printf("  %zu trains, %zu stations, %zu level crossings, line %.0f m\n", ts.size(), g->rail->stations.size(), g->rail->crossings.size(), g->rail->rail ? g->rail->rail->length : 0);
+	Check(ts.size() == 2, "passenger and freight trains spawn");
+	if (ts.size() < 2) return;
+	Train* pass = static_cast<Train*>(g->rail->train.get());
+	Train* fr = static_cast<Train*>(g->rail->freight.get());
+	printf("  passenger at s %.0f (station %d), %zu cars; freight at s %.0f, %zu wagons\n", pass->s, pass->atStation, pass->cars.size(), fr->s, fr->cars.size());
+	const double s0 = pass->s, f0 = fr->s;
+	int arrivals = 0;
+	g->events.trainArrived.on([&](Vehicle*, int st) { arrivals++; printf("  arrived at %s, t %.0f s\n", g->rail->stations[st].name.c_str(), g->time); });
+	double vmax = 0;
+	bool crossing = false;
+	for (int i = 0; i < 30 * 200; i++) {
+		g->frame(1.0 / 30);
+		vmax = Max(vmax, std::fabs(pass->v));
+		for (auto& c : g->rail->crossings) if (c.active) crossing = true;
+	}
+	printf("  after 200 s: passenger s %.0f (moved %.0f m, top %.1f m/s), freight s %.0f (moved %.0f m)\n", pass->s, std::fabs(pass->s - s0), vmax, fr->s, std::fabs(fr->s - f0));
+	Check(std::fabs(pass->s - s0) > 300, "passenger train runs");
+	Check(std::fabs(fr->s - f0) > 100, "freight train runs");
+	Check(vmax > 15 && vmax < 24.5, "cruises at up to 24 m/s");
+	Check(arrivals > 0, "stops at a station");
+	Check(crossing, "a level crossing closes");
+}
+
+// boarding: F on the platform next to a stopped train takes a carriage seat; the cab door gives the controls
+static void TestBoard(World& w) {
+	printf("board\n");
+	auto g = w.game(true);
+	g->frame(1.0 / 30);
+	Train* t = static_cast<Train*>(g->rail->train.get());
+	Player& p = *g->player;
+	const RailStop& st = g->rail->stations[t->atStation];
+	g->respawnPlayer(st.x, st.z, 0);
+	int seat;
+	const V3 d = t->nearestDoor(p.pos, seat);
+	printf("  at %s, nearest door %.1f m away (seat %d), train dwell %.1f s\n", st.name.c_str(), Hypot(d.x - p.pos.x, d.z - p.pos.z), seat, t->dwell);
+	t->dwell = 30;
+	g->input.KeyDown("KeyF"); g->frame(1.0 / 30); g->input.KeyUp("KeyF");
+	Run(*g, 4);
+	printf("  in %s, seat %d, hidden %d\n", p.vehicle ? p.vehicle->type.c_str() : "nothing", p.seat, p.hiddenInVehicle ? 1 : 0);
+	Check(p.vehicle == t && p.seat > 0, "boards a carriage");
+	g->input.KeyDown("KeyF"); g->frame(1.0 / 30); g->input.KeyUp("KeyF");
+	Run(*g, 3);
+	Check(!p.vehicle && !p.hiddenInVehicle, "gets off onto the platform");
+	printf("  off at (%.1f, %.1f, %.1f), %.1f m from the platform point\n", p.pos.x, p.pos.y, p.pos.z, Hypot(p.pos.x - st.x, p.pos.z - st.z));
+	// the cab
+	const V3 cab = t->localToWorld(2.2, 0, LOCO_L / 2 - 3.4);
+	g->respawnPlayer(cab.x, cab.z, 0);
+	g->input.KeyDown("KeyF"); g->frame(1.0 / 30); g->input.KeyUp("KeyF");
+	Run(*g, 4);
+	Check(p.vehicle == t && p.seat == 0, "climbs into the cab");
+	const double s0 = t->s;
+	g->input.KeyDown("KeyW");
+	Run(*g, 5);
+	g->input.KeyUp("KeyW");
+	printf("  driving: %.1f m/s after 5 s of throttle, moved %.1f m\n", t->v, t->s - s0);
+	Check(t->v > 3, "the player drives it");
+}
+
 int main(int argc, char** argv) {
+	InstallCrashTrace();
+	setvbuf(stdout, nullptr, _IONBF, 0);
 	SeedRand(12345);
 	const auto t0 = std::chrono::steady_clock::now();
 	World w;
@@ -150,6 +267,9 @@ int main(int argc, char** argv) {
 	if (want("drive")) TestDrive(w);
 	if (want("crash")) TestCrash(w);
 	if (want("parked")) TestParked(w);
+	if (want("city")) TestCity(w);
+	if (want("rail")) TestRail(w);
+	if (want("board")) TestBoard(w);
 	printf(fails ? "%d FAILED\n" : "all passed\n", fails);
 	return fails ? 1 : 0;
 }

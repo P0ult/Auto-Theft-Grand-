@@ -15,7 +15,7 @@ class USpotLightComponent;
 class UStaticMesh;
 class UStaticMeshComponent;
 class AATGWorld;
-namespace atg { class Vehicle; struct VehicleModel; }
+namespace atg { class Vehicle; class Train; struct VehicleModel; }
 
 UCLASS()
 class AATGCar : public AActor {
@@ -46,6 +46,12 @@ private:
 	UPROPERTY(Transient) TObjectPtr<UMaterialInstanceDynamic> BlueMat;
 	UPROPERTY(Transient) TObjectPtr<UMaterialInstanceDynamic> BurntMat;
 	UPROPERTY(VisibleAnywhere) TObjectPtr<USpotLightComponent> HeadLight;
+	// trains: the locomotive's parts on the root, one scene component per carriage or wagon
+	bool bTrain = false;
+	UPROPERTY(Transient) TArray<TObjectPtr<USceneComponent>> TrainCars;
+	int32 HeadState = -1;
+	void BuildTrain(atg::Train* T);
+	void SyncTrain(atg::Train* T);
 	int32 DentVersion = 0;
 	int32 Detached = 0;
 	bool bGlassBroken = false, bBurnt = false, bLights = false;

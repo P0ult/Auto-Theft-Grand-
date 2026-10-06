@@ -5,6 +5,8 @@ public class AutoTheftGrand : ModuleRules
 	public AutoTheftGrand(ReadOnlyTargetRules Target) : base(Target)
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
+		// (the simulation in Private/Sim is plain C++ and uses dynamic_cast)
+		bUseRTTI = true;
 		// The world generator (Private/Gen) is plain C++ shared with a command-line test harness, so it is
 		// built without unity batching (its files use short helper names) and with relaxed shadow warnings.
 		bUseUnity = false;

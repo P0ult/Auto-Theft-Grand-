@@ -10,7 +10,8 @@
 namespace atg {
 
 // which material a part is drawn with (vehiclemodels.js vehicleMaterials)
-enum class EVMat : uint8_t { Paint, Glass, Trim, Chrome, Wheel, Head, Tail, Lightbar, TaxiSign, Beacon };
+// (Body: paint baked into the vertex colours, as the trains' bodyMaterial(0xffffff))
+enum class EVMat : uint8_t { Paint, Glass, Trim, Chrome, Wheel, Head, Tail, Lightbar, TaxiSign, Beacon, Body };
 
 struct VPart {
 	std::string name;   // body, hood, trunk, door, door2, bumperF, bumperR, glass, doorGlass, trim, chrome, head, tail, ...

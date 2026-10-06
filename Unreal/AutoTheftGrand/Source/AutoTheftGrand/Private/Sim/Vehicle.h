@@ -77,6 +77,7 @@ public:
 	bool flipped = false;
 	double crouch = 0;  // (skateboards)
 	// set by the systems that own a vehicle
+	bool proxy = false; // (a train carriage's stand-in for the contact code)
 	bool traffic = false, policeUnit = false, armyUnit = false, remote = false, npcRemote = false, flat = false, stable = false, heistVan = false, roadblock = false;
 
 	// ---- what the renderer reads
@@ -107,7 +108,7 @@ public:
 	V3 doorWorld() const;
 	V3 seatWorld(int i) const;
 	// the vehicle's group and the sprung body on it, as world matrices (characters sit in the body)
-	M4 groupMatrix() const;
+	virtual M4 groupMatrix() const;
 	virtual M4 bodyMatrix() const;
 	// aircraft: their attitude, centre of gravity and airspeed (the flight camera)
 	virtual Quat bodyQuat() const { return groupMatrix().rotation(); }
@@ -145,7 +146,7 @@ public:
 	void detachPart(const std::string& name, const V3& at);
 	void shatterGlass();
 	virtual void damage(double amount, Character* source = nullptr);
-	void dent(double wx, double wy, double wz, double strength);
+	virtual void dent(double wx, double wy, double wz, double strength);
 	void undent() { dents.clear(); dentVersion++; }
 	virtual void explode();
 	virtual void remove();

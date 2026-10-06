@@ -17,6 +17,7 @@ public:
 	bool moonMode = false;
 	std::string weather = "clear";
 	double cloudCover = 0.35, rain = 0, targetRain = 0, targetCloud = 0.35, fogBoost = 0, fogTarget = 0, weatherTimer = 240, lightning = 0;
+	double uTime = 0;       // the shaders' clock (the traffic lights run on it)
 	double wet = 0;          // how soaked the ground is (lags the rain)
 	bool weatherLocked = false;
 

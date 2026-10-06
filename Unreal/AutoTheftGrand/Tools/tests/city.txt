@@ -1,0 +1,24 @@
+# Phase 2: traffic at a junction, people on the pavements, the Sol Line at Union Station, the lights at night.
+wait 1
+ATG.God 1
+ATG.Teleport -622 330 3.1416
+ATG.Cam 0 -0.18
+wait 10
+ATG.City
+shot city_junction
+ATG.Cam 1.2 -0.1
+wait 1
+shot city_street
+ATG.Time 21.5
+wait 4
+shot city_night
+ATG.Time 10
+ATG.Station union
+ATG.Cam 1.57 -0.12
+wait 2
+ATG.City
+shot city_station
+wait 30
+ATG.City
+shot city_station_later
+quit

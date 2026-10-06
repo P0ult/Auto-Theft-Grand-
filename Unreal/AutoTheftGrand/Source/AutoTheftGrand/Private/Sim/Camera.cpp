@@ -20,6 +20,18 @@ V3 EulerXYZ(const Quat& q) {
 }
 }
 
+bool CameraRig::inView(const V3& p, double radius) const {
+	const V3 l = camQuat.inverse().rotate(p - camPos); // camera space: looking down -z
+	const double depth = -l.z;
+	if (depth < 0.25 - radius || depth > 9000 + radius) return false;
+	const double ty = std::tan(camFov * kPi / 360), tx = ty * game.viewAspect;
+	// (distance from each side plane, its normal pointing in)
+	const double ny = 1 / std::sqrt(1 + ty * ty), nx = 1 / std::sqrt(1 + tx * tx);
+	if ((depth * ty - std::fabs(l.y)) * ny < -radius) return false;
+	if ((depth * tx - std::fabs(l.x)) * nx < -radius) return false;
+	return true;
+}
+
 void CameraRig::lookAt(const V3& target, const V3& up) {
 	// a camera looks down its -z: z = from the target to the camera
 	V3 z = camPos - target;

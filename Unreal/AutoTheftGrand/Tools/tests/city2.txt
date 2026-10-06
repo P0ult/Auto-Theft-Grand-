@@ -1,0 +1,15 @@
+# Traffic and people up close: the junction north of the safehouse, seen from the corner.
+wait 1
+ATG.God 1
+ATG.Teleport -612 376 -2.36
+ATG.Cam 0.78 -0.42
+wait 12
+ATG.City
+shot city2_a
+wait 3
+shot city2_b
+ATG.Teleport -600 344 1.57
+ATG.Cam -1.57 -0.3
+wait 3
+shot city2_c
+quit

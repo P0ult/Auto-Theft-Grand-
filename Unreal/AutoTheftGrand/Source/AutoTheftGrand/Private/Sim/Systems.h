@@ -9,6 +9,7 @@
 namespace atg {
 
 class Character;
+class Ped;
 class Vehicle;
 struct CollObj;
 
@@ -49,6 +50,7 @@ class IHud {
 public:
 	virtual ~IHud() = default;
 	virtual void help(const std::string& text, double seconds = 4) = 0;
+	virtual void speech(Character* who, const std::string& text) = 0;
 };
 
 // weapons and damage (src/game/combat.js)
@@ -57,8 +59,39 @@ public:
 	virtual ~ICombat() = default;
 	virtual void vehicleExplosion(Vehicle* v, const V3& pos) = 0;
 	virtual void meleeHit(Character* attacker, const std::string& action) = 0;
-	virtual void fireWeapon(Character* shooter, const struct WeaponDef& def, const V3& origin, const V3& dir) = 0;
+	struct FireOpts { bool fromMuzzle = false; double spreadMul = 1; };
+	virtual void fireWeapon(Character* shooter, const struct WeaponDef& def, const V3& origin, const V3& dir, const FireOpts& opts = FireOpts()) = 0;
 	virtual void throwGrenade(Character* thrower, const V3& dir, const std::string& id) = 0;
+};
+
+// money and weapons dropped by the dead (src/game/pickups.js)
+class IPickups {
+public:
+	virtual ~IPickups() = default;
+	virtual void dropMoney(const V3& pos, int amount) = 0;
+	virtual void dropWeapon(const V3& pos, const std::string& weapon, int ammo) = 0;
+};
+
+// the police's officers think here (src/game/police.js copThink)
+class IPolice {
+public:
+	virtual ~IPolice() = default;
+	virtual void copThink(Ped* cop, double dt) = 0;
+};
+
+// street crime (src/game/npccrime.js)
+class INpcCrime {
+public:
+	virtual ~INpcCrime() = default;
+	virtual bool pedThink(Ped* p, double dt) = 0;
+	virtual bool jaywalk(Ped* p) = 0;
+};
+
+// animals (src/game/wildlife.js)
+class IWildlife {
+public:
+	virtual ~IWildlife() = default;
+	virtual void addWalkedDog(Ped* owner) = 0;
 };
 
 } // namespace atg

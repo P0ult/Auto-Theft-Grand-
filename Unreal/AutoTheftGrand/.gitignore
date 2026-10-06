@@ -21,3 +21,5 @@ Tools/cpp.txt
 Tools/js.txt
 Tools/*.txt
 !Tools/tests/*.txt
+Tools/*.pdb
+Tools/*.ilk

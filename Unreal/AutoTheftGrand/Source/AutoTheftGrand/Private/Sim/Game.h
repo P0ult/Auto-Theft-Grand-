@@ -19,6 +19,10 @@
 
 namespace atg {
 
+class PedManager;
+class Traffic;
+class RailSystem;
+
 struct Cheats {
 	bool god = false, vehGod = false, neverWanted = false, superJump = false, superRun = false, infSprint = false, lowGravity = false;
 	bool explosive = false, oneHit = false, freezeTime = false, slowmo = false, riot = false;
@@ -29,6 +33,14 @@ struct Settings {
 	double volume = 0.8, music = 0.6, sensitivity = 1;
 	bool invertY = false;
 	std::string npcCrime = "normal";
+};
+
+// a map blip (game.blips): the radar and the pause map draw these
+struct Blip {
+	double x = 0, z = 0;
+	std::string icon, letter;
+	uint32_t color = 0xffffff;
+	bool small = false, noEdge = false, square = false;
 };
 
 struct Quality { int peds = 38, traffic = 28; double drawDist = 3000; };
@@ -82,6 +94,17 @@ public:
 	IEffects* effects = nullptr;
 	IHud* hud = nullptr;
 	ICombat* combat = nullptr;
+	IPickups* pickups = nullptr;
+	IPolice* police = nullptr;
+	INpcCrime* npcCrime = nullptr;
+	IWildlife* wildlife = nullptr;
+	PedManager* peds = nullptr;
+	Traffic* traffic = nullptr;
+	RailSystem* rail = nullptr;
+	std::unordered_map<int, Ref<Vehicle>> nodeBusy; // road node -> the car holding that junction (traffic.js n.busy)
+	std::map<std::string, double> gangDensity; // (missions thin gangs out)
+	bool disableAmbient = false;               // (no ambient traffic or pedestrians: some missions)
+	double viewAspect = 16.0 / 9.0;            // (the screen's, for what the camera can see)
 
 	// characters: a registry of everyone alive (the renderer draws these), and who counts for collisions
 	template <typename T, typename... A> std::shared_ptr<T> makeCharacter(A&&... args) {
@@ -102,6 +125,11 @@ public:
 
 	// setTimeout (real seconds)
 	void setTimeout(double seconds, std::function<void()> fn) { timers.push_back({ seconds, std::move(fn) }); }
+
+	// map blips
+	std::vector<std::shared_ptr<Blip>> blips;
+	std::shared_ptr<Blip> addBlip(const Blip& b) { auto p = std::make_shared<Blip>(b); blips.push_back(p); return p; }
+	void removeBlip(const std::shared_ptr<Blip>& b) { for (size_t i = 0; i < blips.size(); i++) if (blips[i] == b) { blips.erase(blips.begin() + i); return; } }
 
 	// sounds (null-safe)
 	void sound(const std::string& name, double vol = 1) { if (audio) audio->play(name, vol); }

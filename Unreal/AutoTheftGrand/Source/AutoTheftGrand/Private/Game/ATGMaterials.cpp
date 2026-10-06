@@ -30,7 +30,7 @@
 
 namespace {
 // bump when the generated materials change: new assets are made under new names
-constexpr int32 GMatVersion = 2;
+constexpr int32 GMatVersion = 3;
 const TCHAR* GMatNames[] = { TEXT("Terrain"), TEXT("Road"), TEXT("Street"), TEXT("Ground"), TEXT("Building"), TEXT("VertexLit"), TEXT("Frond"), TEXT("Water"), TEXT("Standard"), TEXT("Glass") };
 
 FString AssetName(const TCHAR* Base) { return FString::Printf(TEXT("M_ATG_%s_%d"), Base, GMatVersion); }
@@ -678,6 +678,7 @@ UMaterialParameterCollection* MakeMpc() {
 	Add(TEXT("Night"), 0.f);
 	Add(TEXT("StreetLights"), 0.f);
 	Add(TEXT("EmissiveBoost"), 3.f);
+	Add(TEXT("SimTime"), 0.f); // (the simulation's shader clock: the traffic lights and the traffic agree)
 	C->PostEditChange();
 	SaveAsset(C);
 	return C;
@@ -744,7 +745,7 @@ UMaterial* MakeMaterial(EATGMat Which, UMaterialParameterCollection* C) {
 	case EATGMat::VertexLit: {
 		M->SetUsageByFlag(MATUSAGE_InstancedStaticMeshes, true);
 		UMaterialExpression* U[4] = { B.UV(0), B.UV(1), B.UV(2), B.UV(3) };
-		UMaterialExpression* Lp = B.LocalPos(); UMaterialExpression* T = B.Time();
+		UMaterialExpression* Lp = B.LocalPos(); UMaterialExpression* T = B.Mpc(C, TEXT("SimTime"));
 		UMaterialExpression* Tint = B.VecParam(TEXT("Tint"), FLinearColor::White);
 		UMaterialExpression* Ph = B.InstanceData(0, 0.f); UMaterialExpression* Tr = B.InstanceData(1, 1.f); UMaterialExpression* Tg = B.InstanceData(2, 1.f); UMaterialExpression* Tb = B.InstanceData(3, 1.f);
 		UMaterialExpression* Lights = B.Mpc(C, TEXT("StreetLights")); UMaterialExpression* Boost = B.Mpc(C, TEXT("EmissiveBoost"));

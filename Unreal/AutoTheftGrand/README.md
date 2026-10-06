@@ -12,8 +12,11 @@ simulation says and feeds it the keyboard, mouse and pad.
 
 So far you can walk, sprint, jump and crouch, get into any car (the walk to the door, the door opening, the
 sit-down), drive with the browser game's full car physics (drifts, jumps, crashes, rollovers, dents, panels
-torn off, fire and explosions), and the parked cars stream in round you. Traffic, pedestrians, weapons, the
-police, missions and the rest are still to come; [PORTING.md](PORTING.md) has the plan and the progress.
+torn off, fire and explosions), and the parked cars stream in round you. The city is alive: traffic drives
+its lanes, stops at the traffic lights and gives way at junctions and roundabouts, and people walk the
+pavements, with gang members standing guard on their turf. The Sol Line's passenger and freight trains run
+their timetable; board one at a platform with F, or climb into the cab and drive it. Weapons, the police,
+missions and the rest are still to come; [PORTING.md](PORTING.md) has the plan and the progress.
 
 ## Build and run
 
@@ -29,10 +32,10 @@ Steps:
    **Generate Visual Studio project files**, then build the `AutoTheftGrandEditor` target in
    `Development Editor`.
 2. The first time the editor starts, it creates the game's materials in `Content/ATG/Materials`
-   (`M_ATG_*_1` and `MPC_ATG_1`). The Output Log shows a `LogATG` line for each one. After that, shaders
-   compile once, which takes a while.
+   (`M_ATG_*_3` and `MPC_ATG_3`; the number goes up when the materials change). The Output Log shows a
+   `LogATG` line for each one. After that, shaders compile once, which takes a while.
 3. Press **Play**. The world takes a few seconds to generate behind a loading screen. You start outside the
-   Castillo house in Cedar Row, with parked cars appearing along the streets.
+   Castillo house in Cedar Row, with traffic on the streets and people on the pavements.
 
 The project opens on the engine's empty `Entry` map. Everything else is spawned by the game mode, so no level
 needs to be saved. To package the game, use **Platforms → Windows → Package Project**. The generated
@@ -62,7 +65,7 @@ far:
 | Shift / A (hold) | Sprint | Space / RB | Handbrake (drift) |
 | Space / X | Jump | H / LS click | Horn (Shift+H: siren in police cars) |
 | C / Ctrl / LS click | Crouch | G / D-pad ↑ | Hydraulics (lowriders) |
-| F / Enter / Y | Get in a car (carjack the driver) | F / Enter / Y | Get out (bail out at speed) |
+| F / Enter / Y | Get in a car (carjack the driver), board a train | F / Enter / Y | Get out (bail out at speed) |
 | M / D-pad ↓ | Map | V / View | Camera distance |
 | Esc / P / Menu | Pause | B / RS click | Look behind |
 | | | X / B (hold) | Cinematic camera |
@@ -75,7 +78,8 @@ Source/AutoTheftGrand/Private/Gen/    the world generator and mesh builders: pla
                                       loft.js, vehicledefs.js and src/ui/mapimage.js
 Source/AutoTheftGrand/Private/Sim/    the game: plain C++ with no Unreal code, ported line for line from
                                       src/game and src/entities (Game, Input, Collision, Character, Player,
-                                      Animator, Ragdoll, Vehicle, Vehicles, Camera, Env, Weapons)
+                                      Animator, Ragdoll, Vehicle, Vehicles, Camera, Env, Weapons, Peds,
+                                      Traffic, Rail, Train); Setup puts the systems together as main.js does
 Source/AutoTheftGrand/Private/Game/   the Unreal side: draws the simulation and feeds it input
   ATGWorld          runs the generator on a worker thread, then builds the world over a few frames:
                     procedural meshes for terrain, roads, ground, buildings and water; instanced meshes
@@ -84,7 +88,7 @@ Source/AutoTheftGrand/Private/Game/   the Unreal side: draws the simulation and 
   ATGMaterials      the browser game's GLSL ported to HLSL custom nodes, built as material assets in C++
   ATGMeshUtil       generator buffers -> procedural mesh sections and runtime static meshes
   ATGCar            draws a simulated vehicle: its parts on the sprung body, doors and lids on their hinges,
-                    wheels, lights, dents, lost panels
+                    wheels, lights, dents, lost panels; trains with their carriages and wagons
   ATGPerson         draws a simulated person (for now the segmented body, placed on the animator's bones)
   ATGPlayerController  keyboard, mouse and gamepad into the simulation's input; shows its camera
   ATGGameMode       runs the simulation each frame and keeps an actor for each of its vehicles and people
@@ -100,18 +104,25 @@ Unreal's axes (centimetres, Z up) only at the edges; `Game/ATGCoords.h` has the 
 
 `Tools/build.sh` builds the editor target from Git Bash. `Tools/run.sh Tools/tests/smoke.txt` runs the game off
 screen with fixed 1/30 s frames and a script of console commands (`ATG.Teleport`, `ATG.Press KeyW`,
-`ATG.Spawn zenith`, `ATG.Enter`, `ATG.Time 21`, `ATG.State`, `shot name`, `wait 2`, `quit`); screenshots go to
-`Saved/Screenshots/WindowsEditor/ATG/`.
+`ATG.Spawn zenith`, `ATG.Enter`, `ATG.Time 21`, `ATG.State`, `ATG.City`, `ATG.Station union`, `shot name`,
+`wait 2`, `quit`); screenshots go to `Saved/Screenshots/WindowsEditor/ATG/`. `Tools/tests/city.txt` and
+`city2.txt` look at the traffic, the people, the traffic lights and the trains.
 
 The simulation is tested without Unreal. `Tools/native.sh` builds a tool with MSVC from Git Bash:
 
 ```bash
 cd Tools
-./native.sh simtest.exe simtest.cpp && ./simtest.exe          # walking, driving, crashes, parked cars
+./native.sh simtest.exe simtest.cpp && ./simtest.exe          # walking, driving, crashes, parked cars,
+                                                               # traffic and people, trains, boarding
+DEBUG=1 ./native.sh simtestd.exe simtest.cpp                   # with symbols: a crash prints a stack trace
 ./simtest.exe vehcompare > cppveh.txt                          # the car physics against the browser game's:
 node --import ./three-hook.mjs vehcompare.mjs > jsveh.txt      # identical to 4 decimals
 diff jsveh.txt cppveh.txt
 ```
+
+The browser game gives the numbers the `city` and `rail` tests compare against (from the repository root,
+with `npm start` running): `node tools/browser-test/run.mjs "http://localhost:8080/index.html?manual&autostart=free&q=low" out/city tools/browser-test/tests/citycompare.mjs`.
+The trains match to the metre: both reach Fern Creek 110.7 s after leaving Union Station.
 
 ### Checking the generator without Unreal
 

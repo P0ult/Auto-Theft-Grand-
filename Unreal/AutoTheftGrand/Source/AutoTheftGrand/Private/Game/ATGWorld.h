@@ -22,7 +22,7 @@ class USkyLightComponent;
 class UStaticMesh;
 class UTexture2D;
 struct FATGWorldData;
-namespace atg { class CityMap; class Game; struct MeshBuf; struct VehicleDef; struct HumanLook; struct HumanPart; }
+namespace atg { class CityMap; class Game; struct MeshBuf; struct VehicleDef; struct TrainModel; struct HumanLook; struct HumanPart; }
 
 USTRUCT()
 struct FATGVehicleMeshes {
@@ -86,6 +86,8 @@ public:
 
 	// ---- models (built on first use)
 	const FATGVehicleMeshes& VehicleMeshes(const atg::VehicleDef& Def);
+	// the trains' rolling stock (one entry per TrainModel)
+	const FATGVehicleMeshes& TrainMeshes(const atg::TrainModel& Model);
 	const TArray<UStaticMesh*>& HumanMeshes(const atg::HumanLook& Look);
 	const std::vector<atg::HumanPart>& HumanLayout();
 	UStaticMesh* WeaponMesh(const FString& Id);

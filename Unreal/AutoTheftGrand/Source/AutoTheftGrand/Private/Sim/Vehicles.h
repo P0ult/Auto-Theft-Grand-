@@ -23,6 +23,8 @@ public:
 	// other kinds (bikes, boats, aircraft, the tank, trains) register their own classes
 	using Factory = std::function<std::shared_ptr<Vehicle>(Game&, const std::string&, double, double, double, const SpawnOpts&)>;
 	static std::vector<std::pair<std::function<bool(const VehicleDef&)>, Factory>>& Factories();
+	// can this kind be spawned yet? (road cars always; the others once their class is ported)
+	static bool Supported(const VehicleDef& def);
 
 	Vehicle* spawn(const std::string& id, double x, double z, double yaw, const SpawnOpts& opts = SpawnOpts());
 	void remove(Vehicle* v);
@@ -34,6 +36,11 @@ public:
 	bool exit(Character* c);
 	V3 doorTarget(Vehicle* v, int seat, Character* c = nullptr);
 	std::shared_ptr<Vehicle> shared(Vehicle* v) const;
+	// (vehicles built outside spawn: the trains)
+	Vehicle* add(std::shared_ptr<Vehicle> v) { list.push_back(v); return v.get(); }
+	// contacts (the trains run these for their carriages)
+	void carCar(Vehicle* A, Vehicle* B);
+	void carPed(Vehicle* v, Character* c);
 
 private:
 	struct Seq {
@@ -47,8 +54,6 @@ private:
 		V3 fromLocal, toLocal;
 	};
 	std::vector<Seq> seqs;
-	void carCar(Vehicle* A, Vehicle* B);
-	void carPed(Vehicle* v, Character* c);
 	void runOver(Vehicle* v, Character* c, double spd);
 	bool runSeq(Seq& s, double dt);
 	void beginSit(Seq& s);

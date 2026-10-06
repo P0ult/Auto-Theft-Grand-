@@ -14,6 +14,8 @@ namespace {
 const FLinearColor Gold(1.f, 0.78f, 0.25f), Paper(0.95f, 0.93f, 0.88f), Ink(0.02f, 0.02f, 0.03f);
 }
 
+static FLinearColor BlipColor(uint32 H) { return FLinearColor(FColor((H >> 16) & 255, (H >> 8) & 255, H & 255, 255)); }
+
 void AATGHUD::Text(const FString& S, float X, float Y, UFont* Font, float Scale, const FLinearColor& Color, float AlignX) {
 	if (S.IsEmpty() || !Font) return;
 	float W = 0, H = 0;
@@ -132,6 +134,12 @@ void AATGHUD::DrawRadar(AATGWorld* W, double Px, double Pz, double Heading, floa
 		const float Dx = (float)(C->pos.x - Px) * K, Dz = (float)(C->pos.z - Pz) * K;
 		if (FMath::Abs(Dx) < S / 2 - 3 && FMath::Abs(Dz) < S / 2 - 3) DrawRect(FLinearColor(0.35f, 0.75f, 1.f), X + S / 2 + Dx - 2.5f * Ui, Y + S / 2 + Dz - 2.5f * Ui, 5 * Ui, 5 * Ui);
 	}
+	// map blips (game.blips: stations, the trains, ...); the full GTA V radar comes with the HUD port
+	if (G) for (const auto& B : G->blips) {
+		const float Dx = (float)(B->x - Px) * K, Dz = (float)(B->z - Pz) * K;
+		const float R = (B->small ? 3.5f : 5.f) * Ui;
+		if (FMath::Abs(Dx) < S / 2 - R && FMath::Abs(Dz) < S / 2 - R) DrawRect(BlipColor(B->color), X + S / 2 + Dx - R, Y + S / 2 + Dz - R, R * 2, R * 2);
+	}
 	Arrow(X + S / 2, Y + S / 2, Heading, 9 * Ui, FLinearColor::White);
 	Text(TEXT("N"), X + S / 2, Y - 2 * Ui, GEngine->GetSmallFont(), 1.1f * Ui, Gold, 0.5f);
 }
@@ -149,6 +157,10 @@ void AATGHUD::DrawBigMap(AATGWorld* W, double Px, double Pz, double Heading) {
 	for (const FATGMapLabel& L : W->MapLabels) {
 		const float Lx = Sx + (float)(L.X - R.Min.X) * Scale, Ly = Sy + (float)(L.Z - R.Min.Y) * Scale;
 		Text(L.Name, Lx, Ly - 8 * Ui, Small, (L.bBig ? 1.25f : 0.95f) * Ui, L.bBig ? Gold : Paper, 0.5f);
+	}
+	if (atg::Game* G = W->Game()) for (const auto& B : G->blips) {
+		const float Bs = (B->small ? 3.5f : 5.f) * Ui;
+		DrawRect(BlipColor(B->color), Sx + (float)(B->x - R.Min.X) * Scale - Bs, Sy + (float)(B->z - R.Min.Y) * Scale - Bs, Bs * 2, Bs * 2);
 	}
 	Arrow(Sx + (float)(Px - R.Min.X) * Scale, Sy + (float)(Pz - R.Min.Y) * Scale, Heading, 11 * Ui, FLinearColor(1.f, 0.25f, 0.2f));
 	Text(TEXT("M / Tab to close"), Canvas->ClipX - Margin, Canvas->ClipY - Margin, Small, 1.2f * Ui, Paper, 1.f);

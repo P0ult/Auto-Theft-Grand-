@@ -4,6 +4,9 @@
 #include "Game/ATGPlayerController.h"
 #include "Game/ATGWorld.h"
 #include "Sim/Game.h"
+#include "Sim/Peds.h"
+#include "Sim/Rail.h"
+#include "Sim/Traffic.h"
 
 #include "Engine/Engine.h"
 #include "Engine/World.h"
@@ -114,6 +117,22 @@ ATG_CMD(CmdState, "ATG.State", "ATG.State: log the player's position, vehicle an
 	if (atg::Vehicle* V = P.vehicle)
 		UE_LOG(LogATG, Display, TEXT("ATG state: t %.2f driving %s at (%.2f, %.2f, %.2f) yaw %.3f speed %.2f m/s health %.0f"), G->time, UTF8_TO_TCHAR(V->type.c_str()), V->pos.x, V->pos.y, V->pos.z, V->yaw, V->speed(), V->health)
 	else UE_LOG(LogATG, Display, TEXT("ATG state: t %.2f on foot at (%.2f, %.2f, %.2f) yaw %.3f health %.0f vehicles %d"), G->time, P.pos.x, P.pos.y, P.pos.z, P.yaw, P.health, (int32)G->vehicles.list.size());
+})
+ATG_CMD(CmdStation, "ATG.Station", "ATG.Station dry|fern|union: stand on that station's platform, facing the track", {
+	atg::Game* G = Sim(W);
+	if (!G || !G->rail || !Args.Num()) return;
+	const int32 I = G->rail->station(TCHAR_TO_UTF8(*Args[0]));
+	if (I < 0) { UE_LOG(LogATG, Warning, TEXT("ATG.Station: no station %s"), *Args[0]); return; }
+	const atg::RailStop& S = G->rail->stations[I];
+	G->respawnPlayer(S.x, S.z, S.rot - atg::kPi / 2);
+})
+ATG_CMD(CmdCity, "ATG.City", "ATG.City: log the traffic, the people and the trains", {
+	atg::Game* G = Sim(W);
+	if (!G) return;
+	int32 Moving = 0, Cars = 0;
+	if (G->traffic) for (auto& C : G->traffic->cars) if (atg::Vehicle* V = C.get()) { Cars++; if (V->speedAbs() > 2) Moving++; }
+	UE_LOG(LogATG, Display, TEXT("ATG city: %d traffic cars (%d moving), %d people, %d vehicles"), Cars, Moving, G->peds ? (int32)G->peds->list.size() : 0, (int32)G->vehicles.list.size());
+	if (G->rail) for (atg::Train* T : G->rail->trains()) UE_LOG(LogATG, Display, TEXT("ATG city: %s at s %.0f, %.1f m/s, (%.0f, %.0f)"), UTF8_TO_TCHAR(T->type.c_str()), T->s, T->v, T->pos.x, T->pos.z);
 })
 #undef ATG_CMD
 }

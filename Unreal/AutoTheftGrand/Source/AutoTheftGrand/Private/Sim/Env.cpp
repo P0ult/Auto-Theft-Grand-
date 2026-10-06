@@ -52,6 +52,7 @@ void Environment::update(double dt) {
 	if (lightDir.y < 0.12) { lightDir.y = 0.12; lightDir.normalize(); }
 	const double gloom = cloudCover * 0.05 + rain * 0.08 + fogBoost * 0.04;
 	streetLights = 1 - SmoothStep(0.02, 0.15, sunDir.y - gloom);
+	uTime += dt;
 }
 
 } // namespace atg
