@@ -115,6 +115,12 @@ public:
 	virtual void copThink(Ped* cop, double dt) = 0;
 	virtual int wantedLevel() const { return 0; }
 	virtual void clearWanted() {} // (police.reset() after WASTED / BUSTED)
+	// for the minimap: are they searching (lost sight of you: police.flash), where are they looking, and where
+	// are the cops
+	virtual bool searching() const { return false; }
+	struct RadarCone { double x, z, yaw, len, wide; };
+	virtual void radarCones(std::vector<RadarCone>&) const {}
+	virtual void radarCops(std::vector<V3>&) const {}
 };
 
 // street crime (src/game/npccrime.js)

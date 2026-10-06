@@ -89,30 +89,22 @@ void AATGHUD::DrawHUD() {
 	const bool bDead = G->hudModel && G->hudModel->dead;
 	DeadAlpha = Approach(DeadAlpha, bDead ? 0.f : 1.f, 2.f, Dt);
 	if (DeadAlpha <= 0) { DrawOverlays(G, Dt); return; }
-	DrawRadar(W, Px, Pz, Heading, Dt, Car ? Car->speedAbs() : 0);
+	// the minimap and its bars, bottom left (hud-radar: 300 x 190, left 28, bottom 26, the bars 13 px under it)
+	DrawMinimap(G, W, Dt, 28 * Ui, Canvas->ClipY - (26 + 13 + 190) * Ui);
+	DrawTopRight(G, Canvas->ClipX - 30 * Ui, 22 * Ui);
+	// zone and vehicle names, bottom right (higher in a vehicle, above the speedometer)
+	const float Right = Canvas->ClipX - 30 * Ui, Bottom = Canvas->ClipY;
+	if (atg::HudModel* M = G->hudModel) {
+		const bool bIn = Car != nullptr;
+		if (M->zone.t > 0) Text(Plain(M->zone.text), Right, Bottom - ((bIn ? 232 : 28) + 34) * Ui, Big, 1.45f * Ui, FLinearColor(1, 1, 1, FMath::Min(1.f, (float)M->zone.t * 3.f) * DeadAlpha), 1.f);
+		if (M->veh.t > 0) Text(Plain(M->veh.text), Right, Bottom - ((bIn ? 274 : 70) + 30) * Ui, Big, 1.25f * Ui, FLinearColor(FColor(0xff, 0xe0, 0x8a)).CopyWithNewOpacity(FMath::Min(1.f, (float)M->veh.t * 3.f) * DeadAlpha), 1.f);
+	}
 
-	// zone name (shown for a while when it changes), the clock and the cash
-	const float Right = Canvas->ClipX - 40 * Ui, Bottom = Canvas->ClipY - 40 * Ui;
-	if (G->hudModel && G->hudModel->zone.t > 0) Text(Plain(G->hudModel->zone.text), Right, Bottom - 120 * Ui, Big, 1.6f * Ui, FLinearColor(Paper.R, Paper.G, Paper.B, FMath::Min(1.f, (float)G->hudModel->zone.t * 3.f)), 1.f);
-	Text(W->TimeString(), Right, 36 * Ui, Big, 1.4f * Ui, Paper, 1.f);
-	Text(FString::Printf(TEXT("$%08lld"), (long long)FMath::Max(0.0, FMath::Floor(Pl.money))), Right, 80 * Ui, Big, 1.5f * Ui, FLinearColor(0.45f, 0.85f, 0.4f), 1.f);
-
-	// speedometer (mph, as in the browser game)
-	if (Car) {
-		const int32 Mph = FMath::RoundToInt(FMath::Abs(Car->speed()) * 2.23694);
-		Text(FString::Printf(TEXT("%d"), Mph), Right, Bottom - 70 * Ui, Big, 2.4f * Ui, Paper, 1.f);
-		Text(TEXT("MPH"), Right, Bottom - 12 * Ui, Small, 1.2f * Ui, Gold, 1.f);
-		Text(FString(UTF8_TO_TCHAR(Car->def.name.c_str())), Right - 120 * Ui, Bottom - 12 * Ui, Small, 1.2f * Ui, Paper, 1.f);
-		if (Car->health <= 0) Text(TEXT("ENGINE DEAD"), Canvas->ClipX / 2, 120 * Ui, Big, 1.2f * Ui, FLinearColor(1, 0.3f, 0.2f), 0.5f);
-	} else {
-		// stamina bar while sprinting
-		if (Pl.stamina < 0.99) {
-			const float Bw = 220 * Ui, Bh = 8 * Ui, Bx = Right - Bw, By = Bottom - 8 * Ui;
-			DrawRect(FLinearColor(0, 0, 0, 0.5f), Bx, By, Bw, Bh);
-			DrawRect(Gold, Bx, By, Bw * (float)Pl.stamina, Bh);
-		}
-		if (atg::Vehicle* Near = G->vehicles.nearestEnterable(Pl.pos, 5)) if (!G->vehicles.isBusy(&Pl))
-			Text(FString::Printf(TEXT("Press F to drive the %s"), UTF8_TO_TCHAR(Near->def.name.c_str())), Canvas->ClipX / 2, Canvas->ClipY * 0.72f, Small, 1.4f * Ui, Paper, 0.5f);
+	// speedometer (mph): a plain readout until the dial (hud.js _drawSpeedo) is ported
+	if (Car && Pl.seat == 0) {
+		const int32 Mph = FMath::RoundToInt(FMath::Abs(Car->forwardSpeed()) * 2.23694);
+		Text(FString::Printf(TEXT("%d"), Mph), Right, Bottom - 110 * Ui, Big, 2.4f * Ui, FLinearColor(Paper.R, Paper.G, Paper.B, DeadAlpha), 1.f);
+		Text(TEXT("MPH"), Right, Bottom - 52 * Ui, Small, 1.2f * Ui, FLinearColor(Gold.R, Gold.G, Gold.B, DeadAlpha), 1.f);
 	}
 	if (PC->MessageTime > 0) Text(PC->Message, Canvas->ClipX / 2, 70 * Ui, Small, 1.5f * Ui, FLinearColor(Paper.R, Paper.G, Paper.B, FMath::Min(1.f, PC->MessageTime)), 0.5f);
 	DrawMessages(G, Dt);
@@ -135,30 +127,6 @@ void AATGHUD::DrawLoading(AATGWorld* W) {
 	const float Bw = 360 * Ui, T = (float)FMath::Fmod(GetWorld()->GetRealTimeSeconds() * 0.6, 1.0);
 	DrawRect(FLinearColor(1, 1, 1, 0.12f), Cx - Bw / 2, Cy + 70 * Ui, Bw, 4 * Ui);
 	DrawRect(Gold, Cx - Bw / 2 + Bw * 0.8f * T, Cy + 70 * Ui, Bw * 0.2f, 4 * Ui);
-}
-
-void AATGHUD::DrawRadar(AATGWorld* W, double Px, double Pz, double Heading, float Dt, double CarSpeed) {
-	const double Target = CarSpeed > 0 ? 150 + FMath::Clamp(CarSpeed * 4, 0.0, 130.0) : 110;
-	RadarRange += (Target - RadarRange) * FMath::Min(1.0, Dt * 2.0);
-	const float S = 260 * Ui, X = 40 * Ui, Y = Canvas->ClipY - S - 40 * Ui;
-	DrawRect(FLinearColor(0, 0, 0, 0.6f), X - 4 * Ui, Y - 4 * Ui, S + 8 * Ui, S + 8 * Ui);
-	DrawMapLayers(W, Px - RadarRange, Pz - RadarRange, Px + RadarRange, Pz + RadarRange, X, Y, S, S);
-	// parked cars
-	const float K = S / (float)(RadarRange * 2);
-	atg::Game* G = W->Game();
-	if (G) for (const auto& C : G->vehicles.list) {
-		if (C->driver()) continue;
-		const float Dx = (float)(C->pos.x - Px) * K, Dz = (float)(C->pos.z - Pz) * K;
-		if (FMath::Abs(Dx) < S / 2 - 3 && FMath::Abs(Dz) < S / 2 - 3) DrawRect(FLinearColor(0.35f, 0.75f, 1.f), X + S / 2 + Dx - 2.5f * Ui, Y + S / 2 + Dz - 2.5f * Ui, 5 * Ui, 5 * Ui);
-	}
-	// map blips (game.blips: stations, the trains, ...); the full GTA V radar comes with the HUD port
-	if (G) for (const auto& B : G->blips) {
-		const float Dx = (float)(B->x - Px) * K, Dz = (float)(B->z - Pz) * K;
-		const float R = (B->small ? 3.5f : 5.f) * Ui;
-		if (FMath::Abs(Dx) < S / 2 - R && FMath::Abs(Dz) < S / 2 - R) DrawRect(BlipColor(B->color), X + S / 2 + Dx - R, Y + S / 2 + Dz - R, R * 2, R * 2);
-	}
-	Arrow(X + S / 2, Y + S / 2, Heading, 9 * Ui, FLinearColor::White);
-	Text(TEXT("N"), X + S / 2, Y - 2 * Ui, GEngine->GetSmallFont(), 1.1f * Ui, Gold, 0.5f);
 }
 
 void AATGHUD::DrawBigMap(AATGWorld* W, double Px, double Pz, double Heading) {

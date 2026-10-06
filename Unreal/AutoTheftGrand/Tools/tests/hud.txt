@@ -1,0 +1,14 @@
+# The modern HUD: minimap with bars, cash and weapon top right, zone name; then in a car.
+wait 1
+ATG.God 1
+ATG.Teleport -622 330 2.4
+wait 2
+shot hud_foot
+ATG.Spawn zenith
+wait 0.5
+ATG.Enter
+ATG.Press KeyW
+wait 3
+ATG.Release
+shot hud_car
+quit

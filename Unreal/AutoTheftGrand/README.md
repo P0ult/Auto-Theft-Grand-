@@ -101,9 +101,13 @@ Source/AutoTheftGrand/Private/Game/   the Unreal side: draws the simulation and 
                     lights, and debris
   ATGPlayerController  keyboard, mouse and gamepad into the simulation's input; shows its camera
   ATGGameMode       runs the simulation each frame and keeps an actor for each of its vehicles and people
-  ATGHUD            loading screen, radar, full-screen map, zone name, clock, cash, speedometer, and what the
-                    simulation's HUD model holds: help, big messages, subtitles, the bar, the fade, the
-                    damage vignette, the WASTED / BUSTED shard
+  ATGHUD            the HUD: the GTA V style minimap (turning with the camera, blips, police flashes and
+                    search cones) with health, armour and special bars, the wanted stars, cash and weapon,
+                    zone and vehicle names, and what the simulation's HUD model holds: help, big messages,
+                    subtitles, the bar, the fade, the damage vignette, the WASTED / BUSTED shard; the
+                    loading screen and the full-screen map
+  ATGPainter        a small 2D canvas over UCanvas (paths, arcs, fill, stroke, transforms) so hud.js's
+                    canvas drawing ports line for line
   ATGTest           test hooks: ATG.* console commands and scripts (see below)
 Tools/              command-line checks that need no Unreal (see below)
 ```
@@ -120,7 +124,7 @@ screen with fixed 1/30 s frames and a script of console commands (`ATG.Teleport`
 `wait 2`, `quit`); screenshots go to `Saved/Screenshots/WindowsEditor/ATG/`. `Tools/tests/city.txt` and
 `city2.txt` look at the traffic, the people, the traffic lights and the trains; `human.txt` at a person
 up close, walking and running; `wasted.txt` at WASTED and BUSTED; `effects.txt` at an explosion and a burning
-car.
+car; `hud.txt` at the HUD on foot and in a car.
 
 The simulation is tested without Unreal. `Tools/native.sh` builds a tool with MSVC from Git Bash:
 
