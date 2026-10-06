@@ -11,12 +11,12 @@ namespace {
 
 // ---------- local math helpers copied from Sim/Core.cpp (Gen must not include Sim headers) ----------
 
-struct Quat { double x, y, z, w; };
+struct BQuat { double x, y, z, w; };
 
-static Quat QuatFromUnitVectors(const double fx, const double fy, const double fz,
+static BQuat BikeQuatFromUnitVectors(const double fx, const double fy, const double fz,
                                 const double tx, const double ty, const double tz) {
     const double r = fx * tx + fy * ty + fz * tz + 1;
-    Quat q;
+    BQuat q;
     if (r < 1e-8) {
         if (std::fabs(fx) > std::fabs(fz)) { q.x = -fy; q.y = fx; q.z = 0; q.w = r; }
         else { q.x = 0; q.y = -fz; q.z = fy; q.w = r; }
@@ -31,7 +31,7 @@ static Quat QuatFromUnitVectors(const double fx, const double fy, const double f
     return q;
 }
 
-static Mat4 M4Compose(double px, double py, double pz, const Quat& q, double sx, double sy, double sz) {
+static Mat4 BikeCompose(double px, double py, double pz, const BQuat& q, double sx, double sy, double sz) {
     const double x2 = q.x + q.x, y2 = q.y + q.y, z2 = q.z + q.z;
     const double xx = q.x * x2, xy = q.x * y2, xz = q.x * z2, yy = q.y * y2, yz = q.y * z2, zz = q.z * z2, wx = q.w * x2, wy = q.w * y2, wz = q.w * z2;
     Mat4 r;
@@ -42,7 +42,7 @@ static Mat4 M4Compose(double px, double py, double pz, const Quat& q, double sx,
     return r;
 }
 
-static Mat4 MakeRotationX(double a) {
+static Mat4 BikeRotationX(double a) {
     const double c = std::cos(a), s = std::sin(a);
     Mat4 r;
     r.m[0] = 1;  r.m[1] = 0;   r.m[2] = 0;   r.m[3] = 0;
@@ -52,7 +52,7 @@ static Mat4 MakeRotationX(double a) {
     return r;
 }
 
-static Mat4 M4Multiply(const Mat4& a, const Mat4& b) {
+static Mat4 BikeMultiply(const Mat4& a, const Mat4& b) {
     Mat4 r;
     for (int c = 0; c < 4; c++) for (int row = 0; row < 4; row++) {
         double s = 0;
@@ -62,14 +62,14 @@ static Mat4 M4Multiply(const Mat4& a, const Mat4& b) {
     return r;
 }
 
-static Mat4 M4(double x, double y, double z, double rx, double ry, double rz, double sx = 1, double sy = 1, double sz = 1) {
+static Mat4 BM4(double x, double y, double z, double rx, double ry, double rz, double sx = 1, double sy = 1, double sz = 1) {
     return Mat4::Compose(x, y, z, rx, ry, rz, sx, sy, sz);
 }
 
 // ---------- Expanded: convert indexed MeshBuf to non-indexed (one vertex per index) ----------
 // Mirrors three.js BufferGeometry.toNonIndexed(): each index becomes a unique vertex.
 // Copies P, N, C[0] (uv); does NOT copy C[1..3] (colour channels come from builder at Add time).
-static MeshBuf Expanded(const MeshBuf& g) {
+static MeshBuf BikeExpanded(const MeshBuf& g) {
     if (g.I.empty()) return g;
     MeshBuf r;
     r.P.reserve(g.I.size() * 3);
@@ -98,9 +98,9 @@ static void Tube(MeshBuf& gb, const double a[3], const double b[3], double r, in
     if (len < 1e-4) return;
     const double nx = dx / len, ny = dy / len, nz = dz / len;
     MeshBuf g = Geo::Cylinder(r, r, len, seg, 1, false);
-    const Quat q = QuatFromUnitVectors(0, 1, 0, nx, ny, nz);
+    const BQuat q = BikeQuatFromUnitVectors(0, 1, 0, nx, ny, nz);
     const double mx = (a[0] + b[0]) * 0.5, my = (a[1] + b[1]) * 0.5, mz = (a[2] + b[2]) * 0.5;
-    gb.Add(Expanded(g), M4Compose(mx, my, mz, q, 1, 1, 1));
+    gb.Add(BikeExpanded(g), BikeCompose(mx, my, mz, q, 1, 1, 1));
 }
 
 // ------------------------------------------------------------------ wheelGeometry (line 25-45)
@@ -108,25 +108,25 @@ static void Tube(MeshBuf& gb, const double a[3], const double b[3], double r, in
 static MeshBuf WheelGeometry(double R, double tw, bool moto, bool knobbly) {
     MeshBuf gb;
     gb.Color(0.05, 0.05, 0.055);
-    gb.Add(Expanded(Geo::Torus(R - tw / 2, tw / 2, 8, 30)), M4(0, 0, 0, 0, kPi / 2, 0, 1, 1, 1));
+    gb.Add(BikeExpanded(Geo::Torus(R - tw / 2, tw / 2, 8, 30)), BM4(0, 0, 0, 0, kPi / 2, 0, 1, 1, 1));
     if (knobbly) {
         for (int k = 0; k < 22; k++) {
             const double a = k / 22.0 * kTau;
-            gb.Add(Expanded(Geo::Box(tw * 1.05, 0.03, 0.04)), M4Multiply(MakeRotationX(a), M4(0, R - 0.012, 0, 0, 0, 0, 1, 1, 1)));
+            gb.Add(BikeExpanded(Geo::Box(tw * 1.05, 0.03, 0.04)), BikeMultiply(BikeRotationX(a), BM4(0, R - 0.012, 0, 0, 0, 0, 1, 1, 1)));
         }
     }
     const double rimR = R - tw * (moto ? 0.95 : 0.9);
     gb.Color(moto ? 0.2 : 0.75, moto ? 0.2 : 0.75, moto ? 0.22 : 0.78);
-    gb.Add(Expanded(Geo::Torus(rimR, moto ? 0.018 : 0.01, 5, 28)), M4(0, 0, 0, 0, kPi / 2, 0, 1, 1, 1));
+    gb.Add(BikeExpanded(Geo::Torus(rimR, moto ? 0.018 : 0.01, 5, 28)), BM4(0, 0, 0, 0, kPi / 2, 0, 1, 1, 1));
     gb.Color(0.55, 0.55, 0.58);
-    gb.Add(Expanded(Geo::Cylinder(moto ? 0.06 : 0.025, moto ? 0.06 : 0.025, moto ? 0.16 : 0.1, 10)), M4(0, 0, 0, 0, 0, kPi / 2, 1, 1, 1));
+    gb.Add(BikeExpanded(Geo::Cylinder(moto ? 0.06 : 0.025, moto ? 0.06 : 0.025, moto ? 0.16 : 0.1, 10)), BM4(0, 0, 0, 0, 0, kPi / 2, 1, 1, 1));
     if (moto) {
         gb.Color(0.18, 0.18, 0.2);
         for (int k = 0; k < 5; k++) {
-            gb.Add(Expanded(Geo::Box(0.03, rimR - 0.05, 0.035)), M4Multiply(MakeRotationX(k / 5.0 * kTau), M4(0, (rimR + 0.05) / 2, 0, 0, 0, 0, 1, 1, 1)));
+            gb.Add(BikeExpanded(Geo::Box(0.03, rimR - 0.05, 0.035)), BikeMultiply(BikeRotationX(k / 5.0 * kTau), BM4(0, (rimR + 0.05) / 2, 0, 0, 0, 0, 1, 1, 1)));
         }
         gb.Color(0.62, 0.62, 0.64);
-        gb.Add(Expanded(Geo::Cylinder(R * 0.5, R * 0.5, 0.008, 20)), M4(0.07, 0, 0, 0, 0, kPi / 2, 1, 1, 1)); // brake disc
+        gb.Add(BikeExpanded(Geo::Cylinder(R * 0.5, R * 0.5, 0.008, 20)), BM4(0.07, 0, 0, 0, 0, kPi / 2, 1, 1, 1)); // brake disc
     } else {
         gb.Color(0.8, 0.8, 0.82);
         for (int k = 0; k < 18; k++) {
@@ -239,7 +239,7 @@ const BikeModel& BuildBikeModel(const VehicleDef& def) {
             model->hasGlass = true;
             // glass: BoxGeometry(0.3, 0.2, 0.012) at position (0, 1.12, 0.7) rotation.x = -0.75
             // three.js: matrix = T * R (compose applies scale, rotation, translation)
-            model->glassMatrix = M4Multiply(M4(0, 1.12, 0.7, 0, 0, 0, 1, 1, 1), MakeRotationX(-0.75));
+            model->glassMatrix = BikeMultiply(BM4(0, 1.12, 0.7, 0, 0, 0, 1, 1, 1), BikeRotationX(-0.75));
         }
         model->feet[0][0] = 0.2; model->feet[0][1] = -0.5; model->feet[0][2] = -0.02;
         model->feet[1][0] = -0.2; model->feet[1][1] = -0.5; model->feet[1][2] = -0.02;
@@ -277,7 +277,7 @@ const BikeModel& BuildBikeModel(const VehicleDef& def) {
         model->crankZ = bbZ;
         MeshBuf cg;
         chrome(cg);
-        cg.Add(Expanded(Geo::Cylinder(0.09, 0.09, 0.01, 18)), M4(0.06, 0, 0, 0, 0, kPi / 2, 1, 1, 1)); // chainring
+        cg.Add(BikeExpanded(Geo::Cylinder(0.09, 0.09, 0.01, 18)), BM4(0.06, 0, 0, 0, 0, kPi / 2, 1, 1, 1)); // chainring
         for (const int s : { 1, -1 }) {
             cg.Color(0.3, 0.3, 0.32);
             cg.Box(s * 0.08 - 0.012, -0.015, 0, s * 0.08 + 0.012, 0.015, s * 0.17);
