@@ -34,6 +34,8 @@ private:
 	void DrawTopRight(atg::Game* G, float Right, float Top);
 	void DrawSpeedo(atg::Game* G, float Dt);
 	void DrawCrosshair(atg::Game* G);
+	void DrawWheel(atg::Game* G, float Dt);
+	float WheelAlpha = 0;
 	double SpeedoNeedle = 0; float SpeedoAlpha = 0;
 	void DrawMessages(atg::Game* G, float Dt);
 	void DrawTags(atg::Game* G); // (speech bubbles and the stars over NPC suspects)

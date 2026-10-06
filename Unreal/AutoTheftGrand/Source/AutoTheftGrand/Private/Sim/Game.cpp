@@ -1,4 +1,5 @@
 #include "Game.h"
+#include "WeaponWheel.h"
 #include "Hud.h"
 
 namespace atg {
@@ -200,6 +201,8 @@ void Game::tryEnterExit() {
 	}
 	vehicles.enter(&p, v, seat);
 }
+
+bool Game::weaponWheelOpen() const { return wheel && wheel->open; }
 
 void Game::respawnPlayer(double x, double z, double yaw) {
 	Player& p = *player;

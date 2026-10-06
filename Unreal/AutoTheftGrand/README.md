@@ -79,6 +79,11 @@ far:
 | Space / X | Jump | H / LS click | Horn (Shift+H: siren in police cars) |
 | C / Ctrl / LS click | Crouch | G / D-pad ↑ | Hydraulics (lowriders) |
 | F / Enter / Y | Get in a car (carjack the driver), board a train | F / Enter / Y | Get out (bail out at speed) |
+| Left mouse / RT | Punch (jab-cross-kick combo) / fire | Right + left mouse, LB + RB | Drive-by |
+| Right mouse / LT | Aim (people put their hands up) | Q / E, wheel | Switch drive-by weapon |
+| R | Reload | | |
+| Q / E, wheel, 1-9, RB / LB tap | Switch weapon | | |
+| Tab / LB (hold) | Weapon wheel (the game slows; point with the mouse or right stick, let go to pick) | Tab (hold) | Weapon wheel |
 | M / D-pad ↓ | Map | V / View | Camera distance |
 | Esc / P / Menu | Pause | B / RS click | Look behind |
 | | | X / B (hold) | Cinematic camera |
@@ -132,14 +137,14 @@ Unreal's axes (centimetres, Z up) only at the edges; `Game/ATGCoords.h` has the 
 screen with fixed 1/30 s frames and a script of console commands (`ATG.Teleport`, `ATG.Press KeyW`,
 `ATG.Spawn zenith`, `ATG.Enter`, `ATG.Time 21`, `ATG.State`, `ATG.City`, `ATG.Station union`, `ATG.Kill`,
 `ATG.Bust`, `ATG.Explode`, `ATG.Wreck`, `ATG.Fx`, `ATG.Give rpg 5`, `ATG.Wanted 3`, `ATG.NoBust 1`, `ATG.Police`,
-`ATG.CamHeli`, `ATG.Roadblock`, `ATG.CamRoadblock`, `ATG.Crime mug`, `ATG.Crimes`, `ATG.Press MouseRight MouseLeft`, `shot name`,
+`ATG.CamHeli`, `ATG.Roadblock`, `ATG.CamRoadblock`, `ATG.Crime mug`, `ATG.Crimes`, `ATG.MouseMove 60 40`, `ATG.Press MouseRight MouseLeft`, `shot name`,
 `wait 2`, `quit`); screenshots go to `Saved/Screenshots/WindowsEditor/ATG/`. `Tools/tests/city.txt` and
 `city2.txt` look at the traffic, the people, the traffic lights and the trains; `human.txt` at a person
 up close, walking and running; `wasted.txt` at WASTED and BUSTED; `effects.txt` at an explosion and a burning
 car; `hud.txt` at the HUD on foot and in a car; `combat.txt` at aiming, shooting and the RPG; `police.txt` at a
 pursuit and the helicopter by night and by day; `pickups.txt` at a pickup and the save and Spray Shack
 markers; `roadblocks.txt` at a roadblock and its spike strip; `npccrime.txt` at a
-suspect's stars, the patrol that comes for them and a staged car theft.
+suspect's stars, the patrol that comes for them and a staged car theft; `wheel.txt` at the weapon wheel.
 
 The simulation is tested without Unreal. `Tools/native.sh` builds a tool with MSVC from Git Bash:
 
@@ -148,7 +153,7 @@ cd Tools
 ./native.sh simtest.exe simtest.cpp && ./simtest.exe          # walking, driving, crashes, parked cars,
                                                                # traffic and people, trains, boarding,
                                                                # WASTED, effects, combat, police, pickups,
-                                                               # roadblocks, street crime
+                                                               # roadblocks, street crime, the wheel
 DEBUG=1 ./native.sh simtestd.exe simtest.cpp                   # with symbols: a crash prints a stack trace
 ./simtest.exe vehcompare > cppveh.txt                          # the car physics against the browser game's:
 node --import ./three-hook.mjs vehcompare.mjs > jsveh.txt      # identical to 4 decimals

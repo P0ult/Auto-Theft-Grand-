@@ -1,0 +1,20 @@
+# The weapon wheel: hold Tab with a few weapons; the mouse picks the shotgun; letting go draws it.
+wait 1
+ATG.God 1
+ATG.Teleport -612 376 -2.36
+ATG.Give pistol 60
+ATG.Give smg 120
+ATG.Give shotgun 24
+ATG.Give grenade 5
+wait 1
+ATG.Press Tab
+wait 0.5
+shot wheel_open
+ATG.MouseMove 60 40
+wait 0.2
+shot wheel_pick
+ATG.Release
+wait 0.5
+ATG.State
+shot wheel_closed
+quit

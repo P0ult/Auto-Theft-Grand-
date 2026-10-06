@@ -77,11 +77,12 @@ public:
 	double gravity = 1;
 	double specialGrip = 1;         // (the special ability grips harder)
 	bool cutscene = false;
+	bool menuOpen = false; // (a full-screen menu: no weapon wheel)
 	Cheats cheats, cheatsOn;
 	bool freeRoam = false, missionActive = false;
 	bool freeroamActive() const { return freeRoam && !missionActive; }
-	bool wheelOpen = false, phoneOpen = false;
-	bool weaponWheelOpen() const { return wheelOpen; }
+	bool phoneOpen = false;
+	bool weaponWheelOpen() const; // (the weapon wheel is up: no aiming or firing)
 	// the post-process uniforms the gameplay rules drive (WASTED / BUSTED): desaturation, the death tint, its
 	// night boost and the white flash
 	struct PostFx { double desat = 0, death = 0, deathBoost = 0, flash = 0; } post;
@@ -119,6 +120,7 @@ public:
 	double missionMaxWanted = NaN(); bool missionNoBust = false, missionNoSpray = false, missionNoRoadblocks = false, vigilanteActive = false;
 	// (systems the police reset after WASTED / BUSTED)
 	System* army = nullptr; System* roadblocks = nullptr;
+	class WeaponWheel* wheel = nullptr;
 	class Pickups* pickupsSys = nullptr; // (the pickups and markers, for the systems that place them)
 	class Police* policeSys = nullptr; // (the police itself, for the systems that spawn units through it)
 	double viewAspect = 16.0 / 9.0;            // (the screen's, for what the camera can see)

@@ -7,6 +7,7 @@
 #include "Sim/Game.h"
 #include "Sim/Hud.h"
 #include "Sim/Weapons.h"
+#include "Sim/WeaponWheel.h"
 
 #include "Engine/Canvas.h"
 #include "Engine/Engine.h"
@@ -14,6 +15,7 @@
 #include "Engine/Texture2D.h"
 
 namespace {
+float FadeTo(float V, float Target, float Rate, float Dt) { return V < Target ? FMath::Min(Target, V + Rate * Dt) : FMath::Max(Target, V - Rate * Dt); }
 using P2 = FVector2f;
 
 // ---- hud.js drawPlayerArrow (radar: relYaw 0 points up)
@@ -365,6 +367,65 @@ void AATGHUD::DrawSpeedo(atg::Game* G, float Dt) {
 }
 
 // ------------------------------------------------------------------ crosshair and sniper scope (hud.js / CSS)
+// ------------------------------------------------------------------ the weapon wheel (weaponwheel.js _draw)
+void AATGHUD::DrawWheel(atg::Game* G, float Dt) {
+	const atg::WeaponWheel* WW = G->wheel;
+	const bool bOpen = WW && WW->open;
+	WheelAlpha = FadeTo(WheelAlpha, bOpen ? 1.f : 0.f, 1.f / 0.12f, Dt); // (opacity transition 0.12 s)
+	if (WheelAlpha <= 0 || !WW || WW->list.empty()) return;
+	const float W = Canvas->ClipX, H = Canvas->ClipY;
+	FATGPainter c(Canvas);
+	c.Alpha = WheelAlpha;
+	// radial-gradient(circle, rgba(0,0,0,0.15) 0%, rgba(0,0,0,0.55) 70%) out to the farthest corner, in rings
+	const float Rc = FMath::Sqrt(W * W + H * H) / 2;
+	const int Rings = 24, Seg = 48;
+	for (int I = 0; I < Rings; I++) {
+		const float T0 = (float)I / Rings, T1 = (float)(I + 1) / Rings, Tm = (T0 + T1) / 2;
+		c.Fill = FLinearColor(0, 0, 0, 0.15f + 0.4f * FMath::Min(1.f, Tm / 0.7f));
+		for (int K = 0; K < Seg; K++) {
+			const float A0 = K * 2 * PI / Seg, A1 = (K + 1) * 2 * PI / Seg;
+			c.BeginPath();
+			c.MoveTo(W / 2 + FMath::Cos(A0) * Rc * T0, H / 2 + FMath::Sin(A0) * Rc * T0); c.LineTo(W / 2 + FMath::Cos(A0) * Rc * T1, H / 2 + FMath::Sin(A0) * Rc * T1);
+			c.LineTo(W / 2 + FMath::Cos(A1) * Rc * T1, H / 2 + FMath::Sin(A1) * Rc * T1); c.LineTo(W / 2 + FMath::Cos(A1) * Rc * T0, H / 2 + FMath::Sin(A1) * Rc * T0);
+			c.ClosePath(); c.FillPath();
+		}
+	}
+	// the ring: a 460 px canvas shown at min(460px, 80vmin)
+	const float Disp = FMath::Min(460 * Ui, 0.8f * FMath::Min(W, H));
+	c.Translate(W / 2 - Disp / 2, H / 2 - Disp / 2);
+	c.Scale(Disp / 460, Disp / 460);
+	const atg::Player& p = *G->player;
+	const int n = (int)WW->list.size();
+	const float C = 230, R0 = 92, R1 = 214, step = PI * 2 / n;
+	for (int i = 0; i < n; i++) {
+		const float mid = -PI / 2 + i * step, a0 = mid - step / 2 + 0.012f, a1 = mid + step / 2 - 0.012f;
+		const bool on = i == WW->sel;
+		c.BeginPath(); c.Arc(C, C, R1, a0, a1); c.Arc(C, C, R0, a1, a0, true); c.ClosePath();
+		c.Fill = on ? FLinearColor(FColor(245, 245, 245)).CopyWithNewOpacity(0.92f) : FLinearColor(FColor(8, 10, 14)).CopyWithNewOpacity(0.72f);
+		c.FillPath();
+		c.Stroke = on ? FLinearColor::White : FLinearColor(1, 1, 1, 0.18f); c.LineWidth = on ? 3.f : 1.5f; c.StrokePath();
+		// icon (dark on the highlighted slot)
+		const float r = (R0 + R1) / 2, x = C + FMath::Cos(mid) * r, y = C + FMath::Sin(mid) * r;
+		const float sz = FMath::Min(84.f, (R1 - R0) * 0.82f);
+		c.Save(); c.Translate(x - sz / 2, y - sz / 2); c.Invert = on; WeaponIcon(c, WW->list[i], sz); c.Invert = false; c.Restore();
+		if (WW->list[i] == p.weapon) { c.Fill = on ? CssColor(0x22aa66) : CssColor(0x7dff8a); c.BeginPath(); c.Arc(C + FMath::Cos(mid) * (R1 - 14), C + FMath::Sin(mid) * (R1 - 14), 4, 0, PI * 2); c.FillPath(); }
+	}
+	// centre: name and ammo of the highlighted weapon
+	c.BeginPath(); c.Arc(C, C, R0 - 8, 0, PI * 2); c.Fill = FLinearColor(0, 0, 0, 0.6f); c.FillPath();
+	if (WW->sel < 0 || WW->sel >= n) return;
+	const std::string& id = WW->list[WW->sel];
+	const atg::WeaponDef* d = atg::FindWeapon(id);
+	auto it = p.weapons.find(id);
+	if (!d || it == p.weapons.end()) return;
+	FString Ammo;
+	if (d->type != "melee") Ammo = G->freeroamActive() ? FString(TEXT("\x221E")) : d->type == "thrown" ? FString::Printf(TEXT("%d"), (int)(it->second.clip + it->second.ammo)) : FString::Printf(TEXT("%d / %d"), (int)it->second.clip, (int)it->second.ammo);
+	UFont* Font = GEngine->GetSmallFont();
+	const float Ly = Ammo.IsEmpty() ? C : C - 10;
+	c.Fill = FLinearColor::White;
+	c.Text(UTF8_TO_TCHAR(d->name.c_str()), C, Ly, Font, 17 * 1.2f * 460 / Disp * Ui, 0.5f, 0.5f, true); // (Size is the line height: font-size x 1.2)
+	if (!Ammo.IsEmpty()) { c.Fill = CssColor(0xcfd6e0); c.Text(Ammo, C, Ly + 22 * 460 / Disp * Ui, Font, 15 * 1.2f * 460 / Disp * Ui, 0.5f, 0.5f); }
+}
+
 void AATGHUD::DrawCrosshair(atg::Game* G) {
 	atg::Player& p = *G->player;
 	const atg::WeaponDef& def = p.weaponDef();

@@ -33,6 +33,7 @@ pad, and will play its sounds.
 | game/traffic.js | `Sim/Traffic` | Lane following, traffic lights (the shaders' clock is the simulation's, so the lamps and the cars agree), give way, roundabouts, merges, queues, passing broken-down cars, panic at gunfire, spawning and despawning. |
 | game/peds.js | `Sim/Peds` | Spawning on the walk graph, wandering, fleeing, gangs on their turf, followers and guards. Cops think in the police system, people with a crime on in the street-crime system. |
 | game/pickups.js | `Sim/Pickups`, `ATGPickups` | Health, armour, cash and weapon pickups (the world's respawn after 90 s; drops last 40 to 45 s), the 30 hidden packages and the safehouse rewards, the markers (the cylinder's shader evaluated per ring of vertices), the Spray Shack (paint, repairs, loses the police) and the save point (the save menu comes with save and load). Big Bun's `eat` is there for the shops. |
+| ui/weaponwheel.js | `Sim/WeaponWheel`, `ATGHudModern.cpp` (DrawWheel) | All of it: Tab or a held LB opens it at 0.18 speed, the mouse or right stick picks, letting go draws the weapon, a quick LB tap goes back one weapon; in a car only what you can shoot from a seat. The ring, the icons (inverted on the highlighted slot), the name and ammo, the dimmed screen. |
 | game/npccrime.js | `Sim/NpcCrime`, `ATGHUD` (stars over suspects, speech bubbles) | All of it: jaywalkers, reckless drivers, hit-and-runs, road rage, muggers and car thieves staged near you (more at night and in the rough districts), witnesses and phoned-in reports, stars on the culprit, dispatch, the responding unit (pull-overs, tickets, chases, tackles, the ride in the back) and the radar dots. |
 | game/roadblocks.js | `Sim/Roadblocks`, `ATGPoliceView` (spike strips) | All of it: from three stars a line of cruisers (the Sheriff's out of town, the Enforcer at four stars) across the road 90 to 165 m ahead of a driving suspect, cops in cover behind, the stinger that bursts tyres (sparks while you drive on the rims), the dispatch call, the radar squares, the clean-up. The strip now lies on the road surface; in both games it used to sit at the terrain's height, a few centimetres under the road. |
 | game/police.js | `Sim/Police`, `ATGPoliceView` | All of it: heat and the six thresholds, witnesses, evading (10 + 5 x stars seconds out of sight), patrol cars, pursuit drivers that route along the roads and then ram, cops on foot who shoot or come to arrest you, roadblock cops holding their line, BUSTED, and the helicopter with its searchlight and its sniper at four stars. The helicopter's rotor sound comes with the audio. |
@@ -80,7 +81,7 @@ is under way: WASTED and BUSTED, the effects, combat, the police and the pickups
 **Phase 3b: the GTA V layer** (added to the browser game after phase 1).
 - The modern HUD: a rectangular minimap with health, armour and special bars, and the police's vision cones
   while they search.
-- The weapon wheel (weaponwheel.js) and the special ability (special.js), both with slow motion.
+- The weapon wheel (weaponwheel.js). Done. The special ability (special.js), with slow motion.
 - The phone (phone.js): contacts, timed cheats, photo mode.
 - Roadblocks and spike strips (roadblocks.js). Done. The army at five stars (army.js).
 - Armoured van heists (heists.js), the cinematic car camera, and the new vehicles: Stockade, Enforcer,

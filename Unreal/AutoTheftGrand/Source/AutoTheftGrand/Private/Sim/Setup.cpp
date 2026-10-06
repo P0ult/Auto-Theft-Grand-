@@ -11,6 +11,7 @@
 #include "Rail.h"
 #include "Roadblocks.h"
 #include "Traffic.h"
+#include "WeaponWheel.h"
 
 namespace atg {
 
@@ -30,7 +31,9 @@ void InstallSystems(Game& g) {
 	g.pickups = g.pickupsSys;
 	// (military, army: next)
 	g.roadblocks = g.addSystem("roadblocks", std::make_unique<Roadblocks>(g));
-	// (heists, weaponWheel, special, phone: later phases)
+	// (heists: next)
+	g.wheel = g.addSystem("weaponWheel", std::make_unique<WeaponWheel>(g));
+	// (special, phone: next)
 	g.rail = g.addSystem("rail", std::make_unique<RailSystem>(g));
 	// (shops, wildlife, pets, skateparks, boats, shipRaid, missions, audio: later)
 	g.gameplay = g.addSystem("gameplay", std::make_unique<Gameplay>(g));

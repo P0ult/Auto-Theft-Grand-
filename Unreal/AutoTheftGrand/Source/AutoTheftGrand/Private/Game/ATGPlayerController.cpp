@@ -91,6 +91,7 @@ void AATGPlayerController::FeedInput(atg::Game& G, double Dt) {
 	In.mouse.dx = MouseDx * MouseSensitivity / 0.07; // (Unreal reports mouse movement in its own units: ~0.07 per pixel)
 	In.mouse.dy = -MouseDy * MouseSensitivity / 0.07;
 	MouseDx = MouseDy = 0;
+	In.mouse.dx += ScriptDx; In.mouse.dy += ScriptDy; ScriptDx = ScriptDy = 0;
 	// (test scripts hold the buttons as MouseLeft / MouseRight)
 	const bool L = IsInputKeyDown(EKeys::LeftMouseButton) || ScriptKeys.Contains(TEXT("MouseLeft")), R = IsInputKeyDown(EKeys::RightMouseButton) || ScriptKeys.Contains(TEXT("MouseRight"));
 	In.mouse.leftPressed = L && !In.mouse.left; In.mouse.rightPressed = R && !In.mouse.right;

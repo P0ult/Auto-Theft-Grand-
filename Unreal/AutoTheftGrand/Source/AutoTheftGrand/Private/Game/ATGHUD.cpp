@@ -105,7 +105,8 @@ void AATGHUD::DrawHUD() {
 	}
 
 	DrawSpeedo(G, Dt);
-	if (DeadAlpha > 0.5f) DrawCrosshair(G);
+	if (DeadAlpha > 0.5f && !G->weaponWheelOpen()) DrawCrosshair(G); // (body.wheel-open hides the crosshair)
+	DrawWheel(G, Dt);
 	if (PC->MessageTime > 0) Text(PC->Message, Canvas->ClipX / 2, 70 * Ui, Small, 1.5f * Ui, FLinearColor(Paper.R, Paper.G, Paper.B, FMath::Min(1.f, PC->MessageTime)), 0.5f);
 	DrawMessages(G, Dt);
 	DrawOverlays(G, Dt);

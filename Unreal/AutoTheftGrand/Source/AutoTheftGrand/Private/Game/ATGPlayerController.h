@@ -38,6 +38,9 @@ public:
 
 	// keys held by test scripts (ATG.Press / ATG.Release), on top of the real ones
 	TSet<FString> ScriptKeys;
+	// (test scripts: mouse movement in browser pixels, added to the next simulation frame)
+	void ScriptMouse(double Dx, double Dy) { ScriptDx += Dx; ScriptDy += Dy; }
+	double ScriptDx = 0, ScriptDy = 0;
 
 private:
 	TSet<FString> Held;   // keys the simulation has been told are down

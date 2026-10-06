@@ -13,6 +13,7 @@
 #include "Sim/Roadblocks.h"
 #include "Sim/Setup.h"
 #include "Sim/Traffic.h"
+#include "Sim/WeaponWheel.h"
 #include "crashtrace.h"
 #include <chrono>
 #include <cstdio>
@@ -606,6 +607,35 @@ static void TestNpcCrime(World& w) {
 	Check(true, "runs for 90 s");
 }
 
+// the weapon wheel: Tab slows the game to 0.18 and fans out the weapons; the mouse picks one and letting go draws it
+static void TestWheel(World& w) {
+	printf("wheel\n");
+	auto g = w.game(true);
+	ToStreet(w, *g);
+	Player& p = *g->player;
+	p.giveWeapon("pistol", 60); p.giveWeapon("smg", 120); p.giveWeapon("bat", 1);
+	p.equip("pistol");
+	g->frame(1.0 / 30);
+	WeaponWheel* ww = g->wheel;
+	g->input.KeyDown("Tab");
+	g->frame(1.0 / 30);
+	std::string ring; for (auto& id : ww->list) ring += id + " ";
+	printf("  open %d, ring: %s, selected %s, slow motion %.2f\n", ww->open ? 1 : 0, ring.c_str(), ww->sel >= 0 ? ww->list[ww->sel].c_str() : "-", g->fxScale());
+	Check(ww->open && g->fxScale() == 0.18, "Tab opens it in slow motion");
+	Check(ww->sel >= 0 && ww->list[ww->sel] == "pistol", "the weapon in hand is highlighted");
+	// point at the slot of the smg
+	int k = -1; for (int i = 0; i < (int)ww->list.size(); i++) if (ww->list[i] == "smg") k = i;
+	const double a = k * kTau / ww->list.size() - kPi / 2;
+	g->input.mouse.dx = std::cos(a) * 80; g->input.mouse.dy = std::sin(a) * 80;
+	g->frame(1.0 / 30);
+	Check(ww->sel == k, "the mouse picks a slot");
+	g->input.KeyUp("Tab");
+	g->frame(1.0 / 30);
+	Run(*g, 1);
+	printf("  closed %d, holding %s, slow motion %.2f\n", ww->open ? 0 : 1, p.weapon.c_str(), g->fxScale());
+	Check(!ww->open && p.weapon == "smg" && g->fxScale() == 1, "letting go draws it and time runs again");
+}
+
 int main(int argc, char** argv) {
 	InstallCrashTrace();
 	setvbuf(stdout, nullptr, _IONBF, 0);
@@ -629,6 +659,7 @@ int main(int argc, char** argv) {
 	if (want("pickups")) TestPickups(w);
 	if (want("roadblocks")) TestRoadblocks(w);
 	if (want("npccrime")) TestNpcCrime(w);
+	if (want("wheel")) TestWheel(w);
 	printf(fails ? "%d FAILED\n" : "all passed\n", fails);
 	return fails ? 1 : 0;
 }

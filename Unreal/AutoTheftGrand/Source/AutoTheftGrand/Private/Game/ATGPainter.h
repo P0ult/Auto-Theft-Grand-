@@ -19,6 +19,7 @@ public:
 	FMat M;
 	FLinearColor Fill = FLinearColor::White, Stroke = FLinearColor::Black;
 	float LineWidth = 1.f, Alpha = 1.f;
+	bool Invert = false; // (CSS filter: invert(1), on the sRGB values)
 
 	void Save() { Stack.Add({ M, Fill, Stroke, LineWidth, Alpha }); }
 	void Restore() { if (Stack.Num()) { const FState S = Stack.Pop(); M = S.M; Fill = S.Fill; Stroke = S.Stroke; LineWidth = S.LineWidth; Alpha = S.Alpha; } }
@@ -51,7 +52,10 @@ private:
 	UCanvas* Canvas;
 	TArray<FState> Stack;
 	TArray<FPath> Paths;
-	FLinearColor WithAlpha(const FLinearColor& C) const { return FLinearColor(C.R, C.G, C.B, C.A * Alpha); }
+	FLinearColor WithAlpha(const FLinearColor& C) const {
+		if (Invert) { const FColor S = C.ToFColor(true); const FLinearColor I(FColor(255 - S.R, 255 - S.G, 255 - S.B)); return FLinearColor(I.R, I.G, I.B, C.A * Alpha); }
+		return FLinearColor(C.R, C.G, C.B, C.A * Alpha);
+	}
 	void Point(float X, float Y);
 };
 
