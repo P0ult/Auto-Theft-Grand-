@@ -38,6 +38,8 @@ export class HUD {
     this.radar = h('canvas', '', this.radarWrap);
     this.radar.width = 230; this.radar.height = 230;
     this.rctx = this.radar.getContext('2d');
+    // (modern HUD) health, armour and special ability under the minimap
+    this.vbars = h('div', 'hud-vbars', this.radarWrap, '<i class="hp"><b></b></i><i class="ar"><b></b></i><i class="sp"><b></b></i>');
     // messages
     this.helpBox = h('div', 'hud-help', root);
     this.bigMsg = h('div', 'hud-big', root);
@@ -83,6 +85,16 @@ export class HUD {
     this.showFps = false;
     this.fpsAcc = 0; this.fpsN = 0;
     this._lastWeapon = null;
+    this.applyStyle();
+  }
+
+  // Modern (GTA V: wide minimap with the bars under it, stars and cash top right) or Classic (the round radar)
+  applyStyle() {
+    const modern = (this.game.settings.hudStyle || 'modern') === 'modern';
+    this.modern = modern;
+    document.body.classList.toggle('hud-modern', modern);
+    const [w, ht] = modern ? [300, 190] : [230, 230];
+    if (this.radar.width !== w || this.radar.height !== ht) { this.radar.width = w; this.radar.height = ht; }
   }
 
   // ------------------------------------------------------------------ message API
@@ -101,7 +113,8 @@ export class HUD {
       let r = null;
       switch (key.trim()) {
         case 'F': r = G.Y; break;
-        case 'T': r = 'D-pad ↑'; break;
+        case 'T': r = null; break;
+        case 'I': r = 'D-pad ↑'; break;
         case 'R': r = G.B; break;
         case 'N': r = 'D-pad →'; break;
         case 'J': r = 'D-pad ←'; break;
@@ -583,6 +596,10 @@ export class HUD {
     for (const k of ['low', 'medium', 'high', 'ultra']) { const o = h('option', '', q, k[0].toUpperCase() + k.slice(1)); o.value = k; if (k === g.settings.quality) o.selected = true; }
     q.onchange = () => { g.applyQuality(q.value); g.save?.saveSettings(); };
     row('Graphics quality', q);
+    const hs = document.createElement('select');
+    for (const [k, v] of [['Modern (minimap, bars underneath)', 'modern'], ['Classic (round radar)', 'classic']]) { const o = h('option', '', hs, k); o.value = v; if (v === (g.settings.hudStyle || 'modern')) o.selected = true; }
+    hs.onchange = () => { g.settings.hudStyle = hs.value; this.applyStyle(); g.save?.saveSettings(); };
+    row('HUD style', hs);
     const slider = (val, min, max, step, on) => { const s = document.createElement('input'); s.type = 'range'; s.min = min; s.max = max; s.step = step; s.value = val; s.oninput = () => on(parseFloat(s.value)); return s; };
     row('Master volume', slider(g.settings.volume, 0, 1, 0.05, (v) => { g.settings.volume = v; g.audio?.setVolume(v); g.save?.saveSettings(); }));
     row('Radio volume', slider(g.settings.music, 0, 1, 0.05, (v) => { g.settings.music = v; g.audio?.setMusic(v); g.save?.saveSettings(); }));
@@ -619,7 +636,7 @@ export class HUD {
     const KB = `<div class="ctl-cols"><div><h3>On foot</h3><table>
       <tr><td>WASD</td><td>Move</td></tr><tr><td>Mouse</td><td>Look</td></tr><tr><td>Shift</td><td>Sprint</td></tr><tr><td>Space</td><td>Jump</td></tr>
       <tr><td>C / Ctrl</td><td>Crouch</td></tr><tr><td>Left mouse</td><td>Punch / fire</td></tr><tr><td>Right mouse</td><td>Aim</td></tr><tr><td>R</td><td>Reload</td></tr>
-      <tr><td>Q / E, wheel, 1-9</td><td>Switch weapon</td></tr><tr><td>Wheel (sniper scope)</td><td>Zoom in / out</td></tr><tr><td>F / Enter</td><td>Enter / steal vehicle</td></tr><tr><td>K</td><td>Whistle for your pet: stay / come (aiming at someone: set your dog on them)</td></tr></table></div>
+      <tr><td>Q / E, wheel, 1-9</td><td>Switch weapon</td></tr><tr><td>Tab (hold)</td><td>Weapon wheel (point with the mouse, let go to pick)</td></tr><tr><td>Wheel (sniper scope)</td><td>Zoom in / out</td></tr><tr><td>F / Enter</td><td>Enter / steal vehicle</td></tr><tr><td>K</td><td>Whistle for your pet: stay / come (aiming at someone: set your dog on them)</td></tr></table></div>
       <div><h3>In a vehicle</h3><table><tr><td>W / S</td><td>Accelerate / brake-reverse</td></tr><tr><td>A / D</td><td>Steer</td></tr><tr><td>Space</td><td>Handbrake (drift!)</td></tr>
       <tr><td>H</td><td>Horn (Shift+H: siren in police cars)</td></tr><tr><td>N</td><td>Next radio station</td></tr><tr><td>V</td><td>Change camera</td></tr><tr><td>B</td><td>Look behind</td></tr>
       <tr><td>Right mouse + left mouse</td><td>Drive-by (pistol / SMG)</td></tr><tr><td>G</td><td>Hydraulics (lowriders)</td></tr><tr><td>Shift</td><td>Nitrous (fitted at Customs)</td></tr><tr><td>F</td><td>Exit (bail out when fast)</td></tr></table>
@@ -627,7 +644,7 @@ export class HUD {
       <tr><td>A / D</td><td>Roll (bank to turn)</td></tr><tr><td>Q / E</td><td>Rudder</td></tr><tr><td>Space</td><td>Wheel brakes</td></tr><tr><td>Left / right mouse</td><td>Cannon / homing missile</td></tr><tr><td>F</td><td>Bail out (parachute)</td></tr></table>
       <h3>Helicopters</h3><table><tr><td>Space / Shift</td><td>Climb / descend</td></tr><tr><td>W / S</td><td>Fly forward / back</td></tr><tr><td>A / D</td><td>Turn</td></tr><tr><td>Q / E</td><td>Strafe</td></tr><tr><td>Left / right mouse</td><td>Minigun / rockets</td></tr></table>
       <h3>Tank</h3><table><tr><td>W / S, A / D</td><td>Drive, turn on the spot</td></tr><tr><td>Mouse / left mouse</td><td>Aim turret / fire</td></tr></table>
-      <h3>General</h3><table><tr><td>Esc / P</td><td>Pause, map & settings</td></tr><tr><td>M</td><td>Map</td></tr><tr><td>T</td><td>Teleport (free roam)</td></tr><tr><td>&#96; (backtick)</td><td>Admin console (free roam)</td></tr><tr><td>/</td><td>Chat (multiplayer)</td></tr><tr><td>H (on foot)</td><td>Whistle for a taxi</td></tr><tr><td>G (on foot)</td><td>Ride as a passenger</td></tr><tr><td>J (in a cab)</td><td>Taxi driver job on / off</td></tr><tr><td>J (in a police car)</td><td>Vigilante patrol on / off</td></tr><tr><td>Space (in a cab's back seat)</td><td>Skip the trip</td></tr><tr><td>Space / Enter</td><td>Skip cutscene line</td></tr></table></div></div>`;
+      <h3>General</h3><table><tr><td>Esc / P</td><td>Pause, map & settings</td></tr><tr><td>I</td><td>Phone: contacts, cheats, Snapmatic (arrows, Enter, Backspace)</td></tr><tr><td>Caps Lock</td><td>Special ability (slow motion; the yellow bar)</td></tr><tr><td>M</td><td>Map</td></tr><tr><td>T</td><td>Teleport (free roam)</td></tr><tr><td>&#96; (backtick)</td><td>Admin console (free roam)</td></tr><tr><td>/</td><td>Chat (multiplayer)</td></tr><tr><td>H (on foot)</td><td>Whistle for a taxi</td></tr><tr><td>G (on foot)</td><td>Ride as a passenger</td></tr><tr><td>J (in a cab)</td><td>Taxi driver job on / off</td></tr><tr><td>J (in a police car)</td><td>Vigilante patrol on / off</td></tr><tr><td>Space (in a cab's back seat)</td><td>Skip the trip</td></tr><tr><td>Space / Enter</td><td>Skip cutscene line</td></tr></table></div></div>`;
     let glyphs = input.gp.family === 'playstation' ? 'playstation' : 'xbox';
     const pad = () => {
       const ps = glyphs === 'playstation';
@@ -642,13 +659,14 @@ export class HUD {
         <div class="ctl-cols"><div><h3>On foot</h3>${rows([
           [G.L, 'Move'], [G.R, 'Look'], [`${G.A} (hold)`, 'Sprint'], [G.X, 'Jump / open parachute'], [G.LS, 'Crouch'],
           [G.RT, 'Fire / punch / throw'], [`${G.LT} (hold)`, 'Aim — pair with ' + G.RT + ' to shoot'], [G.B, 'Reload'],
-          [`${G.LB} / ${G.RB}`, 'Previous / next weapon'], [G.Y, 'Enter / steal vehicle'],
+          [`${G.LB} / ${G.RB}`, 'Previous / next weapon'], [`${G.LB} (hold)`, 'Weapon wheel (point with ' + G.R + ')'], [G.Y, 'Enter / steal vehicle'],
+          [`${G.LS} + ${G.RS}`, 'Special ability (slow motion)'],
           [G.RS, 'Whistle for your pet (stay / come / attack)'],
-          ['D-pad ↑', 'Teleport menu (free roam)'], ['D-pad →', 'Whistle for a taxi'], ['D-pad ←', 'Ride as a passenger'], ['D-pad ↓', 'Map'], [G.MENU, 'Pause']])}</div>
+          ['D-pad ↑', 'Phone (D-pad, ' + G.A + ' / ' + G.B + ')'], ['D-pad →', 'Whistle for a taxi'], ['D-pad ←', 'Ride as a passenger'], ['D-pad ↓', 'Map'], [G.MENU, 'Pause']])}</div>
         <div><h3>In a vehicle</h3>${rows([
           [G.RT, 'Accelerate'], [G.LT, 'Brake / reverse'], [G.L, 'Steer'], [G.RB, 'Handbrake (drift!)'],
           [`${G.LB} (hold) + ${G.RB}`, 'Drive-by: aim, shoot (pistol / SMG)'], [G.LS, 'Horn'], [G.RS, 'Look behind'], [G.VIEW, 'Change camera'],
-          ['D-pad →', 'Next radio station'], ['D-pad ↑', 'Hydraulics (lowriders)'], ['D-pad ←', 'Taxi job (cab) · vigilante (police car)'], [G.A, 'Nitrous (fitted at Customs)'], [G.Y, 'Exit (bail out when fast)'], [G.A, 'Skip the trip (in a cab\'s back seat)']])}</div>
+          ['D-pad →', 'Next radio station'], ['D-pad ↑', 'Phone · hydraulics in lowriders'], ['D-pad ←', 'Taxi job (cab) · vigilante (police car)'], [G.A, 'Nitrous (fitted at Customs)'], [G.Y, 'Exit (bail out when fast)'], [G.A, 'Skip the trip (in a cab\'s back seat)']])}</div>
         <div><h3>Aircraft &amp; tank</h3>${rows([
           [`${G.RT} / ${G.LT}`, 'Throttle (plane) · climb / descend (heli)'], [G.L, 'Pitch &amp; roll (plane) · fly &amp; turn (heli)'],
           [G.B, 'Plane: wheel brakes'], [`${G.RB} (hold)`, 'Cannon / minigun / tank gun'], [G.LB, 'Homing missile / rockets'], [G.R, 'Look · aim the tank turret'], [G.Y, 'Bail out (parachute)']])}
@@ -696,6 +714,16 @@ export class HUD {
     this.healthBar.classList.toggle('low', hp < 0.25 && Math.floor(game.time * 3) % 2 === 0);
     this.armorBar.style.visibility = p.armor > 0 ? 'visible' : 'hidden';
     this.armorBar.firstChild.style.width = `${clamp(p.armor, 0, 100)}%`;
+    if (this.modern) {
+      const [hpEl, arEl, spEl] = this.vbars.children;
+      hpEl.firstChild.style.width = `${hp * 100}%`;
+      hpEl.classList.toggle('low', hp < 0.25 && Math.floor(game.time * 3) % 2 === 0);
+      arEl.firstChild.style.width = `${clamp(p.armor, 0, 100)}%`;
+      const sp = game.special;
+      spEl.style.display = sp ? '' : 'none';
+      if (sp) { spEl.firstChild.style.width = `${clamp(sp.meter, 0, 1) * 100}%`; spEl.classList.toggle('active', !!sp.active); spEl.classList.toggle('full', sp.meter >= 0.999 && !sp.active); }
+    }
+    this.root.classList.toggle('in-veh', !!p.vehicle);
     this.money.textContent = formatMoney(p.money);
     // weapon
     const w = p.weapons[p.weapon];
@@ -706,7 +734,7 @@ export class HUD {
       c.clearRect(0, 0, 96, 96);
       drawWeaponIcon(c, p.weapon, 96);
     }
-    this.ammo.textContent = def.type === 'melee' ? '' : game.freeroam?.active ? '∞' : def.type === 'thrown' ? `${(w.clip || 0) + (w.ammo || 0)}` : `${w.ammo}-${w.clip}`;
+    this.ammo.textContent = def.type === 'melee' ? '' : game.freeroam?.active ? '∞' : def.type === 'thrown' ? `${(w.clip || 0) + (w.ammo || 0)}` : this.modern ? `${w.clip}  ${w.ammo}` : `${w.ammo}-${w.clip}`;
     // wanted
     const police = game.police;
     const lvl = police ? police.level : 0;
@@ -858,10 +886,14 @@ export class HUD {
     ctx.beginPath(); ctx.arc(C, C, 8, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
   }
 
+  // the radar: a round, rotating one (classic) or GTA V's wide minimap (modern), both centred on the player
   _drawRadar(dt) {
     const game = this.game;
     const ctx = this.rctx;
-    const S = this.radar.width, R = S / 2 - 8, C = S / 2;
+    const modern = this.modern;
+    const W = this.radar.width, H = this.radar.height;
+    const C = W / 2, CY = modern ? H * 0.6 : H / 2;
+    const R = modern ? H * 0.6 : W / 2 - 8; // px from the player to the edge of the view (the range)
     const p = game.player;
     const pos = p.vehicle ? p.vehicle.pos : p.ragdolling ? p.ragdoll.center : p.pos;
     const speed = p.vehicle ? p.vehicle.speedAbs : 0;
@@ -873,17 +905,18 @@ export class HUD {
     const theta = -Math.PI / 2 - alpha;
     this.routeTimer -= dt;
     if (this.routeTimer <= 0) { this.routeTimer = 1.0; this._updateRoute(); }
-    ctx.clearRect(0, 0, S, S);
+    const shape = () => { ctx.beginPath(); if (modern) { if (ctx.roundRect) ctx.roundRect(3, 3, W - 6, H - 6, 6); else ctx.rect(3, 3, W - 6, H - 6); } else ctx.arc(C, CY, R, 0, Math.PI * 2); };
+    ctx.clearRect(0, 0, W, H);
     ctx.save();
-    ctx.beginPath(); ctx.arc(C, C, R, 0, Math.PI * 2); ctx.clip();
-    ctx.fillStyle = '#16303f'; ctx.fillRect(0, 0, S, S);
+    shape(); ctx.clip();
+    ctx.fillStyle = '#16303f'; ctx.fillRect(0, 0, W, H);
     const img = this.mapImg;
     const [px, py] = img.toPx(pos.x, pos.z);
-    ctx.translate(C, C);
+    ctx.translate(C, CY);
     ctx.rotate(theta);
     ctx.scale(scale / img.sx, scale / img.sz);
     ctx.translate(-px, -py);
-    ctx.globalAlpha = 0.92;
+    ctx.globalAlpha = modern ? 0.88 : 0.92;
     drawMapLayers(ctx, img);
     ctx.globalAlpha = 1;
     if (this.route) {
@@ -893,16 +926,46 @@ export class HUD {
       ctx.stroke();
     }
     ctx.restore();
-    // vignette ring
-    const grd = ctx.createRadialGradient(C, C, R * 0.7, C, C, R);
-    grd.addColorStop(0, 'rgba(0,0,0,0)'); grd.addColorStop(1, 'rgba(0,0,0,0.35)');
-    ctx.fillStyle = grd; ctx.beginPath(); ctx.arc(C, C, R, 0, Math.PI * 2); ctx.fill();
-    // blips
     const cs = Math.cos(theta), sn = Math.sin(theta);
     const toRadar = (x, z) => {
       const dx = (x - pos.x) * scale, dz = (z - pos.z) * scale;
       return [dx * cs - dz * sn, dx * sn + dz * cs];
     };
+    // wanted: the minimap flashes red and blue while the police can see you; once they've lost you, their
+    // search cones show where they're looking
+    const police = game.police;
+    const lvl = police ? police.level : 0;
+    ctx.save();
+    shape(); ctx.clip();
+    if (lvl > 0 && !police.flash) {
+      ctx.fillStyle = Math.floor(game.time * 3) % 2 ? 'rgba(220,40,40,0.22)' : 'rgba(40,90,255,0.22)';
+      ctx.fillRect(0, 0, W, H);
+    } else if (lvl > 0) {
+      const cone = (x, z, yaw, len, wide) => {
+        const [rx, ry] = toRadar(x, z);
+        const a = yaw - fy; // relative to the view, 0 = up
+        const L = len * scale;
+        ctx.beginPath(); ctx.moveTo(C + rx, CY + ry);
+        // (same convention as the player arrow: relative heading 0 points up the radar)
+        for (let k = -6; k <= 6; k++) { const t = a + k / 6 * wide; ctx.lineTo(C + rx - Math.sin(t) * L, CY + ry - Math.cos(t) * L); }
+        ctx.closePath(); ctx.fill();
+      };
+      ctx.fillStyle = 'rgba(70,130,255,0.28)';
+      for (const c of police.cops) { if (c.dead) continue; const v = c.vehicle; cone(v ? v.pos.x : c.pos.x, v ? v.pos.z : c.pos.z, v ? v.yaw : c.yaw, v ? 50 : 32, 0.5); }
+      if (police.heli && !police.heli.down) { const [hx, hy] = toRadar(police.heli.pos.x, police.heli.pos.z); ctx.beginPath(); ctx.arc(C + hx, CY + hy, 70 * scale, 0, Math.PI * 2); ctx.fill(); }
+    }
+    ctx.restore();
+    // vignette
+    if (!modern) {
+      const grd = ctx.createRadialGradient(C, CY, R * 0.7, C, CY, R);
+      grd.addColorStop(0, 'rgba(0,0,0,0)'); grd.addColorStop(1, 'rgba(0,0,0,0.35)');
+      ctx.fillStyle = grd; ctx.beginPath(); ctx.arc(C, CY, R, 0, Math.PI * 2); ctx.fill();
+    } else {
+      const grd = ctx.createLinearGradient(0, 0, 0, H);
+      grd.addColorStop(0, 'rgba(0,0,0,0.28)'); grd.addColorStop(0.25, 'rgba(0,0,0,0)'); grd.addColorStop(1, 'rgba(0,0,0,0.12)');
+      ctx.fillStyle = grd; ctx.fillRect(3, 3, W - 6, H - 6);
+    }
+    // blips
     const drawList = [];
     for (const b of game.blips) drawList.push(b);
     // cops & enemies
@@ -911,26 +974,45 @@ export class HUD {
     const flash = Math.floor(game.time * 4) % 2;
     for (const t of game.npcCrime?.tagged() || []) { const q = t.c.vehicle ? t.c.vehicle.pos : t.c.pos; drawList.push({ x: q.x, z: q.z, color: t.hot && flash ? 0xff3333 : 0xff9a1f, icon: 'dot', small: true, noEdge: true }); }
     if (game.police && game.police.level === 0) for (const car of game.police.cars) if (car.npcJob && !car.removed) drawList.push({ x: car.pos.x, z: car.pos.z, color: flash ? 0x3355ff : 0xdde4ff, icon: 'dot', small: true, noEdge: true, square: true });
+    // the army at five stars: trucks, armour and the gunship (always on the radar's edge), troops as dots
+    if (game.army) {
+      for (const u of game.army.units) if (!u.veh.isWrecked && !u.leaving) drawList.push({ x: u.veh.pos.x, z: u.veh.pos.z, color: flash ? 0xff3333 : 0xb5d334, icon: u.kind === 'heli' ? 'heli' : u.kind === 'tank' ? 'tank' : 'dot', small: u.kind !== 'heli' && u.kind !== 'tank', square: u.kind === 'truck' || u.kind === 'jeep' });
+      for (const s of game.army.troops) if (!s.dead) drawList.push({ x: s.pos.x, z: s.pos.z, color: 0xb5d334, icon: 'dot', small: true, noEdge: true });
+    }
+    // armoured vans you can rob (heists.js)
+    if (game.heists) for (const b of game.heists.blipList()) drawList.push(b);
+    const edgeX0 = -C + 9, edgeX1 = W - C - 9, edgeY0 = -CY + 9, edgeY1 = H - CY - 9;
     for (const b of drawList) {
       let [rx, ry] = toRadar(b.x, b.z);
-      const d = Math.hypot(rx, ry);
-      if (d > R - 7) { if (b.noEdge) continue; rx *= (R - 7) / d; ry *= (R - 7) / d; }
-      drawBlip(ctx, C + rx, C + ry, b, b.small ? 0.8 : 1);
+      if (modern) {
+        const out = rx < edgeX0 || rx > edgeX1 || ry < edgeY0 || ry > edgeY1;
+        if (out) { if (b.noEdge) continue; const k = Math.min(rx < 0 ? edgeX0 / rx : edgeX1 / rx, ry < 0 ? edgeY0 / ry : edgeY1 / ry); rx *= k; ry *= k; }
+      } else {
+        const d = Math.hypot(rx, ry);
+        if (d > R - 7) { if (b.noEdge) continue; rx *= (R - 7) / d; ry *= (R - 7) / d; }
+      }
+      drawBlip(ctx, C + rx, CY + ry, b, b.small ? 0.8 : 1);
     }
-    // north indicator
-    const [nx, ny] = [Math.sin(theta) * 0, 0];
-    const na = theta - Math.PI / 2;
-    const nX = C + Math.cos(-Math.PI / 2 + theta) * (R - 2), nY = C + Math.sin(-Math.PI / 2 + theta) * (R - 2);
-    ctx.fillStyle = '#fff'; ctx.strokeStyle = '#000'; ctx.lineWidth = 3;
+    // north indicator (on the edge of the view)
     ctx.font = 'bold 15px "Bebas Neue", Impact, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    let nX, nY;
+    if (modern) {
+      const dx = Math.sin(theta), dy = -Math.cos(theta);
+      const k = Math.min(Math.abs(dx) > 1e-4 ? (dx < 0 ? edgeX0 / dx : edgeX1 / dx) : 1e9, Math.abs(dy) > 1e-4 ? (dy < 0 ? edgeY0 / dy : edgeY1 / dy) : 1e9);
+      nX = C + dx * k; nY = CY + dy * k;
+    } else { nX = C + Math.cos(-Math.PI / 2 + theta) * (R - 2); nY = CY + Math.sin(-Math.PI / 2 + theta) * (R - 2); }
     ctx.beginPath(); ctx.arc(nX, nY, 9, 0, Math.PI * 2); ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fill();
     ctx.fillStyle = '#fff'; ctx.fillText('N', nX, nY + 1);
     // player arrow
     const heading = p.vehicle ? p.vehicle.yaw : p.yaw;
-    drawPlayerArrow(ctx, C, C, heading - fy, 1, true);
-    // ring
-    ctx.strokeStyle = 'rgba(0,0,0,0.85)'; ctx.lineWidth = 5; ctx.beginPath(); ctx.arc(C, C, R, 0, Math.PI * 2); ctx.stroke();
-    ctx.strokeStyle = 'rgba(255,255,255,0.25)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(C, C, R - 3, 0, Math.PI * 2); ctx.stroke();
+    drawPlayerArrow(ctx, C, CY, heading - fy, 1, true);
+    // frame
+    if (modern) {
+      ctx.strokeStyle = 'rgba(0,0,0,0.85)'; ctx.lineWidth = 4; shape(); ctx.stroke();
+    } else {
+      ctx.strokeStyle = 'rgba(0,0,0,0.85)'; ctx.lineWidth = 5; ctx.beginPath(); ctx.arc(C, CY, R, 0, Math.PI * 2); ctx.stroke();
+      ctx.strokeStyle = 'rgba(255,255,255,0.25)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(C, CY, R - 3, 0, Math.PI * 2); ctx.stroke();
+    }
   }
 }
 

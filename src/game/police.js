@@ -19,7 +19,7 @@ export function copAppearance(swat = false) {
 }
 
 // Pursuit driver: routes along the road network toward the target, then drives directly & rams.
-class PursuitDriver extends LaneDriver {
+export class PursuitDriver extends LaneDriver {
   constructor(game, veh, start, police) {
     super(game, veh, false);
     this.police = police;
@@ -185,12 +185,13 @@ export class Police {
     return cop;
   }
 
-  // near: somewhere other than the player to respond to (an NPC suspect); still within the player's range
-  spawnCar(pursuit = true, near = null) {
+  // near: somewhere other than the player to respond to (an NPC suspect); still within the player's range.
+  // opts (the army uses this too): type, crew(veh, seat) -> occupant, seats, list, siren, radius [r0, r1]
+  spawnCar(pursuit = true, near = null, opts = {}) {
     const game = this.game;
     const p = near || this.targetPos();
     const pp = game.player.vehicle ? game.player.vehicle.pos : game.player.pos;
-    const [r0, r1] = near ? [45, 150] : [75, 230];
+    const [r0, r1] = opts.radius || (near ? [45, 150] : [75, 230]);
     for (let tries = 0; tries < 14; tries++) {
       const smp = Traffic.sampleLane(game, p.x, p.z, r0, r1);
       if (!smp) continue;
@@ -205,14 +206,17 @@ export class Police {
       const pts = net.lanePath(smp.start.e, smp.start.dir, smp.start.lane);
       const k = Math.min(pts.length - 2, Math.max(0, Math.floor(smp.s0 / 5)));
       const yaw = Math.atan2(pts[k + 1][0] - pts[k][0], pts[k + 1][2] - pts[k][2]);
-      const v = game.vehicles.spawn('police', x, z, yaw, { persistent: true });
-      const n = pursuit && this.level >= 2 ? 2 : 1;
-      for (let q = 0; q < n; q++) { const cop = this.spawnCop(x, z); v.putIn(cop, q); cop.homeCar = v; }
+      const v = game.vehicles.spawn(opts.type || 'police', x, z, yaw, { persistent: true });
+      const n = opts.seats ?? (pursuit && this.level >= 2 ? 2 : 1);
+      for (let q = 0; q < n; q++) {
+        const who = opts.crew ? opts.crew(v, q) : this.spawnCop(x, z);
+        v.putIn(who, q); who.homeCar = v;
+      }
       v.ai = pursuit ? new PursuitDriver(game, v, smp.start, this) : new LaneDriver(game, v, smp.start);
-      v.sirenOn = pursuit;
-      v.policeUnit = true;
+      v.sirenOn = opts.siren ?? pursuit;
+      if (!opts.list) v.policeUnit = true;
       v.vel.set(Math.sin(yaw) * 12, 0, Math.cos(yaw) * 12);
-      this.cars.push(v);
+      (opts.list || this.cars).push(v);
       return v;
     }
     return null;
@@ -360,6 +364,7 @@ export class Police {
   }
 
   reset() {
+    this.game.army?.reset();
     this.clear();
     for (const v of this.cars) { for (const o of v.occupants) if (o && !o.isPlayer) this.game.peds.remove(o); v.occupants.fill(null); this.game.vehicles.remove(v); }
     for (const c of this.cops) this.game.peds.remove(c);

@@ -362,6 +362,7 @@ export class Audio {
         this._tone(dest, t, { f0: 110, f1: 55, dur: 2.5, vol: 0.5 * vol, type: 'sawtooth' });
         this._tone(dest, t, { f0: 116, f1: 58, dur: 2.5, vol: 0.4 * vol, type: 'sawtooth' });
         break;
+      case 'alarm': for (let k = 0; k < 3; k++) { this._tone(dest, t + k * 0.5, { f0: 520, f1: 760, dur: 0.42, vol: 0.18 * vol, type: 'sawtooth' }); } break;
       case 'wanted': this._tone(dest, t, { f0: 740, dur: 0.1, vol: 0.2 * vol, type: 'square' }); this._tone(dest, t + 0.12, { f0: 988, dur: 0.12, vol: 0.2 * vol, type: 'square' }); break;
       case 'footstep': this._noiseHit(dest, t, { dur: 0.05, vol: 0.12 * vol, freq: 1000, type: 'bandpass', q: 1.5 }); break;
       case 'splash': this._noiseHit(dest, t, { dur: 0.8, vol: 0.8 * vol, freq: 800, type: 'lowpass', sweepTo: 200, buf: this.pink }); break;

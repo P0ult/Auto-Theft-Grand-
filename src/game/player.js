@@ -43,7 +43,7 @@ export class Player extends Character {
     const def = this.weaponDef;
     const wantAim = input.aimDown() && def.type !== 'melee' && def.type !== 'thrown';
     this.aimHold = Math.max(0, this.aimHold - dt);
-    this.aiming = (wantAim || this.aimHold > 0) && !this.swimming;
+    this.aiming = (wantAim || this.aimHold > 0) && !this.swimming && !g.weaponWheel?.open;
     this.crouching = input.down('crouch') && !this.swimming;
     const wantSprint = input.down('sprint') && len > 0.1 && !this.aiming && !this.crouching;
     if (wantSprint && this.stamina > 0.05) { this.sprinting = true; this.stamina = Math.max(0, this.stamina - dt * 0.08); }
@@ -73,6 +73,9 @@ export class Player extends Character {
     }
 
     if (input.hit('jump') && !this.aiming) this.jump(this.game.cheatsOn?.superJump ? 17 : undefined);
+
+    // (choosing on the weapon wheel: no switching or shooting until it closes)
+    if (g.weaponWheel?.open) return;
 
     // weapon switching
     // (looking down a scope, the wheel zooms instead)

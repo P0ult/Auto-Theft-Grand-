@@ -30,6 +30,7 @@ export class Game {
     this.time = 0;
     this.paused = false;
     this.timeScale = 1;
+    this.slowmo = {};   // extra slow motion by source (the weapon wheel, the special ability): the lowest wins
     this.settings = Object.assign({ quality: 'high', volume: 0.8, music: 0.6, sensitivity: 1, invertY: false, npcCrime: 'normal' }, opts.settings || {});
     this.systems = [];
     this.blips = new Set();
@@ -95,6 +96,8 @@ export class Game {
     return this;
   }
 
+  get fxScale() { let k = 1; for (const s in this.slowmo) k = Math.min(k, this.slowmo[s]); return k; }
+
   addSystem(name, sys) { this[name] = sys; this.systems.push({ name, sys }); return sys; }
 
   allCharacters() {
@@ -158,7 +161,7 @@ export class Game {
     input.inVehicle = !!this.player?.vehicle;
     input.pollGamepad();
     this.padNav?.update();
-    const sdt = this.paused ? 0 : dt * this.timeScale;
+    const sdt = this.paused ? 0 : dt * this.timeScale * this.fxScale;
     if (!this.paused) this.update(sdt, dt);
     this.net?.tick(dt);
     this.hud?.update(dt);
@@ -172,6 +175,9 @@ export class Game {
     const input = this.input;
     const controlsEnabled = input.enabled && !this.cutscene;
 
+    // systems that take keys before the player reads them (the phone)
+    for (const { sys } of this.systems) if (sys.earlyInput) sys.earlyInput(dt);
+
     // player control
     if (controlsEnabled) {
       if (!player.vehicle) player.control(dt, input, this.rig);
@@ -184,7 +190,7 @@ export class Game {
         if (pv0.armed && player.seat === 0) player.aiming = !!pv0.showCrosshair; // mounted guns fire from playerControl
         else {
           // drive-by (a passenger leans out of the window)
-          let aim = input.aimDown() && (!pv0.def.kind || pv0.def.kind === 'boat');
+          let aim = input.aimDown() && (!pv0.def.kind || pv0.def.kind === 'boat') && !this.weaponWheel?.open;
           if (aim && !player.carWeaponOk(player.weapon)) { const b = player.bestCarWeapon(); if (b) player.switchTo(b); else aim = false; }
           player.aiming = aim;
           if (input.hit('nextWeapon') || input.mouse.wheel > 0) player.cycleCarWeapon(1);

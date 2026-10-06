@@ -10,6 +10,8 @@ import { Effects } from './game/effects.js';
 import { Audio } from './game/audio.js';
 import { Pickups } from './game/pickups.js';
 import { Military } from './game/military.js';
+import { Army } from './game/army.js';
+import { Special } from './game/special.js';
 import { RailSystem } from './game/railsystem.js';
 import { Missions } from './game/missions.js';
 import { STORY } from './game/story.js';
@@ -31,6 +33,8 @@ import { Vigilante } from './game/vigilante.js';
 import { Properties } from './game/properties.js';
 import { NetSystem } from './net/net.js';
 import { HUD } from './ui/hud.js';
+import { WeaponWheel } from './ui/weaponwheel.js';
+import { Phone } from './ui/phone.js';
 
 const params = new URLSearchParams(location.search);
 const TIPS = [
@@ -81,6 +85,10 @@ async function boot() {
   game.addSystem('npcCrime', new NpcCrime(game));
   game.addSystem('pickups', new Pickups(game));
   game.addSystem('military', new Military(game));
+  game.addSystem('army', new Army(game));
+  game.addSystem('weaponWheel', new WeaponWheel(game));
+  game.addSystem('special', new Special(game));
+  game.addSystem('phone', new Phone(game));
   game.addSystem('rail', new RailSystem(game));
   game.addSystem('shops', new ShopSystem(game));
   game.addSystem('wildlife', new Wildlife(game));
@@ -125,7 +133,7 @@ async function boot() {
         game.input.inVehicle = !!game.player.vehicle;
         game.input.pollGamepad();
         game.padNav?.update();
-        if (!game.paused) game.update(dt * game.timeScale, dt);
+        if (!game.paused) game.update(dt * game.timeScale * game.fxScale, dt);
         game.net?.tick(dt);
         game.hud.update(dt);
         game.input.endFrame();

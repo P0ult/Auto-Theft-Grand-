@@ -63,8 +63,12 @@ export class Admin {
   update(dt) {
     const g = this.game, c = this.cheats, p = g.player;
     if (!this.allowed) {
-      g.cheatsOn = NONE;
       if (this._applied) this._reset();
+      // phone cheats (timed, outside free roam)
+      const ph = g.net?.online ? null : g.phone?.activeCheats?.();
+      g.cheatsOn = ph || NONE;
+      if (ph) { this._phone = true; p.invincible = !!ph.god; if (ph.god && p.health < p.maxHealth && !p.dead) p.health = p.maxHealth; }
+      else if (this._phone) { this._phone = false; p.invincible = false; }
       return;
     }
     g.cheatsOn = c;

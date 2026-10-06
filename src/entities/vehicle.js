@@ -438,7 +438,8 @@ export class Vehicle {
     if (!this.canTumble || this.airborne || this.def.bike) return;
     const d = this.def;
     const cgH = this.model.hull?.cgH ?? d.H * 0.4;
-    const ssf = d.track / (2 * cgH); // static stability factor (g's of sideways grip it takes to tip)
+    // static stability factor (g's of sideways grip it takes to tip); army trucks are built not to roll
+    const ssf = d.track / (2 * cgH) * (this.stable ? 1.6 : 1);
     const lat = Math.abs(this.ayLat) / G;
     this._rollT = lat > ssf * 1.02 && this.speedAbs > 8 ? (this._rollT || 0) + dt : 0;
     const steep = Math.abs(this.groundRoll) > 0.62 && this.speedAbs > 3;
@@ -547,7 +548,7 @@ export class Vehicle {
     const r = this.r;
     const wet = U.uWet.value;
     const surf = this._surface || 1;
-    const mu = d.grip * (1 - wet * 0.18) * surf;
+    const mu = d.grip * (1 - wet * 0.18) * surf * (this.driver?.isPlayer ? this.game.special?.grip ?? 1 : 1); // (the special ability grips harder)
 
     if (this.airborne) {
       this.vel.x -= vx * 0.02 * h; this.vel.z -= vz * 0.02 * h;

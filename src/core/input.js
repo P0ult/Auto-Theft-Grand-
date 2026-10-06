@@ -44,7 +44,7 @@ const GP_BIND = {
   jump: [GP.X, null],
   reload: [GP.B, null],
   enter: [GP.Y, GP.Y],
-  prevWeapon: [GP.LB, null],
+  prevWeapon: [null, null], // (LB: a tap flicks back, holding opens the weapon wheel; see weaponwheel.js)
   nextWeapon: [GP.RB, null],
   crouch: [GP.LS, null],
   handbrake: [null, GP.RB],
@@ -55,7 +55,7 @@ const GP_BIND = {
   hydraulics: [null, GP.UP],
   taxiJob: [null, GP.LEFT],
   nitro: [null, GP.A],
-  teleport: [GP.UP, null],
+  teleport: [null, null], // (D-pad up takes the phone out; see phone.js)
   hail: [GP.RIGHT, null],
   passenger: [GP.LEFT, null],
   map: [GP.DOWN, GP.DOWN],
@@ -90,6 +90,7 @@ export class Input {
     this.inVehicle = false; // set by the game each frame: picks the on-foot or in-vehicle pad bindings
     this.frameDt = 1 / 60;
     this.lastDevice = 'kbm';
+    this.mask = new Set(); // pad buttons something else (the phone) has taken this frame
     this.onPointerLockChange = null;
 
     window.addEventListener('keydown', (e) => {
@@ -187,7 +188,7 @@ export class Input {
   // armed aircraft & tanks: RB guns (hold), LB missiles / rockets
   vehFire() { return this.mouse.left || !!this.gp.buttons[GP.RB]; }
   vehAltPressed() { return this.mouse.rightPressed || this._gpPressedIdx(GP.LB); }
-  gpDown(i) { return !!this.gp.buttons[i]; }
+  gpDown(i) { return !!this.gp.buttons[i] && !this.mask.has(i); }
   gpHit(i) { return this._gpPressedIdx(i); }
 
   _gpMap(action) {
@@ -197,10 +198,10 @@ export class Input {
   _gpDown(action) {
     const i = this._gpMap(action);
     if (action === 'handbrake' && this.gp.buttons[GP.LB]) return false; // LB+RB is a drive-by
-    return i >= 0 && !!this.gp.buttons[i];
+    return i >= 0 && !!this.gp.buttons[i] && !this.mask.has(i);
   }
   _gpHit(action) { const i = this._gpMap(action); return i >= 0 && this._gpPressedIdx(i); }
-  _gpPressedIdx(i) { return !!this.gp.buttons[i] && !this.gp.prev[i]; }
+  _gpPressedIdx(i) { return !!this.gp.buttons[i] && !this.gp.prev[i] && !this.mask.has(i); }
 
   pollGamepad() {
     const g = this.gp;
@@ -251,6 +252,7 @@ export class Input {
   }
 
   endFrame() {
+    this.mask.clear();
     this.pressed.clear();
     this.released.clear();
     this.mouse.dx = this.mouse.dy = 0;

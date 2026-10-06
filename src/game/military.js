@@ -44,7 +44,7 @@ export class Military {
     ev.on('enteredVehicle', (c, v) => { if (c.isPlayer && v.def.military && this.inBase(v.pos)) this.alert('Military hardware stolen!'); });
     ev.on('gunshot', (s, pos) => { if (s?.isPlayer && this.inBase(pos)) this.alert(); });
     ev.on('explosion', (pos, r, src) => { if (src?.isPlayer && this.inBase(pos)) this.alert(); });
-    ev.on('kill', (killer, victim) => { if (killer?.isPlayer && victim.gang === 'army') this.alert(); });
+    ev.on('kill', (killer, victim) => { if (killer?.isPlayer && victim.gang === 'army' && (!victim.response || this.inBase(victim.pos))) this.alert(); });
   }
 
   inBase(p, margin = 0) { return p.x > BASE.minX - margin && p.x < BASE.maxX + margin && p.z > BASE.minZ - margin && p.z < BASE.maxZ + margin; }
