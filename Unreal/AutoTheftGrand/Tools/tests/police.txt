@@ -1,0 +1,32 @@
+# Police: two stars bring pursuit cars; at three stars at night the helicopter comes with its searchlight.
+wait 1
+ATG.God 1
+ATG.NoBust 1
+ATG.Time 23
+ATG.Teleport -612 376 -2.36
+wait 1
+ATG.Wanted 2
+wait 14
+ATG.Police
+shot police_chase
+ATG.Wanted 3
+wait 22
+ATG.Police
+shot police_heli
+ATG.CamHeli
+wait 0.1
+ATG.CamHeli
+wait 0.1
+shot police_heli_cam
+ATG.CamHeli 0
+ATG.Time 13
+ATG.CamHeli
+wait 0.1
+ATG.CamHeli
+wait 0.1
+shot police_heli_day
+ATG.CamHeli 0
+ATG.Wanted 0
+wait 1
+ATG.Police
+quit

@@ -6,6 +6,7 @@
 #include "Sim/Gameplay.h"
 #include "Sim/Hud.h"
 #include "Sim/Peds.h"
+#include "Sim/Police.h"
 #include "Sim/Rail.h"
 #include "Sim/Setup.h"
 #include "Sim/Traffic.h"
@@ -358,6 +359,88 @@ static void TestCombat(World& w) {
 	Check(cb->projectiles.empty(), "and goes off after 3 s");
 }
 
+// police: witnessed crimes raise the stars, pursuit cars come one per star, you lose them by staying out of
+// sight for 10 + 5 x level seconds, the helicopter comes at three stars, and a cop next to you arrests you
+static void TestPolice(World& w) {
+	printf("police\n");
+	auto g = w.game(true);
+	ToStreet(w, *g);
+	Player& p = *g->player;
+	p.invincible = true; // (the god cheat needs the admin tools)
+	Police* pol = g->policeSys;
+	g->missionNoBust = true; // (no arrests until the end)
+	int ups = 0;
+	g->events.wantedUp.on([&](int) { ups++; });
+	pol->crime(1, p.pos, true);
+	printf("  severe crime: heat %.2f, level %d\n", pol->heat, pol->level);
+	Check(pol->level == 1 && ups == 1, "a severe crime gives one star");
+	pol->crime(3.5, p.pos, false);
+	printf("  more crime: heat %.2f, level %d\n", pol->heat, pol->level);
+	Check(pol->level == 2, "heat over 3 gives two stars");
+	Run(*g, 10);
+	auto pursuers = [&]() { int n = 0; for (auto& c : pol->cars) if (Vehicle* v = c.get()) if (dynamic_cast<PursuitDriver*>(v->ai.get()) && !v->isWrecked()) n++; return n; };
+	double nearest = 1e9;
+	for (auto& c : pol->cars) if (Vehicle* v = c.get()) nearest = Min(nearest, Hypot(v->pos.x - p.pos.x, v->pos.z - p.pos.z));
+	printf("  after 10 s: %d pursuit cars, %zu cops, nearest car %.0f m, level %d\n", pursuers(), pol->cops.size(), nearest, pol->level);
+	Check(pursuers() == 2, "two pursuit cars at two stars");
+	for (int k = 0; k < 3; k++) {
+		Run(*g, 5);
+		std::string cs;
+		for (auto& c : pol->cars) if (Vehicle* v = c.get()) { char b[96]; snprintf(b, sizeof b, " [%.0f m %.1f m/s%s%s]", Hypot(v->pos.x - p.pos.x, v->pos.z - p.pos.z), v->speed(), v->driver() ? "" : " empty", v->isWrecked() ? " wrecked" : ""); cs += b; }
+		double nc = 1e9; for (auto& c : pol->cops) if (Ped* q = c.get()) if (!q->vehicle) nc = Min(nc, Hypot(q->pos.x - p.pos.x, q->pos.z - p.pos.z));
+		printf("   t+%d: cars%s, nearest cop on foot %.0f m\n", 10 + 5 * (k + 1), cs.c_str(), nc);
+	}
+	nearest = 1e9;
+	for (auto& c : pol->cars) if (Vehicle* v = c.get()) nearest = Min(nearest, Hypot(v->pos.x - p.pos.x, v->pos.z - p.pos.z));
+	printf("  after 25 s: nearest car %.0f m, seen %d\n", nearest, pol->seen ? 1 : 0);
+	Check(nearest < 40, "they close in");
+	// run: far away and out of sight
+	const Landmark& H = w.map.landmarks.at("hospital");
+	g->respawnPlayer(H.x, H.z, 0);
+	Run(*g, 5);
+	printf("  5 s unseen: level %d, flashing %d\n", pol->level, pol->flash ? 1 : 0);
+	Check(pol->level == 2 && pol->flash, "the stars flash once they lose you");
+	Run(*g, 16);
+	printf("  21 s unseen: level %d, %zu cars left\n", pol->level, pol->cars.size());
+	Check(pol->level == 0, "lost after 10 + 5 x 2 seconds");
+	// three stars: the helicopter
+	pol->setLevel(3);
+	Run(*g, 0.1);
+	Check(pol->heli != nullptr, "the helicopter comes at three stars");
+	double hd0 = pol->heli ? Hypot(pol->heli->pos.x - p.pos.x, pol->heli->pos.z - p.pos.z) : 0;
+	Run(*g, 20);
+	double hd = pol->heli ? Hypot(pol->heli->pos.x - p.pos.x, pol->heli->pos.z - p.pos.z) : 0;
+	printf("  helicopter %.0f m -> %.0f m away, %.0f m up\n", hd0, hd, pol->heli ? pol->heli->pos.y - p.pos.y : 0);
+	Check(pol->heli && hd < 45, "it circles over you");
+	int downs = 0;
+	g->events.heliDown.on([&]() { downs++; });
+	Combat* cb = dynamic_cast<Combat*>(g->combat);
+	CombatHit hit;
+	const V3 from = p.pos + V3(0, 1.5, 0);
+	const V3 hp = pol->heli->pos;
+	const V3 dir = (hp - from).normalized();
+	const bool hitHeli = cb->raycast(from.x, from.y, from.z, dir.x, dir.y, dir.z, 200, &p, hit) && hit.kind == CombatHit::Heli;
+	printf("  shot at it: hit kind %d at %.1f m (it is %.1f m away)\n", (int)hit.kind, hit.t, (hp - from).length());
+	Check(hitHeli, "a shot at it hits it");
+	pol->heliHit(9999);
+	Run(*g, 15);
+	const bool fresh = !pol->heli || (!pol->heli->down && pol->heli->health == 700);
+	printf("  shot down: %d heliDown, %s\n", downs, !pol->heli ? "gone" : fresh ? "a new one on its way" : "still falling");
+	Check(downs == 1 && fresh, "it comes down and burns");
+	// arrest
+	p.invincible = false;
+	g->missionNoBust = false;
+	pol->reset();
+	pol->setLevel(1);
+	Ped* cop = pol->spawnCop(p.pos.x + 1, p.pos.z);
+	(void)cop;
+	int busted = 0;
+	g->events.busted.on([&]() { busted++; });
+	Run(*g, 2.5);
+	printf("  a cop at arm's length: busted %d, state %s\n", busted, g->gameplay->state.c_str());
+	Check(busted == 1, "a cop next to you arrests you");
+}
+
 int main(int argc, char** argv) {
 	InstallCrashTrace();
 	setvbuf(stdout, nullptr, _IONBF, 0);
@@ -377,6 +460,7 @@ int main(int argc, char** argv) {
 	if (want("wasted")) TestWasted(w);
 	if (want("effects")) TestEffects(w);
 	if (want("combat")) TestCombat(w);
+	if (want("police")) TestPolice(w);
 	printf(fails ? "%d FAILED\n" : "all passed\n", fails);
 	return fails ? 1 : 0;
 }

@@ -5,6 +5,7 @@
 #include "Gameplay.h"
 #include "Hud.h"
 #include "Peds.h"
+#include "Police.h"
 #include "Rail.h"
 #include "Traffic.h"
 
@@ -19,7 +20,9 @@ void InstallSystems(Game& g) {
 	g.combat = g.addSystem("combat", std::make_unique<Combat>(g));
 	g.peds = g.addSystem("peds", std::make_unique<PedManager>(g));
 	g.traffic = g.addSystem("traffic", std::make_unique<Traffic>(g));
-	// (police, npcCrime, pickups, military, army, roadblocks, heists, weaponWheel, special, phone: later phases)
+	g.policeSys = g.addSystem("police", std::make_unique<Police>(g));
+	g.police = g.policeSys;
+	// (npcCrime, pickups, military, army, roadblocks, heists, weaponWheel, special, phone: later phases)
 	g.rail = g.addSystem("rail", std::make_unique<RailSystem>(g));
 	// (shops, wildlife, pets, skateparks, boats, shipRaid, missions, audio: later)
 	g.gameplay = g.addSystem("gameplay", std::make_unique<Gameplay>(g));

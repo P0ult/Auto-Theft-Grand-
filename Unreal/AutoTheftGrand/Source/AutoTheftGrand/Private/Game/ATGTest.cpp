@@ -7,6 +7,7 @@
 #include "Sim/Weapons.h"
 #include "Sim/Game.h"
 #include "Sim/Peds.h"
+#include "Sim/Police.h"
 #include "Sim/Rail.h"
 #include "Sim/Traffic.h"
 
@@ -163,6 +164,29 @@ ATG_CMD(CmdFx, "ATG.Fx", "ATG.Fx: log the effects pools", {
 })
 ATG_CMD(CmdGive, "ATG.Give", "ATG.Give weapon [ammo]: give the player a weapon and hold it", {
 	if (atg::Game* G = Sim(W)) if (Args.Num()) { const std::string Id = TCHAR_TO_UTF8(*Args[0]); if (atg::FindWeapon(Id)) { G->player->giveWeapon(Id, Arg(Args, 1, 200)); G->player->equip(Id); } }
+})
+ATG_CMD(CmdWanted, "ATG.Wanted", "ATG.Wanted stars: set the wanted level (0 clears it)", {
+	if (atg::Game* G = Sim(W)) if (G->policeSys) { const int L = (int)Arg(Args, 0, 1); if (L <= 0) G->policeSys->clear(); else G->policeSys->setLevel(L); }
+})
+ATG_CMD(CmdNoBust, "ATG.NoBust", "ATG.NoBust 0|1: the police can't arrest the player (as in some missions)", { if (atg::Game* G = Sim(W)) G->missionNoBust = Arg(Args, 0, 1) != 0; })
+ATG_CMD(CmdCamHeli, "ATG.CamHeli", "ATG.CamHeli [0]: hold the camera behind the player looking at the police helicopter (0: let go)", {
+	atg::Game* G = Sim(W);
+	if (!G) return;
+	if (Args.Num() && Arg(Args, 0) == 0) { G->rig.clearCinematic(); return; }
+	if (!G->policeSys || !G->policeSys->heli) return;
+	const atg::V3 H = G->policeSys->heli->pos, P = G->player->pos;
+	atg::V3 Back = P - H; Back.y = 0; Back = Back.normalized();
+	G->rig.setCinematic(P + Back * 8 + atg::V3(0, 3, 0), H, 50);
+})
+ATG_CMD(CmdPolice, "ATG.Police", "ATG.Police: log the wanted level, the units and the helicopter", {
+	atg::Game* G = Sim(W);
+	atg::Police* P = G ? G->policeSys : nullptr;
+	if (!P) return;
+	const atg::V3 Pp = G->player->pos;
+	double Near = 1e9;
+	for (auto& C : P->cars) if (atg::Vehicle* V = C.get()) Near = FMath::Min(Near, atg::Hypot(V->pos.x - Pp.x, V->pos.z - Pp.z));
+	UE_LOG(LogATG, Display, TEXT("ATG police: level %d heat %.2f seen %d flash %d, %d cars (nearest %.0f m), %d cops, heli %s"), P->level, P->heat, P->seen ? 1 : 0, P->flash ? 1 : 0, (int32)P->cars.size(), Near, (int32)P->cops.size(),
+		P->heli ? *FString::Printf(TEXT("at (%.0f, %.0f, %.0f) health %.0f%s"), P->heli->pos.x, P->heli->pos.y, P->heli->pos.z, P->heli->health, P->heli->down ? TEXT(" down") : TEXT("")) : TEXT("none"));
 })
 #undef ATG_CMD
 }

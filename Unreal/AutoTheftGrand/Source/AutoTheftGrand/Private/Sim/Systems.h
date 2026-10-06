@@ -121,6 +121,10 @@ public:
 	struct RadarCone { double x, z, yaw, len, wide; };
 	virtual void radarCones(std::vector<RadarCone>&) const {}
 	virtual void radarCops(std::vector<V3>&) const {}
+	// the helicopter: shots and missiles can hit it (a 2.6 m sphere)
+	virtual bool heliRay(double, double, double, double, double, double, double, double&) const { return false; }
+	virtual void heliHit(double) {}
+	virtual bool heliAlive(V3&) const { return false; }
 };
 
 // street crime (src/game/npccrime.js)
@@ -129,6 +133,8 @@ public:
 	virtual ~INpcCrime() = default;
 	virtual bool pedThink(Ped* p, double dt) = 0;
 	virtual bool jaywalk(Ped* p) = 0;
+	// a cop on a call to an NPC suspect (police copThink): true when that took care of the cop this frame
+	virtual bool copThink(Ped*, double) { return false; }
 };
 
 // animals (src/game/wildlife.js)

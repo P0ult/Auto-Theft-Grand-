@@ -56,11 +56,12 @@ public:
 	V3 pointAhead(double ahead);
 	double obstacleAhead(double maxD);
 
-private:
+protected:
 	struct Exit { int e, dir; };
 	std::vector<Exit> options(const LanePath& cur);
 	double heading(int e, int dir, bool atStart) const;
-	bool chooseNext(const LanePath& cur, Exit& out);
+	virtual bool chooseNext(const LanePath& cur, Exit& out);
+private:
 	int laneFor(const LanePath& cur, const Exit& o);
 	std::shared_ptr<LanePath> turnPath(const std::shared_ptr<LanePath>& from, const std::shared_ptr<LanePath>& to, int node);
 	void ensurePaths();

@@ -20,9 +20,11 @@ the screen goes black and white in slow motion under the WASTED shard before you
 get arrested and it is BUSTED and the police station. Drifts and big jumps pay a cash bonus. Wrecked cars
 smoke and burn, crashes throw sparks, guns, knives, bats, grenades, molotovs and the RPG work as in the
 browser game, knocked-over street furniture and torn-off panels fly, tyres leave skid
-marks, and explosions bloom into fireballs and smoke columns. The Sol Line's passenger and freight trains run
-their timetable; board one at a platform with F, or climb into the cab and drive it. Weapons, the police,
-missions and the rest are still to come; [PORTING.md](PORTING.md) has the plan and the progress.
+marks, and explosions bloom into fireballs and smoke columns. Crimes bring the police: witnessed crimes
+raise the stars, patrol cars turn into pursuers that ram you, cops shoot or come to arrest you, and at three
+stars the helicopter circles overhead with its searchlight. Stay out of sight long enough and they give up. The Sol Line's passenger and freight trains run
+their timetable; board one at a platform with F, or climb into the cab and drive it. Missions, roadblocks, the army
+and the rest are still to come; [PORTING.md](PORTING.md) has the plan and the progress.
 
 ## Build and run
 
@@ -100,6 +102,7 @@ Source/AutoTheftGrand/Private/Game/   the Unreal side: draws the simulation and 
   ATGPerson         draws a simulated person: that mesh on a poseable component that copies the pose's bones
   ATGEffects        draws the effects: particles as camera-facing quads, decals, skid marks, tracers, the flash
                     lights, and debris
+  ATGPoliceHeli     draws the police helicopter: body, rotors, the searchlight's cone and spot light
   ATGPlayerController  keyboard, mouse and gamepad into the simulation's input; shows its camera
   ATGGameMode       runs the simulation each frame and keeps an actor for each of its vehicles and people
   ATGHUD            the HUD: the GTA V style minimap (turning with the camera, blips, police flashes and
@@ -121,18 +124,21 @@ Unreal's axes (centimetres, Z up) only at the edges; `Game/ATGCoords.h` has the 
 `Tools/build.sh` builds the editor target from Git Bash. `Tools/run.sh Tools/tests/smoke.txt` runs the game off
 screen with fixed 1/30 s frames and a script of console commands (`ATG.Teleport`, `ATG.Press KeyW`,
 `ATG.Spawn zenith`, `ATG.Enter`, `ATG.Time 21`, `ATG.State`, `ATG.City`, `ATG.Station union`, `ATG.Kill`,
-`ATG.Bust`, `ATG.Explode`, `ATG.Wreck`, `ATG.Fx`, `ATG.Give rpg 5`, `ATG.Press MouseRight MouseLeft`, `shot name`,
+`ATG.Bust`, `ATG.Explode`, `ATG.Wreck`, `ATG.Fx`, `ATG.Give rpg 5`, `ATG.Wanted 3`, `ATG.NoBust 1`, `ATG.Police`,
+`ATG.CamHeli`, `ATG.Press MouseRight MouseLeft`, `shot name`,
 `wait 2`, `quit`); screenshots go to `Saved/Screenshots/WindowsEditor/ATG/`. `Tools/tests/city.txt` and
 `city2.txt` look at the traffic, the people, the traffic lights and the trains; `human.txt` at a person
 up close, walking and running; `wasted.txt` at WASTED and BUSTED; `effects.txt` at an explosion and a burning
-car; `hud.txt` at the HUD on foot and in a car; `combat.txt` at aiming, shooting and the RPG.
+car; `hud.txt` at the HUD on foot and in a car; `combat.txt` at aiming, shooting and the RPG; `police.txt` at a
+pursuit and the helicopter by night and by day.
 
 The simulation is tested without Unreal. `Tools/native.sh` builds a tool with MSVC from Git Bash:
 
 ```bash
 cd Tools
 ./native.sh simtest.exe simtest.cpp && ./simtest.exe          # walking, driving, crashes, parked cars,
-                                                               # traffic and people, trains, boarding
+                                                               # traffic and people, trains, boarding,
+                                                               # WASTED, effects, combat, police
 DEBUG=1 ./native.sh simtestd.exe simtest.cpp                   # with symbols: a crash prints a stack trace
 ./simtest.exe vehcompare > cppveh.txt                          # the car physics against the browser game's:
 node --import ./three-hook.mjs vehcompare.mjs > jsveh.txt      # identical to 4 decimals

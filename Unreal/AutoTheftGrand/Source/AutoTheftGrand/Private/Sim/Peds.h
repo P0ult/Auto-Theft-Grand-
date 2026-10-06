@@ -60,6 +60,12 @@ public:
 	double moneyDrop = 0;
 	// street crime (npccrime.js) keeps its state here
 	bool crimeTask = false, npcCase = false;
+	void* npcTask = nullptr;              // (a cop answering an NPC crime call: npccrime.js's record)
+	bool criminal = false;                // (vigilante targets: killing them is no crime)
+	// police (police.js): the car a cop came in, the spot a roadblock cop holds, when they next shout
+	Ref<Vehicle> homeCar;
+	bool hasHoldPos = false; V3 holdPos;
+	double lineT = NaN();
 	std::map<std::string, double> num;    // (free slots for systems that hang their own numbers on a person)
 	std::map<std::string, std::string> str;
 

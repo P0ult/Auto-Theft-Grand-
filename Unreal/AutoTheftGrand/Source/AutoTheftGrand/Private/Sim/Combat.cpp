@@ -3,6 +3,7 @@
 #include "Effects.h"
 #include "Game.h"
 #include "Peds.h"
+#include "Police.h"
 #include "Ragdoll.h"
 
 namespace atg {
@@ -86,7 +87,11 @@ bool Combat::raycast(double ox, double oy, double oz, double dx, double dy, doub
 			has = true;
 		}
 	}
-	// (the police helicopter and the animals join the ray once they are ported)
+	double ht;
+	if (game.police && game.police->heliRay(ox, oy, oz, dx, dy, dz, has ? best.t : maxT, ht)) {
+		best = CombatHit(); best.t = ht; best.kind = CombatHit::Heli; best.normal = V3(-dx, -dy, -dz); has = true;
+	}
+	// (the animals join the ray with the wildlife)
 	if (has) best.point = V3(ox + dx * best.t, oy + dy * best.t, oz + dz * best.t);
 	return has;
 }
@@ -161,6 +166,11 @@ void Combat::applyHit(const CombatHit& hit, const WeaponDef& defIn, Character* s
 		// tyres and fuel: a small chance to ignite when already damaged
 		if (v->health < 250 && Rand() < 0.05 && !v->def.tank) v->health = 0;
 		game.events.vehicleShot.emit(v, shooter, hit.point);
+	} else if (hit.kind == CombatHit::Heli) {
+		game.police->heliHit(def.damage * (isPlayer ? 1 : 0.3));
+		if (fx) fx->impact(hit.point, hit.normal, "metal");
+		game.soundAt("bulletmetal", hit.point, 0.5);
+		if (isPlayer) if (Police* pol = game.policeSys) pol->crime(0.3, hit.point, true);
 	} else {
 		const std::string kind = hit.obj && hit.obj->kind == CollObj::Circle ? "metal" : "concrete";
 		if (fx) fx->impact(hit.point, hit.normal, kind);
@@ -321,7 +331,7 @@ void Combat::fireProjectile(Character* shooter, const std::string& kind, const V
 	p.vel = dir * o.speed;
 	if (o.hasInherit) p.vel = p.vel + o.inherit * 0.9;
 	p.radius = o.radius; p.damage = o.damage; p.gravity = o.gravity; p.life = o.life;
-	p.target = Ref<Vehicle>(o.target); p.turn = o.turn; p.accel = o.accel; p.maxSpeed = o.maxSpeed;
+	p.target = Ref<Vehicle>(o.target); p.targetHeli = o.targetHeli; p.turn = o.turn; p.accel = o.accel; p.maxSpeed = o.maxSpeed;
 	projectiles.push_back(p);
 	if (game.effects) game.effects->muzzleFlash(pos, dir, true);
 	if (kind != "shell") game.soundAt("rpg", pos, 0.9);
@@ -329,9 +339,17 @@ void Combat::fireProjectile(Character* shooter, const std::string& kind, const V
 }
 
 // the best homing target in a narrow cone ahead: occupied vehicles and aircraft (and the police helicopter)
-Vehicle* Combat::lockTarget(const V3& from, const V3& dir, Vehicle* exclude, double maxDist) {
+Vehicle* Combat::lockTarget(const V3& from, const V3& dir, Vehicle* exclude, double maxDist, bool* heli) {
 	Vehicle* best = nullptr;
 	double bs = -kInf;
+	bool bestHeli = false;
+	V3 hp;
+	if (game.police && game.police->heliAlive(hp)) {
+		const double dx = hp.x - from.x, dy = hp.y - from.y, dz = hp.z - from.z;
+		const double d = Hypot3(dx, dy, dz);
+		const double c = (dx * dir.x + dy * dir.y + dz * dir.z) / d;
+		if (d >= 15 && d <= maxDist && c >= 0.97) { bs = c * 2 - d / maxDist; bestHeli = true; }
+	}
 	for (const auto& vp : game.vehicles.list) {
 		Vehicle* v = vp.get();
 		if (v == exclude || v->removed || v->isWrecked()) continue;
@@ -343,8 +361,9 @@ Vehicle* Combat::lockTarget(const V3& from, const V3& dir, Vehicle* exclude, dou
 		const double c = (dx * dir.x + dy * dir.y + dz * dir.z) / d;
 		if (c < 0.97) continue;
 		const double score = c * 2 - d / maxDist;
-		if (score > bs) { bs = score; best = v; }
+		if (score > bs) { bs = score; best = v; bestHeli = false; }
 	}
+	if (heli) *heli = bestHeli;
 	return best;
 }
 
@@ -416,8 +435,10 @@ void Combat::update(double dt) {
 			// homing: steer toward the locked target, speed up to the motor's max
 			Vehicle* tg = pr.target.get();
 			bool near = false;
-			if (tg && !tg->removed && !tg->exploded) {
-				V3 tp = tg->def.aircraft ? tg->cgPoint() : V3(tg->pos.x, tg->pos.y + tg->def.H / 2, tg->pos.z);
+			V3 heliPos;
+			const bool heliTg = pr.targetHeli && game.police && game.police->heliAlive(heliPos);
+			if (heliTg || (tg && !tg->removed && !tg->exploded)) {
+				V3 tp = heliTg ? heliPos : tg->def.aircraft ? tg->cgPoint() : V3(tg->pos.x, tg->pos.y + tg->def.H / 2, tg->pos.z);
 				V3 want = tp - pr.pos;
 				near = want.length() < 3.5;
 				want = want.normalized();
@@ -437,8 +458,9 @@ void Combat::update(double dt) {
 				const Projectile done = pr;
 				projectiles.erase(projectiles.begin() + i);
 				explosion(h ? hit.point : done.pos, done.radius, done.damage, done.owner.get());
-				Vehicle* hv = h && hit.kind == CombatHit::Vehicle_ ? hit.veh : near && tg ? tg : nullptr;
+				Vehicle* hv = h && hit.kind == CombatHit::Vehicle_ ? hit.veh : near && tg && !heliTg ? tg : nullptr;
 				if (hv) { if (hv->def.tank) hv->damage(900, done.owner.get()); else hv->health = Min(hv->health, -1); if (hv->def.aircraft) hv->explode(); }
+				if ((h && hit.kind == CombatHit::Heli) || (near && heliTg)) game.police->heliHit(9999);
 				continue;
 			}
 			pr.pos = pr.pos + pr.vel * dt;

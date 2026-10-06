@@ -17,7 +17,7 @@ double BlastScale(const VehicleDef& def);
 
 struct CombatHit {
 	double t = 0;
-	enum Kind { Static, Char, Vehicle_ } kind = Static;
+	enum Kind { Static, Char, Vehicle_, Heli } kind = Static; // (Heli: the police helicopter)
 	CollObj* obj = nullptr;
 	Character* ch = nullptr;
 	Vehicle* veh = nullptr;
@@ -41,6 +41,7 @@ public:
 		double radius = 8, damage = 220, gravity = 0, life = 5, turn = 0, accel = 0, maxSpeed = 0, spin = 0;
 		double scale = 1; // (the mesh: 1.8 for rockets from vehicles)
 		Ref<Vehicle> target;
+		bool targetHeli = false; // (homing on the police helicopter)
 	};
 	std::vector<Projectile> projectiles;
 	struct Fire { double x, y, z, r, t, life; Ref<Character> owner; double tick; };
@@ -57,9 +58,10 @@ public:
 	void explosion(const V3& pos, double radius, double damage, Character* source = nullptr, Vehicle* excludeVehicle = nullptr, const ExplosionOpts& opts = ExplosionOpts());
 	void fireRocket(Character* shooter, const V3& origin, const V3& aimDir);
 	void vehicleGun(Character* shooter, const V3& muzzle, const V3& dir, const WeaponDef& def);
-	struct ProjectileOpts { double speed = 80; bool hasInherit = false; V3 inherit; double radius = 8, damage = 220, gravity = 0, life = 5, turn = 0, accel = 0, maxSpeed = 0; Vehicle* target = nullptr; };
+	struct ProjectileOpts { double speed = 80; bool hasInherit = false; V3 inherit; double radius = 8, damage = 220, gravity = 0, life = 5, turn = 0, accel = 0, maxSpeed = 0; Vehicle* target = nullptr; bool targetHeli = false; };
 	void fireProjectile(Character* shooter, const std::string& kind, const V3& pos, const V3& dir, const ProjectileOpts& opts = ProjectileOpts());
-	Vehicle* lockTarget(const V3& from, const V3& dir, Vehicle* exclude = nullptr, double maxDist = 1000);
+	// (heli: set when the best target is the police helicopter; the result is then null)
+	Vehicle* lockTarget(const V3& from, const V3& dir, Vehicle* exclude = nullptr, double maxDist = 1000, bool* heli = nullptr);
 	void throwGrenade(Character* thrower, const V3& dir, const std::string& kind) override;
 	void ignite(const V3& pos, Character* owner, double r = 4.2, double life = 9);
 	void update(double dt) override;

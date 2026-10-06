@@ -31,6 +31,7 @@ private:
 	UPROPERTY(Transient) TArray<TObjectPtr<AATGPerson>> People;
 	UPROPERTY(Transient) TObjectPtr<USpotLightComponent> Headlight;
 	UPROPERTY(Transient) TObjectPtr<AATGEffects> Effects = nullptr;
+	UPROPERTY(Transient) TObjectPtr<class AATGPoliceHeli> PoliceHeli = nullptr;
 	bool bStarted = false;
 	void StartGame();
 	void Frame(double Dt);

@@ -3,6 +3,7 @@
 #include "Game/ATGCar.h"
 #include "Game/ATGCoords.h"
 #include "Game/ATGEffects.h"
+#include "Game/ATGPoliceHeli.h"
 #include "Game/ATGHUD.h"
 #include "Game/ATGPerson.h"
 #include "Game/ATGPlayerController.h"
@@ -115,6 +116,8 @@ void AATGGameMode::SyncViews(float Dt) {
 	World->SetDeathLook(G->post.desat, G->post.death, G->post.deathBoost);
 	if (!Effects) { FActorSpawnParameters P; P.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn; Effects = W->SpawnActor<AATGEffects>(AATGEffects::StaticClass(), FTransform::Identity, P); }
 	if (Effects) Effects->Sync(G);
+	if (!PoliceHeli) { FActorSpawnParameters P; P.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn; PoliceHeli = W->SpawnActor<AATGPoliceHeli>(AATGPoliceHeli::StaticClass(), FTransform::Identity, P); }
+	if (PoliceHeli) PoliceHeli->Sync(G);
 	// the world streams round the player
 	atg::Player& Pl = *G->player;
 	World->SetFocus(ATG::ToUE(Pl.vehicle ? Pl.vehicle->pos : Pl.pos));

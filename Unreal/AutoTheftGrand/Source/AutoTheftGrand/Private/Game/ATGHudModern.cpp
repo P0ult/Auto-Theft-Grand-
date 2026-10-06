@@ -196,8 +196,12 @@ void AATGHUD::DrawMinimap(atg::Game* G, AATGWorld* W, float Dt, float Left, floa
 		for (const auto& k : Cones) {
 			const P2 r = toRadar(k.x, k.z);
 			const float a = (float)(k.yaw - fy), L = (float)k.len * scale;
-			TArray<P2> Pts = { P2(C + r.X, CY + r.Y) };
-			for (int kk = -6; kk <= 6; kk++) { const float t = a + kk / 6.f * (float)k.wide; Pts.Add(P2(C + r.X - FMath::Sin(t) * L, CY + r.Y - FMath::Cos(t) * L)); }
+			// (a full circle for the helicopter: wide = pi)
+			const bool Round = k.wide >= 3.14;
+			const int N = Round ? 24 : 6;
+			TArray<P2> Pts;
+			if (!Round) Pts.Add(P2(C + r.X, CY + r.Y));
+			for (int kk = -N; kk <= (Round ? N - 1 : N); kk++) { const float t = a + kk / (float)N * (float)k.wide; Pts.Add(P2(C + r.X - FMath::Sin(t) * L, CY + r.Y - FMath::Cos(t) * L)); }
 			const TArray<P2> Clipped = ClipPoly(Pts, Shape);
 			if (Clipped.Num() < 3) continue;
 			c.BeginPath(); c.MoveTo(Clipped[0].X, Clipped[0].Y); for (int32 i = 1; i < Clipped.Num(); i++) c.LineTo(Clipped[i].X, Clipped[i].Y); c.ClosePath(); c.FillPath();
