@@ -1,9 +1,10 @@
 // Procedural audio (port of src/game/audio.js): synthesized SFX, vehicle engines, ambience and radio.
-// Uses runtime synthesis with UGameplayStatics for playback.
+// Uses USoundWaveProcedural with QueueAudio for runtime synthesis.
 #pragma once
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "Sound/SoundWaveProcedural.h"
 #include "ATGCoords.h"
 #include "ATGAudio.generated.h"
 
@@ -28,8 +29,9 @@ private:
 	UPROPERTY() class UAudioComponent* AudioComponent;
 	UPROPERTY() class UAudioComponent* VehicleEngineComponent;
 	UPROPERTY() class UAudioComponent* AmbienceComponent;
-	UPROPERTY() class USoundWave* VehicleEngineSound;
-	UPROPERTY() class USoundWave* AmbienceSound;
+	UPROPERTY() class USoundWaveProcedural* EngineSoundWave;
+	UPROPERTY() class USoundWaveProcedural* AmbienceSoundWave;
+	UPROPERTY() class USoundWaveProcedural* SFXSoundWave;
 	
 	class atg::IAudio* AudioInterface = nullptr;
 	bool bInit = false;
@@ -74,11 +76,45 @@ private:
 	void UpdateVehicleAudio(float Dt, atg::Game* G);
 	void UpdateAmbience(float Dt, atg::Game* G);
 	void UpdateMuffle(float Dt);
+	void UpdateSFX(float Dt);
+	void PumpAudio();
 	
-	// Sound generation
+	// Procedural sound generation (queue-based)
 	void SynthesizeAndPlay(const FString& Name, float Vol, const FVector* Pos);
 	void GenerateTone(float Frequency, float Duration, float Volume, const FVector* Pos);
 	void GenerateNoiseBurst(float Duration, float Volume, const FVector* Pos);
 	void GenerateExplosionSound(float Duration, float Volume, const FVector* Pos);
 	void PlayWastedStinger();
+	
+	// Engine synthesis state
+	double EnginePhase = 0.0;
+	double EngineNoisePhase = 0.0;
+	
+	// Ambience synthesis state
+	double CityPhase = 0.0;
+	double WavePhase = 0.0;
+	double RainPhase = 0.0;
+	
+	// SFX synthesis - queued for game-thread generation
+	struct SFXInstance {
+		FString Name;
+		float Duration;
+		float Volume;
+		FVector Pos;
+		double Elapsed = 0.0;
+		double Phase = 0.0;
+		float Frequency = 440.0f;
+		bool bActive = false;
+	};
+	TArray<SFXInstance> ActiveSFX;
+	
+	// Audio buffers for queueing
+	TArray<uint8> EngineAudioBuffer;
+	TArray<uint8> AmbienceAudioBuffer;
+	TArray<uint8> SFXAudioBuffer;
+	
+	// Generate audio data for queueing (called from game thread)
+	void GenerateEngineAudioData(float Dt);
+	void GenerateAmbienceAudioData(float Dt);
+	void GenerateSFXAudioData(float Dt);
 };

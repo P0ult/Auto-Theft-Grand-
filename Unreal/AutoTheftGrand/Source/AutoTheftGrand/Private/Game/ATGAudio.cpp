@@ -1,7 +1,10 @@
+// Procedural audio (port of src/game/audio.js): synthesized SFX, vehicle engines, ambience and radio.
+// Uses USoundWaveProcedural with QueueAudio for runtime synthesis.
 #include "Game/ATGAudio.h"
 #include "Sim/Game.h"
 #include "Sim/Vehicle.h"
 #include "Components/AudioComponent.h"
+#include "Sound/SoundWaveProcedural.h"
 #include "Engine/World.h"
 #include "Kismet/GameplayStatics.h"
 #include "Math/UnrealMathUtility.h"
@@ -78,6 +81,48 @@ void AATGAudio::Init() {
 
 	// AudioComponent volume
 	AudioComponent->SetVolumeMultiplier(MasterVolume);
+
+	// Create procedural sound waves
+	EngineSoundWave = NewObject<USoundWaveProcedural>(this, TEXT("EngineSoundWave"));
+	EngineSoundWave->NumChannels = 1;
+	EngineSoundWave->Duration = INDEFINITELY_LOOPING_DURATION;
+	EngineSoundWave->SoundGroup = ESoundGroup::SOUNDGROUP_Default;
+	EngineSoundWave->bLooping = true;
+	EngineSoundWave->SampleByteSize = 2; // 16-bit
+	
+	AmbienceSoundWave = NewObject<USoundWaveProcedural>(this, TEXT("AmbienceSoundWave"));
+	AmbienceSoundWave->NumChannels = 2;
+	AmbienceSoundWave->Duration = INDEFINITELY_LOOPING_DURATION;
+	AmbienceSoundWave->SoundGroup = ESoundGroup::SOUNDGROUP_Default;
+	AmbienceSoundWave->bLooping = true;
+	AmbienceSoundWave->SampleByteSize = 2;
+	
+	SFXSoundWave = NewObject<USoundWaveProcedural>(this, TEXT("SFXSoundWave"));
+	SFXSoundWave->NumChannels = 2;
+	SFXSoundWave->Duration = INDEFINITELY_LOOPING_DURATION;
+	SFXSoundWave->SoundGroup = ESoundGroup::SOUNDGROUP_Default;
+	SFXSoundWave->bLooping = true;
+	SFXSoundWave->SampleByteSize = 2;
+
+	// Pre-allocate audio buffers (enough for ~200ms at 48kHz)
+	const int32 BufferSamples = 9600;
+	EngineAudioBuffer.SetNum(BufferSamples * 1 * 2); // 1 channel, 16-bit
+	AmbienceAudioBuffer.SetNum(BufferSamples * 2 * 2); // 2 channels, 16-bit
+	SFXAudioBuffer.SetNum(BufferSamples * 2 * 2); // 2 channels, 16-bit
+
+	// Start playing procedural sounds
+	if (VehicleEngineComponent && EngineSoundWave) {
+		VehicleEngineComponent->SetSound(EngineSoundWave);
+		VehicleEngineComponent->Play();
+	}
+	if (AmbienceComponent && AmbienceSoundWave) {
+		AmbienceComponent->SetSound(AmbienceSoundWave);
+		AmbienceComponent->Play();
+	}
+	if (AudioComponent && SFXSoundWave) {
+		AudioComponent->SetSound(SFXSoundWave);
+		AudioComponent->Play();
+	}
 }
 
 void AATGAudio::Sync(atg::Game* G) {
@@ -92,6 +137,7 @@ void AATGAudio::Sync(atg::Game* G) {
 
 	const float Dt = GetWorld() ? GetWorld()->GetDeltaSeconds() : 0.016f;
 	Update(Dt, G);
+	PumpAudio();
 }
 
 void AATGAudio::Update(float Dt, atg::Game* G) {
@@ -100,6 +146,15 @@ void AATGAudio::Update(float Dt, atg::Game* G) {
 	UpdateVehicleAudio(Dt, G);
 	UpdateAmbience(Dt, G);
 	UpdateMuffle(Dt);
+	UpdateSFX(Dt);
+}
+
+void AATGAudio::PumpAudio() {
+	// Generate and queue audio data
+	const float Dt = GetWorld() ? GetWorld()->GetDeltaSeconds() : 0.016f;
+	GenerateEngineAudioData(Dt);
+	GenerateAmbienceAudioData(Dt);
+	GenerateSFXAudioData(Dt);
 }
 
 void AATGAudio::UpdateListener(atg::Game* G) {
@@ -155,14 +210,6 @@ void AATGAudio::UpdateVehicleAudio(float Dt, atg::Game* G) {
 		}
 		
 		VehAudio.EngineGain = 0.13f + V->input.throttle * 0.12f;
-		
-		// Generate engine tone
-		if (VehicleEngineComponent && VehAudio.EngineGain > 0.01f) {
-			float EngineFreq = FMath::Clamp(BaseFreq, 50.0f, 500.0f);
-			VehicleEngineComponent->SetVolumeMultiplier(VehAudio.EngineGain * MasterVolume);
-			// In a full implementation, we'd synthesize the engine sound here
-			// For now, just update the gain
-		}
 		
 		// Tire noise
 		float Skid = V->skid ? FMath::Clamp(V->slipRear / 8.0f + V->wheelspin, 0.2f, 1.0f) : 0.0f;
@@ -227,8 +274,17 @@ void AATGAudio::UpdateAmbience(float Dt, atg::Game* G) {
 	}
 }
 
+void AATGAudio::UpdateSFX(float Dt) {
+	for (int32 i = ActiveSFX.Num() - 1; i >= 0; --i) {
+		SFXInstance& SFX = ActiveSFX[i];
+		SFX.Elapsed += Dt;
+		if (SFX.Elapsed >= SFX.Duration) {
+			ActiveSFX.RemoveAt(i);
+		}
+	}
+}
+
 void AATGAudio::SynthesizeAndPlay(const FString& Name, float Vol, const FVector* Pos) {
-	// Simple procedural sound generation
 	if (Name == "pistol") {
 		GenerateTone(900.0f, 0.18f, Vol * 0.5f, Pos);
 	} else if (Name == "rifle" || Name == "sniper") {
@@ -248,33 +304,212 @@ void AATGAudio::SynthesizeAndPlay(const FString& Name, float Vol, const FVector*
 	} else if (Name == "wasted") {
 		PlayWastedStinger();
 	} else {
-		// Default simple tone
 		GenerateTone(440.0f, 0.2f, Vol * 0.3f, Pos);
 	}
 }
 
 void AATGAudio::GenerateTone(float Frequency, float Duration, float Volume, const FVector* Pos) {
-	// Simple tone generation using a temporary sound
-	// In a real implementation, this would use USoundWaveProcedural or MetaSounds
-	// For now, we just log and use a placeholder
-	if (Pos) {
-		// Play at location - in practice would use a procedural sound
-		UE_LOG(LogTemp, Verbose, TEXT("Play tone at %s: %.0f Hz for %.2fs"), *Pos->ToString(), Frequency, Duration);
-	} else {
-		UE_LOG(LogTemp, Verbose, TEXT("Play tone: %.0f Hz for %.2fs"), Frequency, Duration);
-	}
+	SFXInstance SFX;
+	SFX.Name = "tone";
+	SFX.Duration = Duration;
+	SFX.Volume = Volume;
+	SFX.Pos = Pos ? *Pos : FVector::ZeroVector;
+	SFX.Phase = 0.0;
+	SFX.Frequency = Frequency;
+	SFX.bActive = true;
+	ActiveSFX.Add(SFX);
 }
 
 void AATGAudio::GenerateNoiseBurst(float Duration, float Volume, const FVector* Pos) {
-	UE_LOG(LogTemp, Verbose, TEXT("Play noise burst: %.2fs"), Duration);
+	SFXInstance SFX;
+	SFX.Name = "noise";
+	SFX.Duration = Duration;
+	SFX.Volume = Volume;
+	SFX.Pos = Pos ? *Pos : FVector::ZeroVector;
+	SFX.bActive = true;
+	ActiveSFX.Add(SFX);
 }
 
 void AATGAudio::GenerateExplosionSound(float Duration, float Volume, const FVector* Pos) {
-	UE_LOG(LogTemp, Verbose, TEXT("Play explosion: %.2fs"), Duration);
+	SFXInstance SFX;
+	SFX.Name = "explosion";
+	SFX.Duration = Duration;
+	SFX.Volume = Volume;
+	SFX.Pos = Pos ? *Pos : FVector::ZeroVector;
+	SFX.bActive = true;
+	ActiveSFX.Add(SFX);
 }
 
 void AATGAudio::PlayWastedStinger() {
-	UE_LOG(LogTemp, Verbose, TEXT("Play WASTED stinger"));
+	GenerateTone(300.0f, 2.0f, 0.8f, nullptr);
+	GenerateTone(250.0f, 1.5f, 0.6f, nullptr);
+	GenerateTone(200.0f, 1.0f, 0.4f, nullptr);
+}
+
+// --- Audio generation for queueing (game thread) ---
+
+void AATGAudio::GenerateEngineAudioData(float Dt) {
+	if (!EngineSoundWave) return;
+	
+	const int32 SampleRate = 48000;
+	const int32 NumChannels = 1;
+	const int32 BytesPerSample = 2;
+	const int32 NumSamples = 9600; // 200ms buffer
+	
+	if (EngineAudioBuffer.Num() != NumSamples * NumChannels * BytesPerSample) {
+		EngineAudioBuffer.SetNum(NumSamples * NumChannels * BytesPerSample);
+	}
+	
+	int16* Samples = reinterpret_cast<int16*>(EngineAudioBuffer.GetData());
+	
+	for (int32 i = 0; i < NumSamples; ++i) {
+		float Sample = 0.0f;
+		const float SampleDt = 1.0f / SampleRate;
+		
+		if (VehAudio.EngineGain > 0.001f) {
+			float BaseFreq = (VehAudio.RPM / 60.0f) * 0.5f;
+			
+			float Harmonic1 = FMath::Sin(EnginePhase * 2.0f * PI) * 0.6f;
+			float Harmonic2 = FMath::Sin(EnginePhase * 4.0f * PI) * 0.3f;
+			float Harmonic3 = FMath::Sin(EnginePhase * 6.0f * PI) * 0.15f;
+			float Harmonic4 = FMath::Sin(EnginePhase * 8.0f * PI) * 0.08f;
+			
+			EngineNoisePhase += SampleDt * 5000.0f;
+			float Noise = (FMath::FRand() * 2.0f - 1.0f) * 0.1f;
+			
+			Sample = (Harmonic1 + Harmonic2 + Harmonic3 + Harmonic4 + Noise) * VehAudio.EngineGain;
+			
+			EnginePhase += BaseFreq * SampleDt;
+			if (EnginePhase > 1.0) EnginePhase -= 1.0;
+		}
+		
+		// Tire noise
+		if (VehAudio.TireGain > 0.001f) {
+			float TireNoise = (FMath::FRand() * 2.0f - 1.0f) * VehAudio.TireGain * 0.5f;
+			Sample += TireNoise;
+		}
+		
+		// Wind noise
+		if (VehAudio.WindGain > 0.001f) {
+			float WindNoise = (FMath::FRand() * 2.0f - 1.0f) * VehAudio.WindGain * 0.3f;
+			Sample += WindNoise;
+		}
+		
+		// Horn
+		if (VehAudio.HornGain > 0.001f) {
+			Sample += FMath::Sin(EnginePhase * 2.0f * PI) * VehAudio.HornGain;
+		}
+		
+		// Apply lowpass for muffled effect
+		if (MuffleTarget < 20000.0f) {
+			static float LastSample = 0.0f;
+			float Alpha = FMath::Clamp(MuffleTarget / 20000.0f, 0.0f, 1.0f);
+			Sample = LastSample * (1.0f - Alpha) + Sample * Alpha;
+			LastSample = Sample;
+		}
+		
+		Sample = FMath::Clamp(Sample * MasterVolume, -1.0f, 1.0f);
+		Samples[i] = int16(Sample * 32767.0f);
+	}
+	
+	EngineSoundWave->QueueAudio(EngineAudioBuffer.GetData(), EngineAudioBuffer.Num());
+}
+
+void AATGAudio::GenerateAmbienceAudioData(float Dt) {
+	if (!AmbienceSoundWave) return;
+	
+	const int32 SampleRate = 48000;
+	const int32 NumChannels = 2;
+	const int32 BytesPerSample = 2;
+	const int32 NumSamples = 9600; // 200ms buffer
+	
+	if (AmbienceAudioBuffer.Num() != NumSamples * NumChannels * BytesPerSample) {
+		AmbienceAudioBuffer.SetNum(NumSamples * NumChannels * BytesPerSample);
+	}
+	
+	int16* Samples = reinterpret_cast<int16*>(AmbienceAudioBuffer.GetData());
+	const float SampleDt = 1.0f / SampleRate;
+	
+	for (int32 i = 0; i < NumSamples; ++i) {
+		// City ambience - low rumble
+		CityPhase += SampleDt * 60.0f;
+		if (CityPhase > 1.0) CityPhase -= 1.0;
+		float CityRumble = FMath::Sin(CityPhase * 2.0f * PI) * 0.15f;
+		CityRumble += (FMath::FRand() * 2.0f - 1.0f) * 0.1f;
+		
+		// Waves - low frequency noise
+		WavePhase += SampleDt * 0.5f;
+		if (WavePhase > 1.0) WavePhase -= 1.0;
+		float WaveSound = FMath::Sin(WavePhase * 2.0f * PI) * 0.2f;
+		WaveSound += (FMath::FRand() * 2.0f - 1.0f) * 0.15f;
+		
+		// Rain - white noise
+		RainPhase += SampleDt * 1000.0f;
+		if (RainPhase > 1.0) RainPhase -= 1.0;
+		float RainSound = (FMath::FRand() * 2.0f - 1.0f) * 0.2f;
+		
+		float SampleL = (CityRumble + WaveSound + RainSound) * 0.3f;
+		float SampleR = (CityRumble + WaveSound + RainSound) * 0.3f;
+		
+		SampleL = FMath::Clamp(SampleL * MasterVolume, -1.0f, 1.0f);
+		SampleR = FMath::Clamp(SampleR * MasterVolume, -1.0f, 1.0f);
+		
+		Samples[i * 2] = int16(SampleL * 32767.0f);
+		Samples[i * 2 + 1] = int16(SampleR * 32767.0f);
+	}
+	
+	AmbienceSoundWave->QueueAudio(AmbienceAudioBuffer.GetData(), AmbienceAudioBuffer.Num());
+}
+
+void AATGAudio::GenerateSFXAudioData(float Dt) {
+	if (!SFXSoundWave) return;
+	
+	const int32 SampleRate = 48000;
+	const int32 NumChannels = 2;
+	const int32 BytesPerSample = 2;
+	const int32 NumSamples = 9600; // 200ms buffer
+	
+	if (SFXAudioBuffer.Num() != NumSamples * NumChannels * BytesPerSample) {
+		SFXAudioBuffer.SetNum(NumSamples * NumChannels * BytesPerSample);
+	}
+	
+	int16* Samples = reinterpret_cast<int16*>(SFXAudioBuffer.GetData());
+	
+	// Clear buffer
+	FMemory::Memzero(Samples, NumSamples * NumChannels * BytesPerSample);
+	
+	const float SampleDt = 1.0f / SampleRate;
+	
+	// Process active SFX
+	for (SFXInstance& SFX : ActiveSFX) {
+		for (int32 i = 0; i < NumSamples; ++i) {
+			float t = SFX.Elapsed + i * SampleDt;
+			if (t > SFX.Duration) continue;
+			
+			float Sample = 0.0f;
+			float Envelope = 1.0f - FMath::Pow(t / SFX.Duration, 2.0f);
+			
+			if (SFX.Name == "tone") {
+				SFX.Phase += SFX.Frequency * SampleDt;
+				if (SFX.Phase > 1.0) SFX.Phase -= 1.0;
+				Sample = FMath::Sin(SFX.Phase * 2.0f * PI) * Envelope;
+			}
+			else if (SFX.Name == "noise") {
+				Sample = (FMath::FRand() * 2.0f - 1.0f) * Envelope;
+			}
+			else if (SFX.Name == "explosion") {
+				float Rumble = FMath::Sin(t * 80.0f * 2.0f * PI) * 0.5f;
+				float Noise = (FMath::FRand() * 2.0f - 1.0f) * 0.5f;
+				Sample = (Rumble + Noise) * Envelope;
+			}
+			
+			Sample *= SFX.Volume * 0.5f;
+			Samples[i * 2] = int16(FMath::Clamp(Samples[i * 2] / 32767.0f + Sample, -1.0f, 1.0f) * 32767.0f);
+			Samples[i * 2 + 1] = int16(FMath::Clamp(Samples[i * 2 + 1] / 32767.0f + Sample, -1.0f, 1.0f) * 32767.0f);
+		}
+	}
+	
+	SFXSoundWave->QueueAudio(SFXAudioBuffer.GetData(), SFXAudioBuffer.Num());
 }
 
 void AATGAudio::PlaySound(const FString& Name, float Vol, const FVector* Pos) {
