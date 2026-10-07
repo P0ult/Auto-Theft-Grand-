@@ -13,7 +13,7 @@ UCLASS()
 class AATGAudio : public AActor {
 	GENERATED_BODY()
 public:
-	AATGAudio();
+	AATGAudio(const FObjectInitializer& ObjectInitializer);
 	void Sync(atg::Game* G);
 	atg::IAudio* GetInterface() { return AudioInterface; }
 

@@ -44,6 +44,12 @@ public:
 	std::vector<Skid> skids; int nextSkid = 0; int skidVersion = 0;
 	struct SkidLast { double x, y, z, t; };
 	std::map<std::string, SkidLast> skidLast;
+	// boat wakes (WakeTrails): quads on the water behind boats, each spreading and fading over 9 s (a ring of 900)
+	struct Wake { V3 a0, a1, b1, b0; double born = -1e4, strength = 0; };
+	std::vector<Wake> wakes; int nextWake = 0;
+	struct WakeLast { double x, y, z, w, t; };
+	std::map<int, WakeLast> wakeLast;
+	double wakeTime = 0;
 	// tracers: a short streak from the muzzle (a ring of 64)
 	struct Tracer { bool live = false; V3 a, b; double t = 0; };
 	std::vector<Tracer> tracers; int nextTracer = 0;
@@ -79,6 +85,8 @@ public:
 	void fire(const V3& pos, double size) override;
 	void tireSmoke(const V3& pos, double amount) override;
 	void skidAdd(const std::string& key, double x, double y, double z, double w, double strength) override;
+	void wakeAdd(int key, double x, double y, double z, double w, double strength) override;
+	void wakeBreak(int key) override { wakeLast.erase(key); }
 	void skidBreak(const std::string& key) override { skidLast.erase(key); }
 	void muzzleFlash(const V3& pos, const V3& dir, bool big) override;
 	void impact(const V3& pos, const V3& normal, const std::string& kind) override;

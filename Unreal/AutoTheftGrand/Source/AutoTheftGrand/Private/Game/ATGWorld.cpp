@@ -10,6 +10,7 @@
 #include "Gen/VehicleModels.h"
 #include "Gen/WeaponModels.h"
 #include "Gen/WorldMeshes.h"
+#include "Sim/Boats.h"
 #include "Sim/Skateparks.h"
 #include "Sim/Game.h"
 #include "Sim/Setup.h"
@@ -376,7 +377,8 @@ void AATGWorld::QueueBuild() {
 			P->SetMaterial(0, MLit);
 		}
 	});
-	// ---- the skateparks' ramps, ledges, walls and lights (skatepark.js: concrete and steel, vertex coloured)
+	// ---- the skateparks' ramps, ledges, walls and lights (skatepark.js: concrete and steel, vertex coloured), and
+	// the pontoons
 	Steps.Add([this, D]() {
 		atg::Skateparks* SP = D->Sim ? dynamic_cast<atg::Skateparks*>(D->Sim->system("skateparks")) : nullptr;
 		if (!SP) return;
@@ -394,6 +396,15 @@ void AATGWorld::QueueBuild() {
 			ATGMesh::ToSection(C, 1, P.metal, false);
 			C->SetMaterial(0, Concrete);
 			C->SetMaterial(1, Steel);
+		}
+		// the marinas' pontoons (boats.js: planks on floats, vertex coloured)
+		if (atg::BoatSystem* BS = dynamic_cast<atg::BoatSystem*>(D->Sim->system("boats"))) {
+			UMaterialInstanceDynamic* Wood = Mat(0.85, 0);
+			for (const atg::MeshBuf& P : BS->pontoons) {
+				UProceduralMeshComponent* C = NewMeshComponent(TEXT("Pontoon"), false);
+				ATGMesh::ToSection(C, 0, P, false);
+				C->SetMaterial(0, Wood);
+			}
 		}
 	});
 	// ---- roads (surfaces and concrete collide; rails don't)

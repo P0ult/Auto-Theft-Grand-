@@ -56,6 +56,7 @@ M4 Effects::Debris::matrix() const { return M4::Compose(pos, Quat::FromEuler(rx,
 Effects::Effects(Game& g) : game(g) {
 	decals.resize(400);
 	skids.resize(1500);
+	wakes.resize(900);
 	tracers.resize(64);
 }
 
@@ -395,8 +396,28 @@ void Effects::skidAdd(const std::string& key, double x, double y, double z, doub
 	skidVersion++;
 }
 
+void Effects::wakeAdd(int key, double x, double y, double z, double w, double strength) {
+	auto it = wakeLast.find(key);
+	const bool had = it != wakeLast.end();
+	const WakeLast prev = had ? it->second : WakeLast{};
+	if (had && Hypot(x - prev.x, z - prev.z) < 0.9) return;
+	wakeLast[key] = { x, y, z, w, wakeTime };
+	if (!had || wakeTime - prev.t > 1) return;
+	const double dx = x - prev.x, dz = z - prev.z, len = Hypot(dx, dz) > 0 ? Hypot(dx, dz) : 1;
+	const double nx = -dz / len, nz = dx / len;
+	Wake& k = wakes[nextWake];
+	nextWake = (nextWake + 1) % (int)wakes.size();
+	// the older end spreads wider than the new end
+	const double w0 = prev.w * 0.5 + 0.6, w1 = w * 0.5;
+	k.a0 = V3(prev.x - nx * w0, y, prev.z - nz * w0); k.a1 = V3(prev.x + nx * w0, y, prev.z + nz * w0);
+	k.b1 = V3(x + nx * w1, y, z + nz * w1); k.b0 = V3(x - nx * w1, y, z - nz * w1);
+	k.born = wakeTime;
+	k.strength = Clamp(strength, 0, 1);
+}
+
 void Effects::update(double dt) {
 	realNow += game.input.frameDt;
+	wakeTime += dt;
 	alphaPool.update(dt);
 	addPool.update(dt);
 	dotAlpha.update(dt);
@@ -498,7 +519,7 @@ void Effects::update(double dt) {
 	if (restoreTimer > 5) {
 		restoreTimer = 0;
 		const V3 p = game.player->pos;
-		for (CollObj* col : game.propColliders) if (col && col->broken && Hypot(col->x - p.x, col->z - p.z) > 250) game.restoreProp(col->prop);
+		for (CollObj* col : game.propColliders) if (col && col->broken && !col->gone && Hypot(col->x - p.x, col->z - p.z) > 250) game.restoreProp(col->prop);
 	}
 }
 

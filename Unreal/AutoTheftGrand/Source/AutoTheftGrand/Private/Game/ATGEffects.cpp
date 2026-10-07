@@ -116,6 +116,18 @@ void AATGEffects::Sync(atg::Game* G) {
 		for (const atg::Effects::Skid& S : Fx->skids) if (S.alpha > 0) Q.Quad(S.a0, S.a1, S.b1, S.b0, Dark, Dark, (float)S.alpha * 0.75f, 2, 1);
 		Q.Flush(Mesh, 4, MAlpha);
 	}
+	// boat wakes: white on the water, fading over 9 s (the browser game's shader breaks them up with noise and
+	// softens the edges; here each quad is a flat white at the trail's average opacity)
+	{
+		FQuads Q;
+		const float White[3] = { 0.95f, 0.95f, 0.95f };
+		for (const atg::Effects::Wake& K : Fx->wakes) {
+			const double A = K.strength * FMath::Clamp(1 - (Fx->wakeTime - K.born) / 9.0, 0.0, 1.0);
+			if (A <= 0.005) continue;
+			Q.Quad(K.a0, K.a1, K.b1, K.b0, White, White, (float)(A * 0.5 * 0.45), 2, Light + 0.1f);
+		}
+		Q.Flush(Mesh, 6, MAlpha);
+	}
 	// tracers: a short glowing streak moving from the muzzle to where the shot went
 	{
 		FQuads Q;

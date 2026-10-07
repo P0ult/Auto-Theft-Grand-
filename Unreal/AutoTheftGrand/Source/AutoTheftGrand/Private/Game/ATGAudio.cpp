@@ -46,20 +46,17 @@ private:
 
 } // namespace atg
 
-AATGAudio::AATGAudio() {
+AATGAudio::AATGAudio(const FObjectInitializer& ObjectInitializer)
+	: Super(ObjectInitializer)
+{
 	PrimaryActorTick.bCanEverTick = true;
 	PrimaryActorTick.bTickEvenWhenPaused = true;
 	
 	AudioComponent = CreateDefaultSubobject<UAudioComponent>(TEXT("AudioComponent"));
+	RootComponent = AudioComponent;
 	AudioComponent->SetupAttachment(RootComponent);
 	AudioComponent->bAutoActivate = true;
-}
-
-void AATGAudio::Init() {
-	if (bInit) return;
-	bInit = true;
-
-	// Create separate components for vehicle engine and ambience
+	
 	VehicleEngineComponent = CreateDefaultSubobject<UAudioComponent>(TEXT("VehicleEngineComponent"));
 	VehicleEngineComponent->SetupAttachment(RootComponent);
 	VehicleEngineComponent->bAutoActivate = true;
@@ -69,12 +66,18 @@ void AATGAudio::Init() {
 	AmbienceComponent->SetupAttachment(RootComponent);
 	AmbienceComponent->bAutoActivate = true;
 	AmbienceComponent->SetVolumeMultiplier(0.0f);
+}
 
-	AudioComponent->SetVolumeMultiplier(MasterVolume);
+void AATGAudio::Init() {
+	if (bInit) return;
+	bInit = true;
 
 	// Initialize envelopes
 	WorldFilterFreq.SetTarget(20000.0f, 5.0f);
 	MusicGain.SetTarget(0.6f * 0.55f, 2.0f);
+
+	// AudioComponent volume
+	AudioComponent->SetVolumeMultiplier(MasterVolume);
 }
 
 void AATGAudio::Sync(atg::Game* G) {
