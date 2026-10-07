@@ -88,7 +88,7 @@ public:
 	// the post-process uniforms the gameplay rules drive (WASTED / BUSTED): desaturation, the death tint, its
 	// night boost and the white flash
 	struct PostFx { double desat = 0, death = 0, deathBoost = 0, flash = 0; } post;
-	struct Stats { double kills = 0, copKills = 0, headshots = 0, carsStolen = 0, carsDestroyed = 0, runOver = 0, wasted = 0, busted = 0, maxWanted = 0, bestDrift = 0, driven = 0, walked = 0, playTime = 0, missions = 0, sprays = 0; } stats;
+	struct Stats { double kills = 0, copKills = 0, headshots = 0, carsStolen = 0, carsDestroyed = 0, runOver = 0, wasted = 0, busted = 0, maxWanted = 0, bestDrift = 0, driven = 0, walked = 0, playTime = 0, missions = 0, sprays = 0, tricks = 0; } stats;
 
 	Environment env;
 	CameraRig rig;

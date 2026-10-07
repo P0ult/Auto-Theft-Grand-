@@ -14,11 +14,13 @@ static const bool GBikeFactory = [] {
 }();
 
 Bike::Bike(Game& g, const std::string& type, double x, double z, double yw, const SpawnOpts& opts) : Vehicle(g, type, x, z, yw, opts) {
-	bike = &BuildBikeModel(def);
-	layout.seats.clear();
-	for (const Pt3& s : bike->seats) layout.seats.push_back({ s[0], s[1], s[2] });
-	layout.doorPos = { bike->doorPos[0], bike->doorPos[1], bike->doorPos[2] };
-	layout.seatHip = bike->seatHip;
+	if (!def.board) { // (a skateboard sets up its own model)
+		bike = &BuildBikeModel(def);
+		layout.seats.clear();
+		for (const Pt3& s : bike->seats) layout.seats.push_back({ s[0], s[1], s[2] });
+		layout.doorPos = { bike->doorPos[0], bike->doorPos[1], bike->doorPos[2] };
+		layout.seatHip = bike->seatHip;
+	}
 	// setup(): lean, the last heading, the pedals, the throw timer
 	lean = 0; yawPrev = yaw; pedalPhase = 0; throwT = 0;
 }
@@ -67,7 +69,7 @@ void Bike::update(double dt) {
 	Vehicle::update(dt);
 	if (removed) return;
 	if (def.offroad) surface = 1; // knobbly tyres don't mind the dirt
-	if (def.pedal && !bike->crank.Empty()) {
+	if (def.pedal && bike && !bike->crank.Empty()) {
 		// the cranks turn with the back wheel while pedalling, and freewheel when coasting
 		if (driver() && input.throttle > 0.05 && speed() > -0.5) pedalPhase += Max(speed(), 2) * dt / 0.62;
 	}

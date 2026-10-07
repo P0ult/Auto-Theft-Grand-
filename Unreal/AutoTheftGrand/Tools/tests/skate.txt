@@ -1,0 +1,39 @@
+# Skateboards: one parked, pushed along, an ollie with a kickflip in the air, and the landing; then the
+# Santa Luz skatepark with its boards and the locals skating laps.
+wait 1
+ATG.God 1
+ATG.Time 14
+ATG.Teleport -612 376 -2.36
+ATG.Spawn skateboard
+wait 1
+ATG.CamAt 1.6 0.8 1.6 0 0.1 0
+wait 0.2
+shot skate_parked
+ATG.CamAt
+ATG.Enter
+wait 1
+ATG.Press KeyW
+wait 2.5
+shot skate_push
+ATG.Press Space
+wait 0.1
+ATG.Release
+ATG.Press KeyA
+wait 0.15
+ATG.Release
+ATG.CamAt 3 1.2 0 0 0.6 0
+wait 0.05
+shot skate_flip
+ATG.CamAt
+wait 1
+shot skate_landed
+ATG.State
+ATG.Enter
+wait 2
+ATG.Teleport -440 632 0
+wait 4
+ATG.CamAt -14 9 -6 0 0 31
+wait 0.3
+shot skate_park
+ATG.CamAt
+quit

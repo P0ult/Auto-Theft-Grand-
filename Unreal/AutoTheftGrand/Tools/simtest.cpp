@@ -18,6 +18,8 @@
 #include "Sim/Rail.h"
 #include "Sim/Roadblocks.h"
 #include "Sim/Setup.h"
+#include "Sim/Skateboard.h"
+#include "Sim/Skateparks.h"
 #include "Sim/Special.h"
 #include "Sim/Traffic.h"
 #include "Sim/WeaponWheel.h"
@@ -1002,16 +1004,18 @@ static void AirCompare(World& w, const std::string& mode) {
 	const double ax = af.x, az = mode == "heli" ? af.z : af.z - 260;
 	g->respawnPlayer(ax + 4, az, 0);
 	Run(*g, 0.5);
-	Vehicle* v = g->vehicles.spawn(mode == "plane" ? "skipper" : mode == "heli" ? "skylark" : "mammoth", ax, az, 0);
+	Vehicle* v = g->vehicles.spawn(mode == "plane" ? "skipper" : mode == "heli" ? "skylark" : mode == "skate" ? "skateboard" : "mammoth", ax, az, 0);
 	g->vehicles.seatNow(&*g->player, v, 0);
 	Plane* pl = dynamic_cast<Plane*>(v);
 	Heli* hl = dynamic_cast<Heli*>(v);
 	Tank* tk = dynamic_cast<Tank*>(v);
+	Skateboard* sk = dynamic_cast<Skateboard*>(v);
 	auto st = [&](double t) {
 		printf("%.1f x %.2f y %.2f z %.2f yaw %.3f fwd %.2f hp %.0f ex %d", t, v->pos.x, v->pos.y, v->pos.z, v->yaw, v->forwardSpeed(), v->health, v->exploded ? 1 : 0);
 		if (pl) { const V3 f = pl->quat.rotate(V3(0, 0, 1)); printf(" alt %.2f pitch %.3f gr %d gear %.2f spool %.3f", pl->altitude(), std::asin(f.y), pl->grounded ? 1 : 0, pl->gearK, pl->spool); }
 		if (hl) printf(" alt %.2f tilt %.3f %.3f gr %d spool %.3f", hl->altitude(), hl->tiltP, hl->tiltR, hl->grounded ? 1 : 0, hl->spool);
 		if (tk) printf(" tracks %.2f %.2f body %.4f %.4f", tk->trackL, tk->trackR, tk->bodyPitch, tk->bodyRoll);
+		if (sk) printf(" air %d flip %.3f push %.3f crouch %.3f lean %.3f on %d", sk->airborne ? 1 : 0, sk->flip, sk->pushK, sk->crouch, sk->lean, sk->driver() ? 1 : 0);
 		printf("\n");
 	};
 	double t = 0;
@@ -1027,9 +1031,89 @@ static void AirCompare(World& w, const std::string& mode) {
 		phase({ "ArrowDown" }, 0.5); phase({}, 6); phase({ "KeyA" }, 0.5); phase({}, 4); phase({ "ArrowUp" }, 1); phase({}, 12);
 	} else if (hl) {
 		phase({}, 3); phase({ "Space" }, 4); phase({}, 6); phase({ "KeyW" }, 4); phase({}, 3); phase({ "KeyD", "KeyW" }, 2); phase({ "ShiftLeft" }, 3);
+	} else if (sk) {
+		phase({ "KeyW" }, 3); phase({ "Space" }, 0.5); phase({ "KeyA" }, 0.5); phase({}, 2); phase({ "KeyW", "KeyD" }, 2); phase({ "KeyS" }, 1.5);
 	} else {
 		phase({ "KeyW" }, 3); phase({ "KeyW", "KeyA" }, 2); phase({}, 2); phase({ "KeyS" }, 2); phase({ "KeyD" }, 2);
 	}
+}
+
+static void TestSkate(World& w) {
+	printf("skate\n");
+	auto g = w.game();
+	ToStreet(w, *g);
+	Player& p = *g->player;
+	Skateboard* b = dynamic_cast<Skateboard*>(g->vehicles.spawn("skateboard", p.pos.x + 1, p.pos.z, 0));
+	Check(b != nullptr, "a skateboard is a Skateboard");
+	if (!b) return;
+	g->vehicles.seatNow(&p, b, 0);
+	Check(b->layout.stand && p.vehicle == b, "the rider stands on the deck");
+	g->input.KeyDown("KeyW");
+	double maxPush = 0;
+	for (int i = 0; i < 90; i++) { g->frame(1.0 / 30); maxPush = Max(maxPush, b->pushK); }
+	g->input.KeyUp("KeyW");
+	printf("  3 s pushing: %.1f m/s, push %.2f, crouch %.2f\n", b->speed(), maxPush, b->crouch);
+	Check(b->speed() > 3 && maxPush > 0.5, "pushing with the back foot gets it rolling");
+	// an ollie with a kickflip
+	const double cash0 = p.money;
+	int tricks = 0; std::string trick;
+	g->events.skateTrick.on([&](const std::string& t, double, Vehicle*) { tricks++; trick = t; });
+	g->input.KeyDown("Space");
+	g->frame(1.0 / 30);
+	g->input.KeyUp("Space");
+	printf("  ollie: airborne %d, vy %.2f\n", (int)b->airborne, b->vy);
+	Check(b->airborne && b->vy > 4, "Space pops an ollie");
+	g->input.KeyDown("KeyA");
+	g->frame(1.0 / 30);
+	g->input.KeyUp("KeyA");
+	printf("  flip speed %.1f rad/s (%s)\n", b->flipV, b->trickName.c_str());
+	int n = 0;
+	while (b->airborne && n++ < 90) g->frame(1.0 / 30);
+	printf("  landed after %d frames: tricks %d (%s), cash +%.0f, still on %d\n", n, tricks, trick.c_str(), p.money - cash0, (int)(p.vehicle == b));
+	Check(tricks == 1 && trick == "KICKFLIP" && p.money > cash0 && p.vehicle == b, "a clean kickflip pays");
+	// a crooked landing: flip and land before it comes round
+	Run(*g, 1);
+	g->input.KeyDown("Space"); g->frame(1.0 / 30); g->input.KeyUp("Space");
+	b->vy = 1.0; // (a short hop: the flip can't finish)
+	g->input.KeyDown("KeyD"); g->frame(1.0 / 30); g->input.KeyUp("KeyD");
+	n = 0;
+	while (b->airborne && n++ < 90) g->frame(1.0 / 30);
+	printf("  short hop with a heelflip: flipped %.2f, rider off %d\n", b->flip, (int)(p.vehicle != b));
+	Check(p.vehicle != b, "land it crooked and you bail");
+	// off the pavement it digs in
+	auto g2 = w.game();
+	Player& p2 = *g2->player;
+	const Landmark& af = w.map.landmarks.at("airfield");
+	const double gx = af.x + 60, gz = af.z;
+	g2->respawnPlayer(gx, gz, 0);
+	Skateboard* b2 = dynamic_cast<Skateboard*>(g2->vehicles.spawn("skateboard", gx + 1, gz, 0));
+	g2->vehicles.seatNow(&p2, b2, 0);
+	b2->vel = V3(0, 0, 6);
+	Run(*g2, 1);
+	printf("  on the grass by the runway: %.2f m/s after 1 s\n", b2->speedAbs());
+	Check(b2->speedAbs() < 1.5, "on sand or grass it stops");
+	// the skatepark: boards lying about, locals skating laps, ramps you can ride up
+	auto g3 = w.game(true);
+	Skateparks* sp = dynamic_cast<Skateparks*>(g3->system("skateparks"));
+	Check(sp && sp->parks.size() == 1, "the skatepark system is installed");
+	if (!sp) return;
+	Skateparks::Park& park = sp->parks[0];
+	printf("  %s: %zu concrete and %zu steel vertices\n", park.name.c_str(), park.concrete.Count(), park.metal.Count());
+	g3->respawnPlayer(park.x, park.z - park.hz - 30, 0);
+	Run(*g3, 2);
+	int lying = 0;
+	for (const auto& r : park.boards) if (r.get() && !r->driver()) lying++;
+	const V3 s0 = park.skaters.empty() || !park.skaters[0].v.get() ? V3() : park.skaters[0].v->pos;
+	double ollies = 0;
+	for (int i = 0; i < 300; i++) { g3->frame(1.0 / 30); for (const auto& sk : park.skaters) if (sk.v.get() && sk.v->airborne) ollies += 1.0 / 30; }
+	const V3 s1 = park.skaters.empty() || !park.skaters[0].v.get() ? V3() : park.skaters[0].v->pos;
+	printf("  active %d, %d boards lying about, %zu locals; one rode %.0f m, %.1f s in the air between them\n", (int)park.active, lying, park.skaters.size(), Hypot(s1.x - s0.x, s1.z - s0.z), ollies);
+	Check(park.active && lying == 4 && park.skaters.size() == 2, "boards lie about and two locals skate");
+	Check(ollies > 0.3, "the locals ollie");
+	// up the funbox ramp: x from -6.1 to -3.5 rises 0.7 m (park axes)
+	const double gy = g3->collision->floorHeight(park.x - 4.0, park.z, park.y + 2);
+	printf("  the funbox ramp at x -4: floor %.2f m above the pad\n", gy - park.y);
+	Check(gy - park.y > 0.4, "the ramps are solid");
 }
 
 int main(int argc, char** argv) {
@@ -1063,6 +1147,7 @@ int main(int argc, char** argv) {
 	if (want("bikes")) TestBikes(w);
 	if (want("aircraft")) TestAircraft(w);
 	if (want("army")) TestArmy(w);
+	if (want("skate")) TestSkate(w);
 	printf(fails ? "%d FAILED\n" : "all passed\n", fails);
 	return fails ? 1 : 0;
 }

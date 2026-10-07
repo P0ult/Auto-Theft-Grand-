@@ -28,7 +28,8 @@ Planes, jets and helicopters fly as they do in the browser game, and the Mammoth
 toward the crosshair and fires shells. The Skipper waits at Fern Creek Airfield, a Skylark on the hospital
 roof, and Fort Carver keeps Raptors, a Hercules, a Warhawk, Mammoths and army trucks behind its fence,
 guarded by soldiers: trespass and the army opens fire. At five stars the army joins the chase with troop
-trucks, jeeps, the Warhawk gunship and a tank. The city has its own crime too:
+trucks, jeeps, the Warhawk gunship and a tank. Skateboards push along, carve, ollie and flip (land it clean
+for cash), and the Santa Luz skatepark has boards lying about and locals skating laps. The city has its own crime too:
 jaywalkers, speeders, road rage, muggings and car thefts, with stars over the culprit and a patrol that
 writes a ticket, gives chase or makes an arrest. Every few minutes an armoured van does its rounds nearby:
 shoot its back doors open, grab the cash and fight off the guards. The phone calls Lester (lose the cops),
@@ -108,6 +109,9 @@ far:
 | Left / right mouse, RB / LB | Cannon / homing missile (Raptor) | Left / right mouse, RB / LB | Minigun / rockets (Warhawk) | | |
 | F / Y | Bail out (the parachute opens by itself, or press Space) | F / Y | Bail out | F / Y | Climb out |
 
+On a skateboard: W push, S foot-brake, A / D carve, Space ollie; in the air A / D kickflip / heelflip and
+S shove-it; F step off.
+
 ## How it is put together
 
 ```
@@ -169,7 +173,7 @@ markers; `roadblocks.txt` at a roadblock and its spike strip; `npccrime.txt` at 
 suspect's stars, the patrol that comes for them and a staged car theft; `wheel.txt` at the weapon wheel; `special.txt` at the
 special ability; `heist.txt` at a robbed armoured van; `phone.txt` at the phone; `bikes.txt` and `bikes2.txt` at
 the motorbikes and bicycles; `aircraft.txt` at each aircraft and the tank, parked, flying and firing; `army.txt` at the army at five stars and
-Fort Carver's gate and restricted area.
+Fort Carver's gate and restricted area; `skate.txt` at a skateboard, a kickflip and the skatepark.
 
 The simulation is tested without Unreal. `Tools/native.sh` builds a tool with MSVC from Git Bash:
 
@@ -180,12 +184,12 @@ cd Tools
                                                                # WASTED, effects, combat, police, pickups,
                                                                # roadblocks, street crime, the wheel, special,
                                                                # armoured vans, the phone, bikes,
-                                                               # aircraft and the tank, the army
+                                                               # aircraft and the tank, the army, skateboards
 DEBUG=1 ./native.sh simtestd.exe simtest.cpp                   # with symbols: a crash prints a stack trace
 ./simtest.exe vehcompare > cppveh.txt                          # the car physics against the browser game's:
 node --import ./three-hook.mjs vehcompare.mjs > jsveh.txt      # identical to 4 decimals
 diff jsveh.txt cppveh.txt
-./simtest.exe aircmp heli > cpp_heli.txt                       # a flight (plane, heli or tank) against the
+./simtest.exe aircmp heli > cpp_heli.txt                       # a run (plane, heli, tank or skate) against the
 MODE=heli node ../../../tools/browser-test/run.mjs "http://localhost:8080/index.html?manual&autostart=free&q=low" \
   out ../../../tools/browser-test/tests/aircmp.mjs | grep -E '^[0-9.]+ x' > js_heli.txt   # browser game's: identical
 ```

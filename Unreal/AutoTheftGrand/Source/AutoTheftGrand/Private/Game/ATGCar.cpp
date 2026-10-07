@@ -6,6 +6,7 @@
 #include "Sim/Game.h"
 #include "Sim/Aircraft.h"
 #include "Sim/Bike.h"
+#include "Sim/Skateboard.h"
 #include "Sim/Train.h"
 
 #include "Components/SpotLightComponent.h"
@@ -56,6 +57,7 @@ void AATGCar::Build(atg::Vehicle* V) {
 	Model = V->model;
 	AATGWorld* W = AATGWorld::Get(this);
 	if (V->def.train && W) { BuildTrain(static_cast<atg::Train*>(V)); return; }
+	if (atg::Skateboard* S = dynamic_cast<atg::Skateboard*>(V)) { if (W) BuildBoard(S); return; }
 	if (atg::Bike* B = dynamic_cast<atg::Bike*>(V)) { if (W) BuildBike(B); return; }
 	if (const atg::AircraftModel* AM = AirModelOf(V)) { if (W) BuildAir(V, *AM); return; }
 	if (!Model || !W) return; // (bikes, boats and aircraft are drawn by their own views)
@@ -196,6 +198,9 @@ void AATGCar::BuildBike(atg::Bike* B) {
 
 void AATGCar::SyncBike(atg::Bike* B) {
 	SetActorTransform(ATG::ToUE(B->groupMatrix()));
+	// the body group pitches and rides on its springs (vehicle.js); a bike doesn't roll it (bikes.js)
+	const double Y = FMath::Clamp(B->bodyY, -0.15, 0.15) - (B->flat ? 0.07 : 0);
+	Body->SetRelativeTransform(ATG::LocalToUE(atg::M4::Compose(atg::V3(0, Y, 0), atg::Quat::FromEuler(B->bodyPitch, 0, 0))));
 	if (B->painted && B->color != PaintColor && PaintMat) { PaintColor = B->color; PaintMat->SetVectorParameterValue(TEXT("Color"), Hex(B->color)); }
 	const atg::BikeModel& M = *B->bike;
 	for (int32 I = 0; I < WheelPivots.Num() && I < (int32)M.wheels.size(); I++) {
@@ -220,9 +225,74 @@ void AATGCar::SyncBike(atg::Bike* B) {
 	}
 }
 
+// skateboard.js buildBoardModel: the paint and trim on the deck, which sits on the body; a wheel in each truck's
+// pivot (the front pair steers), the wheels in one of four urethane colours
+void AATGCar::BuildBoard(atg::Skateboard* S) {
+	bBoard = true;
+	AATGWorld* W = AATGWorld::Get(this);
+	const atg::BoardModel& M = *S->board;
+	const FString Key = TEXT("Board_") + FString(UTF8_TO_TCHAR(S->def.id.c_str()));
+	PaintMat = Std(this, Hex(S->color), 0.32, 0.55);
+	UMaterialInstanceDynamic* Trim = Std(this, FLinearColor::White, 0.55, 0.35);
+	static const uint32 Urethane[4] = { 0xf5f0e0, 0xe63946, 0x2a9d8f, 0xffd166 };
+	UMaterialInstanceDynamic* WheelMat = Std(this, Hex(Urethane[(int32)FMath::Min(3.0, FMath::Floor(atg::Rand() * 4))]), 0.45, 0);
+	BurntMat = Std(this, Hex(0x151210), 0.95, 0.2);
+	auto Part = [&](UStaticMesh* Mesh, USceneComponent* Parent, UMaterialInterface* Mat) {
+		UStaticMeshComponent* C = NewObject<UStaticMeshComponent>(this);
+		C->SetupAttachment(Parent);
+		C->SetStaticMesh(Mesh);
+		C->SetMaterial(0, Mat);
+		C->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		C->RegisterComponent();
+		Parts.Add(C);
+		return C;
+	};
+	Deck = NewObject<USceneComponent>(this);
+	Deck->SetupAttachment(Body);
+	Deck->RegisterComponent();
+	Part(W->LocalMesh(Key + TEXT("_Paint"), M.paint), Deck, PaintMat);
+	Part(W->LocalMesh(Key + TEXT("_Trim"), M.trim), Deck, Trim);
+	UStaticMesh* WheelMesh = W->LocalMesh(Key + TEXT("_Wheel"), M.wheel);
+	for (const auto& Wh : M.wheels) {
+		USceneComponent* P = NewObject<USceneComponent>(this);
+		P->SetupAttachment(Deck);
+		P->SetRelativeLocation(ATG::LocalToUE(Wh.x, Wh.y, Wh.z));
+		P->RegisterComponent();
+		USceneComponent* Spin = NewObject<USceneComponent>(this);
+		Spin->SetupAttachment(P);
+		Spin->RegisterComponent();
+		UStaticMeshComponent* C = NewObject<UStaticMeshComponent>(this);
+		C->SetupAttachment(Spin);
+		C->SetStaticMesh(WheelMesh);
+		C->SetMaterial(0, WheelMat);
+		C->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		C->RegisterComponent();
+		WheelPivots.Add(P);
+		WheelSpins.Add(Spin);
+	}
+	SyncBoard(S);
+}
+
+void AATGCar::SyncBoard(atg::Skateboard* S) {
+	SetActorTransform(ATG::ToUE(S->groupMatrix()));
+	if (S->painted && S->color != PaintColor && PaintMat) { PaintColor = S->color; PaintMat->SetVectorParameterValue(TEXT("Color"), Hex(S->color)); }
+	// the body group pitches on its springs (bikes don't roll it), the deck pops and flips on the body
+	const double Y = FMath::Clamp(S->bodyY, -0.15, 0.15) - (S->flat ? 0.07 : 0);
+	Body->SetRelativeTransform(ATG::LocalToUE(atg::M4::Compose(atg::V3(0, Y, 0), atg::Quat::FromEuler(S->bodyPitch, 0, 0))));
+	Deck->SetRelativeTransform(ATG::LocalToUE(S->deckMatrix()));
+	const atg::BoardModel& M = *S->board;
+	for (int32 I = 0; I < WheelPivots.Num() && I < (int32)M.wheels.size(); I++) {
+		const auto& Wh = M.wheels[I];
+		WheelSpins[I]->SetRelativeRotation(ATG::LocalToUE(atg::M4::Compose(atg::V3(), atg::Quat::FromEuler(S->wheelRot, 0, 0))).GetRotation());
+		if (Wh.front) WheelPivots[I]->SetRelativeTransform(ATG::LocalToUE(atg::M4::Compose(atg::V3(Wh.x, Wh.y, Wh.z), atg::Quat::FromEuler(0, S->steerAngle * 0.8, 0))));
+	}
+	if (S->exploded && !bBurnt) { bBurnt = true; if (Parts.Num()) Parts[0]->SetMaterial(0, BurntMat); }
+}
+
 void AATGCar::Sync(float Dt) {
 	atg::Vehicle* V = Vehicle.get();
 	if (V && bTrain) { SyncTrain(static_cast<atg::Train*>(V)); return; }
+	if (V && bBoard) { SyncBoard(static_cast<atg::Skateboard*>(V)); return; }
 	if (V && bBike) { SyncBike(static_cast<atg::Bike*>(V)); return; }
 	if (V && Air) { SyncAir(V); return; }
 	if (!V || !Model) return;

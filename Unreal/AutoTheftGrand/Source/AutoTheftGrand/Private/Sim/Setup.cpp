@@ -15,6 +15,7 @@
 #include "Police.h"
 #include "Rail.h"
 #include "Roadblocks.h"
+#include "Skateparks.h"
 #include "Traffic.h"
 #include "WeaponWheel.h"
 
@@ -42,7 +43,9 @@ void InstallSystems(Game& g) {
 	g.special = g.addSystem("special", std::make_unique<Special>(g));
 	g.phone = g.addSystem("phone", std::make_unique<Phone>(g));
 	g.rail = g.addSystem("rail", std::make_unique<RailSystem>(g));
-	// (shops, wildlife, pets, skateparks, boats, shipRaid, missions, audio: later)
+	// (shops, wildlife, pets: later)
+	g.addSystem("skateparks", std::make_unique<Skateparks>(g));
+	// (boats, shipRaid, missions, audio: later)
 	g.gameplay = g.addSystem("gameplay", std::make_unique<Gameplay>(g));
 	g.pickupsSys->refreshPackages();
 }

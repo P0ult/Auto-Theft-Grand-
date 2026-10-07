@@ -10,6 +10,7 @@
 #include "Gen/VehicleModels.h"
 #include "Gen/WeaponModels.h"
 #include "Gen/WorldMeshes.h"
+#include "Sim/Skateparks.h"
 #include "Sim/Game.h"
 #include "Sim/Setup.h"
 
@@ -27,6 +28,7 @@
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "HAL/PlatformTime.h"
+#include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialParameterCollection.h"
 #include "Materials/MaterialParameterCollectionInstance.h"
 #include "ProceduralMeshComponent.h"
@@ -372,6 +374,26 @@ void AATGWorld::QueueBuild() {
 			UProceduralMeshComponent* P = NewMeshComponent(TEXT("Pier"), true);
 			ATGMesh::ToSection(P, 0, D->Pier, true);
 			P->SetMaterial(0, MLit);
+		}
+	});
+	// ---- the skateparks' ramps, ledges, walls and lights (skatepark.js: concrete and steel, vertex coloured)
+	Steps.Add([this, D]() {
+		atg::Skateparks* SP = D->Sim ? dynamic_cast<atg::Skateparks*>(D->Sim->system("skateparks")) : nullptr;
+		if (!SP) return;
+		auto Mat = [&](double Rough, double Metal) {
+			UMaterialInstanceDynamic* M = UMaterialInstanceDynamic::Create(ATGMaterials::Get(EATGMat::Standard), this);
+			M->SetVectorParameterValue(TEXT("Color"), FLinearColor::White);
+			M->SetVectorParameterValue(TEXT("Surface"), FLinearColor((float)Rough, (float)Metal, 1.f, 0.f));
+			return M;
+		};
+		UMaterialInstanceDynamic* Concrete = Mat(0.85, 0.05);
+		UMaterialInstanceDynamic* Steel = Mat(0.3, 0.85);
+		for (const atg::Skateparks::Park& P : SP->parks) {
+			UProceduralMeshComponent* C = NewMeshComponent(TEXT("Skatepark"), false);
+			ATGMesh::ToSection(C, 0, P.concrete, false);
+			ATGMesh::ToSection(C, 1, P.metal, false);
+			C->SetMaterial(0, Concrete);
+			C->SetMaterial(1, Steel);
 		}
 	});
 	// ---- roads (surfaces and concrete collide; rails don't)
