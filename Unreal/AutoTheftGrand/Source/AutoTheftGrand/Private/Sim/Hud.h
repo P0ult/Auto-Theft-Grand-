@@ -42,6 +42,9 @@ public:
 	void setCounter(const std::string& label, const std::string& value) override { counterLabel = label; counterValue = value; }
 	void letterbox(bool on) override { letterboxed = on; }
 	void routeTo(std::optional<V2> target) override { gpsTarget = target; routeTimer = 0; if (!target) route.clear(); }
+	double creditsT = NaN();
+	void showCredits() override { creditsT = 0; }
+	void dismissCredits();
 
 	void help(const std::string& text, double seconds = 5) override;
 	void speech(Character* who, const std::string& text) override;

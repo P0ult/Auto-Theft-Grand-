@@ -1,0 +1,25 @@
+# Chapter V: files, rooftop showdown, finale and credits.
+wait 1
+ATG.God 1
+ATG.StoryStart papertrail unlock
+wait 20
+repeat 10 1 ATG.StoryAdvance
+wait 4
+ATG.Missions
+shot story5_files
+ATG.StoryStart tower unlock
+wait 15
+repeat 8 1 ATG.StoryAdvance
+wait 15
+ATG.Missions
+shot story5_tower
+ATG.StoryStart finale unlock
+wait 19
+repeat 6 1 ATG.StoryAdvance
+wait 26
+ATG.Missions
+shot story5_credits
+wait 42
+ATG.Missions
+shot story5_epilogue
+quit

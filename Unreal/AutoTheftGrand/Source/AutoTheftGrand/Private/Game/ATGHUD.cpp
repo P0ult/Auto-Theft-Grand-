@@ -88,6 +88,7 @@ void AATGHUD::DrawHUD() {
 	AATGPlayerController* PC = Cast<AATGPlayerController>(PlayerOwner);
 	atg::Game* G = W ? W->Game() : nullptr;
 	if (!G || !PC) { DrawLoading(W); return; }
+	if (G->hudModel && atg::Finite(G->hudModel->creditsT)) { DrawCredits(G); return; }
 
 	UFont* Big = GEngine->GetLargeFont();
 	UFont* Small = GEngine->GetSmallFont();
@@ -239,6 +240,30 @@ void AATGHUD::DrawMessages(atg::Game* G, float Dt) {
 		Text(FString::Printf(TEXT("%d:%02d"), Sec / 60, Sec % 60), Canvas->ClipX - 40 * Ui, Canvas->ClipY * 0.7f, Big, 1.8f * Ui, M->timerSeconds < 10 ? FLinearColor(1, 0.3f, 0.2f, A) : FLinearColor(1, 1, 1, A), 1.f);
 	}
 	if (!M->counterLabel.empty()) Text(Plain(M->counterLabel + " " + M->counterValue), Canvas->ClipX - 40 * Ui, Canvas->ClipY * 0.76f, Small, 1.5f * Ui, FLinearColor(1, 1, 1, A), 1.f);
+}
+
+void AATGHUD::DrawCredits(atg::Game* G) {
+	DrawRect(FLinearColor::Black, 0, 0, Canvas->ClipX, Canvas->ClipY);
+	struct Row { const TCHAR* Text; float Size, Space; FLinearColor Color; };
+	const FLinearColor White = FLinearColor::White, Gray(0.67f, 0.67f, 0.67f);
+	const TArray<Row> Rows = {
+		{TEXT("AUTO THEFT GRAND"),60,108,Gold}, {TEXT("Los Soles"),20,76,White},
+		{TEXT("STARRING"),28,80,Gray}, {TEXT("Andre \"Dre\" Castillo"),20,36,White},
+		{TEXT("Big Lou · Marisol Castillo · Deacon"),20,36,White}, {TEXT("Detective Frank Voss · Officer Ruiz"),20,36,White},
+		{TEXT("Rico · Maddox · Salazar · Chino"),20,76,White}, {TEXT("THE CITY"),28,80,Gray},
+		{TEXT("Cedar Row · Downtown · Market District · Rosewood"),20,36,White}, {TEXT("El Corona · Port Morena · Santa Luz Beach · Vistawood Hills"),20,76,White},
+		{TEXT("MADE WITH"),28,80,Gray}, {TEXT("Unreal Engine 5.8 · C++"),20,36,White},
+		{TEXT("Original browser game: Three.js · WebGL 2 · Web Audio"),20,36,White}, {TEXT("Every building, car, person, song and sunset is generated at runtime."),20,76,White},
+		{TEXT("IN MEMORY OF"),28,80,Gray}, {TEXT("Tino Castillo"),20,76,White},
+		{TEXT("THANK YOU FOR PLAYING"),28,80,Gray}, {TEXT("The city is yours. Keep exploring — there are still hidden packages to find."),20,76,White}
+	};
+	float Height = 0; for (const auto& R : Rows) Height += R.Space;
+	const float K = FMath::Clamp((float)G->hudModel->creditsT / 40.f, 0.f, 1.f);
+	float Y = (Canvas->ClipY - Height) / 2 + FMath::Lerp(Canvas->ClipY * 0.8f, -Height * 1.6f, K);
+	for (const auto& R : Rows) {
+		float Tw = 0, Th = 0; Canvas->TextSize(GEngine->GetMediumFont(), R.Text, Tw, Th);
+		Text(R.Text, Canvas->ClipX / 2, Y, GEngine->GetMediumFont(), R.Size / FMath::Max(1.f, Th), R.Color, 0.5f); Y += R.Space;
+	}
 }
 
 // hud.js: the speech bubbles over people's heads and the wanted stars over NPC suspects

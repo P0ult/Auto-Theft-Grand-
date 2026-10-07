@@ -126,6 +126,7 @@ public:
 	virtual void setCounter(const std::string&, const std::string&) {}
 	virtual void letterbox(bool) {}
 	virtual void routeTo(std::optional<V2>) {}
+	virtual void showCredits() {}
 };
 
 // weapons and damage (src/game/combat.js)

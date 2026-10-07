@@ -11,6 +11,7 @@ const P3& StoryPoint(const Game& game, const std::string& key, const std::string
 void AddChapterTwo(std::vector<MissionDef>& story);
 void AddChapterThree(std::vector<MissionDef>& story);
 void AddChapterFour(std::vector<MissionDef>& story);
+void AddChapterFive(std::vector<MissionDef>& story);
 MissionTask StoryCountdown(MissionContext& m);
 struct StoryRoadSpot { double x, z, yaw; };
 StoryRoadSpot StoryRoadNear(Game& game, double x, double z, int lane = 1);

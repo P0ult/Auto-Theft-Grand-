@@ -210,6 +210,11 @@ void HudModel::fadeTo(double v, double dur) { fadeState = { fadeState.value(), v
 
 void HudModel::update(double dt) {
 	Player& p = *game.player;
+	if (Finite(creditsT)) {
+		const bool firstFrame = creditsT == 0;
+		creditsT += dt;
+		if (creditsT >= 42 || (!firstFrame && (game.input.keyHit("MouseLeft") || game.input.hit("skip") || game.input.gpHit(GP::B)))) dismissCredits();
+	}
 	routeTimer -= dt;
 	if (gpsTarget && routeTimer <= 0) {
 		routeTimer = 1;
@@ -244,5 +249,7 @@ void HudModel::update(double dt) {
 	for (Line* l : { &helpLine, &subs, &zone, &veh, &radio, &money, &dispatchLine }) if (l->t > 0) l->t -= dt;
 	if (big.t > 0) big.t -= dt;
 }
+
+void HudModel::dismissCredits() { creditsT = NaN(); game.paused = false; }
 
 } // namespace atg

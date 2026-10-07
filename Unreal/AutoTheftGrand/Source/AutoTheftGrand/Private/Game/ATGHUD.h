@@ -47,6 +47,7 @@ private:
 	void DrawMessages(atg::Game* G, float Dt);
 	void DrawTags(atg::Game* G); // (speech bubbles and the stars over NPC suspects)
 	void DrawOverlays(atg::Game* G, float Dt);
+	void DrawCredits(atg::Game* G);
 	void WrappedBox(const FString& S, float X, float Y, float MaxW, UFont* Font, float Scale, float Alpha);
 	float HelpAlpha = 0, BigAlpha = 0, SubsAlpha = 0, DeadAlpha = 1;
 };

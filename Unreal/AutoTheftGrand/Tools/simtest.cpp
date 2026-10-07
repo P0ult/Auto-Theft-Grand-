@@ -1507,9 +1507,9 @@ static void TestMissions(World& w) {
 }
 
 static void TestStory(World& w) {
-	printf("story: Chapters I-IV\n");
+	printf("story: Chapters I-V\n");
 	const auto definitions = BuildStory();
-	Check(definitions.size() == 19, "nineteen Chapter I-IV missions in browser order");
+	Check(definitions.size() == 22, "twenty-two Chapter I-V missions in browser order");
 	for (const auto& def : definitions) {
 		auto g = w.game(true); g->disableAmbient = true; g->player->invincible = true;
 		Missions& e = *g->missions; Player& p = *g->player;
@@ -1563,6 +1563,10 @@ static void TestStory(World& w) {
 		printf("  %s: %s, %.1f sim seconds, cash %.0f, reason '%s'\n", def.id.c_str(), result.empty() ? "TIMEOUT" : result.c_str(), g->time, p.money, reason.c_str());
 		Check(result == "PASSED" && e.completed.count(def.id) && g->stats.missions == 1, "actual story script reaches its reward and cleanup");
 		Check(!g->cutscene && g->policeSys->enabled, "story leaves controls and police running");
+		if (def.id == "finale") {
+			Check(Finite(g->hudModel->creditsT), "the finale starts the credits");
+			g->hudModel->update(42); Check(!Finite(g->hudModel->creditsT), "credits end after 42 real seconds");
+		}
 	}
 	// The no-guns rule must fail the mission, and its event listener must be detached on cleanup.
 	auto g = w.game(true); g->disableAmbient = true; g->player->invincible = true;
