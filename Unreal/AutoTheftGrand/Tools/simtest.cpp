@@ -1507,9 +1507,9 @@ static void TestMissions(World& w) {
 }
 
 static void TestStory(World& w) {
-	printf("story: Chapter I\n");
+	printf("story: Chapters I-II\n");
 	const auto definitions = BuildStory();
-	Check(definitions.size() == 5, "five Chapter I missions in browser order");
+	Check(definitions.size() == 10, "ten Chapter I-II missions in browser order");
 	for (const auto& def : definitions) {
 		auto g = w.game(true); g->disableAmbient = true; g->player->invincible = true;
 		Missions& e = *g->missions; Player& p = *g->player;
@@ -1538,6 +1538,7 @@ static void TestStory(World& w) {
 			}
 			for (auto it = ctx->markers.rbegin(); it != ctx->markers.rend(); ++it) if (!(*it)->removed) {
 				const auto& m = **it;
+				(*it)->inside = false;
 				if (m.vehicleOnly && !p.vehicle) { auto* v = g->vehicles.spawn("meridian", p.pos.x + 3, p.pos.z, 0); g->vehicles.seatNow(&p, v); }
 				if (m.footOnly && p.vehicle) p.vehicle->takeOut(&p);
 				if (p.vehicle) { p.vehicle->pos = m.pos; p.vehicle->vel = V3(); } else p.setPosition(m.pos.x, m.pos.y, m.pos.z);
@@ -1548,7 +1549,10 @@ static void TestStory(World& w) {
 				for (int s : { 1, 2, 3 }) if (s < (int)p.vehicle->layout.seats.size() && !p.vehicle->occupants[s]) { p.vehicle->putIn(ped.get(), s); break; }
 			}
 			for (const auto& ped : ctx->peds) if (ped->missionEnemy && !ped->dead) { DamageInfo d; d.source = &p; ped->takeDamage(9999, d); }
-			for (const auto& car : ctx->cars) if (car->color == 0x9d0208 && !car->isWrecked()) car->explode();
+			for (const auto& b : ctx->blips) if (b->color == 0xff3030) {
+				if (auto* c = b->character.get()) if (!c->dead) { DamageInfo d; d.source = &p; c->takeDamage(9999, d); }
+				if (auto* v = b->vehicle.get()) if (!v->isWrecked()) v->explode();
+			}
 			Run(*g, 0.5);
 		}
 		printf("  %s: %s, %.1f sim seconds, cash %.0f, reason '%s'\n", def.id.c_str(), result.empty() ? "TIMEOUT" : result.c_str(), g->time, p.money, reason.c_str());
@@ -1564,6 +1568,34 @@ static void TestStory(World& w) {
 	Check(!g->missions->active && g->hudModel->big.sub == "Kings rules: no guns on our own block!", "Clean Sweep fails if the player fires a gun");
 	g->events.gunshot.emit(g->player.get(), g->player->pos, "pistol"); Run(*g, 0.1);
 	Check(!g->missions->active, "the failed mission's listener is safely removed");
+	// Leaving the race car must fail and restore ambient traffic and people.
+	{
+		auto race = w.game(true); race->disableAmbient = true; race->player->invincible = true;
+		const auto& r = race->missions->story[5]; const V3 at = r.start(race->map); race->respawnPlayer(at.x, at.z, 0); race->missions->start("race");
+		for (int i = 0; i < 500; i++) {
+			auto ctx = race->missions->active;
+			if (!ctx) break;
+			if (race->cutscene) { race->input.KeyDown("Space"); Run(*race, 0.1); race->input.KeyUp("Space"); Run(*race, 0.2); }
+			else if (race->hudModel->counterLabel == "POSITION") { race->player->vehicle->takeOut(race->player.get()); Run(*race, 0.1); break; }
+			else { for (const auto& b : ctx->blips) if (b->color == 0x4aa3ff && b->vehicle && !race->player->vehicle) race->vehicles.seatNow(race->player.get(), b->vehicle.get()); Run(*race, 0.1); }
+		}
+		Check(!race->missions->active && race->hudModel->big.sub == "You left your car." && !race->disableAmbient, "leaving the race car fails and restores the living city");
+	}
+	{
+		auto hot = w.game(true); hot->disableAmbient = true; hot->player->invincible = true;
+		const auto& d = hot->missions->story[6]; const V3 at = d.start(hot->map); hot->respawnPlayer(at.x, at.z, 0); hot->missions->start("hotwheels");
+		for (int i = 0; i < 200 && hot->cutscene; i++) { hot->input.KeyDown("Space"); Run(*hot, 0.1); hot->input.KeyUp("Space"); Run(*hot, 0.2); }
+		for (const auto& b : hot->missions->active->blips) if (b->vehicle && b->color == 0x4aa3ff) hot->vehicles.seatNow(hot->player.get(), b->vehicle.get());
+		Run(*hot, 0.1); hot->player->vehicle->health = 449; Run(*hot, 0.1);
+		Check(!hot->missions->active && hot->hudModel->big.sub.find("too damaged") != std::string::npos, "Hot Wheels refuses a damaged delivery car");
+	}
+	{
+		auto snitch = w.game(true); snitch->disableAmbient = true; snitch->player->invincible = true;
+		const auto& d = snitch->missions->story[8]; const V3 at = d.start(snitch->map); snitch->respawnPlayer(at.x, at.z, 0); snitch->missions->start("snitch");
+		for (int i = 0; i < 200 && snitch->cutscene; i++) { snitch->input.KeyDown("Space"); Run(*snitch, 0.1); snitch->input.KeyUp("Space"); Run(*snitch, 0.2); }
+		auto drv = std::dynamic_pointer_cast<RouteDriver>(snitch->missions->active->cars[0]->ai); drv->arrived = true; Run(*snitch, 0.1);
+		Check(!snitch->missions->active && snitch->hudModel->big.sub == "Benny made it to the police station.", "The Snitch fails if Benny reaches the police station");
+	}
 }
 
 static void StoryMeta(World& w) {

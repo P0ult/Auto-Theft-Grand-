@@ -226,7 +226,7 @@ Ped* MissionContext::follower(Ped* p, int slot) { p->brain = "civilian"; p->stat
 Marker* MissionContext::marker(double x, double z, const MarkerOpts& opts) { Marker* m = game.pickupsSys->addMarker(x, z, opts); for (const auto& q : game.pickupsSys->markers) if (q.get() == m) { markers.push_back(q); break; } return m; }
 void MissionContext::removeMarker(Marker* m) { game.pickupsSys->removeMarker(m); }
 std::shared_ptr<Blip> MissionContext::blipEntity(Character* c, uint32_t color, const std::string& icon, bool small) {
-	Blip b; b.color = color; b.icon = icon; b.small = small; auto out = game.addBlip(b); blips.push_back(out);
+	Blip b; b.color = color; b.icon = icon; b.small = small; b.character = c; auto out = game.addBlip(b); blips.push_back(out);
 	Ref<Character> weak(c);
 	auto upd = [this, weak, out](double) {
 		Character* ent = weak.get(); if (!ent || ent->removed || ent->dead) { game.removeBlip(out); return; }
@@ -234,7 +234,7 @@ std::shared_ptr<Blip> MissionContext::blipEntity(Character* c, uint32_t color, c
 	}; upd(0); tick(upd); return out;
 }
 std::shared_ptr<Blip> MissionContext::blipEntity(Vehicle* v, uint32_t color, const std::string& icon, bool small) {
-	Blip b; b.color = color; b.icon = icon; b.small = small; auto out = game.addBlip(b); blips.push_back(out); Ref<Vehicle> weak(v);
+	Blip b; b.color = color; b.icon = icon; b.small = small; b.vehicle = v; auto out = game.addBlip(b); blips.push_back(out); Ref<Vehicle> weak(v);
 	auto upd = [this, weak, out](double) { if (!weak || weak->removed || weak->isWrecked()) { game.removeBlip(out); return; } out->x = weak->pos.x; out->z = weak->pos.z; };
 	upd(0); tick(upd); return out;
 }

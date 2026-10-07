@@ -1,0 +1,85 @@
+# Chapter II's actual scripts with the same objective assistance as the browser runner.
+wait 1
+ATG.God 1
+ATG.StoryStart race unlock
+wait 20
+ATG.StoryAdvance
+wait 4
+shot story2_race
+ATG.StoryAdvance
+wait 0.3
+ATG.StoryAdvance
+wait 0.3
+ATG.StoryAdvance
+wait 0.3
+ATG.StoryAdvance
+wait 0.3
+ATG.StoryAdvance
+wait 0.3
+ATG.StoryAdvance
+wait 0.3
+ATG.StoryAdvance
+wait 0.3
+ATG.StoryAdvance
+wait 0.3
+ATG.StoryAdvance
+wait 0.3
+ATG.StoryAdvance
+wait 5
+ATG.Missions
+shot story2_won
+ATG.StoryStart hotwheels unlock
+wait 14
+ATG.StoryAdvance
+wait 1
+ATG.StoryAdvance
+wait 2
+ATG.StoryAdvance
+wait 1
+ATG.StoryAdvance
+wait 2
+ATG.StoryAdvance
+wait 1
+ATG.StoryAdvance
+wait 2
+ATG.StoryAdvance
+wait 7
+ATG.StoryAdvance
+wait 0.5
+ATG.StoryAdvance
+wait 6
+ATG.Missions
+shot story2_delivered
+ATG.StoryStart bloodmoney unlock
+wait 17
+ATG.StoryAdvance
+wait 0.5
+ATG.StoryAdvance
+wait 0.5
+ATG.StoryAdvance
+wait 0.5
+ATG.StoryAdvance
+wait 0.5
+ATG.StoryAdvance
+wait 0.5
+ATG.StoryAdvance
+wait 6
+ATG.Missions
+ATG.StoryStart snitch unlock
+wait 22
+ATG.StoryAdvance
+wait 0.5
+ATG.StoryAdvance
+wait 6
+ATG.Missions
+ATG.StoryStart familyties unlock
+wait 17
+ATG.StoryAdvance
+wait 0.5
+ATG.StoryAdvance
+wait 14
+ATG.StoryAdvance
+wait 6
+ATG.Missions
+shot story2_family
+quit

@@ -120,6 +120,10 @@ V3 LM(const Game& g, const std::string& key, double dx = 0, double dz = 0) { con
 const P3& Point(const Game& g, const std::string& key, const std::string& point) { return g.map.landmarks.at(key).pts.at(point); }
 }
 
+MissionPedOpts StoryCast(const std::string& key, bool invincible) { return Cast(key, invincible); }
+V3 StoryLandmark(const Game& game, const std::string& key, double dx, double dz) { return LM(game, key, dx, dz); }
+const P3& StoryPoint(const Game& game, const std::string& key, const std::string& point) { return Point(game, key, point); }
+
 ChaseCar StoryChaseCar(MissionContext& m, const std::string& type, double x, double z, double yaw, const std::string& gang, int shooters, std::function<Appearance()> look) {
 	SpawnOpts o; o.hasColor = true; o.color = look ? 0xc2a878 : gang == "vipers" ? 0x9d0208 : 0x1f7a8c;
 	Vehicle* v = m.car(type, x, z, yaw, o);
@@ -274,6 +278,7 @@ std::vector<MissionDef> BuildStory() {
 		const V3 home = LM(game, "home"); GoToOpts go; go.vehicle = true; go.radius = 5; go.text = "Take the crew back to <span class=\"y\">Cedar Row</span>."; co_await m.goTo(home.x, home.z + 14, go);
 		co_await m.say("Lou", "That's for Tino. Tomorrow the whole city knows the Kings are back.", 4);
 	}; story.push_back(std::move(drive));
+	AddChapterTwo(story);
 	return story;
 }
 } // namespace atg

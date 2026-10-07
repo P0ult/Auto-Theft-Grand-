@@ -197,10 +197,15 @@ ATG_CMD(CmdMissions, "ATG.Missions", "ATG.Missions [id | abort | fail]: start a 
 	}
 	UE_LOG(LogATG, Display, TEXT("ATG missions: %d completed, active '%s', cash %.0f, cutscene %d, message '%s'"), (int32)E.completed.size(), E.active ? UTF8_TO_TCHAR(E.active->def.id.c_str()) : TEXT(""), G->player->money, G->cutscene, G->hudModel ? UTF8_TO_TCHAR(G->hudModel->big.text.c_str()) : TEXT(""));
 })
-ATG_CMD(CmdStoryStart, "ATG.StoryStart", "ATG.StoryStart id: stand at a story mission's start and run it for tests", {
+ATG_CMD(CmdStoryStart, "ATG.StoryStart", "ATG.StoryStart id [unlock]: stand at a mission's start (unlock seeds its prerequisites for tests)", {
 	atg::Game* G = Sim(W); if (!G || !G->missions || Args.IsEmpty()) return;
 	if (G->missions->active) { G->missions->abortActive(); G->missions->update(0); }
 	const std::string Id = TCHAR_TO_UTF8(*Args[0]);
+	if (Args.Num() > 1 && Args[1] == TEXT("unlock")) {
+		std::function<void(const std::string&)> Unlock = [&](const std::string& Name) {
+			for (const auto& Def : G->missions->story) if (Def.id == Name) for (const auto& R : Def.requiresIds) if (!G->missions->completed.count(R)) { G->missions->completed.insert(R); Unlock(R); }
+		}; Unlock(Id);
+	}
 	for (const auto& D : G->missions->story) if (D.id == Id) {
 		if (G->player->vehicle) G->player->vehicle->takeOut(G->player.get());
 		const auto P = D.start(G->map); G->respawnPlayer(P.x, P.z, 0); G->policeSys->clearWanted(); G->missions->start(D);
@@ -219,6 +224,7 @@ ATG_CMD(CmdStoryAdvance, "ATG.StoryAdvance", "ATG.StoryAdvance: test assistance 
 	}
 	for (auto It = M->markers.rbegin(); It != M->markers.rend(); ++It) if (!(*It)->removed) {
 		const auto& Goal = **It;
+		(*It)->inside = false; // objective assistance simulates leaving and re-entering the marker
 		if (Goal.vehicleOnly && !P.vehicle) { auto* V = G->vehicles.spawn("meridian", P.pos.x + 3, P.pos.z, 0); G->vehicles.seatNow(&P, V); }
 		if (Goal.footOnly && P.vehicle) P.vehicle->takeOut(&P);
 		if (P.vehicle) { P.vehicle->pos = Goal.pos; P.vehicle->vel = atg::V3(); } else P.setPosition(Goal.pos.x, Goal.pos.y, Goal.pos.z);
@@ -229,7 +235,10 @@ ATG_CMD(CmdStoryAdvance, "ATG.StoryAdvance", "ATG.StoryAdvance: test assistance 
 		for (int Seat : { 1, 2, 3 }) if (Seat < (int)P.vehicle->layout.seats.size() && !P.vehicle->occupants[Seat]) { P.vehicle->putIn(F.get(), Seat); break; }
 	}
 	for (const auto& F : M->peds) if (F->missionEnemy && !F->dead) { atg::DamageInfo D; D.source = &P; F->takeDamage(9999, D); }
-	for (const auto& V : M->cars) if (V->color == 0x9d0208 && !V->isWrecked()) V->explode();
+	for (const auto& B : M->blips) if (B->color == 0xff3030) {
+		if (auto* C = B->character.get()) if (!C->dead) { atg::DamageInfo D; D.source = &P; C->takeDamage(9999, D); }
+		if (auto* V = B->vehicle.get()) if (!V->isWrecked()) V->explode();
+	}
 })
 ATG_CMD(CmdMissionTest, "ATG.MissionTest", "ATG.MissionTest [goal | finish | abort | fail]: exercise the mission engine with a test fixture", {
 	atg::Game* G = Sim(W); if (!G || !G->missions) return;

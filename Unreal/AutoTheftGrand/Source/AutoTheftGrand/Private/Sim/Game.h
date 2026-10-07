@@ -45,6 +45,8 @@ struct Blip {
 	bool small = false, noEdge = false, square = false;
 	std::string label;   // (the map's legend)
 	bool marker = false; // (a mission or service marker's blip)
+	Ref<Character> character;
+	Ref<Vehicle> vehicle;
 };
 
 struct Quality { int peds = 38, traffic = 28; double drawDist = 3000; };
