@@ -40,14 +40,7 @@ public:
 	Game& game;
 
 	// shop interiors (set up by the world generator)
-	struct Interior {
-		std::string key;
-		std::string name;
-		V3 service;      // counter position
-		V3 center;       // shop center
-		V3 clerk;        // clerk spawn position
-		std::function<bool(const V3&)> inside;  // whether player is inside
-	};
+	using Interior = ShopInterior;
 	std::vector<Interior> interiors;
 
 	void populate(const std::map<std::string, Interior>& shopInteriors);
@@ -62,8 +55,8 @@ public:
 
 private:
 	void _spawnClerk(Interior& s);
-	void _think(Interior& s, double dt);
-	bool _threatened(class Ped* c);
+	void _think(Interior& s, double dt, const V3& playerPos, Player* pl);
+	bool _threatened(class Ped* c, Player* pl);
 };
 
 const ShopDef& ShopDefFor(const std::string& id);

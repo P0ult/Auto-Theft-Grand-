@@ -61,7 +61,7 @@ const std::vector<ShopStockItem>& LiquorStock() {
 namespace {
 std::map<std::string, ShopDef> MakeClerks() {
 	std::map<std::string, ShopDef> M;
-	M["gunshop"] = { "gunshop", "Gun Barn", "gun", 0xff5a36, { 60, 240 }, "shotgun", false,
+	M["gunshop"] = { "gunshop", "Gun Barn", "gun", 0xff5a36, { 60, 240 }, "shotgun", true,
 		{ "Welcome to the Gun Barn. Look, don't touch.", "What can I do you for?", "Second Amendment's open for business." } };
 	M["burger"] = { "burger", "Big Bun Burgers", "burger", 0xffd166, { 240, 600 }, "", false,
 		{ "Welcome to Big Bun! Can I take your order?", "Hi! Try the Double Stack.", "Big Bun, how can I help you?" } };
@@ -110,11 +110,8 @@ void ShopSystem::reset() {
 }
 
 void ShopSystem::serve(const V3& playerPos) {
-	// Find nearest shop interior that contains the player
 	for (auto& s : interiors) {
 		if (s.inside && s.inside(playerPos)) {
-			// Check if clerk is alive and not hostile
-			// For now, just trigger the serve logic
 			_spawnClerk(s);
 			break;
 		}
@@ -122,27 +119,143 @@ void ShopSystem::serve(const V3& playerPos) {
 }
 
 void ShopSystem::update(double dt) {
+	if (!game.player) return;
+	Player* pl = game.player.get();
+	const V3 ppos = pl->pos;
+	
 	for (auto& s : interiors) {
-		_think(s, dt);
+		_think(s, dt, ppos, pl);
 	}
 }
 
 void ShopSystem::_spawnClerk(Interior& s) {
-	// Clerk spawning logic - create a Ped at the clerk position
 	if (!game.peds) return;
 	const ShopDef& d = CLERKS.at(s.key);
-	// The ped system handles clerk creation
-	// For now, mark that clerk should exist
-	s.clerk = s.service; // placeholder
+	
+	// Spawn clerk as a ped
+	PedOpts opts;
+	opts.brain = "script";
+	opts.state = "guard";
+	opts.health = 100;
+	opts.weapon = d.weapon.empty() ? "" : d.weapon;
+	opts.hasYaw = true;
+	opts.yaw = s.clerkYaw;
+	opts.persistent = true;
+	
+	Ped* clerk = game.peds->spawnPed(s.clerk.x, s.clerk.z, opts);
+	if (clerk) {
+		clerk->brain = "script";
+		clerk->shop = &s;
+		clerk->shopKey = s.key;
+		clerk->clerkYaw = s.clerkYaw;
+		clerk->yaw = s.clerkYaw;
+		clerk->invincible = false;
+		clerk->setState("guard");
+		clerk->guardPos = s.clerk;
+		s.clerkPed = clerk;
+		
+		// Initial greeting
+		if (!d.greet.empty()) {
+			game.hud->speech(clerk, d.greet[rand() % d.greet.size()]);
+		}
+	}
 }
 
-void ShopSystem::_think(Interior& s, double dt) {
-	// Clerk AI logic - greet player, react to threats, handle robbery
+void ShopSystem::_think(Interior& s, double dt, const V3& ppos, Player* pl) {
+	Ref<Ped> clerk = s.clerkPed;
+	if (!clerk || clerk->dead || clerk->removed) {
+		// Try to respawn after cooldown if player is far
+		s.respawnTimer -= dt;
+		if (s.respawnTimer <= 0 && (ppos - s.center).length() > 50) {
+			_spawnClerk(s);
+			s.respawnTimer = 0;
+		}
+		return;
+	}
+	
+	const ShopDef& d = CLERKS.at(s.key);
+	const double dist = (ppos - clerk->pos).length();
+	
+	// Check if player is at counter
+	bool atCounter = (ppos - s.service).length() < 2.5;
+	
+	// Check if player is threatening (aiming gun at clerk)
+	bool threatened = _threatened(clerk.get(), pl);
+	
+	if (threatened && !s.robbed) {
+		// Robbery triggered
+		s.robbed = true;
+		s.robberyTimer = 0;
+		
+		if (d.hostile && !d.weapon.empty()) {
+			// Gun Barn: clerk attacks
+			clerk->giveWeapon(d.weapon, 50);
+			clerk->equip(d.weapon);
+			clerk->setState("attack");
+			clerk->threat = pl;
+			if (game.audio) game.audio->play("alarm", 0.8);
+		} else {
+			// Burger/Liquor/Store: hand over till, call cops
+			int cash = d.cash[0] + rand() % (d.cash[1] - d.cash[0] + 1);
+			pl->money += cash;
+			if (game.hud) {
+				game.hud->bigMessage("ROBBERY", "failed", 3, "+$" + std::to_string(cash));
+				game.hud->moneyFlash(cash);
+			}
+			if (game.audio) game.audio->play("cash");
+			
+			// Call police via the concrete police system
+			if (game.policeSys) {
+				game.policeSys->crime(3, pl->pos, true); // severe crime = instant stars
+			}
+			
+			// Clerk flees
+			clerk->setState("wander");
+			clerk->threat = nullptr;
+		}
+	}
+	
+	if (s.robbed) {
+		s.robberyTimer += dt;
+		if (s.robberyTimer > 5.0) {
+			// Robbery complete, clerk stays in current state
+		}
+	}
+	
+	// Greeting when player approaches counter
+	if (!s.greeted && atCounter && dist < 4.0) {
+		s.greeted = true;
+		if (!d.greet.empty()) {
+			game.hud->speech(clerk.get(), d.greet[rand() % d.greet.size()]);
+		}
+	}
+	
+	// Reset greeted flag when player leaves
+	if (s.greeted && dist > 6.0) {
+		s.greeted = false;
+	}
 }
 
-bool ShopSystem::_threatened(Ped* c) {
-	// Check if player is aiming at clerk
-	return false;
+bool ShopSystem::_threatened(Ped* clerk, Player* pl) {
+	if (!clerk || !pl || clerk->dead) return false;
+	
+	// Check if player is aiming a gun at clerk
+	const WeaponDef& def = pl->weaponDef();
+	if (!def.gun()) return false;
+	
+	if (!pl->aiming) return false;
+	
+	// Check if aim direction points at clerk
+	V3 toClerk = clerk->pos - pl->pos;
+	double dist = toClerk.length();
+	if (dist > 15.0) return false;
+	
+	toClerk.normalize();
+	V3 aimDir = pl->hasAimDir ? pl->aimDir : V3(std::sin(pl->yaw), 0, std::cos(pl->yaw));
+	
+	// Dot product - if > 0.85, player is aiming at clerk
+	double dot = toClerk.x * aimDir.x + toClerk.y * aimDir.y + toClerk.z * aimDir.z;
+	return dot > 0.85;
 }
 
 } // namespace atg

@@ -79,6 +79,7 @@ void PopulateWorld(Game& g) {
 			s.service = V3(shell.service.x, shell.service.y, shell.service.z);
 			s.center = V3(shell.center.x, shell.center.y, shell.center.z);
 			s.clerk = V3(shell.clerk.x, shell.clerk.y, shell.clerk.z);
+			s.clerkYaw = shell.clerkYaw;
 			s.inside = [&g, shell](const V3& pos) {
 				// Check if player is inside the shop's building
 				const Building& b = shell.building >= 0 ? g.map.buildings[shell.building] : Building();

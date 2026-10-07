@@ -153,6 +153,22 @@ public:
 };
 
 // walk-in shops with clerks (src/game/shops.js)
+// Shop interior definition (shared between ShopSystem and Ped)
+struct ShopInterior {
+	std::string key;
+	std::string name;
+	V3 service;      // counter position
+	V3 center;       // shop center
+	V3 clerk;        // clerk spawn position
+	double clerkYaw = 0;  // clerk facing direction
+	std::function<bool(const V3&)> inside;  // whether player is inside
+	Ref<Ped> clerkPed;    // the clerk ped
+	bool robbed = false;  // whether shop has been robbed
+	double robberyTimer = 0; // timer since robbery
+	bool greeted = false; // whether clerk has greeted player
+	double respawnTimer = 0; // timer for clerk respawn after death
+};
+
 class IShopSystem {
 public:
 	virtual ~IShopSystem() = default;
