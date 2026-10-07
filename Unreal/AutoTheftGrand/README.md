@@ -59,7 +59,7 @@ Steps:
    **Generate Visual Studio project files**, then build the `AutoTheftGrandEditor` target in
    `Development Editor`.
 2. The first time the editor starts, it creates the game's materials in `Content/ATG/Materials`
-   (`M_ATG_*_4` and `MPC_ATG_4`; the number goes up when the materials change). The Output Log shows a
+   (`M_ATG_*_5` and `MPC_ATG_5`; the number goes up when the materials change). The Output Log shows a
    `LogATG` line for each one. After that, shaders compile once, which takes a while.
 3. Press **Play**. The world takes a few seconds to generate behind a loading screen. You start outside the
    Castillo house in Cedar Row, with traffic on the streets and people on the pavements.
@@ -181,7 +181,7 @@ suspect's stars, the patrol that comes for them and a staged car theft; `wheel.t
 special ability; `heist.txt` at a robbed armoured van; `phone.txt` at the phone; `bikes.txt` and `bikes2.txt` at
 the motorbikes and bicycles; `aircraft.txt` at each aircraft and the tank, parked, flying and firing; `army.txt` at the army at five stars and
 Fort Carver's gate and restricted area; `skate.txt` at a skateboard, a kickflip and the skatepark; `boats.txt` at the Santa Luz marina, a speedboat's
-wake and the police boats. The runs are silent and step at a fixed 1/30 s; `SOUND=1 Tools/run.sh
+wake and the police boats; `shops.txt` inside each kind of shop. The runs are silent and step at a fixed 1/30 s; `SOUND=1 Tools/run.sh
 Tools/tests/audio.txt` runs at real speed with the sound on, and `ATG.Audio` logs the sound's clock and live
 node count.
 

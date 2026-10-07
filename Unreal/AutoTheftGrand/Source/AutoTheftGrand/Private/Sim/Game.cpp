@@ -50,18 +50,6 @@ std::vector<ColPrim> VegetationCircles(const CityMap& map) {
 Game::Game(const WorldData& w, const Settings& s)
 	: map(*w.map), settings(s), quality(QualityPreset(s.quality)), rig(*this), vehicles(*this) {
 	collision = std::make_unique<CollisionWorld>(map);
-	// (the walk-in shops' interiors aren't built yet: their shells stand in as solid buildings)
-	{
-		size_t shells = 0;
-		for (const InteriorShell& it : map.interiors) shells += it.colliders.size();
-		const auto& all = collision->all();
-		const size_t keep = all.size() - (std::min)(shells, all.size());
-		for (size_t i = keep; i < all.size(); i++) collision->remove(all[i].get());
-		for (const InteriorShell& it : map.interiors) {
-			const Building& b = map.buildings[it.building];
-			collision->addBox(b.x0, b.y0 - 0.2, b.z0, b.x1, b.y1 + (b.roof == "gable" ? 2.5 : 0), b.z1, "building");
-		}
-	}
 	props = w.props;
 	if (w.propDefs) {
 		propColliders.assign(props.size(), nullptr);

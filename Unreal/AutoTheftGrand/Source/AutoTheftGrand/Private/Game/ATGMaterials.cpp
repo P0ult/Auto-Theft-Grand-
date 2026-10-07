@@ -20,6 +20,8 @@
 #include "Materials/MaterialExpressionPerInstanceCustomData.h"
 #include "Materials/MaterialExpressionPixelDepth.h"
 #include "Materials/MaterialExpressionTextureCoordinate.h"
+#include "Materials/MaterialExpressionTextureSampleParameter2D.h"
+#include "Engine/Texture2D.h"
 #include "Materials/MaterialExpressionTime.h"
 #include "Materials/MaterialExpressionVectorParameter.h"
 #include "Materials/MaterialExpressionVertexNormalWS.h"
@@ -31,7 +33,7 @@
 namespace {
 // bump when the generated materials change: new assets are made under new names
 constexpr int32 GMatVersion = 5;
-const TCHAR* GMatNames[] = { TEXT("Terrain"), TEXT("Road"), TEXT("Street"), TEXT("Ground"), TEXT("Building"), TEXT("VertexLit"), TEXT("Frond"), TEXT("Water"), TEXT("Standard"), TEXT("Glass"), TEXT("FxAlpha"), TEXT("FxAdd") };
+const TCHAR* GMatNames[] = { TEXT("Terrain"), TEXT("Road"), TEXT("Street"), TEXT("Ground"), TEXT("Building"), TEXT("VertexLit"), TEXT("Frond"), TEXT("Water"), TEXT("Standard"), TEXT("Glass"), TEXT("FxAlpha"), TEXT("FxAdd"), TEXT("Unlit"), TEXT("Picture") };
 
 FString AssetName(const TCHAR* Base) { return FString::Printf(TEXT("M_ATG_%s_%d"), Base, GMatVersion); }
 FString MpcName() { return FString::Printf(TEXT("MPC_ATG_%d"), GMatVersion); }
@@ -876,6 +878,29 @@ UMaterial* MakeMaterial(EATGMat Which, UMaterialParameterCollection* C) {
 		B.Out()->EmissiveColor.Connect(0, B.Mask(E, true, true, true, false));
 		B.Out()->Metallic.Connect(0, B.Mask(E, false, false, false, true));
 		if (bGlass) B.Out()->Opacity.Connect(0, B.Mask(O, true, false, false, false));
+		break;
+	}
+	case EATGMat::Unlit: {
+		M->SetShadingModel(MSM_Unlit);
+		TArray<TPair<FString, UMaterialExpression*>> Ins;
+		Ins.Add({ TEXT("uv1"), B.UV(1) }); Ins.Add({ TEXT("uv2"), B.UV(2) });
+		Ins.Add({ TEXT("Color"), B.VecParam(TEXT("Color"), FLinearColor::White) }); Ins.Add({ TEXT("Boost"), B.Mpc(C, TEXT("EmissiveBoost")) });
+		UMaterialExpressionCustom* E = B.Custom(TEXT("return float4(float3(uv1.x, uv1.y, uv2.x) * Color.rgb * Boost, 1);"), CMOT_Float4, Ins, TEXT("ATG unlit"));
+		B.Out()->EmissiveColor.Connect(0, B.Mask(E, true, true, true, false));
+		break;
+	}
+	case EATGMat::Picture: {
+		auto* Tex = B.New<UMaterialExpressionTextureSampleParameter2D>();
+		Tex->ParameterName = TEXT("Picture");
+		Tex->Texture = LoadObject<UTexture2D>(nullptr, TEXT("/Engine/EngineResources/DefaultTexture.DefaultTexture"));
+		Tex->SamplerType = SAMPLERTYPE_Color;
+		Tex->Coordinates.Connect(0, B.UV(0));
+		TArray<TPair<FString, UMaterialExpression*>> Ins;
+		Ins.Add({ TEXT("Tex"), Tex }); Ins.Add({ TEXT("Mode"), B.VecParam(TEXT("Mode"), FLinearColor(1, 0, 0, 0)) }); Ins.Add({ TEXT("Boost"), B.Mpc(C, TEXT("EmissiveBoost")) });
+		UMaterialExpressionCustom* A = B.Custom(TEXT("return float4(Tex.rgb * Mode.x, 0.9);"), CMOT_Float4, Ins, TEXT("ATG picture surface"));
+		UMaterialExpressionCustom* E = B.Custom(TEXT("return float4(Tex.rgb * (1 - Mode.x) * Boost, 0);"), CMOT_Float4, Ins, TEXT("ATG picture light"));
+		Split(A);
+		B.Out()->EmissiveColor.Connect(0, B.Mask(E, true, true, true, false));
 		break;
 	}
 	case EATGMat::FxAlpha:

@@ -23,6 +23,8 @@ class UStaticMesh;
 class USkeletalMesh;
 class USkeleton;
 class UTexture2D;
+class UTexture;
+class UTextureRenderTarget2D;
 struct FATGWorldData;
 namespace atg { class CityMap; class Game; struct MeshBuf; struct VehicleDef; struct TrainModel; struct Appearance; }
 
@@ -97,6 +99,8 @@ public:
 	// a person's skinned mesh (shared by people who look the same, while any of them is alive)
 	USkeletalMesh* HumanMesh(const atg::Appearance& A);
 	UStaticMesh* WeaponMesh(const FString& Id);
+	// a shop's poster or menu board (ATGPictures), painted once; null for an unknown name
+	UTexture* Picture(const FString& Name);
 
 private:
 	// generation
@@ -119,6 +123,7 @@ private:
 	TMap<FString, TWeakObjectPtr<USkeletalMesh>> HumanCache;
 	UPROPERTY(Transient) TObjectPtr<USkeleton> HumanSkeleton;
 	UPROPERTY(Transient) TMap<FString, TObjectPtr<UStaticMesh>> WeaponCache;
+	UPROPERTY(Transient) TMap<FString, TObjectPtr<UTextureRenderTarget2D>> Pictures;
 
 	// props: which instanced mesh and instance draws each (to hide smashed ones)
 	TArray<TPair<int32, int32>> PropInstances;
@@ -144,6 +149,8 @@ private:
 	UPROPERTY(VisibleAnywhere) TObjectPtr<UPostProcessComponent> Post;
 	UPROPERTY(Transient) TArray<TObjectPtr<UPointLightComponent>> Lamps;
 	TArray<FVector> LampPositions; // game metres (x, y, z of the lamp head)
+	// the one light that follows the shop nearest the camera (city.js interiorLight)
+	UPROPERTY(Transient) TObjectPtr<UPointLightComponent> InteriorLight;
 	double LampTimer = 0;
 	void UpdateSky(float Dt);
 	void UpdateLamps(float Dt);

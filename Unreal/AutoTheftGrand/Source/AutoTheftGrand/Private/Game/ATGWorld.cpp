@@ -3,7 +3,9 @@
 #include "Game/ATGCoords.h"
 #include "Game/ATGMaterials.h"
 #include "Game/ATGMeshUtil.h"
+#include "Game/ATGPictures.h"
 #include "Gen/BikeModels.h"
+#include "Gen/InteriorMesh.h"
 #include "Gen/MapImage.h"
 #include "Game/ATGHumanMesh.h"
 #include "Gen/TrainModels.h"
@@ -23,7 +25,11 @@
 #include "Components/PostProcessComponent.h"
 #include "Components/SkyAtmosphereComponent.h"
 #include "Components/SkyLightComponent.h"
+#include "Camera/PlayerCameraManager.h"
+#include "Components/StaticMeshComponent.h"
 #include "Engine/CollisionProfile.h"
+#include "Engine/TextureRenderTarget2D.h"
+#include "GameFramework/PlayerController.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/Texture2D.h"
 #include "Engine/World.h"
@@ -273,6 +279,19 @@ void AATGWorld::BeginPlay() {
 		L->RegisterComponent();
 		Lamps.Add(L);
 	}
+	// the shops' light (PointLight(0xfff0dc, 24, 20, 1.3); street lamps' 95 became LampCandelas)
+	InteriorLight = NewObject<UPointLightComponent>(this);
+	InteriorLight->SetupAttachment(Root);
+	InteriorLight->SetMobility(EComponentMobility::Movable);
+	InteriorLight->SetIntensityUnits(ELightUnits::Candelas);
+	InteriorLight->SetIntensity(0.f);
+	InteriorLight->SetAttenuationRadius(2000.f);
+	// (three.js let it fall off as d^-1.3; a sphere light keeps the ceiling just above it from burning out the same way)
+	InteriorLight->SetSourceRadius(60.f);
+	InteriorLight->SetLightColor(HexLinear(0xfff0dc));
+	InteriorLight->SetCastShadows(false);
+	InteriorLight->SetVisibility(false);
+	InteriorLight->RegisterComponent();
 	UpdateSky(0.f);
 	std::atomic<int32>* StagePtr = &LoadStage;
 	Job = Async(EAsyncExecution::Thread, [StagePtr]() { return Generate(*StagePtr); });
@@ -404,6 +423,63 @@ void AATGWorld::QueueBuild() {
 				UProceduralMeshComponent* C = NewMeshComponent(TEXT("Pontoon"), false);
 				ATGMesh::ToSection(C, 0, P, false);
 				C->SetMaterial(0, Wood);
+			}
+		}
+	});
+	// ---- the walk-in shops' rooms (interiors.js buildInteriorMesh): the lit surfaces, the glowing ones, the glass
+	// cases, the posters and menu boards, and the weapons on display
+	Steps.Add([this, D]() {
+		if (D->Map.interiors.empty()) return;
+		auto Mat = [&](EATGMat Which, const FLinearColor& Col, double Rough, double Metal, double Opacity) {
+			UMaterialInstanceDynamic* M = UMaterialInstanceDynamic::Create(ATGMaterials::Get(Which), this);
+			M->SetVectorParameterValue(TEXT("Color"), Col);
+			M->SetVectorParameterValue(TEXT("Surface"), FLinearColor((float)Rough, (float)Metal, (float)Opacity, 0.f));
+			return M;
+		};
+		UMaterialInstanceDynamic* Solid = Mat(EATGMat::Standard, FLinearColor::White, 0.78, 0.02, 1);
+		UMaterialInterface* Glow = ATGMaterials::Get(EATGMat::Unlit);
+		UMaterialInstanceDynamic* GlassMat = Mat(EATGMat::Glass, HexLinear(0xbfe6ff), 0.05, 0.1, 0.22);
+		for (const InteriorShell& It : D->Map.interiors) {
+			const InteriorMesh R = BuildInteriorMesh(It);
+			UProceduralMeshComponent* C = NewMeshComponent(TEXT("Interior"), false);
+			C->SetCastShadow(false);
+			ATGMesh::ToSection(C, 0, R.solid, false);
+			C->SetMaterial(0, Solid);
+			int32 Sec = 1;
+			if (!R.glow.Empty()) { ATGMesh::ToSection(C, Sec, R.glow, false); C->SetMaterial(Sec++, Glow); }
+			MeshBuf G;
+			G.Color(1, 1, 1);
+			for (const InteriorMesh::Glass& Gl : R.glass) G.Add(Geo::Box(Gl.sx, Gl.sy, Gl.sz), Mat4::Compose(Gl.x, Gl.y, Gl.z));
+			if (!G.Empty()) { ATGMesh::ToSection(C, Sec, G, false); C->SetMaterial(Sec++, GlassMat); }
+			// (three.js PlaneGeometry facing its local +z, turned by yaw; the canvas's top left at uv (0, 0))
+			for (const InteriorMesh::Panel& P : R.panels) {
+				UTexture* Tex = Picture(Str(P.picture));
+				if (!Tex) continue;
+				const double Rx = std::cos(P.yaw), Rz = -std::sin(P.yaw), Hw = P.width / 2, Hh = P.height / 2;
+				const double P0[3] = { P.x - Rx * Hw, P.y - Hh, P.z - Rz * Hw }, P1[3] = { P.x + Rx * Hw, P.y - Hh, P.z + Rz * Hw };
+				const double P2[3] = { P.x + Rx * Hw, P.y + Hh, P.z + Rz * Hw }, P3v[3] = { P.x - Rx * Hw, P.y + Hh, P.z - Rz * Hw };
+				const double N[3] = { std::sin(P.yaw), 0, std::cos(P.yaw) };
+				const double U0[2] = { 0, 1 }, U1[2] = { 1, 1 }, U2[2] = { 1, 0 }, U3[2] = { 0, 0 };
+				MeshBuf Q;
+				Q.Color(1, 1, 1);
+				Q.Quad(P0, P1, P2, P3v, N, U0, U1, U2, U3);
+				UMaterialInstanceDynamic* M = UMaterialInstanceDynamic::Create(ATGMaterials::Get(EATGMat::Picture), this);
+				M->SetTextureParameterValue(TEXT("Picture"), Tex);
+				M->SetVectorParameterValue(TEXT("Mode"), FLinearColor(P.lit ? 1.f : 0.f, 0, 0, 0));
+				ATGMesh::ToSection(C, Sec, Q, false);
+				C->SetMaterial(Sec++, M);
+			}
+			for (const InteriorMesh::Weapon& Wp : R.weapons) {
+				UStaticMesh* SM = WeaponMesh(Str(Wp.id));
+				if (!SM) continue;
+				UStaticMeshComponent* S = NewObject<UStaticMeshComponent>(this, MakeUniqueObjectName(this, UStaticMeshComponent::StaticClass(), TEXT("ShopWeapon")));
+				S->SetupAttachment(Root);
+				S->SetMobility(EComponentMobility::Static);
+				S->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+				S->SetCastShadow(false);
+				S->SetStaticMesh(SM);
+				S->SetWorldTransform(ATG::ToUE(M4::Compose(V3(Wp.x, Wp.y, Wp.z), Quat::FromEuler(0, Wp.yaw, Wp.roll))));
+				S->RegisterComponent();
 			}
 		}
 	});
@@ -673,6 +749,13 @@ USkeletalMesh* AATGWorld::HumanMesh(const atg::Appearance& A) {
 	return M;
 }
 
+UTexture* AATGWorld::Picture(const FString& Name) {
+	if (TObjectPtr<UTextureRenderTarget2D>* T = Pictures.Find(Name)) return *T;
+	UTextureRenderTarget2D* T = ATGPictures::Paint(this, Name);
+	Pictures.Add(Name, T);
+	return T;
+}
+
 UStaticMesh* AATGWorld::WeaponMesh(const FString& Id) {
 	if (TObjectPtr<UStaticMesh>* M = WeaponCache.Find(Id)) return *M;
 	const atg::MeshBuf& G = atg::WeaponGeometry(TCHAR_TO_UTF8(*Id));
@@ -806,4 +889,23 @@ void AATGWorld::UpdateLamps(float Dt) {
 		}
 	}
 	for (UPointLightComponent* L : Lamps) L->SetIntensity(StreetLights * LampCandelas);
+	// the shops' light, in the one nearest the camera (within 45 m)
+	if (InteriorLight && Data) {
+		const APlayerController* PC = GetWorld() ? GetWorld()->GetFirstPlayerController() : nullptr;
+		if (PC && PC->PlayerCameraManager) {
+			double Cx, Cy, Cz;
+			ATG::FromUE(PC->PlayerCameraManager->GetCameraLocation(), Cx, Cy, Cz);
+			const atg::InteriorShell* Best = nullptr;
+			double Bd = 45.0 * 45.0;
+			for (const atg::InteriorShell& It : Data->Map.interiors) {
+				const double D2 = FMath::Square(It.center.x - Cx) + FMath::Square(It.center.z - Cz);
+				if (D2 < Bd) { Bd = D2; Best = &It; }
+			}
+			if (Best) {
+				InteriorLight->SetWorldLocation(ATG::ToUE(Best->light.x, Best->light.y, Best->light.z));
+				InteriorLight->SetIntensity(24.f * LampCandelas / 95.f);
+			}
+			InteriorLight->SetVisibility(Best != nullptr);
+		}
+	}
 }

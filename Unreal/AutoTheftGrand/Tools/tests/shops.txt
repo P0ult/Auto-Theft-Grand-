@@ -1,0 +1,49 @@
+# The walk-in shops' rooms: each one seen from just inside its doorway, looking at the back wall (the posters,
+# menu boards and weapons on display, the glass cases, the room light).
+wait 1
+ATG.God 1
+ATG.Time 15
+ATG.NoBust 1
+ATG.Teleport -50 -62 0
+wait 2
+ATG.CamAt 0 0.9 6.5 0 0.6 -6
+wait 0.5
+shot shop_gunshop
+ATG.CamAt
+ATG.Teleport -659 189 0
+wait 2
+ATG.CamAt 0 0.9 -7.5 0 1.0 6
+wait 0.5
+shot shop_burger
+ATG.CamAt
+ATG.Teleport -582 138.2 0
+wait 2
+ATG.CamAt 0 0.9 8.5 0 0.6 -6
+wait 0.5
+shot shop_bar
+ATG.CamAt
+ATG.Teleport 306.7 385 0
+wait 2
+ATG.CamAt 0 0.9 -11.5 0 0.6 6
+wait 0.5
+shot shop_cafe
+ATG.CamAt
+ATG.Teleport 78.4 -17 0
+wait 2
+ATG.CamAt 0 0.9 -9.5 0 0.6 6
+wait 0.5
+shot shop_pet
+ATG.CamAt
+ATG.Teleport -392.5 479 0
+wait 2
+ATG.CamAt 0 0.9 -6.5 0 0.6 6
+wait 0.5
+shot shop_liquor
+ATG.CamAt
+ATG.Teleport 650.7 -266.9 0
+wait 2
+ATG.CamAt 0 0.9 8.5 0 0.6 -6
+wait 0.5
+shot shop_store
+wait 0.3
+quit

@@ -4,6 +4,9 @@
 #include "Engine/Canvas.h"
 #include "Engine/Font.h"
 #include "Engine/Texture.h"
+#include "Engine/Engine.h"
+#include "EngineFontServices.h"
+#include "Fonts/FontMeasure.h"
 #include "RenderUtils.h"
 
 FLinearColor CssColor(uint32 Hex, float A) {
@@ -143,6 +146,21 @@ void FATGPainter::Text(const FString& S, float X, float Y, UFont* Font, float Si
 	FCanvasTextItem Item(FVector2D(P.X - Bw * K * AlignX, P.Y - Bh * K * AlignY), FText::FromString(S), Font, WithAlpha(Fill));
 	Item.Scale = FVector2D(K, K);
 	if (bShadow) Item.EnableShadow(FLinearColor(0, 0, 0, 0.9f * Alpha), FVector2D(2, 2));
+	Canvas->DrawItem(Item);
+}
+
+void FATGPainter::FontText(const FString& S, float X, float Y, float Px, const TCHAR* Face, float AlignX, float Condense) {
+	if (S.IsEmpty() || !GEngine || !FEngineFontServices::IsInitialized()) return;
+	const float K = ScaleOf();
+	// (Slate sizes are points at 96 dpi)
+	const FSlateFontInfo Info(GEngine->GetLargeFont(), FMath::Max(1.f, Px * K * 0.75f), FName(Face));
+	const TSharedPtr<FSlateFontMeasure> Measure = FEngineFontServices::Get().GetFontMeasure();
+	if (!Measure.IsValid()) return;
+	const FVector2D Size = Measure->Measure(S, Info);
+	const float Above = (float)Measure->GetMaxCharacterHeight(Info) - FMath::Abs((float)Measure->GetBaseline(Info));
+	const FVector2f P = ToScreen(X, Y);
+	FCanvasTextItem Item(FVector2D(P.X - Size.X * Condense * AlignX, P.Y - Above), FText::FromString(S), Info, WithAlpha(Fill));
+	Item.Scale = FVector2D(Condense, 1.f);
 	Canvas->DrawItem(Item);
 }
 
