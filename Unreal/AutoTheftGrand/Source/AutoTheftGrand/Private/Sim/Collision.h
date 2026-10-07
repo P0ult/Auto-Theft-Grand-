@@ -20,7 +20,7 @@ struct CollObj {
 	double cx = 0, cz = 0, hx = 0, hz = 0, yaw = 0, s = 0, c = 1;
 	// circle
 	double x = 0, z = 0, r = 0, h = NaN(), y0 = NaN();
-	int prop = -1; bool breakable = false, broken = false;
+	int prop = -1; bool breakable = false, broken = false, gone = false; // (gone: taken for good, never restored)
 	// deck
 	double ax = 0, az = 0, ay = 0, bx = 0, bz = 0, by = 0, hl = 0, hr = 0, len = 1, dx = 0, dz = 0;
 	int edge = -1; bool pavement = false, skate = false;

@@ -6,6 +6,7 @@
 #include "Sim/Game.h"
 #include "Sim/Aircraft.h"
 #include "Sim/Bike.h"
+#include "Sim/Boat.h"
 #include "Sim/Skateboard.h"
 #include "Sim/Train.h"
 
@@ -57,6 +58,7 @@ void AATGCar::Build(atg::Vehicle* V) {
 	Model = V->model;
 	AATGWorld* W = AATGWorld::Get(this);
 	if (V->def.train && W) { BuildTrain(static_cast<atg::Train*>(V)); return; }
+	if (atg::Boat* Bt = dynamic_cast<atg::Boat*>(V)) { if (W) BuildBoat(Bt); return; }
 	if (atg::Skateboard* S = dynamic_cast<atg::Skateboard*>(V)) { if (W) BuildBoard(S); return; }
 	if (atg::Bike* B = dynamic_cast<atg::Bike*>(V)) { if (W) BuildBike(B); return; }
 	if (const atg::AircraftModel* AM = AirModelOf(V)) { if (W) BuildAir(V, *AM); return; }
@@ -289,9 +291,83 @@ void AATGCar::SyncBoard(atg::Skateboard* S) {
 	if (S->exploded && !bBurnt) { bBurnt = true; if (Parts.Num()) Parts[0]->SetMaterial(0, BurntMat); }
 }
 
+// boat.js buildBoatModel: the hull in the paint (bodyMaterial), the deck, trim, chrome and glass, the bow and
+// stern lights, the police light bar halves and the bow gun on its mount
+void AATGCar::BuildBoat(atg::Boat* B) {
+	bBoat = true;
+	AATGWorld* W = AATGWorld::Get(this);
+	const atg::BoatModel& M = *B->boat;
+	const FString Key = TEXT("Boat_") + FString(UTF8_TO_TCHAR(B->def.id.c_str()));
+	PaintMat = Std(this, Hex(B->color), 0.32, 0.55);
+	UMaterialInstanceDynamic* DeckMat = Std(this, FLinearColor::White, 0.7, 0);
+	UMaterialInstanceDynamic* Trim = Std(this, FLinearColor::White, 0.55, 0.35);
+	UMaterialInstanceDynamic* Chrome = Std(this, FLinearColor::White, 0.16, 0.95);
+	UMaterialInstanceDynamic* Glass = Std(this, Hex(0x070a0d), 0.04, 0.3, FLinearColor::Black, true, 0.8);
+	HeadMat = Std(this, Hex(0xdddddd), 0.1, 0.8, Hex(0x222222));
+	TailMat = Std(this, Hex(0x5a0000), 0.2, 0.3, FLinearColor(0.25f, 0, 0));
+	BurntMat = Std(this, Hex(0x151210), 0.95, 0.2);
+	auto Part = [&](const TCHAR* Name, const atg::MeshBuf& G, USceneComponent* Parent, UMaterialInterface* Mat, bool bShadow = true, const atg::M4& At = atg::M4()) -> UStaticMeshComponent* {
+		UStaticMesh* Mesh = W->LocalMesh(Key + TEXT("_") + Name, G);
+		if (!Mesh) return nullptr;
+		UStaticMeshComponent* C = NewObject<UStaticMeshComponent>(this);
+		C->SetupAttachment(Parent);
+		C->SetStaticMesh(Mesh);
+		C->SetMaterial(0, Mat);
+		C->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		C->SetCastShadow(bShadow);
+		C->SetRelativeTransform(ATG::LocalToUE(At));
+		C->RegisterComponent();
+		return C;
+	};
+	if (UStaticMeshComponent* C = Part(TEXT("Hull"), M.hull, Body, PaintMat)) Parts.Add(C);
+	Part(TEXT("Deck"), M.deck, Body, DeckMat);
+	Part(TEXT("Trim"), M.trim, Body, Trim);
+	Part(TEXT("Chrome"), M.chrome, Body, Chrome, false);
+	Part(TEXT("Glass"), M.glass, Body, Glass, false);
+	Part(TEXT("Head"), M.head, Body, HeadMat, false);
+	Part(TEXT("Tail"), M.tail, Body, TailMat, false);
+	if (M.hasLightbar) {
+		// MeshStandardMaterial(colour, emissive colour x 0.2), slightly see-through
+		RedMat = Std(this, Hex(0xff1a1a), 0.2, 0, Hex(0xff1a1a) * 0.2f);
+		BlueMat = Std(this, Hex(0x1a4dff), 0.2, 0, Hex(0x1a4dff) * 0.2f);
+		Part(TEXT("LightRed"), M.lightRed, Body, RedMat, false, atg::M4::Compose(atg::V3(M.lightRedPos[0], M.lightRedPos[1], M.lightRedPos[2]), atg::Quat()));
+		Part(TEXT("LightBlue"), M.lightBlue, Body, BlueMat, false, atg::M4::Compose(atg::V3(M.lightBluePos[0], M.lightBluePos[1], M.lightBluePos[2]), atg::Quat()));
+	}
+	if (M.hasGun) {
+		BoatGun = NewObject<USceneComponent>(this);
+		BoatGun->SetupAttachment(Body);
+		BoatGun->RegisterComponent();
+		Part(TEXT("Gun"), M.gun, BoatGun, Trim);
+	}
+	SyncBoat(B);
+}
+
+void AATGCar::SyncBoat(atg::Boat* B) {
+	SetActorTransform(ATG::ToUE(B->groupMatrix()));
+	if (B->painted && B->color != PaintColor && PaintMat) { PaintColor = B->color; PaintMat->SetVectorParameterValue(TEXT("Color"), Hex(B->color)); }
+	const atg::BoatModel& M = *B->boat;
+	if (BoatGun) BoatGun->SetRelativeTransform(ATG::LocalToUE(atg::M4::Compose(atg::V3(M.gunPos[0], M.gunPos[1], M.gunPos[2]), atg::Quat::FromEuler(-B->gunPitch, B->gunYaw, 0, "YXZ"))));
+	if (B->exploded && !bBurnt) { bBurnt = true; for (UPrimitiveComponent* C : Parts) if (C) C->SetMaterial(0, BurntMat); }
+	// the bow and stern lights at night and in the rain
+	if (B->lightsOn != bLights) {
+		bLights = B->lightsOn;
+		HeadMat->SetVectorParameterValue(TEXT("Color"), bLights ? FLinearColor::White : Hex(0xdddddd));
+		HeadMat->SetVectorParameterValue(TEXT("Emissive"), bLights ? FLinearColor(6.f, 5.6f, 4.6f) : Hex(0x222222));
+		TailMat->SetVectorParameterValue(TEXT("Color"), Hex(bLights ? 0x8a0000 : 0x5a0000));
+		TailMat->SetVectorParameterValue(TEXT("Emissive"), bLights ? FLinearColor(1.6f, 0.05f, 0.03f) : FLinearColor(0.25f, 0, 0));
+	}
+	if (RedMat && BlueMat) {
+		const double T = B->game.time * 7 + B->sirenPhase;
+		const bool OnR = B->sirenOn && FMath::Sin(T) > 0, OnB = B->sirenOn && FMath::Sin(T) <= 0;
+		RedMat->SetVectorParameterValue(TEXT("Emissive"), FLinearColor(OnR ? 9.f : 0.15f, OnR ? 0.3f : 0.f, 0.f));
+		BlueMat->SetVectorParameterValue(TEXT("Emissive"), FLinearColor(0.f, OnB ? 0.6f : 0.f, OnB ? 12.f : 0.2f));
+	}
+}
+
 void AATGCar::Sync(float Dt) {
 	atg::Vehicle* V = Vehicle.get();
 	if (V && bTrain) { SyncTrain(static_cast<atg::Train*>(V)); return; }
+	if (V && bBoat) { SyncBoat(static_cast<atg::Boat*>(V)); return; }
 	if (V && bBoard) { SyncBoard(static_cast<atg::Skateboard*>(V)); return; }
 	if (V && bBike) { SyncBike(static_cast<atg::Bike*>(V)); return; }
 	if (V && Air) { SyncAir(V); return; }

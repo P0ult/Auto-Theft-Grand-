@@ -15,7 +15,7 @@ class USpotLightComponent;
 class UStaticMesh;
 class UStaticMeshComponent;
 class AATGWorld;
-namespace atg { class Vehicle; class Train; class Bike; class Skateboard; struct VehicleModel; struct AircraftModel; }
+namespace atg { class Vehicle; class Train; class Bike; class Skateboard; class Boat; struct VehicleModel; struct AircraftModel; }
 
 UCLASS()
 class AATGCar : public AActor {
@@ -62,6 +62,11 @@ private:
 	UPROPERTY(Transient) TObjectPtr<USceneComponent> Deck;
 	void BuildBoard(atg::Skateboard* S);
 	void SyncBoard(atg::Skateboard* S);
+	// boats (Gen/BoatModels): hull, deck, trim, chrome, glass, the nav lights, the police light bar and bow gun
+	bool bBoat = false;
+	UPROPERTY(Transient) TObjectPtr<USceneComponent> BoatGun;
+	void BuildBoat(atg::Boat* B);
+	void SyncBoat(atg::Boat* B);
 	// aircraft and the tank (Gen/AircraftModels): props and rotors spinning, their blur discs, the gear, the
 	// canopy or hatch, afterburners, nav lights and the strobe, the chin gun, the tank's turret, gun and road wheels
 	const atg::AircraftModel* Air = nullptr;

@@ -3,7 +3,6 @@
 #include "Game/ATGCar.h"
 #include "Game/ATGCoords.h"
 #include "Game/ATGEffects.h"
-#include "Game/ATGAudio.h"
 #include "Game/ATGPickups.h"
 #include "Sim/Special.h"
 #include "Game/ATGPoliceView.h"
@@ -124,8 +123,6 @@ void AATGGameMode::SyncViews(float Dt) {
 	if (PoliceView) PoliceView->Sync(G);
 	if (!PickupsView) { FActorSpawnParameters P; P.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn; PickupsView = W->SpawnActor<AATGPickups>(AATGPickups::StaticClass(), FTransform::Identity, P); }
 	if (PickupsView) PickupsView->Sync(G);
-	if (!Audio) { FActorSpawnParameters P; P.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn; Audio = W->SpawnActor<AATGAudio>(AATGAudio::StaticClass(), FTransform::Identity, P); }
-	if (Audio) Audio->Sync(G);
 	// the world streams round the player
 	atg::Player& Pl = *G->player;
 	World->SetFocus(ATG::ToUE(Pl.vehicle ? Pl.vehicle->pos : Pl.pos));

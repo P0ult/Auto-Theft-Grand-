@@ -3,6 +3,8 @@
 #include "Sim/Aircraft.h"
 #include "Sim/Army.h"
 #include "Sim/Bike.h"
+#include "Sim/Boat.h"
+#include "Sim/Boats.h"
 #include "Sim/Combat.h"
 #include "Sim/Effects.h"
 #include "Sim/Game.h"
@@ -431,8 +433,8 @@ static void TestPolice(World& w) {
 	g->events.heliDown.on([&]() { downs++; });
 	Combat* cb = dynamic_cast<Combat*>(g->combat);
 	CombatHit hit;
-	const V3 from = p.pos + V3(0, 1.5, 0);
 	const V3 hp = pol->heli->pos;
+	const V3 from = hp - V3(6, 10, 0); // (from close under it: from the street a building can be in the way)
 	const V3 dir = (hp - from).normalized();
 	const bool hitHeli = cb->raycast(from.x, from.y, from.z, dir.x, dir.y, dir.z, 200, &p, hit) && hit.kind == CombatHit::Heli;
 	printf("  shot at it: hit kind %d at %.1f m (it is %.1f m away)\n", (int)hit.kind, hit.t, (hp - from).length());
@@ -997,24 +999,92 @@ static void TestArmy(World& w) {
 	}
 }
 
+static void TestBoats(World& w) {
+	printf("boats\n");
+	auto g = w.game(true);
+	Player& p = *g->player;
+	p.invincible = true;
+	g->missionNoBust = true;
+	BoatSystem* bs = dynamic_cast<BoatSystem*>(g->system("boats"));
+	Check(bs != nullptr, "the boat system is installed");
+	if (!bs) return;
+	printf("  %zu marinas, %zu cruising routes, %zu pontoons\n", bs->marinas.size(), bs->routes.size(), bs->pontoons.size());
+	Check(bs->marinas.size() >= 4 && bs->routes.size() >= 4, "marinas and routes are planned");
+	// the Santa Luz marina: boats tied up along the pontoon
+	g->respawnPlayer(62, 700, 0);
+	Run(*g, 2);
+	const BoatSystem::Marina* sl = nullptr;
+	for (const auto& m : bs->marinas) if (m.name == "Santa Luz Marina") sl = &m;
+	int moored = 0;
+	if (sl) for (const auto& r : sl->boats) if (Boat* b = dynamic_cast<Boat*>(r.get())) if (b->moored) moored++;
+	printf("  Santa Luz Marina: active %d, %d boats moored\n", sl ? (int)sl->active : -1, moored);
+	Check(sl && sl->active && moored >= 4, "boats are tied up at the marina");
+	// out at sea: a speedboat gets onto the plane
+	Boat* b = dynamic_cast<Boat*>(g->vehicles.spawn("speedboat", -200, 900, 0));
+	Check(b != nullptr, "a speedboat is a Boat");
+	if (!b) return;
+	g->vehicles.seatNow(&p, b, 0);
+	g->input.KeyDown("KeyW");
+	Run(*g, 5);
+	printf("  5 s full throttle: %.1f m/s, pitch %.3f, floating %d, %.2f m below the swell line\n", b->speed(), b->pitch, (int)b->floating, b->waterLevel() - b->pos.y);
+	Check(b->speed() > 20 && b->floating, "it planes across the water");
+	g->input.KeyDown("KeyA");
+	Run(*g, 2);
+	g->input.KeyUp("KeyA");
+	printf("  turning: roll %.3f, yaw %.2f\n", b->roll, b->yaw);
+	Check(std::fabs(b->yaw) > 0.5, "it turns");
+	g->input.KeyUp("KeyW");
+	// the police come out on the water
+	g->policeSys->setLevel(2);
+	int police = 0; double nearest = 1e9; bool shot = false;
+	for (int i = 0; i < 25; i++) {
+		g->policeSys->raise(2);
+		Run(*g, 1);
+		police = 0;
+		for (const auto& r : bs->police) if (Boat* pb = dynamic_cast<Boat*>(r.get())) { police++; nearest = Min(nearest, Hypot(pb->pos.x - b->pos.x, pb->pos.z - b->pos.z)); if (pb->gunT > 0) shot = true; }
+	}
+	printf("  25 s at two stars at sea: %d police boats, nearest %.0f m, gunner fired %d\n", police, nearest, (int)shot);
+	Check(police >= 1 && nearest < 120, "police boats come after you");
+	// holed: it burns, blows up and goes down
+	g->policeSys->clear();
+	g->vehicles.exit(&p);
+	Run(*g, 1);
+	b->explode();
+	Run(*g, 14);
+	printf("  exploded: sinking %d, sunk %d, %.1f m under\n", (int)b->sinking, (int)b->sunk, b->waterLevel() - b->pos.y);
+	Check(b->sinking && b->sunk, "a wrecked boat sinks");
+	// cruising traffic off Santa Luz
+	auto g2 = w.game(true);
+	BoatSystem* bs2 = dynamic_cast<BoatSystem*>(g2->system("boats"));
+	g2->respawnPlayer(-100, 760, 0);
+	Run(*g2, 3);
+	int cruising = 0;
+	for (const auto& r : bs2->routes) for (const auto& rb : r.boats) if (rb.get() && rb->driver()) cruising++;
+	printf("  off the beach: %d boats cruising\n", cruising);
+	Check(cruising >= 2, "boats cruise the coast");
+}
+
 // the same runs as tools/browser-test/tests/aircmp.mjs (mode: plane, heli or tank), printed the same way
 static void AirCompare(World& w, const std::string& mode) {
 	auto g = w.game();
 	const Landmark& af = w.map.landmarks.at("airfield");
-	const double ax = af.x, az = mode == "heli" ? af.z : af.z - 260;
+	const double ax = mode == "boat" ? -200 : af.x, az = mode == "heli" ? af.z : mode == "boat" ? 900 : af.z - 260;
+	g->env.setWeather("clear", true);
 	g->respawnPlayer(ax + 4, az, 0);
 	Run(*g, 0.5);
-	Vehicle* v = g->vehicles.spawn(mode == "plane" ? "skipper" : mode == "heli" ? "skylark" : mode == "skate" ? "skateboard" : "mammoth", ax, az, 0);
+	Vehicle* v = g->vehicles.spawn(mode == "plane" ? "skipper" : mode == "heli" ? "skylark" : mode == "skate" ? "skateboard" : mode == "boat" ? "speedboat" : "mammoth", ax, az, 0);
 	g->vehicles.seatNow(&*g->player, v, 0);
 	Plane* pl = dynamic_cast<Plane*>(v);
 	Heli* hl = dynamic_cast<Heli*>(v);
 	Tank* tk = dynamic_cast<Tank*>(v);
 	Skateboard* sk = dynamic_cast<Skateboard*>(v);
+	Boat* bt = dynamic_cast<Boat*>(v);
 	auto st = [&](double t) {
 		printf("%.1f x %.2f y %.2f z %.2f yaw %.3f fwd %.2f hp %.0f ex %d", t, v->pos.x, v->pos.y, v->pos.z, v->yaw, v->forwardSpeed(), v->health, v->exploded ? 1 : 0);
 		if (pl) { const V3 f = pl->quat.rotate(V3(0, 0, 1)); printf(" alt %.2f pitch %.3f gr %d gear %.2f spool %.3f", pl->altitude(), std::asin(f.y), pl->grounded ? 1 : 0, pl->gearK, pl->spool); }
 		if (hl) printf(" alt %.2f tilt %.3f %.3f gr %d spool %.3f", hl->altitude(), hl->tiltP, hl->tiltR, hl->grounded ? 1 : 0, hl->spool);
 		if (tk) printf(" tracks %.2f %.2f body %.4f %.4f", tk->trackL, tk->trackR, tk->bodyPitch, tk->bodyRoll);
+		if (bt) printf(" pitch %.4f roll %.4f float %d t %.2f", bt->pitch, bt->roll, bt->floating ? 1 : 0, g->time);
 		if (sk) printf(" air %d flip %.3f push %.3f crouch %.3f lean %.3f on %d", sk->airborne ? 1 : 0, sk->flip, sk->pushK, sk->crouch, sk->lean, sk->driver() ? 1 : 0);
 		printf("\n");
 	};
@@ -1031,6 +1101,8 @@ static void AirCompare(World& w, const std::string& mode) {
 		phase({ "ArrowDown" }, 0.5); phase({}, 6); phase({ "KeyA" }, 0.5); phase({}, 4); phase({ "ArrowUp" }, 1); phase({}, 12);
 	} else if (hl) {
 		phase({}, 3); phase({ "Space" }, 4); phase({}, 6); phase({ "KeyW" }, 4); phase({}, 3); phase({ "KeyD", "KeyW" }, 2); phase({ "ShiftLeft" }, 3);
+	} else if (bt) {
+		phase({ "KeyW" }, 4); phase({ "KeyW", "KeyA" }, 2); phase({}, 2); phase({ "KeyS" }, 2); phase({ "KeyD", "KeyW" }, 2);
 	} else if (sk) {
 		phase({ "KeyW" }, 3); phase({ "Space" }, 0.5); phase({ "KeyA" }, 0.5); phase({}, 2); phase({ "KeyW", "KeyD" }, 2); phase({ "KeyS" }, 1.5);
 	} else {
@@ -1148,6 +1220,7 @@ int main(int argc, char** argv) {
 	if (want("aircraft")) TestAircraft(w);
 	if (want("army")) TestArmy(w);
 	if (want("skate")) TestSkate(w);
+	if (want("boats")) TestBoats(w);
 	printf(fails ? "%d FAILED\n" : "all passed\n", fails);
 	return fails ? 1 : 0;
 }

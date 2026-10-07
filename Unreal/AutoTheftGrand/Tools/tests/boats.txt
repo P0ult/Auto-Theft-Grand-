@@ -1,0 +1,31 @@
+# Boats: the Santa Luz marina with boats tied up along its pontoon, a speedboat planing out to sea with its wake,
+# and the police boats that come out at two stars.
+wait 1
+ATG.God 1
+ATG.Time 15
+ATG.NoBust 1
+ATG.Teleport 58 690 0
+wait 3
+ATG.CamAt -14 7 -10 4 0 25
+wait 0.3
+shot boats_marina
+ATG.CamAt
+ATG.Teleport -200 880 0
+wait 1
+ATG.Spawn speedboat 0
+wait 1
+ATG.Enter
+ATG.Press KeyW
+wait 5
+ATG.Press KeyW KeyA
+wait 1.5
+ATG.Press KeyW
+wait 1
+shot boats_wake
+ATG.Wanted 2
+wait 14
+ATG.Wanted 2
+wait 8
+shot boats_police
+ATG.State
+quit

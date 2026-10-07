@@ -116,15 +116,23 @@ void AATGEffects::Sync(atg::Game* G) {
 		for (const atg::Effects::Skid& S : Fx->skids) if (S.alpha > 0) Q.Quad(S.a0, S.a1, S.b1, S.b0, Dark, Dark, (float)S.alpha * 0.75f, 2, 1);
 		Q.Flush(Mesh, 4, MAlpha);
 	}
-	// boat wakes: white on the water, fading over 9 s (the browser game's shader breaks them up with noise and
-	// softens the edges; here each quad is a flat white at the trail's average opacity)
+	// boat wakes: white on the water, fading over 9 s. The browser game's shader fades the edges, thins the
+	// middle and breaks the foam up with noise; here each segment is six strips across with that edge profile
+	// at the noise's average cover (a half)
 	{
 		FQuads Q;
 		const float White[3] = { 0.95f, 0.95f, 0.95f };
+		auto Smooth = [](double E0, double E1, double X) { const double T = FMath::Clamp((X - E0) / (E1 - E0), 0.0, 1.0); return T * T * (3 - 2 * T); };
 		for (const atg::Effects::Wake& K : Fx->wakes) {
 			const double A = K.strength * FMath::Clamp(1 - (Fx->wakeTime - K.born) / 9.0, 0.0, 1.0);
 			if (A <= 0.005) continue;
-			Q.Quad(K.a0, K.a1, K.b1, K.b0, White, White, (float)(A * 0.5 * 0.45), 2, Light + 0.1f);
+			for (int32 I = 0; I < 6; I++) {
+				const double S0 = I / 6.0, S1 = (I + 1) / 6.0, Side = FMath::Abs((S0 + S1) - 1);
+				const double Profile = Smooth(1, 0.55, Side) * (0.45 + 0.55 * Smooth(0.2, 0.9, Side));
+				const float Alpha = (float)(A * Profile * 0.5 * 0.5);
+				if (Alpha <= 0.003f) continue;
+				Q.Quad(K.a0.lerp(K.a1, S0), K.a0.lerp(K.a1, S1), K.b0.lerp(K.b1, S1), K.b0.lerp(K.b1, S0), White, White, Alpha, 2, Light + 0.1f);
+			}
 		}
 		Q.Flush(Mesh, 6, MAlpha);
 	}
