@@ -1,10 +1,12 @@
 #include "Setup.h"
 #include "Special.h"
 #include "Army.h"
+#include "Boats.h"
 #include "Combat.h"
 #include "Effects.h"
 #include "Game.h"
 #include "Gameplay.h"
+#include "Gen/CityMap.h"
 #include "Heists.h"
 #include "Military.h"
 #include "Hud.h"
@@ -15,6 +17,7 @@
 #include "Police.h"
 #include "Rail.h"
 #include "Roadblocks.h"
+#include "Shops.h"
 #include "Skateparks.h"
 #include "Traffic.h"
 #include "WeaponWheel.h"
@@ -45,7 +48,10 @@ void InstallSystems(Game& g) {
 	g.rail = g.addSystem("rail", std::make_unique<RailSystem>(g));
 	// (shops, wildlife, pets: later)
 	g.addSystem("skateparks", std::make_unique<Skateparks>(g));
-	// (boats, shipRaid, missions, audio: later)
+	g.addSystem("boats", std::make_unique<BoatSystem>(g));
+	g.shopsSys = g.addSystem("shops", std::make_unique<ShopSystem>(g));
+	g.shops = g.shopsSys;
+	// (shipRaid, missions, audio: later)
 	g.gameplay = g.addSystem("gameplay", std::make_unique<Gameplay>(g));
 	g.pickupsSys->refreshPackages();
 }
@@ -61,6 +67,24 @@ void StartGame(Game& g) {
 void PopulateWorld(Game& g) {
 	if (g.traffic) g.traffic->populate((int)std::floor(g.traffic->maxCars * 0.7));
 	if (g.peds) g.peds->populate((int)std::floor(g.peds->maxPeds * 0.6));
+	if (g.shopsSys) {
+		std::map<std::string, ShopSystem::Interior> shopMap;
+		for (const auto& shell : g.map.interiors) {
+			ShopSystem::Interior s;
+			s.key = shell.key;
+			s.name = shell.name;
+			s.service = V3(shell.service.x, shell.service.y, shell.service.z);
+			s.center = V3(shell.center.x, shell.center.y, shell.center.z);
+			s.clerk = V3(shell.clerk.x, shell.clerk.y, shell.clerk.z);
+			s.inside = [&g, shell](const V3& pos) {
+				// Check if player is inside the shop's building
+				const Building& b = shell.building >= 0 ? g.map.buildings[shell.building] : Building();
+				return pos.x >= b.x0 && pos.x <= b.x1 && pos.z >= b.z0 && pos.z <= b.z1 && pos.y >= b.y0 && pos.y <= b.y1;
+			};
+			shopMap[shell.key] = s;
+		}
+		g.shopsSys->populate(shopMap);
+	}
 }
 
 } // namespace atg

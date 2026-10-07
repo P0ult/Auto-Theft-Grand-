@@ -65,6 +65,9 @@ public:
 	// boats: foam behind the stern, spray off the bow (s, c: the heading's sine and cosine)
 	virtual void foam(const V3&, double, double, double, double) {}
 	virtual void bowSpray(const V3&, double, double, double, double) {}
+	// a boat's wake (key: the boat): a white trail on the water that spreads and fades; break ends the trail
+	virtual void wakeAdd(int /*key*/, double, double, double, double /*width*/, double /*strength*/) {}
+	virtual void wakeBreak(int /*key*/) {}
 };
 
 // on-screen help and messages (src/ui/hud.js)
@@ -147,6 +150,15 @@ class IWildlife {
 public:
 	virtual ~IWildlife() = default;
 	virtual void addWalkedDog(Ped* owner) = 0;
+};
+
+// walk-in shops with clerks (src/game/shops.js)
+class IShopSystem {
+public:
+	virtual ~IShopSystem() = default;
+	virtual void serve(const V3& playerPos) = 0; // try to serve at nearest shop
+	virtual void update(double dt) = 0;
+	virtual void reset() = 0;
 };
 
 } // namespace atg
