@@ -279,6 +279,7 @@ std::vector<MissionDef> BuildStory() {
 		co_await m.say("Lou", "That's for Tino. Tomorrow the whole city knows the Kings are back.", 4);
 	}; story.push_back(std::move(drive));
 	AddChapterTwo(story);
+	AddChapterThree(story);
 	return story;
 }
 } // namespace atg

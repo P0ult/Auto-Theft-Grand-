@@ -51,7 +51,7 @@ bool FATGTestScript::Load(const FString& Path) {
 	if (!FFileHelper::LoadFileToStringArray(Raw, *Path)) { UE_LOG(LogATG, Error, TEXT("ATG script %s not found"), *Path); return false; }
 	Lines.Reset();
 	for (FString& L : Raw) { L.TrimStartAndEndInline(); if (!L.IsEmpty() && !L.StartsWith(TEXT("#"))) Lines.Add(L); }
-	Line = 0; Wait = 0;
+	Line = 0; Wait = 0; RepeatLeft = 0; RepeatCmd.Empty();
 	UE_LOG(LogATG, Display, TEXT("ATG script %s: %d commands"), *Path, Lines.Num());
 	return true;
 }
@@ -59,10 +59,18 @@ bool FATGTestScript::Load(const FString& Path) {
 void FATGTestScript::Tick(UWorld* World, float Dt) {
 	if (ShotFrames > 0) { ShotFrames--; return; } // (let a screenshot finish before going on)
 	if (Wait > 0) { Wait -= Dt; return; }
+	if (RepeatLeft > 0) { if (GEngine) GEngine->Exec(World, *RepeatCmd); RepeatLeft--; Wait = RepeatEvery; return; }
 	while (Line < Lines.Num()) {
 		const FString Cmd = Lines[Line++];
 		UE_LOG(LogATG, Display, TEXT("ATG script> %s"), *Cmd);
 		if (Cmd.StartsWith(TEXT("wait "))) { Wait = FCString::Atod(*Cmd.Mid(5)); return; }
+		if (Cmd.StartsWith(TEXT("repeat "))) {
+			FString Tail = Cmd.Mid(7), Count, Interval;
+			if (Tail.Split(TEXT(" "), &Count, &Tail) && Tail.Split(TEXT(" "), &Interval, &RepeatCmd)) {
+				RepeatLeft = FMath::Max(0, FCString::Atoi(*Count)); RepeatEvery = FMath::Max(0.0, FCString::Atod(*Interval)); return;
+			}
+			UE_LOG(LogATG, Error, TEXT("ATG repeat: expected count interval command"));
+		}
 		if (Cmd.StartsWith(TEXT("shot "))) { ATGTest::Shot(Cmd.Mid(5).TrimStartAndEnd()); ShotFrames = 3; return; }
 		if (Cmd == TEXT("quit")) { UE_LOG(LogATG, Display, TEXT("ATG script done")); FPlatformMisc::RequestExit(false, TEXT("ATG script")); return; }
 		if (GEngine) GEngine->Exec(World, *Cmd);
@@ -217,10 +225,15 @@ ATG_CMD(CmdStoryAdvance, "ATG.StoryAdvance", "ATG.StoryAdvance: test assistance 
 	auto M = G->missions->active; auto& P = *G->player;
 	G->policeSys->clearWanted();
 	if (M->def.id == "toolingup" && !P.weapons.count("pistol")) P.giveWeapon("pistol", 34);
-	for (const auto& B : M->blips) if (B->color == 0x4aa3ff && B->icon == "car" && std::find(G->blips.begin(), G->blips.end(), B) != G->blips.end()) {
+	for (const auto& B : M->blips) if (M->def.id != "tail" && B->color == 0x4aa3ff && B->icon == "car" && std::find(G->blips.begin(), G->blips.end(), B) != G->blips.end()) {
 		for (const auto& V : M->cars) if (!V->isWrecked() && atg::Hypot(V->pos.x - B->x, V->pos.z - B->z) < 1 && P.vehicle != V.get()) {
 			if (P.vehicle) P.vehicle->takeOut(&P); G->vehicles.seatNow(&P, V.get());
 		}
+	}
+	if (M->def.id == "tail" && M->cars.size() > 1) {
+		const auto& T = M->cars[1];
+		if (!P.vehicle) { auto* V = G->vehicles.spawn("meridian", T->pos.x, T->pos.z - 40, 0); G->vehicles.seatNow(&P, V); }
+		P.vehicle->pos = T->pos - T->fwd() * 40; P.vehicle->vel = atg::V3(); P.vehicle->yaw = T->yaw;
 	}
 	for (auto It = M->markers.rbegin(); It != M->markers.rend(); ++It) if (!(*It)->removed) {
 		const auto& Goal = **It;

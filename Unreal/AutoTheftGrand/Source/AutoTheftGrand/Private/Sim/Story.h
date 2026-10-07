@@ -9,6 +9,7 @@ MissionPedOpts StoryCast(const std::string& key, bool invincible = false);
 V3 StoryLandmark(const Game& game, const std::string& key, double dx = 0, double dz = 0);
 const P3& StoryPoint(const Game& game, const std::string& key, const std::string& point);
 void AddChapterTwo(std::vector<MissionDef>& story);
+void AddChapterThree(std::vector<MissionDef>& story);
 struct StoryRoadSpot { double x, z, yaw; };
 StoryRoadSpot StoryRoadNear(Game& game, double x, double z, int lane = 1);
 void StoryTeleport(Game& game, double x, double z, double yaw = 0, double y = NaN());

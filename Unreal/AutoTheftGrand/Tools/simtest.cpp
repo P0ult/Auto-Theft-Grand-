@@ -1507,9 +1507,9 @@ static void TestMissions(World& w) {
 }
 
 static void TestStory(World& w) {
-	printf("story: Chapters I-II\n");
+	printf("story: Chapters I-III\n");
 	const auto definitions = BuildStory();
-	Check(definitions.size() == 10, "ten Chapter I-II missions in browser order");
+	Check(definitions.size() == 15, "fifteen Chapter I-III missions in browser order");
 	for (const auto& def : definitions) {
 		auto g = w.game(true); g->disableAmbient = true; g->player->invincible = true;
 		Missions& e = *g->missions; Player& p = *g->player;
@@ -1531,10 +1531,15 @@ static void TestStory(World& w) {
 				}
 			}
 			// Get in the car indicated by the live blue blip, as the browser mission test does.
-			for (const auto& b : ctx->blips) if (b->color == 0x4aa3ff && b->icon == "car" && std::find(g->blips.begin(), g->blips.end(), b) != g->blips.end()) {
+			for (const auto& b : ctx->blips) if (def.id != "tail" && b->color == 0x4aa3ff && b->icon == "car" && std::find(g->blips.begin(), g->blips.end(), b) != g->blips.end()) {
 				for (const auto& v : ctx->cars) if (!v->isWrecked() && Hypot(v->pos.x - b->x, v->pos.z - b->z) < 1 && p.vehicle != v.get()) {
 					if (p.vehicle) p.vehicle->takeOut(&p); g->vehicles.seatNow(&p, v.get());
 				}
+			}
+			if (def.id == "tail" && ctx->cars.size() > 1) {
+				const auto& target = ctx->cars[1];
+				if (!p.vehicle) { auto* own = g->vehicles.spawn("meridian", target->pos.x, target->pos.z - 40, 0); g->vehicles.seatNow(&p, own); }
+				p.vehicle->pos = target->pos - target->fwd() * 40; p.vehicle->vel = V3(); p.vehicle->yaw = target->yaw;
 			}
 			for (auto it = ctx->markers.rbegin(); it != ctx->markers.rend(); ++it) if (!(*it)->removed) {
 				const auto& m = **it;
@@ -1595,6 +1600,15 @@ static void TestStory(World& w) {
 		for (int i = 0; i < 200 && snitch->cutscene; i++) { snitch->input.KeyDown("Space"); Run(*snitch, 0.1); snitch->input.KeyUp("Space"); Run(*snitch, 0.2); }
 		auto drv = std::dynamic_pointer_cast<RouteDriver>(snitch->missions->active->cars[0]->ai); drv->arrived = true; Run(*snitch, 0.1);
 		Check(!snitch->missions->active && snitch->hudModel->big.sub == "Benny made it to the police station.", "The Snitch fails if Benny reaches the police station");
+	}
+	{
+		auto tail = w.game(true); tail->disableAmbient = true; tail->player->invincible = true;
+		const auto& d = tail->missions->story[12]; const V3 at = d.start(tail->map); tail->respawnPlayer(at.x, at.z, 0); tail->missions->start("tail");
+		for (int i = 0; i < 200 && tail->cutscene; i++) { tail->input.KeyDown("Space"); Run(*tail, 0.1); tail->input.KeyUp("Space"); Run(*tail, 0.2); }
+		const auto target = tail->missions->active->cars[1]; auto* own = tail->vehicles.spawn("meridian", target->pos.x, target->pos.z - 40, 0); tail->vehicles.seatNow(tail->player.get(), own);
+		own->pos = target->pos - target->fwd() * 40; Run(*tail, 0.1);
+		tail->events.gunshot.emit(tail->player.get(), tail->player->pos, "pistol"); Run(*tail, 0.1);
+		Check(!tail->missions->active && tail->hudModel->big.sub == "Deacon noticed you.", "the stealth tail fails on nearby player gunfire");
 	}
 }
 

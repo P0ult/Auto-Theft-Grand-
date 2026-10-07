@@ -1,0 +1,38 @@
+# Chapter III: real route following in the tail, then the automatic ambush and hospital missions.
+wait 1
+ATG.God 1
+ATG.StoryStart evidence unlock
+wait 27
+ATG.StoryAdvance
+wait 0.3
+ATG.StoryAdvance
+wait 6
+ATG.Missions
+shot story3_evidence
+ATG.StoryStart beachparty unlock
+wait 15
+ATG.StoryAdvance
+wait 0.3
+ATG.StoryAdvance
+wait 6
+ATG.Missions
+ATG.StoryStart tail unlock
+wait 13
+ATG.StoryAdvance
+wait 1
+shot story3_tail
+repeat 90 3 ATG.StoryAdvance
+ATG.Missions
+shot story3_betrayal
+ATG.StoryStart ambush unlock
+wait 17
+repeat 12 2 ATG.StoryAdvance
+wait 4
+ATG.Missions
+shot story3_ambush
+ATG.StoryStart hospital unlock
+repeat 8 1 ATG.StoryAdvance
+wait 4
+ATG.Missions
+shot story3_hospital
+quit

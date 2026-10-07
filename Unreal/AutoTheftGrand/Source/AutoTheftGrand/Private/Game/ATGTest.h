@@ -3,6 +3,7 @@
 //
 //   wait 2.5               let the game run for 2.5 seconds of game time
 //   shot name              screenshot to Saved/Screenshots/ATG/name.png (with the HUD)
+//   repeat 40 3 ATG.City    run a command 40 times, 3 seconds apart
 //   ATG.Teleport 120 -40   any console command
 //   quit                   exit the game
 //
@@ -28,6 +29,9 @@ private:
 	int32 Line = 0;
 	double Wait = 0;
 	int32 ShotFrames = 0;
+	FString RepeatCmd;
+	int32 RepeatLeft = 0;
+	double RepeatEvery = 0;
 };
 
 namespace ATGTest {

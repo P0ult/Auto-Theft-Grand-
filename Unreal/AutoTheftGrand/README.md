@@ -56,8 +56,10 @@ and the HUD shows its name and state. Save data and online pet replication come 
 The mission engine runs sequential scripts with dialogue, cutscenes, objectives, timers, counters, GPS
 routes, target arrows, failure conditions, rewards and contact progression. Chapter I is playable:
 Welcome Home, Old Friends, Clean Sweep, Tooling Up and Drive-By. Chapter II is playable too: Burning Rubber,
-Hot Wheels, Blood Money, The Snitch and Family Ties. The scripts keep the original cast, dialogue,
-encounters, restrictions and rewards. The other 25 missions are still to come;
+Hot Wheels, Blood Money, The Snitch and Family Ties. Chapter III adds Evidence, Beach Party, Snake in the
+Grass, Ambush and Rush to All Saints. The stealth tail uses distance, time spent too close, collisions and
+gunfire to detect you; Ambush and the hospital run start automatically. The scripts keep the original cast,
+dialogue, encounters, restrictions and rewards. The other 20 missions are still to come;
 [PORTING.md](PORTING.md) has the plan and the progress.
 
 ## Build and run
@@ -89,8 +91,8 @@ To start the story from PowerShell, add `-ATGStory` to the game launch:
 & "C:\Program Files\Epic Games\UE_5.8\Engine\Binaries\Win64\UnrealEditor.exe" "C:\ATG\Unreal\AutoTheftGrand\AutoTheftGrand.uproject" -game -windowed -resx=1280 -resy=720 -ATGStory -log
 ```
 
-The game opens with Welcome Home. After each mission, yellow contact letters show the next ones. Chapter II
-ends after Family Ties; Chapter III has not been ported yet. Without `-ATGStory`, the game starts at the safehouse
+The game opens with Welcome Home. After each mission, yellow contact letters show the next ones. Chapter III
+ends after Rush to All Saints; Chapter IV has not been ported yet. Without `-ATGStory`, the game starts at the safehouse
 as before. Save/load and the title screen are still pending.
 
 ### Graphics
@@ -237,7 +239,7 @@ diff jsveh.txt cppveh.txt
 ./simtest.exe wildlife                                       # spawning, fleeing, damage and walked dogs
 ./simtest.exe pets                                           # adoption, commands, bites, rides and treats
 ./simtest.exe missions                                       # mission lifecycle, waits, failure and routes
-./simtest.exe story                                          # Chapters I-II and their failure rules
+./simtest.exe story                                          # Chapters I-III and their failure rules
 node --import ./three-hook.mjs storycompare.mjs               # story metadata against story.js
 node --import ./three-hook.mjs animalcompare.mjs --check      # 17 breeds' rigs against animals.js
 ./simtest.exe aircmp heli > cpp_heli.txt                       # a run (plane, heli, tank, skate or boat) against the
@@ -265,6 +267,9 @@ browser's mission runner. `ATG.StoryStart id` positions the player at a mission'
 `ATG.StoryAdvance` reaches its current checkpoint, seats followers and removes hostile targets for tests.
 `Tools/tests/story2.txt` runs Chapter II. `ATG.StoryStart id unlock` also seeds that mission's prerequisites
 for isolated tests. Race failure restores ambient traffic and pedestrians during cleanup.
+`Tools/tests/story3.txt` checks Chapter III, including Deacon's actual route and the automatic ambush and
+hospital sequence. Scripts can use `repeat count interval command` to repeat objective assistance or state
+checks without interrupting the simulation.
 
 ### Checking the generator without Unreal
 
