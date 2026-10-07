@@ -15,7 +15,7 @@ class USpotLightComponent;
 class UStaticMesh;
 class UStaticMeshComponent;
 class AATGWorld;
-namespace atg { class Vehicle; class Train; struct VehicleModel; }
+namespace atg { class Vehicle; class Train; class Bike; struct VehicleModel; }
 
 UCLASS()
 class AATGCar : public AActor {
@@ -52,6 +52,11 @@ private:
 	int32 HeadState = -1;
 	void BuildTrain(atg::Train* T);
 	void SyncTrain(atg::Train* T);
+	// bikes (Gen/BikeModels): the body on the leaning root, the front wheel's pivot with the fork, the crank
+	bool bBike = false;
+	UPROPERTY(Transient) TObjectPtr<USceneComponent> CrankPivot;
+	void BuildBike(atg::Bike* B);
+	void SyncBike(atg::Bike* B);
 	int32 DentVersion = 0;
 	uint32 PaintColor = 0; // (the colour of a respray)
 	int32 Detached = 0;

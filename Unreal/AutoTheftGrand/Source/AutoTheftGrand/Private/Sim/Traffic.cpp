@@ -518,8 +518,6 @@ std::string Traffic::pickType(const std::string& district) {
 	auto m = MULT.find(district);
 	std::vector<std::pair<std::string, double>> pool;
 	for (const auto& e : TrafficPool()) {
-		// (motorbikes join the traffic once bikes.js is ported)
-		if (!VehicleManager::Supported(*FindVehicle(e.first))) continue;
 		double k = 1;
 		if (m != MULT.end()) { auto it = m->second.find(e.first); if (it != m->second.end()) k = it->second; }
 		pool.push_back({ e.first, e.second * k });

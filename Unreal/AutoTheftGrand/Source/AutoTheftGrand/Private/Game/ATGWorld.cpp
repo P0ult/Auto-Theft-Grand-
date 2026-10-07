@@ -3,6 +3,7 @@
 #include "Game/ATGCoords.h"
 #include "Game/ATGMaterials.h"
 #include "Game/ATGMeshUtil.h"
+#include "Gen/BikeModels.h"
 #include "Gen/MapImage.h"
 #include "Game/ATGHumanMesh.h"
 #include "Gen/TrainModels.h"
@@ -567,6 +568,31 @@ const FATGVehicleMeshes& AATGWorld::TrainMeshes(const atg::TrainModel& Model) {
 	FATGVehicleMeshes& M = VehicleCache.Add(Id);
 	UMaterialInterface* Std = ATGMaterials::Get(EATGMat::Standard);
 	for (const atg::VPart& P : Model.parts) M.Parts.Add(ATGMesh::BuildStaticMesh(this, *(Id + TEXT("_") + Str(P.name)), TArray<FATGPart>{ { &P.mesh, Std } }, EATGAxes::Local));
+	return M;
+}
+
+const FATGVehicleMeshes& AATGWorld::BikeMeshes(const atg::VehicleDef& Def) {
+	const FString Id = TEXT("Bike_") + Str(Def.id);
+	if (const FATGVehicleMeshes* M = VehicleCache.Find(Id)) return *M;
+	FATGVehicleMeshes& M = VehicleCache.Add(Id);
+	const atg::BikeModel& B = atg::BuildBikeModel(Def);
+	UMaterialInterface* Std = ATGMaterials::Get(EATGMat::Standard);
+	auto Mesh = [&](const atg::MeshBuf& G, const TCHAR* Name) -> UStaticMesh* { return G.Empty() ? nullptr : ATGMesh::BuildStaticMesh(this, *(Id + TEXT("_") + Name), TArray<FATGPart>{ { &G, Std } }, EATGAxes::Local); };
+	const bool Moto = Def.bike == "moto";
+	// the windscreen (BoxGeometry(0.3, 0.2, 0.012) placed by its matrix) and the lamps (bikes.js headMesh / tailMesh)
+	atg::MeshBuf Glass, Head, Tail;
+	Glass.Color(1, 1, 1); Head.Color(1, 1, 1); Tail.Color(1, 1, 1);
+	if (B.hasGlass) Glass.Add(atg::Geo::Box(0.3, 0.2, 0.012), B.glassMatrix);
+	Head.Add(atg::Geo::Box(Moto ? 0.16 : 0.05, Moto ? 0.1 : 0.04, 0.03), atg::Mat4::Compose(0, B.headY, B.headZ));
+	Tail.Add(atg::Geo::Box(Moto ? 0.14 : 0.05, 0.05, 0.02), atg::Mat4::Compose(0, B.tailY, B.tailZ));
+	M.Parts.Add(Mesh(B.body, TEXT("Body")));
+	M.Parts.Add(Mesh(B.trim, TEXT("Trim")));
+	M.Parts.Add(Mesh(B.fork, TEXT("Fork")));
+	M.Parts.Add(Mesh(B.crank, TEXT("Crank")));
+	M.Parts.Add(Mesh(Glass, TEXT("Glass")));
+	M.Parts.Add(Mesh(Head, TEXT("Head")));
+	M.Parts.Add(Mesh(Tail, TEXT("Tail")));
+	M.Wheel = Mesh(B.wheel, TEXT("Wheel"));
 	return M;
 }
 

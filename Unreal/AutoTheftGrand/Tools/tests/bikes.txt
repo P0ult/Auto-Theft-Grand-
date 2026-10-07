@@ -1,0 +1,23 @@
+# Bikes: a Razor parked on its stand, then ridden (leaning into a turn); a BMX with its pedals.
+wait 1
+ATG.God 1
+ATG.Time 14
+ATG.Teleport -612 376 -2.36
+ATG.Spawn razor
+wait 1
+shot bike_parked
+ATG.Enter
+wait 1
+ATG.Press KeyW
+wait 2
+ATG.Press KeyW KeyA
+wait 0.8
+shot bike_lean
+ATG.Release
+wait 3
+ATG.Enter
+wait 2
+ATG.Spawn bmx
+wait 1
+shot bike_bmx
+quit

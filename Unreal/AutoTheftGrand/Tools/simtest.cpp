@@ -1,5 +1,6 @@
 // Native tests for the simulation (no Unreal): Tools/native.sh simtest.exe simtest.cpp && ./simtest.exe [test ...]
 // Each test sets up a game on the generated world, runs fixed 1/30 s frames and prints what it measured.
+#include "Sim/Bike.h"
 #include "Sim/Combat.h"
 #include "Sim/Effects.h"
 #include "Sim/Game.h"
@@ -754,6 +755,44 @@ static void TestPhone(World& w) {
 	Check(ph->delivered.get() && ph->delivered->ownedByPlayer && p.money == 1300, "Benny leaves a car at the kerb for $200");
 }
 
+// bikes: a motorbike accelerates and leans into a turn, a bicycle's pedals go round, a hard hit throws the rider
+static void TestBikes(World& w) {
+	printf("bikes\n");
+	auto g = w.game();
+	ToStreet(w, *g);
+	Player& p = *g->player;
+	Vehicle* v = g->vehicles.spawn("razor", p.pos.x + 2, p.pos.z, 0);
+	Bike* b = dynamic_cast<Bike*>(v);
+	Check(b != nullptr, "a Razor is a bike");
+	if (!b) return;
+	g->vehicles.seatNow(&p, b, 0);
+	g->input.KeyDown("KeyW");
+	Run(*g, 3);
+	printf("  3 s throttle: %.1f m/s\n", b->speed());
+	Check(b->speed() > 10, "it accelerates");
+	g->input.KeyDown("KeyA");
+	Run(*g, 0.8);
+	printf("  turning: lean %.2f rad\n", b->lean);
+	Check(std::fabs(b->lean) > 0.1, "it leans into the turn");
+	g->input.KeyUp("KeyA"); g->input.KeyUp("KeyW");
+	b->throwRiders(12);
+	g->frame(1.0 / 30);
+	Check(!p.vehicle && p.ragdolling, "a hard hit throws the rider off");
+	Run(*g, 4);
+	printf("  parked lean %.2f\n", b->lean);
+	Check(std::fabs(b->lean - 0.2) < 0.05, "left alone it rests on its stand");
+	// a bicycle
+	auto g2 = w.game();
+	ToStreet(w, *g2);
+	Player& p2 = *g2->player;
+	Bike* bmx = dynamic_cast<Bike*>(g2->vehicles.spawn("bmx", p2.pos.x + 2, p2.pos.z, 0));
+	g2->vehicles.seatNow(&p2, bmx, 0);
+	g2->input.KeyDown("KeyW");
+	Run(*g2, 2);
+	printf("  BMX: %.1f m/s, pedals %.1f rad\n", bmx->speed(), bmx->pedalPhase);
+	Check(bmx->pedalPhase > 5, "a bicycle's pedals go round");
+}
+
 int main(int argc, char** argv) {
 	InstallCrashTrace();
 	setvbuf(stdout, nullptr, _IONBF, 0);
@@ -781,6 +820,7 @@ int main(int argc, char** argv) {
 	if (want("special")) TestSpecial(w);
 	if (want("heists")) TestHeists(w);
 	if (want("phone")) TestPhone(w);
+	if (want("bikes")) TestBikes(w);
 	printf(fails ? "%d FAILED\n" : "all passed\n", fails);
 	return fails ? 1 : 0;
 }

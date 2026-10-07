@@ -90,6 +90,8 @@ public:
 	const FATGVehicleMeshes& VehicleMeshes(const atg::VehicleDef& Def);
 	// the trains' rolling stock (one entry per TrainModel)
 	const FATGVehicleMeshes& TrainMeshes(const atg::TrainModel& Model);
+	// a two-wheeler's: body, trim, fork, crank, glass, head, tail (empty ones null), and the wheel
+	const FATGVehicleMeshes& BikeMeshes(const atg::VehicleDef& Def);
 	// a person's skinned mesh (shared by people who look the same, while any of them is alive)
 	USkeletalMesh* HumanMesh(const atg::Appearance& A);
 	UStaticMesh* WeaponMesh(const FString& Id);

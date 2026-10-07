@@ -1,0 +1,13 @@
+# A close look at a parked Razor (spawned 5 m ahead of the player, side-on) and a BMX.
+wait 1
+ATG.God 1
+ATG.Time 14
+ATG.Teleport -612 376 0
+ATG.Spawn razor
+wait 0.5
+ATG.CamAt 3 1.6 2 0 0.7 5.5
+wait 2
+ATG.CamAt 3 1.6 2 0 0.7 5.5
+wait 0.2
+shot bike_side
+quit

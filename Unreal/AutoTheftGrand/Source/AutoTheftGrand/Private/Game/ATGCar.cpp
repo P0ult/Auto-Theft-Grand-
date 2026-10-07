@@ -4,6 +4,7 @@
 #include "Game/ATGMeshUtil.h"
 #include "Game/ATGWorld.h"
 #include "Sim/Game.h"
+#include "Sim/Bike.h"
 #include "Sim/Train.h"
 
 #include "Components/SpotLightComponent.h"
@@ -47,6 +48,7 @@ void AATGCar::Build(atg::Vehicle* V) {
 	Model = V->model;
 	AATGWorld* W = AATGWorld::Get(this);
 	if (V->def.train && W) { BuildTrain(static_cast<atg::Train*>(V)); return; }
+	if (atg::Bike* B = dynamic_cast<atg::Bike*>(V)) { if (W) BuildBike(B); return; }
 	if (!Model || !W) return; // (bikes, boats and aircraft are drawn by their own views)
 	const FATGVehicleMeshes& Meshes = W->VehicleMeshes(V->def);
 	const atg::VehicleDef& D = V->def;
@@ -124,9 +126,95 @@ void AATGCar::Build(atg::Vehicle* V) {
 	Sync(0);
 }
 
+// bikes.js buildBikeModel: body and trim on the (leaning) root, the front wheel's pivot carrying the fork,
+// a spinning wheel in each pivot, the bicycle's crank on its own pivot
+void AATGCar::BuildBike(atg::Bike* B) {
+	bBike = true;
+	AATGWorld* W = AATGWorld::Get(this);
+	const FATGVehicleMeshes& Meshes = W->BikeMeshes(B->def);
+	const atg::BikeModel& M = *B->bike;
+	PaintMat = Std(this, Hex(B->color), 0.32, 0.55);
+	UMaterialInstanceDynamic* Trim = Std(this, FLinearColor::White, 0.55, 0.35);
+	UMaterialInstanceDynamic* Glass = Std(this, Hex(0x070a0d), 0.04, 0.3, FLinearColor::Black, true, 0.8);
+	UMaterialInstanceDynamic* WheelMat = Std(this, FLinearColor::White, 0.5, 0.45);
+	HeadMat = Std(this, Hex(0xdddddd), 0.1, 0.8, Hex(0x222222));
+	TailMat = Std(this, Hex(0x5a0000), 0.2, 0.3, FLinearColor(0.25f, 0, 0));
+	BurntMat = Std(this, Hex(0x151210), 0.95, 0.2);
+	auto Part = [&](UStaticMesh* Mesh, USceneComponent* Parent, UMaterialInterface* Mat, bool bShadow = true) {
+		UStaticMeshComponent* C = NewObject<UStaticMeshComponent>(this);
+		C->SetupAttachment(Parent);
+		C->SetStaticMesh(Mesh);
+		C->SetMaterial(0, Mat);
+		C->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		C->SetCastShadow(bShadow);
+		C->RegisterComponent();
+		Parts.Add(C);
+		return C;
+	};
+	// (parts order as BikeMeshes: body, trim, fork, crank, glass, head, tail)
+	if (Meshes.Parts[0]) Part(Meshes.Parts[0], Body, PaintMat);
+	if (Meshes.Parts[1]) Part(Meshes.Parts[1], Body, Trim);
+	if (Meshes.Parts[4]) Part(Meshes.Parts[4], Body, Glass, false);
+	if (Meshes.Parts[5]) Part(Meshes.Parts[5], Body, HeadMat, false);
+	if (Meshes.Parts[6]) Part(Meshes.Parts[6], Body, TailMat, false);
+	if (Meshes.Parts[3]) {
+		CrankPivot = NewObject<USceneComponent>(this);
+		CrankPivot->SetupAttachment(Body);
+		CrankPivot->SetRelativeLocation(ATG::LocalToUE(0, M.crankY, M.crankZ));
+		CrankPivot->RegisterComponent();
+		Part(Meshes.Parts[3], CrankPivot, Trim);
+	}
+	for (const auto& Wh : M.wheels) {
+		USceneComponent* P = NewObject<USceneComponent>(this);
+		P->SetupAttachment(Root);
+		P->SetRelativeLocation(ATG::LocalToUE(0, Wh.baseY, Wh.z));
+		P->RegisterComponent();
+		USceneComponent* S = NewObject<USceneComponent>(this);
+		S->SetupAttachment(P);
+		S->RegisterComponent();
+		UStaticMeshComponent* C = NewObject<UStaticMeshComponent>(this);
+		C->SetupAttachment(S);
+		C->SetStaticMesh(Meshes.Wheel);
+		C->SetMaterial(0, WheelMat);
+		C->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		C->RegisterComponent();
+		if (Wh.front && Meshes.Parts[2]) Part(Meshes.Parts[2], P, Trim);
+		WheelPivots.Add(P);
+		WheelSpins.Add(S);
+	}
+	SyncBike(B);
+}
+
+void AATGCar::SyncBike(atg::Bike* B) {
+	SetActorTransform(ATG::ToUE(B->groupMatrix()));
+	if (B->painted && B->color != PaintColor && PaintMat) { PaintColor = B->color; PaintMat->SetVectorParameterValue(TEXT("Color"), Hex(B->color)); }
+	const atg::BikeModel& M = *B->bike;
+	for (int32 I = 0; I < WheelPivots.Num() && I < (int32)M.wheels.size(); I++) {
+		const auto& Wh = M.wheels[I];
+		WheelSpins[I]->SetRelativeRotation(ATG::LocalToUE(atg::M4::Compose(atg::V3(), atg::Quat::FromEuler(B->wheelRot, 0, 0))).GetRotation());
+		if (Wh.front) WheelPivots[I]->SetRelativeTransform(ATG::LocalToUE(atg::M4::Compose(atg::V3(0, Wh.baseY, Wh.z), atg::Quat::FromEuler(0, B->steerAngle * 0.8, 0))));
+	}
+	if (CrankPivot) CrankPivot->SetRelativeTransform(ATG::LocalToUE(atg::M4::Compose(atg::V3(0, M.crankY, M.crankZ), atg::Quat::FromEuler(B->pedalPhase, 0, 0))));
+	if (B->exploded && !bBurnt) { bBurnt = true; if (Parts.Num()) Parts[0]->SetMaterial(0, BurntMat); }
+	if (!bBurnt && B->lightsOn != bLights) {
+		bLights = B->lightsOn;
+		HeadMat->SetVectorParameterValue(TEXT("Color"), bLights ? FLinearColor::White : Hex(0xdddddd));
+		HeadMat->SetVectorParameterValue(TEXT("Emissive"), bLights ? FLinearColor(6.f, 5.6f, 4.6f) : Hex(0x222222));
+	}
+	const int32 Tail = B->isWrecked() ? 0 : B->braking ? 2 : B->lightsOn ? 1 : 0;
+	if (Tail != TailState) {
+		TailState = Tail;
+		static const uint32 Cols[3] = { 0x5a0000, 0x8a0000, 0xaa0000 };
+		static const FLinearColor Ems[3] = { FLinearColor(0.25f, 0, 0), FLinearColor(1.6f, 0.05f, 0.03f), FLinearColor(5.f, 0.1f, 0.05f) };
+		TailMat->SetVectorParameterValue(TEXT("Color"), Hex(Cols[Tail]));
+		TailMat->SetVectorParameterValue(TEXT("Emissive"), Ems[Tail]);
+	}
+}
+
 void AATGCar::Sync(float Dt) {
 	atg::Vehicle* V = Vehicle.get();
 	if (V && bTrain) { SyncTrain(static_cast<atg::Train*>(V)); return; }
+	if (V && bBike) { SyncBike(static_cast<atg::Bike*>(V)); return; }
 	if (!V || !Model) return;
 	SetActorTransform(ATG::ToUE(V->groupMatrix()));
 	// a respray (the Spray Shack)

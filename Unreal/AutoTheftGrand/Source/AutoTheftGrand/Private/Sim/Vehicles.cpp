@@ -449,7 +449,6 @@ void VehicleManager::streamParked() {
 		else if (s.district == "docks") type = rng.Weighted(std::vector<std::pair<std::string, double>>{ { "boxer", 2 }, { "parcel", 3 }, { "hauler", 3 } });
 		else if (rng.Chance(0.12)) type = rng.Pick(BikeIds());
 		else type = rng.Weighted(pool);
-		if (!Supported(*FindVehicle(type))) continue; // (parked motorbikes come with bikes.js)
 		SpawnOpts o; o.parked = true;
 		Vehicle* v = spawn(type, s.x, s.z, s.rot, o);
 		if (!v) continue;

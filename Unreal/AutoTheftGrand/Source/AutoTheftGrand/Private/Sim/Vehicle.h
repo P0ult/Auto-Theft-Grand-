@@ -174,7 +174,7 @@ protected:
 	void step(double h);
 	void afterPhysics(double dt);
 	void resolveStatic(const Contact& ct);
-	void updateVisual(double dt);
+	virtual void updateVisual(double dt); // (bikes lean on top of it)
 };
 
 } // namespace atg
