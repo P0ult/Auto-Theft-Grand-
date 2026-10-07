@@ -86,7 +86,13 @@ void HudModel::update(double dt) {
 	const std::string z = game.map.ZoneName(zp.x, zp.z);
 	if (z != lastZone) { lastZone = z; zone.text = z; zone.t = 3.5; }
 	Vehicle* pv = p.vehicle;
-	if (pv != lastVeh) { lastVeh = pv; if (pv) { veh.text = pv->def.name; veh.t = 3; } }
+	if (pv != lastVeh) {
+		lastVeh = pv;
+		if (pv) {
+			veh.text = pv->def.name; veh.t = 3;
+			if (game.audio && pv->def.bike.empty()) { const std::string l = game.audio->radioLabel(); const size_t nl = l.find('\n'); if (!l.empty()) showRadio(l.substr(0, nl), nl == std::string::npos ? "" : l.substr(nl + 1)); }
+		}
+	}
 	// speech bubbles
 	for (int i = (int)speeches.size() - 1; i >= 0; i--) {
 		Speech& s = speeches[i];

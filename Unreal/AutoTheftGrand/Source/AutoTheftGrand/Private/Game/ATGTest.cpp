@@ -5,6 +5,7 @@
 #include "Game/ATGWorld.h"
 #include "Sim/Aircraft.h"
 #include "Sim/Army.h"
+#include "Sim/Audio.h"
 #include "Sim/Effects.h"
 #include "Sim/Weapons.h"
 #include "Sim/Game.h"
@@ -131,6 +132,11 @@ ATG_CMD(CmdStep, "ATG.Step", "ATG.Step frames [dt]: advance the game (with -ATGM
 	if (AATGGameMode* GM = W ? Cast<AATGGameMode>(W->GetAuthGameMode()) : nullptr) GM->StepFrames((int32)Arg(Args, 0, 1), Arg(Args, 1, 1.0 / 30));
 })
 
+ATG_CMD(CmdAudio, "ATG.Audio", "ATG.Audio: log the sound's clock (seconds rendered) and how many nodes are live", {
+	atg::Game* G = Sim(W);
+	if (!G || !G->audioSys || !G->audioSys->ctx) { UE_LOG(LogATG, Display, TEXT("ATG audio: off")); return; }
+	UE_LOG(LogATG, Display, TEXT("ATG audio: clock %.2f s, %d nodes, radio %s"), G->audioSys->clock(), (int32)G->audioSys->ctx->nodeCount(), UTF8_TO_TCHAR(G->audioSys->radioLabel().c_str()));
+})
 ATG_CMD(CmdState, "ATG.State", "ATG.State: log the player's position, vehicle and speed", {
 	atg::Game* G = Sim(W);
 	if (!G) { UE_LOG(LogATG, Display, TEXT("ATG state: no game")); return; }

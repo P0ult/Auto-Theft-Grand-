@@ -393,10 +393,12 @@ void Police::update(double dt) {
 		const V3 p = pl.pos;
 		const double a = Rand() * 6.28;
 		heli->pos = V3(p.x + std::cos(a) * 180, p.y + 60, p.z + std::sin(a) * 180);
+		heli->sound = game.audio ? game.audio->loop("heli", heli->pos) : 0;
 	}
 	if (heli) {
 		updateHeli(dt);
-		if (heli->done) heli.reset();
+		if (heli->done) { if (game.audio) game.audio->loopStop(heli->sound); heli.reset(); }
+		else if (game.audio) game.audio->loopPos(heli->sound, heli->pos);
 	}
 }
 
@@ -411,6 +413,7 @@ void Police::reset() {
 	}
 	for (auto& cr : cops) if (Ped* c = cr.get()) game.peds->remove(c);
 	cars.clear(); cops.clear();
+	if (heli && game.audio) game.audio->loopStop(heli->sound);
 	heli.reset();
 }
 

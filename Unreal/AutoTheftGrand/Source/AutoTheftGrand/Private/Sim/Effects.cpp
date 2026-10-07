@@ -496,7 +496,7 @@ void Effects::update(double dt) {
 		const Pending blast = q;
 		pending.erase(pending.begin() + i);
 		explosion(blast.pos, blast.r, nullptr, true);
-		game.soundAt("explosion", blast.pos, 0.6);
+		{ SoundOpts so; so.size = blast.r / 6.75; game.soundAt("explosion", blast.pos, 0.6, so); }
 	}
 	for (int i = (int)debris.size() - 1; i >= 0; i--) {
 		Debris& d = debris[i];

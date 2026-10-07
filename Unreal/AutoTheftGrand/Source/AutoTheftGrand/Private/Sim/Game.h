@@ -127,6 +127,7 @@ public:
 	class Pickups* pickupsSys = nullptr; // (the pickups and markers, for the systems that place them)
 	class Police* policeSys = nullptr; // (the police itself, for the systems that spawn units through it)
 	class Military* military = nullptr; // (Fort Carver: whether the base is on alert)
+	class Audio* audioSys = nullptr;     // (the sound: the Unreal side starts it and pulls its samples)
 	double viewAspect = 16.0 / 9.0;            // (the screen's, for what the camera can see)
 
 	// characters: a registry of everyone alive (the renderer draws these), and who counts for collisions
@@ -158,7 +159,7 @@ public:
 
 	// sounds (null-safe)
 	void sound(const std::string& name, double vol = 1) { if (audio) audio->play(name, vol); }
-	void soundAt(const std::string& name, const V3& p, double vol = 1) { if (audio) audio->playAt(name, p, vol); }
+	void soundAt(const std::string& name, const V3& p, double vol = 1, const SoundOpts& opts = SoundOpts()) { if (audio) audio->playAt(name, p, vol, opts); }
 
 	// props: smashing street furniture (the renderer hides broken ones)
 	std::vector<PropInstance> props;

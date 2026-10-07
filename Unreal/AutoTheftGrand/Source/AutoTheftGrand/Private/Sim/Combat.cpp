@@ -124,7 +124,7 @@ bool Combat::fireWeaponHit(Character* shooter, const WeaponDef& def, const V3& o
 		if (h) { anyHit = true; applyHit(hit, def, shooter, d); }
 	}
 	if (game.effects) game.effects->muzzleFlash(muzzle, base, def.id == "shotgun");
-	game.soundAt(def.sound, muzzle, shooter->isPlayer ? 1 : 0.8);
+	{ SoundOpts so; so.gun = true; game.soundAt(def.sound, muzzle, shooter->isPlayer ? 1 : 0.8, so); }
 	game.events.gunshot.emit(shooter, muzzle, def.id);
 	return anyHit;
 }
@@ -244,7 +244,7 @@ void Combat::explosion(const V3& pos, double radius, double damage, Character* s
 	const double size = IsSet(opts.size) ? opts.size : radius / 9; // 1 = a car
 	const double vis = IsSet(opts.size) ? 6.75 * size : radius * 0.75;
 	if (game.effects) game.effects->explosion(pos, vis, opts.hasFoot ? opts.foot : nullptr);
-	game.soundAt("explosion", pos, Min(1.6, 0.7 + size * 0.3));
+	{ SoundOpts so; so.size = size; game.soundAt("explosion", pos, Min(1.6, 0.7 + size * 0.3), so); }
 	if (visualOnly) return;
 	const V3 pd = game.player->vehicle ? game.player->vehicle->pos : game.player->pos;
 	const double dp = (pos - pd).length();
@@ -319,7 +319,7 @@ void Combat::vehicleGun(Character* shooter, const V3& muzzle, const V3& dir, con
 	if (Rand() < 0.7 && game.effects) game.effects->tracer(muzzle, end);
 	if (h) applyHit(hit, def, shooter, d, shooter ? NaN() : 1.0);
 	if (game.effects) game.effects->muzzleFlash(muzzle, d, false);
-	game.soundAt(def.sound.empty() ? "smg" : def.sound, muzzle, shooter && shooter->isPlayer ? 0.9 : 0.7);
+	{ SoundOpts so; so.gun = true; game.soundAt(def.sound.empty() ? "smg" : def.sound, muzzle, shooter && shooter->isPlayer ? 0.9 : 0.7, so); }
 	game.events.gunshot.emit(shooter, muzzle, def.id);
 }
 
@@ -380,7 +380,7 @@ void Combat::ignite(const V3& pos, Character* owner, double r, double life) {
 	const double gy = game.collision->floorHeight(pos.x, pos.z, pos.y + 1);
 	fires.push_back({ pos.x, gy, pos.z, r, 0, life, Ref<Character>(owner), 0 });
 	game.soundAt("glass", pos, 0.9);
-	game.soundAt("explosion", pos, 0.25);
+	{ SoundOpts so; so.size = 0.3; game.soundAt("explosion", pos, 0.25, so); }
 	for (int k = 0; k < 18; k++) if (game.effects) game.effects->fire(V3(pos.x + Rand(-r, r) * 0.6, gy + 0.1, pos.z + Rand(-r, r) * 0.6), 1.4);
 	game.events.explosion.emit(pos, r, owner);
 }

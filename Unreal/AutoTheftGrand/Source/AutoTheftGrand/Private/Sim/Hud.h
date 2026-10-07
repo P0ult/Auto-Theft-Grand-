@@ -17,7 +17,7 @@ public:
 
 	struct Line { std::string text; double t = 0; };
 	Line helpLine, subs, zone, veh, radio, money, dispatchLine;
-	std::string subsSpeaker, dispatchWhere;
+	std::string subsSpeaker, dispatchWhere, radioGenre;
 	struct Big { std::string text, style, sub; double t = 0; } big;
 	std::string objectiveText;
 	struct Bar { bool on = false; std::string label; double v = 0; std::string color; } bar;
@@ -45,6 +45,7 @@ public:
 	void openPause(const std::string& tab) override { pauseRequest = tab; }
 	std::string pauseRequest; // (the Unreal side opens the map and clears it)
 	void dispatch(const std::string& text, const std::string& where = "") override;
+	void showRadio(const std::string& name, const std::string& genre = "") override { radio.text = name; radioGenre = genre; radio.t = 3; }
 	void interact(const std::string& text) override { interactText = text; }
 	void fade(double dur = 0.5, std::function<void()> mid = nullptr) override;
 	void fadeTo(double v, double dur = 0.5) override;

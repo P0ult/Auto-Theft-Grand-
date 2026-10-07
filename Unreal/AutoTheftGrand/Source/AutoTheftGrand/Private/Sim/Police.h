@@ -37,6 +37,7 @@ struct PoliceHeli {
 	double fireT = 2, leaveT = NaN();
 	// the searchlight: a cone toward the target at night, and its spot light
 	bool coneOn = false; double coneOpacity = 0, spotIntensity = 0; V3 lightAt;
+	int sound = 0; // (the rotor's loop)
 };
 
 class Police : public System, public IPolice {

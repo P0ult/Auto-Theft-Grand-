@@ -23,16 +23,28 @@ public:
 };
 
 // sounds (synthesised by the Unreal side, src/game/audio.js)
+// how a positional sound carries (audio.js playAt opts): a gunshot (heard further off, with more reverb), an
+// explosion's size (1: a car)
+struct SoundOpts { bool gun = false; double size = NaN(); };
+
 class IAudio {
 public:
 	virtual ~IAudio() = default;
 	virtual void play(const std::string& name, double vol = 1) = 0;
-	virtual void playAt(const std::string& name, const V3& pos, double vol = 1) = 0;
+	virtual void playAt(const std::string& name, const V3& pos, double vol = 1, const SoundOpts& opts = SoundOpts()) = 0;
 	// recorded clips (the WASTED stinger); false when there is no such sample
 	virtual bool playSample(const std::string&, double = 1) { return false; }
 	virtual void stopSample(const std::string&, double = 0) {}
 	virtual void muffle(bool) {}
 	virtual double clock() const { return -1; } // (the audio context's time; -1 without audio)
+	// a positional loop ("heli", "siren", "fire"): an id to move, fade or stop it (0: no sound)
+	virtual int loop(const std::string&, const V3&) { return 0; }
+	virtual void loopPos(int, const V3&) {}
+	virtual void loopVol(int, double) {}
+	virtual void loopStop(int) {}
+	// the radio: the next station, and the current one's name (and genre on a second line)
+	virtual void radioNext() {}
+	virtual std::string radioLabel() const { return ""; }
 };
 
 // particles, debris, decals (src/game/effects.js)
@@ -85,6 +97,8 @@ public:
 	virtual void promptSave() {} // (the safehouse's save point)
 	virtual void openPause(const std::string&) {} // (the pause menu on a tab: map, teleport)
 	virtual void dispatch(const std::string&, const std::string& = "") {}
+	// the radio station's name (and genre) at the top of the screen
+	virtual void showRadio(const std::string&, const std::string& = "") {}
 	virtual void interact(const std::string&) {}
 	// fade to black over dur seconds, call mid, fade back in
 	virtual void fade(double = 0.5, std::function<void()> mid = nullptr) { if (mid) mid(); }

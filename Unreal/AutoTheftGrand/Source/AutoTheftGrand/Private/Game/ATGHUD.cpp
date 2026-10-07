@@ -112,6 +112,12 @@ void AATGHUD::DrawHUD() {
 		const bool bIn = Car != nullptr;
 		if (M->zone.t > 0 && !G->phoneOpen) Text(Plain(M->zone.text), Right, Bottom - ((bIn ? 232 : 28) + 34) * Ui, Big, 1.45f * Ui, FLinearColor(1, 1, 1, FMath::Min(1.f, (float)M->zone.t * 3.f) * DeadAlpha), 1.f);
 		if (M->veh.t > 0 && !G->phoneOpen) Text(Plain(M->veh.text), Right, Bottom - ((bIn ? 274 : 70) + 30) * Ui, Big, 1.25f * Ui, FLinearColor(FColor(0xff, 0xe0, 0x8a)).CopyWithNewOpacity(FMath::Min(1.f, (float)M->veh.t * 3.f) * DeadAlpha), 1.f);
+		// the radio station, top centre (hud-radio: gold, the genre small and white under it)
+		if (M->radio.t > 0) {
+			const float A = FMath::Min(1.f, (float)M->radio.t * 3.f) * DeadAlpha;
+			Text(Plain(M->radio.text), Canvas->ClipX / 2, 22 * Ui, Big, 1.35f * Ui, FLinearColor(FColor(0xe8, 0xb6, 0x4c)).CopyWithNewOpacity(A), 0.5f);
+			if (!M->radioGenre.empty()) Text(Plain(M->radioGenre), Canvas->ClipX / 2, 62 * Ui, Small, 1.3f * Ui, FLinearColor(1, 1, 1, A), 0.5f);
+		}
 	}
 
 	DrawSpeedo(G, Dt);

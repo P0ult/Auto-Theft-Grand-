@@ -12,7 +12,7 @@ animator, ragdolls, vehicles and the camera rig. It builds and runs in a native 
 (`Tools/simtest.cpp`), and its numbers can be checked against the browser game run in node: the car
 physics comes out identical to 4 decimals (`Tools/vehcompare.mjs`). Unreal's own physics and collision are
 not used. The Unreal side (`Private/Game`) draws the simulation's state, feeds it the keyboard, mouse and
-pad, and will play its sounds.
+pad, and plays its sounds.
 
 ## How the systems map
 
@@ -41,11 +41,12 @@ pad, and will play its sounds.
 | entities/aircraft.js | `Gen/AircraftModels` (the models, identical to the JS: `Tools/dumpaircraft.mjs`, `aircrafttest.cpp`), `Sim/Aircraft`, `ATGCarAir.cpp` | All of it: planes and jets on the arcade flight model (the take-off roll, rotation, lift fading below stall speed, weathervaning, the hammerhead stall, bank-to-turn, gear that tucks away, belly landings, crashes into the ground), helicopters (the tilting rotor disc, the auto-hover, the flare near the ground, downwash dust and spray, the spin when shot down), the tank (tracks, the turret and gun turning toward the crosshair, the cannon, its recoil and the hull's rock, the turret blown off its ring), the cannons, missiles, minigun and rockets, wrecks tumbling down and sinking. A take-off and climb, a hover and a tank drive print the same numbers to two decimals as the browser game (`simtest aircmp` against `tools/browser-test/tests/aircmp.mjs`). |
 | entities/skateboard.js, world/skatepark.js | `Gen/BoardModel` (identical to the JS: `Tools/dumpboard.mjs`, `boardtest.cpp`), `Sim/Skateboard`, `Sim/Skateparks`, `ATGCar` (the deck), `ATGWorld` (the park) | All of it: pushing with the back foot, carving, ollies, kickflips, heelflips and shove-its, clean landings paying cash and crooked ones throwing you off, digging in off the pavement; the Santa Luz skatepark's ramps, tables, ledges and rail as collision decks and boxes, its mesh, the boards lying about and two locals skating laps. A ride with an ollie prints the same numbers as the browser game (`simtest aircmp skate`). |
 | entities/boat.js, game/boats.js | `Gen/BoatModels` (identical to the JS: `Tools/dumpboats.mjs`, `boatstest.cpp`), `Sim/Boat`, `Sim/Boats`, `ATGCar` (the boats), `ATGWorld` (the pontoons), `Effects` (the wakes) | All of it: the hulls riding the swell (bigger in storms, smaller on the lake), planing, heeling into turns, running aground, burning and sinking, the bow gun; the marinas and their moored boats, the cruising routes, the harbour patrol and the police boats that ram and shoot when you're wanted at sea. A run prints the same numbers as the browser game (`simtest aircmp boat`). The wake's foam is drawn as soft strips at the shader's average cover rather than with its noise pattern. |
+| game/audio.js | `Sim/WebAudio` (a small Web Audio work-alike), `Sim/Audio`, `Game/ATGAudio` | All of it: every synthesised effect with the same envelopes, filters and sweeps, the panners, the reverb send, the world muffle on WASTED / BUSTED, the compressor, the player's engine, tyres, wind and horn, the aircraft engines, the sirens and the helicopter's rotor, the ambience, birds, crickets and thunder, and the three radio stations. Each effect's loudness every 50 ms comes within a few dB of the browser's own Web Audio rendering of audio.js (`Tools/audiotest.cpp` against `tools/browser-test/tests/audiocmp.mjs`). Three differences: the panner is the equal-power model (the browser game asks for HRTF), the 2.2 s convolution reverb is an algorithmic reverb with the same decay, and the WASTED stinger is the synthesised one (the browser plays a recording when it has one). |
 | game/military.js | `Sim/Military` | All of it: the parked aircraft, tanks and trucks at Fern Creek Airfield, the hospital roof and Fort Carver streamed in within 1.1 km and respawned a while after they're taken or wrecked, their map icons, the garrison on its 15 posts and patrols, the restricted zone (the warning, eight seconds' grace, then the alert, three stars and soldiers opening fire), the lockdown lifted when the stars are gone. |
 | game/army.js | `Sim/Army` | All of it: at five stars Barracks trucks and Ranger jeeps that run you down and unload troops, the Warhawk gunship's autopilot (circling at 60 m, its minigun bursts and rockets), the Mammoth tank that holds back and shells you, holding fire near their own, the radio, the radar blips, pulling out below five stars and the clean-up. |
 | game/npccrime.js | `Sim/NpcCrime`, `ATGHUD` (stars over suspects, speech bubbles) | All of it: jaywalkers, reckless drivers, hit-and-runs, road rage, muggers and car thieves staged near you (more at night and in the rough districts), witnesses and phoned-in reports, stars on the culprit, dispatch, the responding unit (pull-overs, tickets, chases, tackles, the ride in the back) and the radar dots. |
 | game/roadblocks.js | `Sim/Roadblocks`, `ATGPoliceView` (spike strips) | All of it: from three stars a line of cruisers (the Sheriff's out of town, the Enforcer at four stars) across the road 90 to 165 m ahead of a driving suspect, cops in cover behind, the stinger that bursts tyres (sparks while you drive on the rims), the dispatch call, the radar squares, the clean-up. The strip now lies on the road surface; in both games it used to sit at the terrain's height, a few centimetres under the road. |
-| game/police.js | `Sim/Police`, `ATGPoliceView` | All of it: heat and the six thresholds, witnesses, evading (10 + 5 x stars seconds out of sight), patrol cars, pursuit drivers that route along the roads and then ram, cops on foot who shoot or come to arrest you, roadblock cops holding their line, BUSTED, and the helicopter with its searchlight and its sniper at four stars. The helicopter's rotor sound comes with the audio. |
+| game/police.js | `Sim/Police`, `ATGPoliceView` | All of it: heat and the six thresholds, witnesses, evading (10 + 5 x stars seconds out of sight), patrol cars, pursuit drivers that route along the roads and then ram, cops on foot who shoot or come to arrest you, roadblock cops holding their line, BUSTED, and the helicopter with its searchlight and its sniper at four stars. |
 | game/railsystem.js, entities/train.js | `Sim/Rail`, `Sim/Train`, `Gen/TrainModels` | The timetable, the single-track sections and the Fern Creek passing loop, level crossings, boarding, driving from the cab. The trains run to the metre as in the browser game. |
 | game/gameplay.js | `Sim/Gameplay` | Stats, WASTED and BUSTED (slow motion, the death camera, the respawn at the hospital or the police station, the bill), drift and stunt bonuses, smoke and fire on damaged cars, skid marks, first-time hints. |
 | game/combat.js | `Sim/Combat`, `ATGEffects` (projectiles) | Hitscan with spread and pellets (aimed from the camera, fired from the muzzle), hits on people, vehicles and the world, melee with its combos and the bat denting cars, explosions sized to the vehicle, rockets, homing missiles, tank shells, grenades, molotovs and their burning pools, people on fire, shooting down the police helicopter (and locking on to it). The animals join the ray with the wildlife. |
@@ -84,8 +85,7 @@ is under way: WASTED and BUSTED, the effects, combat, the police and the pickups
 - Street crime (npccrime.js). Done.
 - Wanted level and police (police.js). Done.
 - Car damage, fire and explosions; vehicle tumbling (vehicle.js `_tumble`). Done (with vehicle.js in phase 1).
-- WASTED and BUSTED screens. Done (the stinger plays once audio is ported). Replace the WASTED sound clip
-  with your own before sharing the game.
+- WASTED and BUSTED screens. Done.
 
 **Phase 3b: the GTA V layer** (added to the browser game after phase 1).
 - The modern HUD: a rectangular minimap with health, armour and special bars, and the police's vision cones
@@ -112,7 +112,7 @@ is under way: WASTED and BUSTED, the effects, combat, the police and the pickups
 - Walk-in interiors with their furniture and shopkeepers.
 - Landmarks: the pier's rides, the Ferris wheel.
 - Chain-link fences, billboards, rain and puddles.
-- Audio and the radio stations.
+- Audio and the radio stations. Done.
 - Wildlife and pets.
 - Multiplayer, likely with Unreal's own replication.
 
@@ -127,7 +127,6 @@ is under way: WASTED and BUSTED, the effects, combat, the police and the pickups
 - Motorbikes are left out of the traffic and the parked cars until bikes.js is ported (phase 4).
 - The radar and the map show blips as plain squares until the HUD is ported (phase 3b).
 - Online, the trains follow the host's timetable; that comes with multiplayer (phase 6).
-- No sounds yet: the simulation asks for them, nothing plays them (phase 6, audio).
 - The HUD uses the engine's default font, scaled up; the browser game's fonts (Anton for the shard) come
   with the phase 3b HUD.
 - The WASTED look approximates postfx.js with Unreal's post-process (saturation, gain, vignette); the radial

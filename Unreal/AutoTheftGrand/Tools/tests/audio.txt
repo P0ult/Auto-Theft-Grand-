@@ -1,0 +1,19 @@
+# Sound (run with SOUND=1): the clock should advance with real time while a car drives with its radio on, a
+# siren wails and guns go off.
+wait 1
+ATG.God 1
+ATG.Audio
+ATG.Spawn zenith
+wait 1
+ATG.Enter
+ATG.Press KeyW
+wait 3
+ATG.Audio
+ATG.Wanted 2
+wait 3
+ATG.Give rifle 60
+ATG.Press MouseLeft
+wait 1
+ATG.Release
+ATG.Audio
+quit

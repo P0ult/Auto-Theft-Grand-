@@ -1,5 +1,6 @@
 #include "Game/ATGGameMode.h"
 #include "AutoTheftGrand.h"
+#include "Game/ATGAudio.h"
 #include "Game/ATGCar.h"
 #include "Game/ATGCoords.h"
 #include "Game/ATGEffects.h"
@@ -61,6 +62,10 @@ void AATGGameMode::StartGame() {
 	G->respawnPlayer(X, Z, Yaw);
 	atg::PopulateWorld(*G);
 	if (G->hud) G->hud->help("Welcome back to Los Soles.", 4);
+	// the sound
+	FActorSpawnParameters SP; SP.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	Audio = GetWorld()->SpawnActor<AATGAudio>(AATGAudio::StaticClass(), FTransform::Identity, SP);
+	if (Audio) Audio->Start(G);
 	UE_LOG(LogATG, Log, TEXT("Player at the safehouse (%.0f, %.0f)"), X, Z);
 }
 

@@ -39,8 +39,11 @@ Benny (your last car delivered), Merryweather (three armed contractors), takes t
 Snapmatic, the map, the weather and your stats.
 Health, armour, cash and weapons lie about the city, dropped by the dead or waiting to respawn, with 30
 hidden packages to find; the Spray Shack repaints and repairs your car and loses the police for $100. The Sol Line's passenger and freight trains run
-their timetable; board one at a platform with F, or climb into the cab and drive it. Missions, sound
-and the rest are still to come; [PORTING.md](PORTING.md) has the plan and the progress.
+their timetable; board one at a platform with F, or climb into the cab and drive it. Everything is heard as
+in the browser game: synthesised gunshots, explosions and crashes placed round you with a city reverb, the
+engine, tyres and wind of whatever you drive, aircraft engines, sirens, the helicopter's rotor, traffic, birds,
+crickets, waves, rain and thunder, and three generated radio stations (N or D-pad right changes station).
+Missions and the rest are still to come; [PORTING.md](PORTING.md) has the plan and the progress.
 
 ## Build and run
 
@@ -98,6 +101,7 @@ far:
 | Caps Lock / Z / LS + RS click | Special ability: slow motion (the yellow bar under the map) | Caps Lock / Z | Special ability: slow motion with extra grip |
 | I / D-pad ↑ | Phone (arrows / D-pad, Enter / A, Backspace / B) | I | Phone |
 | M / D-pad ↓ | Map | V / View | Camera distance |
+| | | N / D-pad → | Next radio station |
 | Esc / P / Menu | Pause | B / RS click | Look behind |
 | | | X / B (hold) | Cinematic camera |
 
@@ -177,7 +181,9 @@ suspect's stars, the patrol that comes for them and a staged car theft; `wheel.t
 special ability; `heist.txt` at a robbed armoured van; `phone.txt` at the phone; `bikes.txt` and `bikes2.txt` at
 the motorbikes and bicycles; `aircraft.txt` at each aircraft and the tank, parked, flying and firing; `army.txt` at the army at five stars and
 Fort Carver's gate and restricted area; `skate.txt` at a skateboard, a kickflip and the skatepark; `boats.txt` at the Santa Luz marina, a speedboat's
-wake and the police boats.
+wake and the police boats. The runs are silent and step at a fixed 1/30 s; `SOUND=1 Tools/run.sh
+Tools/tests/audio.txt` runs at real speed with the sound on, and `ATG.Audio` logs the sound's clock and live
+node count.
 
 The simulation is tested without Unreal. `Tools/native.sh` builds a tool with MSVC from Git Bash:
 
@@ -191,6 +197,9 @@ cd Tools
                                                                # aircraft and the tank, the army, skateboards,
                                                                # boats
 DEBUG=1 ./native.sh simtestd.exe simtest.cpp                   # with symbols: a crash prints a stack trace
+./native.sh audiotest.exe audiotest.cpp && ./audiotest.exe wav # every sound: peak and loudness per 50 ms
+                                                               # (and WAV files in wav/); audiocmp.mjs prints
+                                                               # the browser's, within a few dB
 ./simtest.exe vehcompare > cppveh.txt                          # the car physics against the browser game's:
 node --import ./three-hook.mjs vehcompare.mjs > jsveh.txt      # identical to 4 decimals
 diff jsveh.txt cppveh.txt

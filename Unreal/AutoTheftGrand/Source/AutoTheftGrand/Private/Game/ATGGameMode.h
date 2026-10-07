@@ -33,6 +33,7 @@ private:
 	UPROPERTY(Transient) TObjectPtr<AATGEffects> Effects = nullptr;
 	UPROPERTY(Transient) TObjectPtr<class AATGPoliceView> PoliceView = nullptr;
 	UPROPERTY(Transient) TObjectPtr<class AATGPickups> PickupsView = nullptr;
+	UPROPERTY(Transient) TObjectPtr<class AATGAudio> Audio = nullptr;
 	bool bStarted = false;
 	void StartGame();
 	void Frame(double Dt);

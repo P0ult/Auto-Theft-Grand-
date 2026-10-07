@@ -1,6 +1,7 @@
 #include "Setup.h"
 #include "Special.h"
 #include "Army.h"
+#include "Audio.h"
 #include "Boats.h"
 #include "Combat.h"
 #include "Effects.h"
@@ -47,7 +48,9 @@ void InstallSystems(Game& g) {
 	// (shops, wildlife, pets: later)
 	g.addSystem("skateparks", std::make_unique<Skateparks>(g));
 	g.addSystem("boats", std::make_unique<BoatSystem>(g));
-	// (shipRaid, missions, audio: later)
+	// (shipRaid, missions: later)
+	g.audioSys = g.addSystem("audio", std::make_unique<Audio>(g));
+	g.audio = g.audioSys;
 	g.gameplay = g.addSystem("gameplay", std::make_unique<Gameplay>(g));
 	g.pickupsSys->refreshPackages();
 }
