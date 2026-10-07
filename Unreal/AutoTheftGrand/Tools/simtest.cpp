@@ -1507,9 +1507,9 @@ static void TestMissions(World& w) {
 }
 
 static void TestStory(World& w) {
-	printf("story: Chapters I-III\n");
+	printf("story: Chapters I-IV\n");
 	const auto definitions = BuildStory();
-	Check(definitions.size() == 15, "fifteen Chapter I-III missions in browser order");
+	Check(definitions.size() == 19, "nineteen Chapter I-IV missions in browser order");
 	for (const auto& def : definitions) {
 		auto g = w.game(true); g->disableAmbient = true; g->player->invincible = true;
 		Missions& e = *g->missions; Player& p = *g->player;

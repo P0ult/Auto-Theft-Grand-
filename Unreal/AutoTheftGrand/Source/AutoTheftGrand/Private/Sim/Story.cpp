@@ -121,6 +121,10 @@ const P3& Point(const Game& g, const std::string& key, const std::string& point)
 }
 
 MissionPedOpts StoryCast(const std::string& key, bool invincible) { return Cast(key, invincible); }
+MissionTask StoryCountdown(MissionContext& m) {
+	for (const auto& n : { "3", "2", "1" }) { m.game.hud->bigMessage(n, "hint", 0.9); m.game.sound("ui"); co_await m.wait(1); }
+	m.game.hud->bigMessage("GO!", "passed", 1.2); m.game.sound("checkpoint");
+}
 V3 StoryLandmark(const Game& game, const std::string& key, double dx, double dz) { return LM(game, key, dx, dz); }
 const P3& StoryPoint(const Game& game, const std::string& key, const std::string& point) { return Point(game, key, point); }
 
@@ -280,6 +284,7 @@ std::vector<MissionDef> BuildStory() {
 	}; story.push_back(std::move(drive));
 	AddChapterTwo(story);
 	AddChapterThree(story);
+	AddChapterFour(story);
 	return story;
 }
 } // namespace atg

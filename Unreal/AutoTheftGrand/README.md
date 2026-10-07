@@ -59,7 +59,9 @@ Welcome Home, Old Friends, Clean Sweep, Tooling Up and Drive-By. Chapter II is p
 Hot Wheels, Blood Money, The Snitch and Family Ties. Chapter III adds Evidence, Beach Party, Snake in the
 Grass, Ambush and Rush to All Saints. The stealth tail uses distance, time spent too close, collisions and
 gunfire to detect you; Ambush and the hospital run start automatically. The scripts keep the original cast,
-dialogue, encounters, restrictions and rewards. The other 20 missions are still to come;
+dialogue, encounters, restrictions and rewards. Chapter IV adds Harbor Heist, Vistawood Nights, Taking Back
+the Streets and Kingpin, including truck condition, the timed stunt run and the gang-density changes.
+The other 16 missions are still to come;
 [PORTING.md](PORTING.md) has the plan and the progress.
 
 ## Build and run
@@ -91,8 +93,8 @@ To start the story from PowerShell, add `-ATGStory` to the game launch:
 & "C:\Program Files\Epic Games\UE_5.8\Engine\Binaries\Win64\UnrealEditor.exe" "C:\ATG\Unreal\AutoTheftGrand\AutoTheftGrand.uproject" -game -windowed -resx=1280 -resy=720 -ATGStory -log
 ```
 
-The game opens with Welcome Home. After each mission, yellow contact letters show the next ones. Chapter III
-ends after Rush to All Saints; Chapter IV has not been ported yet. Without `-ATGStory`, the game starts at the safehouse
+The game opens with Welcome Home. After each mission, yellow contact letters show the next ones. Chapter IV
+ends after Kingpin; Chapter V has not been ported yet. Without `-ATGStory`, the game starts at the safehouse
 as before. Save/load and the title screen are still pending.
 
 ### Graphics
@@ -239,7 +241,7 @@ diff jsveh.txt cppveh.txt
 ./simtest.exe wildlife                                       # spawning, fleeing, damage and walked dogs
 ./simtest.exe pets                                           # adoption, commands, bites, rides and treats
 ./simtest.exe missions                                       # mission lifecycle, waits, failure and routes
-./simtest.exe story                                          # Chapters I-III and their failure rules
+./simtest.exe story                                          # Chapters I-IV and their failure rules
 node --import ./three-hook.mjs storycompare.mjs               # story metadata against story.js
 node --import ./three-hook.mjs animalcompare.mjs --check      # 17 breeds' rigs against animals.js
 ./simtest.exe aircmp heli > cpp_heli.txt                       # a run (plane, heli, tank, skate or boat) against the
@@ -270,6 +272,7 @@ for isolated tests. Race failure restores ambient traffic and pedestrians during
 `Tools/tests/story3.txt` checks Chapter III, including Deacon's actual route and the automatic ambush and
 hospital sequence. Scripts can use `repeat count interval command` to repeat objective assistance or state
 checks without interrupting the simulation.
+`Tools/tests/story4.txt` checks Chapter IV's truck delivery, timed stunt run, gang crews and Salazar encounter.
 
 ### Checking the generator without Unreal
 

@@ -47,7 +47,7 @@ pad, and plays its sounds.
 | entities/animals.js, game/wildlife.js | `Gen/AnimalModels`, `Sim/Animal`, `Sim/Wildlife`, `ATGAnimals` | The same breed models and procedural rigs; district mixes, group sizes, quality caps, valid-ground spawning, grazing, wandering, fleeing, bird flight and landing, walked dogs, cleanup, bullets, melee, blasts and roadkill. `simtest wildlife` checks behaviour; `animalcompare.mjs --check` compares 17 breeds' walk, run/flight and sit poses to the browser. |
 | game/pets.js | `Sim/Pets`, `Sim/Shops`, `ATGAnimals`, `ATGHUD` | Adoption and names, triple health, following and sitting, stay/come and aimed attack commands, defensive dog bites, NPC reactions to animal damage, car boarding and alighting, death and cleanup, kennel animals, adoption prices and treats. The HUD shows the pet's name, status and low-health colour. The compact network state and remote posing are ported and tested; actual replication and saved pets await multiplayer and save/load. |
 | game/missions.js, game/gps.js | `Sim/Missions`, `Sim/Hud`, `ATGHUD`, `ATGPerson` | C++20 coroutines preserve the async scripts' waits and nested cutscenes. The context manages dialogue, objectives, timers, counters, entities, target arrows, blips, checkpoints, GPS, drive-bys and failure predicates. The engine manages prerequisites, contacts, vehicle restrictions, rewards, chapter messages, death/arrest failures and cleanup. RouteDriver and RaceDriver use the browser's rules. Native and Unreal tests cover the lifecycle, including shutdown with a suspended script. |
-| game/story.js | `Sim/Story`, `Sim/StoryChapterTwo`, `Sim/StoryChapterThree`, `ATGGameMode` (`-ATGStory`) | Chapters I–III (15 scripts), from Welcome Home through Rush to All Saints. Same cast, dialogue, cutscene framing, checkpoints, chases, followers, crew support, races, deliveries, cash bags, rescue, evidence convoy, Chino's getaway, stealth-tail detection, three-wave ambush, hospital timer, restrictions, rewards and logs. `simtest story` completes each script, including Deacon's actual drive, and checks failure rules; `storycompare.mjs` checks metadata; `Tools/tests/story.txt`, `story2.txt` and `story3.txt` verify the chapters in Unreal. Race cleanup restores the ambient city on failure. Chapters IV–VIII (20 missions) are next. |
+| game/story.js | `Sim/Story`, `Sim/StoryChapterTwo/Three/Four`, `ATGGameMode` (`-ATGStory`) | Chapters I–IV (19 scripts), from Welcome Home through Kingpin. Same cast, dialogue, cutscenes, checkpoints, chases, followers, crew support, races, deliveries, rescue, evidence convoy, stealth tail, three-wave ambush, hospital run, truck condition, timed stunt run, gang-density changes, Salazar encounter, restrictions, rewards and logs. `simtest story` completes each script and checks failure rules; `storycompare.mjs` checks metadata; `Tools/tests/story*.txt` verify the chapters in Unreal. Race cleanup restores the ambient city on failure. Chapters V–VIII (16 missions) are next. |
 | game/military.js | `Sim/Military` | All of it: the parked aircraft, tanks and trucks at Fern Creek Airfield, the hospital roof and Fort Carver streamed in within 1.1 km and respawned a while after they're taken or wrecked, their map icons, the garrison on its 15 posts and patrols, the restricted zone (the warning, eight seconds' grace, then the alert, three stars and soldiers opening fire), the lockdown lifted when the stars are gone. |
 | game/army.js | `Sim/Army` | All of it: at five stars Barracks trucks and Ranger jeeps that run you down and unload troops, the Warhawk gunship's autopilot (circling at 60 m, its minigun bursts and rockets), the Mammoth tank that holds back and shells you, holding fire near their own, the radio, the radar blips, pulling out below five stars and the clean-up. |
 | game/npccrime.js | `Sim/NpcCrime`, `ATGHUD` (stars over suspects, speech bubbles) | All of it: jaywalkers, reckless drivers, hit-and-runs, road rage, muggers and car thieves staged near you (more at night and in the rough districts), witnesses and phoned-in reports, stars on the culprit, dispatch, the responding unit (pull-overs, tickets, chases, tackles, the ride in the back) and the radar dots. |
@@ -68,7 +68,7 @@ pad, and plays its sounds.
 simulation layer (above): walking, getting in and out, driving, crashes and parked cars run there and are
 drawn by Unreal. Phases 2, 3, 3b and 4 are done: the living city, the action, the GTA V layer and every
 vehicle. From phase 6, the sound, radio, walk-in shops, wildlife and single-player pets are done. Phase 5 is
-under way: the mission engine and Chapters I–III are ported and tested; the remaining story and features are next.
+under way: the mission engine and Chapters I–IV are ported and tested; the remaining story and features are next.
 
 **Phase 1: the world and driving (done).**
 - World generation.
@@ -108,7 +108,7 @@ under way: the mission engine and Chapters I–III are ported and tested; the re
 - Boats and police boats. Done.
 
 **Phase 5: story and features.**
-- The mission engine (missions.js). Done. Chapters I–III (15/35 missions) are done. Chapters IV–VIII are next.
+- The mission engine (missions.js). Done. Chapters I–IV (19/35 missions) are done. Chapters V–VIII are next.
 - The ship raid.
 - Taxis, races, vigilante, Customs garages, property.
 - Free roam and admin tools.

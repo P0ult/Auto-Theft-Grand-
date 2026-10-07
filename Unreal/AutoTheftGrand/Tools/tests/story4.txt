@@ -1,0 +1,30 @@
+# Chapter IV's four actual scripts.
+wait 1
+ATG.God 1
+ATG.StoryStart heist unlock
+wait 19
+repeat 8 1 ATG.StoryAdvance
+wait 4
+ATG.Missions
+shot story4_heist
+ATG.StoryStart vistawood unlock
+wait 20
+ATG.StoryAdvance
+wait 4
+repeat 6 1 ATG.StoryAdvance
+wait 5
+ATG.Missions
+shot story4_stunt
+ATG.StoryStart streets unlock
+wait 15
+repeat 4 1 ATG.StoryAdvance
+wait 5
+ATG.Missions
+shot story4_streets
+ATG.StoryStart kingpin unlock
+wait 17
+repeat 4 1 ATG.StoryAdvance
+wait 5
+ATG.Missions
+shot story4_kingpin
+quit
