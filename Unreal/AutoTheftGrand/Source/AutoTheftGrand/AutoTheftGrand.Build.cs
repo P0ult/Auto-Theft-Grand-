@@ -7,6 +7,8 @@ public class AutoTheftGrand : ModuleRules
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 		// (the simulation in Private/Sim is plain C++ and uses dynamic_cast)
 		bUseRTTI = true;
+		// Mission coroutines propagate MissionFail/Abort just as async scripts do in the browser.
+		bEnableExceptions = true;
 		// The world generator (Private/Gen) is plain C++ shared with a command-line test harness, so it is
 		// built without unity batching (its files use short helper names) and with relaxed shadow warnings.
 		bUseUnity = false;

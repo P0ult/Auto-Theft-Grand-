@@ -21,6 +21,7 @@
 #include "Sim/Wildlife.h"
 #include "Sim/Pets.h"
 #include "Sim/Shops.h"
+#include "Sim/Missions.h"
 
 #include "Engine/Engine.h"
 #include "Engine/World.h"
@@ -184,6 +185,47 @@ ATG_CMD(CmdShopView, "ATG.ShopView", "ATG.ShopView key: stand inside a shop and 
 		G->rig.setCinematic(atg::V3(I.X(U, 2), I.fy + 1.5, I.Z(U, 2)), atg::V3(I.X(-I.W / 2 + 1.3, 6), I.fy + 0.45, I.Z(-I.W / 2 + 1.3, 6)), 55);
 		return;
 	}
+})
+ATG_CMD(CmdMissions, "ATG.Missions", "ATG.Missions [id | abort | fail]: start a mission or log progress", {
+	atg::Game* G = Sim(W); if (!G || !G->missions) return;
+	auto& E = *G->missions;
+	if (!Args.IsEmpty()) {
+		if (Args[0] == TEXT("abort")) E.abortActive();
+		else if (Args[0] == TEXT("fail")) E.failActive("Test failure.");
+		else E.start(TCHAR_TO_UTF8(*Args[0]));
+	}
+	UE_LOG(LogATG, Display, TEXT("ATG missions: %d completed, active '%s', cash %.0f, cutscene %d, message '%s'"), (int32)E.completed.size(), E.active ? UTF8_TO_TCHAR(E.active->def.id.c_str()) : TEXT(""), G->player->money, G->cutscene, G->hudModel ? UTF8_TO_TCHAR(G->hudModel->big.text.c_str()) : TEXT(""));
+})
+ATG_CMD(CmdMissionTest, "ATG.MissionTest", "ATG.MissionTest [goal | finish | abort | fail]: exercise the mission engine with a test fixture", {
+	atg::Game* G = Sim(W); if (!G || !G->missions) return;
+	auto& E = *G->missions;
+	if (!Args.IsEmpty() && E.active) {
+		if (Args[0] == TEXT("goal") && !E.active->markers.empty()) { const auto At = E.active->markers.back()->pos; G->respawnPlayer(At.x, At.z, 0); }
+		if (Args[0] == TEXT("finish")) for (const auto& P : E.active->peds) if (P->missionEnemy) P->die(atg::DamageInfo());
+		if (Args[0] == TEXT("abort")) E.abortActive();
+		if (Args[0] == TEXT("fail")) E.failActive("Test failure.");
+		return;
+	}
+	if (E.active) return;
+	bool Have = false; for (const auto& D : E.story) if (D.id == "engine_test") Have = true;
+	if (!Have) {
+		atg::MissionDef D; D.id = "engine_test"; D.title = "Mission engine check"; D.reward = 250; D.allowWanted = true;
+		D.run = [](atg::MissionContext& M, atg::Game&) -> atg::MissionTask {
+			const auto P = M.player().pos;
+			auto* Guide = M.ped(P.x + 3, P.z); M.speakers["Guide"] = Guide;
+			atg::MissionEnemyOpts O; O.guard = true; O.accuracy = 0; auto* Target = M.enemy(P.x + 4, P.z + 100, O);
+			co_await M.cutscene([&M, Guide]() -> atg::MissionTask {
+				M.twoShot(&M.player(), Guide);
+				co_await M.say("Guide", "Walk to the checkpoint. Then take out the marked target.", 1.5);
+			});
+			auto Stop = M.timer(60);
+			atg::GoToOpts Goal; Goal.onFoot = true; Goal.text = "Walk to the checkpoint.";
+			co_await M.goTo(P.x, P.z + 100, Goal); Stop();
+			co_await M.killAll({ Target }, "Take out the marked target.", "Targets");
+		};
+		E.story.push_back(std::move(D));
+	}
+	E.start("engine_test");
 })
 ATG_CMD(CmdMenu, "ATG.Menu", "ATG.Menu [row | down | up | close]: press a shop menu's button, move its highlight or leave; then log the menu", {
 	atg::Game* G = Sim(W);

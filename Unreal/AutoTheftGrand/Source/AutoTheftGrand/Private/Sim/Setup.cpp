@@ -9,6 +9,7 @@
 #include "Gameplay.h"
 #include "Heists.h"
 #include "Military.h"
+#include "Missions.h"
 #include "Hud.h"
 #include "NpcCrime.h"
 #include "Peds.h"
@@ -53,7 +54,8 @@ void InstallSystems(Game& g) {
 	g.pets = g.addSystem("pets", std::make_unique<PetSystem>(g));
 	g.addSystem("skateparks", std::make_unique<Skateparks>(g));
 	g.addSystem("boats", std::make_unique<BoatSystem>(g));
-	// (shipRaid, missions: later)
+	// (shipRaid: later)
+	g.missions = g.addSystem("missions", std::make_unique<Missions>(g));
 	g.audioSys = g.addSystem("audio", std::make_unique<Audio>(g));
 	g.audio = g.audioSys;
 	g.gameplay = g.addSystem("gameplay", std::make_unique<Gameplay>(g));

@@ -11,6 +11,7 @@
 #include "Sim/Gameplay.h"
 #include "Sim/Heists.h"
 #include "Sim/Military.h"
+#include "Sim/Missions.h"
 #include "Sim/NpcCrime.h"
 #include "Sim/Hud.h"
 #include "Sim/Peds.h"
@@ -1433,6 +1434,77 @@ static void TestPets(World& w) {
 	s.release(); Check(!s.pet && s.info.name.empty(), "release clears the pet");
 }
 
+static void TestMissions(World& w) {
+	printf("missions\n");
+	auto g = w.game(true); g->disableAmbient = true; g->cheats.god = true;
+	ToStreet(w, *g); Player& p = *g->player; Missions& e = *g->missions;
+	Ped* enemy = nullptr; Ped* companion = nullptr; Vehicle* car = nullptr; int ticks = 0, after = 0, passes = 0, failures = 0;
+	g->events.missionPassed.on([&](const std::string&) { passes++; });
+	g->events.missionFailed.on([&](const std::string&) { failures++; });
+	MissionDef first; first.id = "fixture"; first.title = "Mission engine check"; first.contact = "T"; first.reward = 250; first.log = "Fixture passed.";
+	const V3 origin = p.pos;
+	first.start = [origin](const CityMap&) { return origin + V3(0, 0, 25); };
+	first.after = [&](Game&) { after++; };
+	first.run = [&](MissionContext& m, Game&) -> MissionTask {
+		companion = m.ped(origin.x + 3, origin.z + 2); m.keepAlive(companion, "Companion died.");
+		car = m.car("kestrel", origin.x + 6, origin.z + 5); car->locked = true; m.lockedCars.push_back(car);
+		MissionEnemyOpts opt; opt.guard = true; enemy = m.enemy(origin.x + 6, origin.z + 20, opt);
+		m.speakers["Guide"] = companion; m.tick([&](double) { ticks++; });
+		co_await m.cutscene([&m, companion]() -> MissionTask {
+			m.twoShot(&m.player(), companion);
+			co_await m.say("Guide", "This checks dialogue and cleanup.", 0.1);
+			co_await m.wait(0.1);
+		});
+		auto stop = m.timer(10);
+		GoToOpts o; o.onFoot = true; o.text = "Walk to the checkpoint.";
+		co_await m.goTo(origin.x, origin.z + 25, o);
+		stop(); co_await m.killAll({ enemy }, "Take out the target.", "Targets");
+	};
+	MissionDef second; second.id = "followup"; second.title = "Unlocked follow-up"; second.contact = "F"; second.requiresIds = { first.id };
+	second.start = first.start; second.run = [](MissionContext& m, Game&) -> MissionTask { co_await m.wait(1); };
+	e.story = { first, second };
+	e.refreshContacts(); Check(e.available().size() == 1 && e.contactMarkers.size() == 1, "contacts follow prerequisites");
+	g->policeSys->setLevel(1); Check(!e.start("fixture"), "wanted players cannot start ordinary missions"); g->policeSys->clearWanted();
+	const double cash = p.money; Check(e.start("fixture"), "mission starts");
+	Check(g->cutscene && g->hudModel->letterboxed && !g->policeSys->enabled, "cutscenes lock controls, letterbox and suspend police");
+	Check(!e.canEnterVehicle(car) && enemy->targetArrow, "locked mission cars and target arrows");
+	Run(*g, 0.5);
+	Check(!g->cutscene && !g->hudModel->letterboxed && g->policeSys->enabled, "dialogue and waits resume the script and restore controls");
+	Check(!g->hudModel->objectiveText.empty() && g->hudModel->gpsTarget.has_value(), "checkpoint objective and GPS");
+	g->respawnPlayer(origin.x, origin.z + 25, 0); Run(*g, 0.1);
+	Check(g->hudModel->counterLabel == "Targets", "checkpoint advances to the target counter");
+	enemy->die(DamageInfo()); Run(*g, 0.1);
+	Check(!e.active && e.completed.count("fixture") && p.money == cash + 250 && passes == 1 && g->stats.missions == 1, "completing objectives pays once and records progress");
+	Check(!companion->persistent && !car->locked && !enemy->targetArrow && !g->hudModel->gpsTarget && !Finite(g->hudModel->timerSeconds), "cleanup releases entities, arrows, GPS and timers");
+	g->respawnPlayer(origin.x, origin.z, 0);
+	Run(*g, 5.6); Check(after == 1 && e.available().size() == 1 && e.contactMarkers.size() == 1, "delayed after callback and unlocked contacts");
+	e.abortActive(); if (e.active) Run(*g, 0.1);
+	MissionDef timeout; timeout.id = "timeout"; timeout.title = "Timeout";
+	timeout.run = [](MissionContext& m, Game&) -> MissionTask { UntilOpts o; o.timeout = 0.1; o.timeoutReason = "Too slow."; co_await m.until([]() { return false; }, o); };
+	e.story.push_back(timeout); e.start("timeout"); Run(*g, 0.2);
+	Check(!e.active && g->hudModel->big.style == "failed" && g->hudModel->big.sub == "Too slow." && !e.completed.count("timeout"), "timed waits propagate MissionFail without rewards");
+	MissionDef cancel; cancel.id = "cancel"; cancel.title = "Cancel";
+	cancel.run = [](MissionContext& m, Game&) -> MissionTask { co_await m.cutscene([&m]() -> MissionTask { co_await m.wait(100); }); };
+	e.story.push_back(cancel); e.start("cancel"); e.abortActive(); Run(*g, 0.1);
+	Check(!e.active && !g->cutscene && g->policeSys->enabled && failures == 1, "aborting unwinds nested cutscenes without a failure message");
+	MissionDef fail; fail.id = "fail"; fail.title = "Fail";
+	fail.run = [](MissionContext& m, Game&) -> MissionTask { auto* ped = m.ped(m.player().pos.x + 5, m.player().pos.z); m.keepAlive(ped, "Friend down."); co_await m.wait(100); };
+	e.story.push_back(fail); Check(e.start("fail"), "failure fixture starts"); if (e.active && !e.active->peds.empty()) e.active->peds[0]->die(DamageInfo()); Run(*g, 0.1);
+	Check(!e.active && g->hudModel->big.sub == "Friend down.", "keepAlive fails an active mission");
+	// A route driver follows a real city street and stops at the destination.
+	Traffic::Sample at; Check(Traffic::SampleLane(*g, origin.x, origin.z, 25, 100, at), "route test has a lane");
+	Vehicle* v = g->vehicles.spawn("kestrel", at.x, at.z, 0); PedOpts po; po.brain = "script"; po.persistent = true;
+	Ped* driver = g->peds->spawnPed(at.x, at.z, po); v->putIn(driver);
+	const auto& edge = g->map.roads.edges[at.start.e]; const auto end = g->map.roads.At(edge, Clamp(at.s0 + (at.start.dir ? -50 : 50), 10, edge.len - 10));
+	auto route = std::make_shared<RouteDriver>(*g, v, V3(end.x, end.y, end.z)); v->ai = route;
+	for (int i = 0; i < 1200 && !route->arrived; i++) g->frame(1.0 / 30);
+	Check(route->arrived && v->input.brake == 1, "mission route driver reaches its destination and brakes");
+	{
+		auto quit = w.game(true); quit->missions->story = { cancel }; quit->missions->start("cancel");
+	}
+	Check(true, "quitting during a cutscene destroys coroutines before their game systems");
+}
+
 static void AnimalCompare(World& w) {
 	auto g = w.game();
 	for (const auto& breed : AnimalBreedOrder()) {
@@ -1484,6 +1556,7 @@ int main(int argc, char** argv) {
 	if (want("shops")) TestShops(w);
 	if (want("wildlife")) TestWildlife(w);
 	if (want("pets")) TestPets(w);
+	if (want("missions")) TestMissions(w);
 	printf(fails ? "%d FAILED\n" : "all passed\n", fails);
 	return fails ? 1 : 0;
 }

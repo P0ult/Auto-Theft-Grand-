@@ -65,6 +65,8 @@ public:
 	std::shared_ptr<struct NpcCase> npcCase, npcTask;
 	int npcWanted = 0;                    // (the stars over their head)
 	bool shopClerk = false;
+	bool missionKeep = false, missionEnemy = false, targetArrow = false;
+	double targetArrowPhase = 0;
 	Ref<Animal> walkedDog;
 	double loot = 0, crimeClock = NaN();
 	bool hasNpcAim = false; double npcAimAccuracy = 0, npcAimDamageMul = 0; // (a cop's aim before a shoot-out)

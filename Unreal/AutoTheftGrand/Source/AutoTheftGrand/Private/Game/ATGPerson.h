@@ -27,6 +27,7 @@ private:
 	UPROPERTY(VisibleAnywhere) TObjectPtr<USceneComponent> Root;
 	UPROPERTY(Transient) TObjectPtr<UPoseableMeshComponent> Body;
 	UPROPERTY(Transient) TObjectPtr<UStaticMeshComponent> Weapon;
+	UPROPERTY(Transient) TObjectPtr<UStaticMeshComponent> TargetArrow;
 	FString WeaponId;
 	void Build(atg::Character* C);
 };

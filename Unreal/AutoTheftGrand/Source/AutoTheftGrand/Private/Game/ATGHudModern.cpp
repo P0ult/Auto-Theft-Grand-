@@ -191,6 +191,19 @@ void AATGHUD::DrawMinimap(atg::Game* G, AATGWorld* W, float Dt, float Left, floa
 	};
 	Layer(W->MapWorldTex, W->MapWorldRect, false);
 	Layer(W->MapCityTex, W->MapCityRect, true);
+	// GPS route, clipped to the minimap's border.
+	if (G->hudModel) {
+		const auto& Route = G->hudModel->route;
+		c.Fill = CssColor(0xd96cff);
+		for (size_t I = 1; I < Route.size(); I++) {
+			const P2 A = toRadar(Route[I - 1].x, Route[I - 1].z) + P2(C, CY), B = toRadar(Route[I].x, Route[I].z) + P2(C, CY);
+			const P2 D = B - A; const float Len = D.Size(); if (Len < 0.001f) continue;
+			const P2 N(-D.Y / Len * 2.5f, D.X / Len * 2.5f);
+			const TArray<P2> Poly = ClipPoly(TArray<P2>{ A + N, B + N, B - N, A - N }, Shape);
+			if (Poly.Num() < 3) continue;
+			c.BeginPath(); c.MoveTo(Poly[0].X, Poly[0].Y); for (int32 K = 1; K < Poly.Num(); K++) c.LineTo(Poly[K].X, Poly[K].Y); c.ClosePath(); c.FillPath();
+		}
+	}
 	// wanted: the minimap flashes red and blue while the police can see you; once they've lost you, their
 	// search cones show where they're looking
 	const int lvl = G->police ? G->police->wantedLevel() : 0;

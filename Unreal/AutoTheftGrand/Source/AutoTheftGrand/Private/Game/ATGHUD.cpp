@@ -234,6 +234,11 @@ void AATGHUD::DrawMessages(atg::Game* G, float Dt) {
 	if (M->money.t > 0) Text(UTF8_TO_TCHAR(M->money.text.c_str()), Canvas->ClipX - 40 * Ui, 112 * Ui, Small, 1.6f * Ui, FLinearColor(0.49f, 1.f, 0.54f, FMath::Min(1.f, (float)M->money.t * 3.f) * A), 1.f);
 	if (M->dispatchLine.t > 0) Text(TEXT("DISPATCH ") + Plain(M->dispatchLine.text), Canvas->ClipX - 40 * Ui, 160 * Ui, Small, 1.3f * Ui, FLinearColor(0.87f, 0.9f, 1.f, FMath::Min(1.f, (float)M->dispatchLine.t * 3.f) * A), 1.f);
 	if (!M->objectiveText.empty() && M->subs.t <= 0) Text(Plain(M->objectiveText), Canvas->ClipX / 2, Canvas->ClipY * 0.92f, Small, 1.3f * Ui, FLinearColor(1, 1, 1, 0.8f * A), 0.5f);
+	if (atg::Finite(M->timerSeconds)) {
+		const int32 Sec = FMath::Max(0, (int32)M->timerSeconds);
+		Text(FString::Printf(TEXT("%d:%02d"), Sec / 60, Sec % 60), Canvas->ClipX - 40 * Ui, Canvas->ClipY * 0.7f, Big, 1.8f * Ui, M->timerSeconds < 10 ? FLinearColor(1, 0.3f, 0.2f, A) : FLinearColor(1, 1, 1, A), 1.f);
+	}
+	if (!M->counterLabel.empty()) Text(Plain(M->counterLabel + " " + M->counterValue), Canvas->ClipX - 40 * Ui, Canvas->ClipY * 0.76f, Small, 1.5f * Ui, FLinearColor(1, 1, 1, A), 1.f);
 }
 
 // hud.js: the speech bubbles over people's heads and the wanted stars over NPC suspects
@@ -288,6 +293,7 @@ void AATGHUD::DrawTags(atg::Game* G) {
 void AATGHUD::DrawOverlays(atg::Game* G, float Dt) {
 	atg::HudModel* M = G->hudModel;
 	const float W = Canvas->ClipX, H = Canvas->ClipY;
+	if ((M && M->letterboxed) || G->rig.cineBars) { const float K = M && M->letterboxed ? 0.11f : 0.08f; DrawRect(FLinearColor::Black, 0, 0, W, H * K); DrawRect(FLinearColor::Black, 0, H * (1 - K), W, H * K); }
 	// damage: red creeping in from the edges (postfx.js uDamage)
 	const float Dmg = M ? (float)M->vignette : 0.f;
 	if (Dmg > 0.01f) for (int32 K = 0; K < 10; K++) {

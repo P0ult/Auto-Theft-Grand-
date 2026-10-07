@@ -5,6 +5,7 @@
 #pragma once
 
 #include "Core.h"
+#include <optional>
 
 namespace atg {
 
@@ -121,6 +122,10 @@ public:
 	virtual void damage(double) {}
 	virtual void showWasted(const std::string&) {}
 	virtual void deathMode(bool) {}
+	virtual void setTimer(double /*NaN hides it*/) {}
+	virtual void setCounter(const std::string&, const std::string&) {}
+	virtual void letterbox(bool) {}
+	virtual void routeTo(std::optional<V2>) {}
 };
 
 // weapons and damage (src/game/combat.js)

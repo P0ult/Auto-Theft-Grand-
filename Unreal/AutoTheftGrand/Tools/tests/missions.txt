@@ -1,0 +1,33 @@
+# Mission engine fixture: dialogue, letterbox, GPS, marker, counter, target arrow, pass, abort and fail.
+wait 1
+ATG.God 1
+ATG.Time 15
+ATG.Teleport -628 344 0
+ATG.MissionTest
+wait 0.5
+shot mission_cutscene
+wait 1.5
+ATG.Missions
+shot mission_gps
+ATG.MissionTest goal
+wait 0.3
+ATG.CamAt 3 2 6 4 1 0
+wait 0.3
+shot mission_target
+ATG.MissionTest finish
+wait 0.3
+ATG.Missions
+shot mission_passed
+ATG.CamAt
+ATG.MissionTest
+wait 0.2
+ATG.MissionTest abort
+wait 0.2
+ATG.Missions
+ATG.MissionTest
+wait 0.2
+ATG.MissionTest fail
+wait 0.3
+ATG.Missions
+shot mission_failed
+quit

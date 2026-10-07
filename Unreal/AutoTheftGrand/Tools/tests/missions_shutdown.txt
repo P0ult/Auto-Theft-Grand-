@@ -1,0 +1,5 @@
+# Closing the game with a cutscene still suspended must clean up safely.
+wait 1
+ATG.MissionTest
+wait 0.1
+quit

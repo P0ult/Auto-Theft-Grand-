@@ -32,6 +32,16 @@ public:
 	bool dead = false;            // (deathMode: the rest of the HUD hidden)
 	std::string shard;            // "wasted" / "busted" once the shard is up
 	double shardT = 0;            // seconds since the shard came up (its CSS animation)
+	double timerSeconds = NaN();
+	std::string counterLabel, counterValue;
+	bool letterboxed = false;
+	std::optional<V2> gpsTarget;
+	std::vector<V2> route;
+	double routeTimer = 0;
+	void setTimer(double sec) override { timerSeconds = sec; }
+	void setCounter(const std::string& label, const std::string& value) override { counterLabel = label; counterValue = value; }
+	void letterbox(bool on) override { letterboxed = on; }
+	void routeTo(std::optional<V2> target) override { gpsTarget = target; routeTimer = 0; if (!target) route.clear(); }
 
 	void help(const std::string& text, double seconds = 5) override;
 	void speech(Character* who, const std::string& text) override;

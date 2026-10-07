@@ -53,7 +53,9 @@ and sells all nine pet breeds at the browser's prices. Your pet follows, sits wh
 free passenger seat. Whistle with K (right-stick click on foot) to tell it to stay or come; aim at someone
 and whistle to send your dog after them. Dogs also defend you against attackers. Pet treats heal your pet,
 and the HUD shows its name and state. Save data and online pet replication come with those systems.
-Missions and the rest are still to come; [PORTING.md](PORTING.md) has the plan and the progress.
+The mission engine runs sequential scripts with dialogue, cutscenes, objectives, timers, counters, GPS
+routes, target arrows, failure conditions, rewards and contact progression. The story scripts are next;
+[PORTING.md](PORTING.md) has the plan and the progress.
 
 ## Build and run
 
@@ -221,6 +223,7 @@ node --import ./three-hook.mjs vehcompare.mjs > jsveh.txt      # identical to 4 
 diff jsveh.txt cppveh.txt
 ./simtest.exe wildlife                                       # spawning, fleeing, damage and walked dogs
 ./simtest.exe pets                                           # adoption, commands, bites, rides and treats
+./simtest.exe missions                                       # mission lifecycle, waits, failure and routes
 node --import ./three-hook.mjs animalcompare.mjs --check      # 17 breeds' rigs against animals.js
 ./simtest.exe aircmp heli > cpp_heli.txt                       # a run (plane, heli, tank, skate or boat) against the
 MODE=heli node ../../../tools/browser-test/run.mjs "http://localhost:8080/index.html?manual&autostart=free&q=low" \
@@ -237,6 +240,11 @@ The trains match to the metre: both reach Fern Creek 110.7 s after leaving Union
 `Tools/tests/pets.txt` visits Pet Palace, buys a pet, whistles and takes it for a car ride. `ATG.Pet breed
 name` adopts directly for tests; `ATG.Pet command`, `ATG.Pet release` and `ATG.Pet hurt amount` exercise its
 commands and damage. `ATG.Pet` logs its state. `ATG.ShopView petshop` looks at the kennels.
+
+`Tools/tests/missions.txt` exercises the mission engine with a test fixture (dialogue, GPS, target arrows,
+pass, abort and failure). `ATG.Missions` logs progress; `ATG.Missions id` starts a registered mission.
+`ATG.MissionTest` starts the fixture; `goal` reaches its checkpoint and `finish` kills its target.
+`Tools/tests/missions_shutdown.txt` exits during a suspended cutscene to check shutdown cleanup.
 
 ### Checking the generator without Unreal
 

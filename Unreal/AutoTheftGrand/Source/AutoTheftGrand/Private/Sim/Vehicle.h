@@ -76,6 +76,7 @@ public:
 	bool removed = false, persistent = false;
 	std::string missionTag;
 	Ref<Character> lastDamager;
+	bool missionKeep = false;
 	double wreckTime = 0, crushT = 0;
 	double surface = 1;
 	double rollT = 0;

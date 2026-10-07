@@ -109,6 +109,7 @@ public:
 	INpcCrime* npcCrime = nullptr;
 	IWildlife* wildlife = nullptr;
 	class PetSystem* pets = nullptr;
+	class Missions* missions = nullptr;
 	std::function<void(std::vector<Animal*>&)> animalExtras; // pets (combat and the renderer)
 	PedManager* peds = nullptr;
 	Traffic* traffic = nullptr;

@@ -1,4 +1,5 @@
 #include "Game.h"
+#include "Missions.h"
 #include "Special.h"
 #include "WeaponWheel.h"
 #include "Hud.h"
@@ -63,7 +64,7 @@ Game::Game(const WorldData& w, const Settings& s)
 	player = makeCharacter<Player>();
 }
 
-Game::~Game() = default;
+Game::~Game() { if (missions) missions->shutdown(); }
 
 std::vector<Character*> Game::allCharacters() {
 	std::vector<Character*> out;

@@ -210,6 +210,13 @@ void HudModel::fadeTo(double v, double dur) { fadeState = { fadeState.value(), v
 
 void HudModel::update(double dt) {
 	Player& p = *game.player;
+	routeTimer -= dt;
+	if (gpsTarget && routeTimer <= 0) {
+		routeTimer = 1;
+		const V3 pp = p.vehicle ? p.vehicle->pos : p.pos;
+		if (Hypot(gpsTarget->x - pp.x, gpsTarget->z - pp.z) < 15) route.clear();
+		else { const auto r = game.map.roads.FindRoute(pp.x, pp.z, gpsTarget->x, gpsTarget->z); route = game.map.roads.RoutePolyline(r ? &*r : nullptr, pp.x, pp.z, gpsTarget->x, gpsTarget->z); }
+	}
 	// zone and vehicle names
 	const V3 zp = p.vehicle ? p.vehicle->pos : p.pos;
 	const std::string z = game.map.ZoneName(zp.x, zp.z);
