@@ -1,5 +1,6 @@
 // Native tests for the simulation (no Unreal): Tools/native.sh simtest.exe simtest.cpp && ./simtest.exe [test ...]
 // Each test sets up a game on the generated world, runs fixed 1/30 s frames and prints what it measured.
+#include "Sim/Aircraft.h"
 #include "Sim/Bike.h"
 #include "Sim/Combat.h"
 #include "Sim/Effects.h"
@@ -793,6 +794,154 @@ static void TestBikes(World& w) {
 	Check(bmx->pedalPhase > 5, "a bicycle's pedals go round");
 }
 
+static void TestAircraft(World& w) {
+	printf("aircraft\n");
+	// a light plane takes off from the airfield's runway
+	{
+		auto g = w.game();
+		Player& p = *g->player;
+		const Landmark& af = w.map.landmarks.at("airfield");
+		g->respawnPlayer(af.x + 4, af.z - 260, 0);
+		Plane* pl = dynamic_cast<Plane*>(g->vehicles.spawn("skipper", af.x, af.z - 260, 0));
+		Check(pl != nullptr, "a Skipper is a plane");
+		if (!pl) return;
+		g->vehicles.seatNow(&p, pl, 0);
+		g->input.KeyDown("KeyW");
+		double t = 0;
+		while (t < 30 && pl->forwardSpeed() < pl->def.vRotate + 2) { Run(*g, 0.1); t += 0.1; }
+		printf("  rotate speed %.1f m/s after %.1f s (vRotate %.1f), spool %.2f\n", pl->forwardSpeed(), t, pl->def.vRotate, pl->spool);
+		Check(pl->forwardSpeed() > pl->def.vRotate, "it reaches rotation speed on the runway");
+		g->input.KeyDown("ArrowDown");
+		Run(*g, 0.5);
+		g->input.KeyUp("ArrowDown");
+		printf("  after rotating: grounded %d, alt %.1f m, climb %.1f m/s\n", (int)pl->grounded, pl->altitude(), pl->vel.y);
+		Check(!pl->grounded, "pulling back lifts it off");
+		Run(*g, 6);
+		printf("  6 s later: alt %.1f m, speed %.1f m/s, gear %.2f, health %.0f\n", pl->altitude(), pl->forwardSpeed(), pl->gearK, pl->health);
+		Check(pl->altitude() > 20 && !pl->exploded, "it climbs out");
+		Check(pl->gearK < 1, "the gear retracts once climbing out");
+		// bank and turn
+		const double yaw0 = pl->yaw;
+		g->input.KeyDown("KeyA");
+		Run(*g, 0.5);
+		g->input.KeyUp("KeyA");
+		Run(*g, 4);
+		printf("  bank: heading change %.2f rad\n", WrapAngle(pl->yaw - yaw0));
+		Check(std::fabs(WrapAngle(pl->yaw - yaw0)) > 0.1, "a banked wing turns it");
+		// nose down into the ground
+		g->input.KeyDown("ArrowUp");
+		Run(*g, 1);
+		g->input.KeyUp("ArrowUp");
+		t = 0;
+		while (t < 30 && !pl->exploded) { Run(*g, 0.1); t += 0.1; }
+		printf("  dive: exploded %d after %.1f s\n", (int)pl->exploded, t);
+		Check(pl->exploded, "diving into the ground wrecks it");
+		Run(*g, 3);
+		Check(pl->grounded && p.dead, "the wreck lies on the ground and the pilot is dead");
+	}
+	// a helicopter lifts off, hovers and flies forward
+	{
+		auto g = w.game();
+		Player& p = *g->player;
+		const Landmark& af = w.map.landmarks.at("airfield");
+		g->respawnPlayer(af.x + 6, af.z, 0);
+		Heli* h = dynamic_cast<Heli*>(g->vehicles.spawn("skylark", af.x, af.z, 0));
+		Check(h != nullptr, "a Skylark is a helicopter");
+		if (!h) return;
+		g->vehicles.seatNow(&p, h, 0);
+		Run(*g, 3);
+		printf("  spool after 3 s %.2f, grounded %d\n", h->spool, (int)h->grounded);
+		g->input.KeyDown("Space");
+		Run(*g, 4);
+		g->input.KeyUp("Space");
+		printf("  after 4 s climb: alt %.1f m, vy %.1f\n", h->altitude(), h->vel.y);
+		Check(h->altitude() > 5, "Space climbs");
+		Run(*g, 4);
+		const double a0 = h->altitude();
+		Run(*g, 2);
+		printf("  hands off: alt %.1f then %.1f m, vy %.2f, drift %.2f m/s\n", a0, h->altitude(), h->vel.y, Hypot(h->vel.x, h->vel.z));
+		Check(std::fabs(h->altitude() - a0) < 2.5, "hands off it holds its height");
+		g->input.KeyDown("KeyW");
+		Run(*g, 4);
+		g->input.KeyUp("KeyW");
+		printf("  nose down 4 s: %.1f m/s, tilt %.2f\n", h->forwardSpeed(), h->tiltP);
+		Check(h->forwardSpeed() > 10, "tilting the disc forward flies forward");
+		// shot down: it spins and falls
+		h->damage(99999);
+		double t = 0;
+		while (t < 30 && !h->exploded) { Run(*g, 0.1); t += 0.1; }
+		printf("  shot down: exploded %d after %.1f s\n", (int)h->exploded, t);
+		Check(h->exploded, "with no health it falls and blows up");
+	}
+	// the tank drives and fires its cannon
+	{
+		auto g = w.game();
+		ToStreet(w, *g);
+		Player& p = *g->player;
+		Tank* tk = dynamic_cast<Tank*>(g->vehicles.spawn("mammoth", p.pos.x + 3, p.pos.z, 0));
+		Check(tk != nullptr, "a Mammoth is a tank");
+		if (!tk) return;
+		g->vehicles.seatNow(&p, tk, 0);
+		Check(p.hiddenInVehicle, "the crew is hidden inside");
+		g->input.KeyDown("KeyW");
+		Run(*g, 3);
+		g->input.KeyUp("KeyW");
+		printf("  3 s throttle: %.1f m/s, tracks %.1f %.1f\n", tk->speed(), tk->trackL, tk->trackR);
+		Check(tk->speed() > 3, "it drives");
+		Run(*g, 2);
+		g->input.mouse.left = true;
+		g->frame(1.0 / 30);
+		g->input.mouse.left = false;
+		const V3 m = tk->muzzleWorld();
+		printf("  fired: reload %.2f, recoil %.2f, muzzle %.1f m above the hull\n", tk->reload, tk->recoil, m.y - tk->pos.y);
+		Check(tk->reload > 1.5 && tk->recoil > 0.9, "the cannon fires and recoils");
+		Run(*g, 2);
+		tk->explode();
+		Run(*g, 0.5);
+		printf("  blown up: turret at %.2f m\n", tk->turretY);
+		Check(tk->turretY > 1.78, "the turret is blown off its ring");
+		Run(*g, 4);
+		Check(tk->turretY == 1.78 && tk->turretTilt == 0.25, "it lands tilted");
+	}
+}
+
+// the same runs as tools/browser-test/tests/aircmp.mjs (mode: plane, heli or tank), printed the same way
+static void AirCompare(World& w, const std::string& mode) {
+	auto g = w.game();
+	const Landmark& af = w.map.landmarks.at("airfield");
+	const double ax = af.x, az = mode == "heli" ? af.z : af.z - 260;
+	g->respawnPlayer(ax + 4, az, 0);
+	Run(*g, 0.5);
+	Vehicle* v = g->vehicles.spawn(mode == "plane" ? "skipper" : mode == "heli" ? "skylark" : "mammoth", ax, az, 0);
+	g->vehicles.seatNow(&*g->player, v, 0);
+	Plane* pl = dynamic_cast<Plane*>(v);
+	Heli* hl = dynamic_cast<Heli*>(v);
+	Tank* tk = dynamic_cast<Tank*>(v);
+	auto st = [&](double t) {
+		printf("%.1f x %.2f y %.2f z %.2f yaw %.3f fwd %.2f hp %.0f ex %d", t, v->pos.x, v->pos.y, v->pos.z, v->yaw, v->forwardSpeed(), v->health, v->exploded ? 1 : 0);
+		if (pl) { const V3 f = pl->quat.rotate(V3(0, 0, 1)); printf(" alt %.2f pitch %.3f gr %d gear %.2f spool %.3f", pl->altitude(), std::asin(f.y), pl->grounded ? 1 : 0, pl->gearK, pl->spool); }
+		if (hl) printf(" alt %.2f tilt %.3f %.3f gr %d spool %.3f", hl->altitude(), hl->tiltP, hl->tiltR, hl->grounded ? 1 : 0, hl->spool);
+		if (tk) printf(" tracks %.2f %.2f body %.4f %.4f", tk->trackL, tk->trackR, tk->bodyPitch, tk->bodyRoll);
+		printf("\n");
+	};
+	double t = 0;
+	auto phase = [&](std::vector<const char*> keys, double secs) {
+		for (const char* k : keys) g->input.KeyDown(k);
+		for (int i = 0; i < secs * 2; i++) { Run(*g, 0.5); t += 0.5; st(t); }
+		for (const char* k : keys) g->input.KeyUp(k);
+	};
+	if (pl) {
+		g->input.KeyDown("KeyW");
+		while (t < 30 && pl->forwardSpeed() < pl->def.vRotate + 2) { Run(*g, 0.1); t += 0.1; }
+		st(t);
+		phase({ "ArrowDown" }, 0.5); phase({}, 6); phase({ "KeyA" }, 0.5); phase({}, 4); phase({ "ArrowUp" }, 1); phase({}, 12);
+	} else if (hl) {
+		phase({}, 3); phase({ "Space" }, 4); phase({}, 6); phase({ "KeyW" }, 4); phase({}, 3); phase({ "KeyD", "KeyW" }, 2); phase({ "ShiftLeft" }, 3);
+	} else {
+		phase({ "KeyW" }, 3); phase({ "KeyW", "KeyA" }, 2); phase({}, 2); phase({ "KeyS" }, 2); phase({ "KeyD" }, 2);
+	}
+}
+
 int main(int argc, char** argv) {
 	InstallCrashTrace();
 	setvbuf(stdout, nullptr, _IONBF, 0);
@@ -801,6 +950,7 @@ int main(int argc, char** argv) {
 	World w;
 	printf("world %.1f s\n", std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count());
 	if (argc > 1 && !std::strcmp(argv[1], "vehcompare")) { VehCompare(w); return 0; }
+	if (argc > 1 && !std::strcmp(argv[1], "aircmp")) { AirCompare(w, argc > 2 ? argv[2] : "plane"); return 0; }
 	auto want = [&](const char* n) { if (argc < 2) return true; for (int i = 1; i < argc; i++) if (!std::strcmp(argv[i], n)) return true; return false; };
 	if (want("walk")) TestWalk(w);
 	if (want("drive")) TestDrive(w);
@@ -821,6 +971,7 @@ int main(int argc, char** argv) {
 	if (want("heists")) TestHeists(w);
 	if (want("phone")) TestPhone(w);
 	if (want("bikes")) TestBikes(w);
+	if (want("aircraft")) TestAircraft(w);
 	printf(fails ? "%d FAILED\n" : "all passed\n", fails);
 	return fails ? 1 : 0;
 }

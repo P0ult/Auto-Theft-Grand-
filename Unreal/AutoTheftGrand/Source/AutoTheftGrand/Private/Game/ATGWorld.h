@@ -92,6 +92,8 @@ public:
 	const FATGVehicleMeshes& TrainMeshes(const atg::TrainModel& Model);
 	// a two-wheeler's: body, trim, fork, crank, glass, head, tail (empty ones null), and the wheel
 	const FATGVehicleMeshes& BikeMeshes(const atg::VehicleDef& Def);
+	// a mesh modelled facing +z, built once and kept under Key (aircraft parts); null when G is empty
+	UStaticMesh* LocalMesh(const FString& Key, const atg::MeshBuf& G);
 	// a person's skinned mesh (shared by people who look the same, while any of them is alive)
 	USkeletalMesh* HumanMesh(const atg::Appearance& A);
 	UStaticMesh* WeaponMesh(const FString& Id);
@@ -113,6 +115,7 @@ private:
 	UPROPERTY(Transient) TArray<TObjectPtr<UStaticMesh>> Meshes;
 	UPROPERTY(Transient) TArray<TObjectPtr<UHierarchicalInstancedStaticMeshComponent>> PropMeshes;
 	UPROPERTY(Transient) TMap<FString, FATGVehicleMeshes> VehicleCache;
+	UPROPERTY(Transient) TMap<FString, TObjectPtr<UStaticMesh>> LocalMeshCache;
 	TMap<FString, TWeakObjectPtr<USkeletalMesh>> HumanCache;
 	UPROPERTY(Transient) TObjectPtr<USkeleton> HumanSkeleton;
 	UPROPERTY(Transient) TMap<FString, TObjectPtr<UStaticMesh>> WeaponCache;

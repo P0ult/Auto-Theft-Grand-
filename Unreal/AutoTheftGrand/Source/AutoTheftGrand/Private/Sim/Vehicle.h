@@ -171,7 +171,7 @@ protected:
 	void tumble(double dt);
 	void common(double dt);
 	void rolloverCheck(double dt);
-	void step(double h);
+	virtual void step(double h); // (the tank drives on tracks)
 	void afterPhysics(double dt);
 	void resolveStatic(const Contact& ct);
 	virtual void updateVisual(double dt); // (bikes lean on top of it)

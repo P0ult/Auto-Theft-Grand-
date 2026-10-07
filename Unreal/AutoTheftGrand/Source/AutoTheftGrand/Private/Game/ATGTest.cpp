@@ -3,6 +3,7 @@
 #include "Game/ATGGameMode.h"
 #include "Game/ATGPlayerController.h"
 #include "Game/ATGWorld.h"
+#include "Sim/Aircraft.h"
 #include "Sim/Effects.h"
 #include "Sim/Weapons.h"
 #include "Sim/Game.h"
@@ -75,7 +76,11 @@ ATG_CMD(CmdTeleport, "ATG.Teleport", "ATG.Teleport x z [heading]: move the playe
 	const double X = Arg(Args, 0), Z = Arg(Args, 1);
 	atg::Player& P = *G->player;
 	const double H = Args.Num() > 2 ? Arg(Args, 2) : (P.vehicle ? P.vehicle->yaw : P.yaw);
-	if (atg::Vehicle* V = P.vehicle) { V->pos.set(X, G->map.GroundHeight(X, Z), Z); V->yaw = H; V->vel.set(0, 0, 0); V->r = 0; return; }
+	if (atg::Vehicle* V = P.vehicle) {
+		V->pos.set(X, G->map.GroundHeight(X, Z), Z); V->yaw = H; V->vel.set(0, 0, 0); V->r = 0;
+		if (atg::AirVehicle* A = dynamic_cast<atg::AirVehicle*>(V)) { A->quat = atg::Quat::FromAxisAngle(atg::V3(0, 1, 0), H); A->grounded = true; A->angVel = atg::V3(); }
+		return;
+	}
 	G->respawnPlayer(X, Z, H);
 })
 
@@ -83,24 +88,24 @@ ATG_CMD(CmdTime, "ATG.Time", "ATG.Time hours: set the clock", { if (atg::Game* G
 ATG_CMD(CmdWeather, "ATG.Weather", "ATG.Weather clear|cloudy|rain|storm|fog", { if (atg::Game* G = Sim(W)) if (Args.Num()) G->env.setWeather(TCHAR_TO_UTF8(*Args[0]), true); })
 ATG_CMD(CmdGod, "ATG.God", "ATG.God 0|1: the player takes no damage", { if (atg::Game* G = Sim(W)) { G->cheats.god = Arg(Args, 0, 1) != 0; G->player->invincible = G->cheats.god; } })
 
-ATG_CMD(CmdSpawn, "ATG.Spawn", "ATG.Spawn type: a vehicle in front of the player", {
+ATG_CMD(CmdSpawn, "ATG.Spawn", "ATG.Spawn type [heading]: a vehicle in front of the player (side-on, or facing heading)", {
 	atg::Game* G = Sim(W);
 	if (!G || !Args.Num()) return;
 	const atg::VehicleDef* D = atg::FindVehicle(TCHAR_TO_UTF8(*Args[0]));
 	if (!D) { UE_LOG(LogATG, Warning, TEXT("ATG.Spawn: no vehicle %s"), *Args[0]); return; }
 	atg::Player& P = *G->player;
 	const double H = P.yaw, Ahead = 4 + D->L / 2;
-	G->vehicles.spawn(D->id, P.pos.x + std::sin(H) * Ahead, P.pos.z + std::cos(H) * Ahead, H + atg::kPi / 2);
+	G->vehicles.spawn(D->id, P.pos.x + std::sin(H) * Ahead, P.pos.z + std::cos(H) * Ahead, Args.Num() > 1 ? Arg(Args, 1) : H + atg::kPi / 2);
 })
 
-ATG_CMD(CmdEnter, "ATG.Enter", "ATG.Enter: sit straight in the nearest vehicle within 12 m (or get out of this one)", {
+ATG_CMD(CmdEnter, "ATG.Enter", "ATG.Enter: sit straight in the nearest vehicle within 12 m of its ends (or get out of this one)", {
 	atg::Game* G = Sim(W);
 	if (!G) return;
 	atg::Player& P = *G->player;
 	if (P.vehicle) { G->vehicles.exit(&P); return; }
 	atg::Vehicle* Best = nullptr;
 	double Bd = 12;
-	for (const auto& V : G->vehicles.list) { const double D = atg::Dist(V->pos.x, V->pos.z, P.pos.x, P.pos.z); if (D < Bd && !V->driver()) { Bd = D; Best = V.get(); } }
+	for (const auto& V : G->vehicles.list) { const double D = atg::Dist(V->pos.x, V->pos.z, P.pos.x, P.pos.z) - V->def.L / 2; if (D < Bd && !V->driver()) { Bd = D; Best = V.get(); } }
 	if (Best) G->vehicles.seatNow(&P, Best, 0);
 	else UE_LOG(LogATG, Warning, TEXT("ATG.Enter: no vehicle in reach"));
 })

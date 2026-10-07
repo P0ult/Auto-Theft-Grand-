@@ -1,0 +1,99 @@
+# Aircraft: a Skipper on the airfield runway, then taking off and climbing out; a Raptor with its
+# afterburners lit; a Skylark hovering with its rotor blurred; the Mammoth firing its cannon; a Warhawk with its
+# rotor spinning and a Hercules running up its props.
+wait 1
+ATG.God 1
+ATG.Time 14
+ATG.Teleport -2960 70 0
+ATG.Spawn skipper 0
+wait 1
+ATG.Enter
+wait 1
+ATG.CamAt -9 3 12 0 1.5 0
+wait 0.3
+shot air_skipper
+ATG.CamAt
+ATG.Press KeyW
+wait 5
+ATG.Press KeyW ArrowDown
+wait 0.5
+ATG.Release ArrowDown
+wait 3
+shot air_climb
+wait 4
+shot air_gearup
+ATG.State
+ATG.Enter
+wait 2
+ATG.Teleport -2960 120 0
+wait 1
+ATG.Spawn raptor 0
+wait 1
+ATG.Enter
+ATG.Press KeyW Space
+wait 3
+ATG.CamAt 4 2.5 -22 0 2 0
+wait 0.2
+shot air_raptor
+ATG.CamAt
+ATG.Release
+ATG.Enter
+wait 2
+ATG.Teleport -2930 330 0
+wait 1
+ATG.Spawn skylark 0
+wait 1
+ATG.Enter
+wait 4
+ATG.Press Space
+wait 3
+ATG.Release
+wait 2
+ATG.CamAt 12 9 14 0 2 0
+wait 0.3
+shot air_heli
+ATG.CamAt
+ATG.State
+ATG.Enter
+wait 2
+ATG.Teleport -2930 450 0
+wait 3
+ATG.Spawn mammoth 0
+wait 1
+ATG.Enter
+ATG.Press KeyW
+wait 2
+ATG.Release
+ATG.Press MouseLeft
+wait 0.1
+ATG.Release
+ATG.CamAt 9 4 10 0 1.5 3
+wait 0.15
+shot air_tank
+ATG.CamAt
+ATG.State
+ATG.Enter
+wait 2
+ATG.Teleport -2925 620 0
+wait 2
+ATG.Spawn warhawk 0
+wait 1
+ATG.Enter
+wait 5
+ATG.CamAt -9 6 11 0 1.5 0
+wait 0.3
+shot air_warhawk
+ATG.CamAt
+ATG.Enter
+wait 2
+ATG.Teleport -2960 -40 0
+wait 2
+ATG.Spawn hercules 0
+wait 1
+ATG.Enter
+ATG.Press KeyW Space
+wait 3
+ATG.CamAt 26 9 30 0 3 0
+wait 0.2
+shot air_hercules
+quit

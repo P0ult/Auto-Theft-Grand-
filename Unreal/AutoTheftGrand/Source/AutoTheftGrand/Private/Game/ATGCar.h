@@ -15,7 +15,7 @@ class USpotLightComponent;
 class UStaticMesh;
 class UStaticMeshComponent;
 class AATGWorld;
-namespace atg { class Vehicle; class Train; class Bike; struct VehicleModel; }
+namespace atg { class Vehicle; class Train; class Bike; struct VehicleModel; struct AircraftModel; }
 
 UCLASS()
 class AATGCar : public AActor {
@@ -57,6 +57,26 @@ private:
 	UPROPERTY(Transient) TObjectPtr<USceneComponent> CrankPivot;
 	void BuildBike(atg::Bike* B);
 	void SyncBike(atg::Bike* B);
+	// aircraft and the tank (Gen/AircraftModels): props and rotors spinning, their blur discs, the gear, the
+	// canopy or hatch, afterburners, nav lights and the strobe, the chin gun, the tank's turret, gun and road wheels
+	const atg::AircraftModel* Air = nullptr;
+	UPROPERTY(Transient) TObjectPtr<USceneComponent> GearComp;
+	UPROPERTY(Transient) TObjectPtr<USceneComponent> AirDoor;
+	UPROPERTY(Transient) TObjectPtr<USceneComponent> ChinGun;
+	UPROPERTY(Transient) TObjectPtr<USceneComponent> Turret;
+	UPROPERTY(Transient) TObjectPtr<USceneComponent> GunPivot;
+	UPROPERTY(Transient) TObjectPtr<USceneComponent> TankGun;
+	UPROPERTY(Transient) TObjectPtr<USceneComponent> RotorComp;
+	UPROPERTY(Transient) TObjectPtr<USceneComponent> TailComp;
+	UPROPERTY(Transient) TArray<TObjectPtr<USceneComponent>> PropComps;
+	UPROPERTY(Transient) TArray<TObjectPtr<UPrimitiveComponent>> Blades;  // (props, then the rotor and tail rotor)
+	UPROPERTY(Transient) TArray<TObjectPtr<UPrimitiveComponent>> Discs;   // (same order)
+	UPROPERTY(Transient) TArray<TObjectPtr<UPrimitiveComponent>> Flames;
+	UPROPERTY(Transient) TArray<TObjectPtr<UPrimitiveComponent>> HideWhenBurnt; // (glass, discs, flames)
+	UPROPERTY(Transient) TObjectPtr<UMaterialInstanceDynamic> StrobeMat;
+	int32 LeftWheels = 0;
+	void BuildAir(atg::Vehicle* V, const atg::AircraftModel& M);
+	void SyncAir(atg::Vehicle* V);
 	int32 DentVersion = 0;
 	uint32 PaintColor = 0; // (the colour of a respray)
 	int32 Detached = 0;

@@ -23,7 +23,10 @@ browser game, knocked-over street furniture and torn-off panels fly, tyres leave
 marks, and explosions bloom into fireballs and smoke columns. Crimes bring the police: witnessed crimes
 raise the stars, patrol cars turn into pursuers that ram you, cops shoot or come to arrest you, and at three
 stars the helicopter circles overhead with its searchlight and roadblocks close the road ahead, with a spike
-strip at four stars. Stay out of sight long enough and they give up. Motorbikes and bicycles lean through the corners and throw you off in a hard crash. The city has its own crime too:
+strip at four stars. Stay out of sight long enough and they give up. Motorbikes and bicycles lean through the corners and throw you off in a hard crash.
+Planes, jets and helicopters fly as they do in the browser game, and the Mammoth tank turns its turret
+toward the crosshair and fires shells; until the airfield and Fort Carver are ported, `ATG.Spawn raptor`
+(or `skipper`, `hercules`, `skylark`, `warhawk`, `mammoth`) brings one out. The city has its own crime too:
 jaywalkers, speeders, road rage, muggings and car thefts, with stars over the culprit and a patrol that
 writes a ticket, gives chase or makes an arrest. Every few minutes an armoured van does its rounds nearby:
 shoot its back doors open, grab the cash and fight off the guards. The phone calls Lester (lose the cops),
@@ -93,6 +96,16 @@ far:
 | Esc / P / Menu | Pause | B / RS click | Look behind |
 | | | X / B (hold) | Cinematic camera |
 
+| Planes & jets | | Helicopters | | Tank | |
+|---|---|---|---|---|---|
+| W / S, RT / LT | Throttle up / down | Space / Shift, RT / LT | Climb / descend | W / S | Drive / reverse |
+| Mouse or ↑ ↓, left stick | Pitch (↓ pulls up) | W / S, left stick | Nose down / up (fly forward / back) | A / D | Turn on the spot |
+| A / D, left stick | Roll (bank to turn) | A / D, left stick | Turn | Mouse | Aim the turret |
+| Q / E | Rudder | Q / E | Strafe | Left mouse / RB | Fire the cannon |
+| Space / B | Wheel brakes | Mouse / right stick | Camera | | |
+| Left / right mouse, RB / LB | Cannon / homing missile (Raptor) | Left / right mouse, RB / LB | Minigun / rockets (Warhawk) | | |
+| F / Y | Bail out (the parachute opens by itself, or press Space) | F / Y | Bail out | F / Y | Climb out |
+
 ## How it is put together
 
 ```
@@ -112,7 +125,9 @@ Source/AutoTheftGrand/Private/Game/   the Unreal side: draws the simulation and 
   ATGMaterials      the browser game's GLSL ported to HLSL custom nodes, built as material assets in C++
   ATGMeshUtil       generator buffers -> procedural mesh sections and runtime static meshes
   ATGCar            draws a simulated vehicle: its parts on the sprung body, doors and lids on their hinges,
-                    wheels, lights, dents, lost panels; trains with their carriages and wagons
+                    wheels, lights, dents, lost panels; trains with their carriages and wagons; bikes; and
+                    (ATGCarAir.cpp) aircraft and the tank: props and rotors with their blur discs, the gear,
+                    canopy, afterburners, nav lights, the chin gun, the turret, gun and road wheels
   ATGHumanMesh      builds a person's skinned mesh at runtime (Sim/Humanoid, the port of humanoid.js)
   ATGPerson         draws a simulated person: that mesh on a poseable component that copies the pose's bones
   ATGEffects        draws the effects: particles as camera-facing quads, decals, skid marks, tracers, the flash
@@ -151,7 +166,7 @@ pursuit and the helicopter by night and by day; `pickups.txt` at a pickup and th
 markers; `roadblocks.txt` at a roadblock and its spike strip; `npccrime.txt` at a
 suspect's stars, the patrol that comes for them and a staged car theft; `wheel.txt` at the weapon wheel; `special.txt` at the
 special ability; `heist.txt` at a robbed armoured van; `phone.txt` at the phone; `bikes.txt` and `bikes2.txt` at
-the motorbikes and bicycles.
+the motorbikes and bicycles; `aircraft.txt` at each aircraft and the tank, parked, flying and firing.
 
 The simulation is tested without Unreal. `Tools/native.sh` builds a tool with MSVC from Git Bash:
 
@@ -161,11 +176,15 @@ cd Tools
                                                                # traffic and people, trains, boarding,
                                                                # WASTED, effects, combat, police, pickups,
                                                                # roadblocks, street crime, the wheel, special,
-                                                               # armoured vans, the phone, bikes
+                                                               # armoured vans, the phone, bikes,
+                                                               # aircraft and the tank
 DEBUG=1 ./native.sh simtestd.exe simtest.cpp                   # with symbols: a crash prints a stack trace
 ./simtest.exe vehcompare > cppveh.txt                          # the car physics against the browser game's:
 node --import ./three-hook.mjs vehcompare.mjs > jsveh.txt      # identical to 4 decimals
 diff jsveh.txt cppveh.txt
+./simtest.exe aircmp heli > cpp_heli.txt                       # a flight (plane, heli or tank) against the
+MODE=heli node ../../../tools/browser-test/run.mjs "http://localhost:8080/index.html?manual&autostart=free&q=low" \
+  out ../../../tools/browser-test/tests/aircmp.mjs | grep -E '^[0-9.]+ x' > js_heli.txt   # browser game's: identical
 ```
 
 The browser game gives the numbers the `city` and `rail` tests compare against (from the repository root,

@@ -596,6 +596,13 @@ const FATGVehicleMeshes& AATGWorld::BikeMeshes(const atg::VehicleDef& Def) {
 	return M;
 }
 
+UStaticMesh* AATGWorld::LocalMesh(const FString& Key, const atg::MeshBuf& G) {
+	if (TObjectPtr<UStaticMesh>* M = LocalMeshCache.Find(Key)) return *M;
+	UStaticMesh* M = G.Empty() ? nullptr : ATGMesh::BuildStaticMesh(this, *Key, TArray<FATGPart>{ { &G, ATGMaterials::Get(EATGMat::Standard) } }, EATGAxes::Local);
+	LocalMeshCache.Add(Key, M);
+	return M;
+}
+
 UStaticMesh* AATGWorld::PropMesh(int32 PropIndex) const {
 	if (!PropInstances.IsValidIndex(PropIndex)) return nullptr;
 	const int32 M = PropInstances[PropIndex].Key;

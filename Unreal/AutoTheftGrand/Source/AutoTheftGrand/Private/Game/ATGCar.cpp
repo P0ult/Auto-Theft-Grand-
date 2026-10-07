@@ -4,6 +4,7 @@
 #include "Game/ATGMeshUtil.h"
 #include "Game/ATGWorld.h"
 #include "Sim/Game.h"
+#include "Sim/Aircraft.h"
 #include "Sim/Bike.h"
 #include "Sim/Train.h"
 
@@ -25,6 +26,13 @@ UMaterialInstanceDynamic* Std(UObject* Outer, const FLinearColor& Color, double 
 	M->SetVectorParameterValue(TEXT("Surface"), FLinearColor((float)Rough, (float)Metal, (float)Opacity, 0.f));
 	return M;
 }
+}
+
+// an aircraft's or the tank's model (aircraft.js), or null
+static const atg::AircraftModel* AirModelOf(atg::Vehicle* V) {
+	if (atg::AirVehicle* A = dynamic_cast<atg::AirVehicle*>(V)) return A->air;
+	if (atg::Tank* T = dynamic_cast<atg::Tank*>(V)) return T->air;
+	return nullptr;
 }
 
 AATGCar::AATGCar() {
@@ -49,6 +57,7 @@ void AATGCar::Build(atg::Vehicle* V) {
 	AATGWorld* W = AATGWorld::Get(this);
 	if (V->def.train && W) { BuildTrain(static_cast<atg::Train*>(V)); return; }
 	if (atg::Bike* B = dynamic_cast<atg::Bike*>(V)) { if (W) BuildBike(B); return; }
+	if (const atg::AircraftModel* AM = AirModelOf(V)) { if (W) BuildAir(V, *AM); return; }
 	if (!Model || !W) return; // (bikes, boats and aircraft are drawn by their own views)
 	const FATGVehicleMeshes& Meshes = W->VehicleMeshes(V->def);
 	const atg::VehicleDef& D = V->def;
@@ -215,6 +224,7 @@ void AATGCar::Sync(float Dt) {
 	atg::Vehicle* V = Vehicle.get();
 	if (V && bTrain) { SyncTrain(static_cast<atg::Train*>(V)); return; }
 	if (V && bBike) { SyncBike(static_cast<atg::Bike*>(V)); return; }
+	if (V && Air) { SyncAir(V); return; }
 	if (!V || !Model) return;
 	SetActorTransform(ATG::ToUE(V->groupMatrix()));
 	// a respray (the Spray Shack)
