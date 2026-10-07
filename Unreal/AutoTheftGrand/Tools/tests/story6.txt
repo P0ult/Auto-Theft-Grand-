@@ -1,0 +1,31 @@
+# Chapter VI: cab, train, plane checkpoints and gunship mission.
+wait 1
+ATG.God 1
+ATG.StoryStart faregame unlock
+wait 18
+repeat 12 1 ATG.StoryAdvance
+wait 5
+ATG.Missions
+shot story6_cab
+ATG.StoryStart solline unlock
+wait 20
+repeat 7 1 ATG.StoryAdvance
+wait 5
+ATG.Missions
+shot story6_train
+ATG.StoryStart dustoff unlock
+wait 17
+ATG.StoryAdvance
+wait 0.5
+shot story6_ring
+repeat 10 0.3 ATG.StoryAdvance
+wait 5
+ATG.Missions
+shot story6_plane
+ATG.StoryStart secosunrise unlock
+wait 19
+repeat 8 1 ATG.StoryAdvance
+wait 10
+ATG.Missions
+shot story6_gunship
+quit

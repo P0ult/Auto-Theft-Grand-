@@ -226,21 +226,27 @@ ATG_CMD(CmdStoryAdvance, "ATG.StoryAdvance", "ATG.StoryAdvance: test assistance 
 	G->policeSys->clearWanted();
 	if (M->def.id == "toolingup" && !P.weapons.count("pistol")) P.giveWeapon("pistol", 34);
 	for (const auto& B : M->blips) if (M->def.id != "tail" && B->color == 0x4aa3ff && B->icon == "car" && std::find(G->blips.begin(), G->blips.end(), B) != G->blips.end()) {
-		for (const auto& V : M->cars) if (!V->isWrecked() && atg::Hypot(V->pos.x - B->x, V->pos.z - B->z) < 1 && P.vehicle != V.get()) {
-			if (P.vehicle) P.vehicle->takeOut(&P); G->vehicles.seatNow(&P, V.get());
-		}
+		if (auto* V = B->vehicle.get()) if (!V->isWrecked() && P.vehicle != V) { if (P.vehicle) P.vehicle->takeOut(&P); G->vehicles.seatNow(&P, V); }
 	}
 	if (M->def.id == "tail" && M->cars.size() > 1) {
 		const auto& T = M->cars[1];
 		if (!P.vehicle) { auto* V = G->vehicles.spawn("meridian", T->pos.x, T->pos.z - 40, 0); G->vehicles.seatNow(&P, V); }
 		P.vehicle->pos = T->pos - T->fwd() * 40; P.vehicle->vel = atg::V3(); P.vehicle->yaw = T->yaw;
 	}
+	if (M->def.id == "solline" && P.vehicle && P.vehicle->def.kind == "train") {
+		auto* T = dynamic_cast<atg::Train*>(P.vehicle); const auto& S = G->rail->stations[G->rail->station("union")]; T->s = S.s + T->len / 2; T->v = 0; T->place();
+	}
+	if (M->currentRing && P.vehicle) {
+		P.vehicle->pos = M->currentRing->c - atg::V3(0, P.vehicle->cgY(), 0); P.vehicle->vel = atg::V3();
+		if (auto* A = dynamic_cast<atg::AirVehicle*>(P.vehicle)) A->grounded = false;
+		return;
+	}
 	for (auto It = M->markers.rbegin(); It != M->markers.rend(); ++It) if (!(*It)->removed) {
 		const auto& Goal = **It;
 		(*It)->inside = false; // objective assistance simulates leaving and re-entering the marker
 		if (Goal.vehicleOnly && !P.vehicle) { auto* V = G->vehicles.spawn("meridian", P.pos.x + 3, P.pos.z, 0); G->vehicles.seatNow(&P, V); }
 		if (Goal.footOnly && P.vehicle) P.vehicle->takeOut(&P);
-		if (P.vehicle) { P.vehicle->pos = Goal.pos; P.vehicle->vel = atg::V3(); } else P.setPosition(Goal.pos.x, Goal.pos.y, Goal.pos.z);
+		if (P.vehicle) { P.vehicle->pos = Goal.pos; P.vehicle->vel = atg::V3(); if (auto* A = dynamic_cast<atg::AirVehicle*>(P.vehicle)) A->grounded = true; } else P.setPosition(Goal.pos.x, Goal.pos.y, Goal.pos.z);
 		break;
 	}
 	if (G->hudModel->gpsTarget && M->def.id == "cleansweep") { const auto At = *G->hudModel->gpsTarget; G->respawnPlayer(At.x, At.z, 0); }

@@ -1504,12 +1504,25 @@ static void TestMissions(World& w) {
 		auto quit = w.game(true); quit->missions->story = { cancel }; quit->missions->start("cancel");
 	}
 	Check(true, "quitting during a cutscene destroys coroutines before their game systems");
+	{
+		auto ring = w.game(true); ring->disableAmbient = true;
+		MissionDef d; d.id = "ring"; d.title = "Air checkpoint";
+		d.run = [](MissionContext& m, Game&) -> MissionTask { co_await m.airRing(m.player().pos.x, m.player().pos.z, 60); };
+		ring->missions->story = { d }; ring->missions->start("ring"); auto ctx = ring->missions->active;
+		auto* plane = ring->vehicles.spawn("skipper", ring->player->pos.x, ring->player->pos.z, 0); ring->vehicles.seatNow(ring->player.get(), plane);
+		const V3 c = ctx->currentRing->c; plane->pos = c + V3(18.5, -plane->cgY(), 0); ring->missions->update(0.01);
+		Check((bool)ring->missions->active, "an aircraft outside the checkpoint sphere does not finish it");
+		plane->pos = c + V3(18.3, -plane->cgY(), 0); ring->missions->update(0.01);
+		Check(!ring->missions->active && !ctx->currentRing, "air checkpoints use radius x 1.15 and clean up on completion");
+		ring->missions->start("ring"); ctx = ring->missions->active; ring->missions->abortActive(); ring->missions->update(0.01);
+		Check(!ctx->currentRing && !ring->missions->active, "aborting an airborne objective removes its ring");
+	}
 }
 
 static void TestStory(World& w) {
-	printf("story: Chapters I-V\n");
+	printf("story: Chapters I-VI\n");
 	const auto definitions = BuildStory();
-	Check(definitions.size() == 22, "twenty-two Chapter I-V missions in browser order");
+	Check(definitions.size() == 26, "twenty-six Chapter I-VI missions in browser order");
 	for (const auto& def : definitions) {
 		auto g = w.game(true); g->disableAmbient = true; g->player->invincible = true;
 		Missions& e = *g->missions; Player& p = *g->player;
@@ -1532,21 +1545,28 @@ static void TestStory(World& w) {
 			}
 			// Get in the car indicated by the live blue blip, as the browser mission test does.
 			for (const auto& b : ctx->blips) if (def.id != "tail" && b->color == 0x4aa3ff && b->icon == "car" && std::find(g->blips.begin(), g->blips.end(), b) != g->blips.end()) {
-				for (const auto& v : ctx->cars) if (!v->isWrecked() && Hypot(v->pos.x - b->x, v->pos.z - b->z) < 1 && p.vehicle != v.get()) {
-					if (p.vehicle) p.vehicle->takeOut(&p); g->vehicles.seatNow(&p, v.get());
-				}
+				if (auto* v = b->vehicle.get()) if (!v->isWrecked() && p.vehicle != v) { if (p.vehicle) p.vehicle->takeOut(&p); g->vehicles.seatNow(&p, v); }
 			}
 			if (def.id == "tail" && ctx->cars.size() > 1) {
 				const auto& target = ctx->cars[1];
 				if (!p.vehicle) { auto* own = g->vehicles.spawn("meridian", target->pos.x, target->pos.z - 40, 0); g->vehicles.seatNow(&p, own); }
 				p.vehicle->pos = target->pos - target->fwd() * 40; p.vehicle->vel = V3(); p.vehicle->yaw = target->yaw;
 			}
+			if (def.id == "solline" && p.vehicle && p.vehicle->def.kind == "train") {
+				auto* train = dynamic_cast<Train*>(p.vehicle); const auto& station = g->rail->stations[g->rail->station("union")];
+				train->s = station.s + train->len / 2; train->v = 0; train->place();
+			}
+			if (ctx->currentRing && p.vehicle) {
+				p.vehicle->pos = ctx->currentRing->c - V3(0, p.vehicle->cgY(), 0); p.vehicle->vel = V3();
+				if (auto* air = dynamic_cast<AirVehicle*>(p.vehicle)) air->grounded = false;
+				Run(*g, 0.1); continue;
+			}
 			for (auto it = ctx->markers.rbegin(); it != ctx->markers.rend(); ++it) if (!(*it)->removed) {
 				const auto& m = **it;
 				(*it)->inside = false;
 				if (m.vehicleOnly && !p.vehicle) { auto* v = g->vehicles.spawn("meridian", p.pos.x + 3, p.pos.z, 0); g->vehicles.seatNow(&p, v); }
 				if (m.footOnly && p.vehicle) p.vehicle->takeOut(&p);
-				if (p.vehicle) { p.vehicle->pos = m.pos; p.vehicle->vel = V3(); } else p.setPosition(m.pos.x, m.pos.y, m.pos.z);
+				if (p.vehicle) { p.vehicle->pos = m.pos; p.vehicle->vel = V3(); if (auto* air = dynamic_cast<AirVehicle*>(p.vehicle)) air->grounded = true; } else p.setPosition(m.pos.x, m.pos.y, m.pos.z);
 				break;
 			}
 			if (g->hudModel->gpsTarget && def.id == "cleansweep") { const auto t = *g->hudModel->gpsTarget; g->respawnPlayer(t.x, t.z, 0); }

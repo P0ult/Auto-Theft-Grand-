@@ -271,6 +271,15 @@ MissionTask MissionContext::killAll(std::vector<Ped*> list, const std::string& t
 	}); if (!counter.empty() && game.hud) game.hud->setCounter("", "");
 }
 MissionTask MissionContext::loseWanted(const std::string& text) { if (game.police && game.police->wantedLevel()) { objective(text); co_await until([this]() { return !game.police->wantedLevel(); }); } }
+MissionTask MissionContext::airRing(double x, double z, double alt, double radius, std::optional<V3> next, const std::string& text) {
+	const V3 c(x, Max(game.map.GroundHeight(x, z), 0) + alt, z);
+	currentRing = AirRing{ c, radius, next ? std::atan2(next->x - x, next->z - z) : 0 };
+	Blip mark; mark.x = x; mark.z = z; mark.color = 0xffd23f; mark.icon = "flag"; auto b = game.addBlip(mark); blips.push_back(b);
+	if (!text.empty()) objective(text);
+	struct RingCleanup { MissionContext& ctx; std::shared_ptr<Blip> blip; ~RingCleanup() { ctx.currentRing.reset(); ctx.game.removeBlip(blip); } } ringGuard{ *this, b };
+	co_await until([this, c, radius]() { Vehicle* v = player().vehicle; const V3 p = v ? v->def.aircraft ? v->cgPoint() : v->pos : player().pos; return p.distanceTo(c) < radius * 1.15; });
+	game.sound("checkpoint");
+}
 void MissionContext::wanted(int level) { if (game.policeSys) game.policeSys->setLevel(Max(game.policeSys->level, level)); }
 std::function<void()> MissionContext::keepAlive(Character* c, const std::string& reason) { Ref<Character> weak(c); return failIf([weak]() { return !weak || weak->dead; }, reason); }
 std::function<void()> MissionContext::keepAlive(Vehicle* v, const std::string& reason) { Ref<Vehicle> weak(v); return failIf([weak]() { return !weak || weak->isWrecked(); }, reason); }

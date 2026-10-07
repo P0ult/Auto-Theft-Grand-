@@ -2,6 +2,7 @@
 #include "AutoTheftGrand.h"
 #include "Game/ATGAudio.h"
 #include "Game/ATGAnimals.h"
+#include "Game/ATGMissionView.h"
 #include "Game/ATGCar.h"
 #include "Game/ATGCoords.h"
 #include "Game/ATGEffects.h"
@@ -137,6 +138,8 @@ void AATGGameMode::SyncViews(float Dt) {
 	if (PickupsView) PickupsView->Sync(G);
 	if (!AnimalsView) { FActorSpawnParameters P; P.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn; AnimalsView = W->SpawnActor<AATGAnimals>(AATGAnimals::StaticClass(), FTransform::Identity, P); }
 	if (AnimalsView) AnimalsView->Sync(G);
+	if (!MissionView) { FActorSpawnParameters P; P.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn; MissionView = W->SpawnActor<AATGMissionView>(AATGMissionView::StaticClass(), FTransform::Identity, P); }
+	if (MissionView) MissionView->Sync(G);
 	// the world streams round the player
 	atg::Player& Pl = *G->player;
 	World->SetFocus(ATG::ToUE(Pl.vehicle ? Pl.vehicle->pos : Pl.pos));

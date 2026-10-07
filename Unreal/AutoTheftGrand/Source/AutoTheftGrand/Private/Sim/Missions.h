@@ -115,6 +115,8 @@ public:
 	std::vector<std::shared_ptr<Blip>> blips;
 	std::vector<Vehicle*> lockedCars;
 	std::map<std::string, Ref<Character>> speakers;
+	struct AirRing { V3 c; double radius = 16, yaw = 0; };
+	std::optional<AirRing> currentRing;
 	std::exception_ptr pendingError;
 	struct Waiter { std::function<bool(double)> predicate; std::coroutine_handle<> handle; std::exception_ptr error; bool timeout = false; };
 	std::vector<std::shared_ptr<Waiter>> waiters;
@@ -161,6 +163,7 @@ public:
 	MissionTask getIn(Vehicle* v, const std::string& text = "");
 	MissionTask killAll(std::vector<Ped*> list, const std::string& text = "", const std::string& counter = "");
 	MissionTask loseWanted(const std::string& text = "Lose the cops.");
+	MissionTask airRing(double x, double z, double alt, double radius = 16, std::optional<V3> next = std::nullopt, const std::string& text = "");
 	void wanted(int level);
 	std::function<void()> keepAlive(Character* c, const std::string& reason);
 	std::function<void()> keepAlive(Vehicle* v, const std::string& reason);
