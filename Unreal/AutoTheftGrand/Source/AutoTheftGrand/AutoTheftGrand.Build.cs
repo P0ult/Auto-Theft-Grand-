@@ -15,7 +15,7 @@ public class AutoTheftGrand : ModuleRules
 
 		PublicDependencyModuleNames.AddRange(new string[] {
 			"Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput", "ProceduralMeshComponent", "PhysicsCore",
-			"MeshDescription", "StaticMeshDescription", "RenderCore", "RHI"
+			"MeshDescription", "StaticMeshDescription", "RenderCore", "RHI", "AudioMixer"
 		});
 		PrivateDependencyModuleNames.AddRange(new string[] { "Slate", "SlateCore" });
 		if (Target.bBuildEditor)

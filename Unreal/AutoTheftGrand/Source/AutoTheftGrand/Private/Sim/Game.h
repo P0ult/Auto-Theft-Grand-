@@ -129,6 +129,7 @@ public:
 	class Police* policeSys = nullptr; // (the police itself, for the systems that spawn units through it)
 	class Military* military = nullptr; // (Fort Carver: whether the base is on alert)
 	class ShopSystem* shopsSys = nullptr; // (the shop system)
+	class Audio* audioSys = nullptr; // (the audio system)
 	double viewAspect = 16.0 / 9.0;            // (the screen's, for what the camera can see)
 
 	// characters: a registry of everyone alive (the renderer draws these), and who counts for collisions

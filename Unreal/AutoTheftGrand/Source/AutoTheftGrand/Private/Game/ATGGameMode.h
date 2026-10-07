@@ -1,14 +1,10 @@
-// Starts the game: spawns the world (which generates everything and creates the simulation), then every
-// frame feeds the simulation the player's input, advances it, and keeps an actor drawing each of its
-// vehicles and people.
-#pragma once
-
 #include "CoreMinimal.h"
 #include "GameFramework/GameModeBase.h"
 #include "ATGGameMode.generated.h"
 
 class AATGCar;
 class AATGEffects;
+class AATGAudio;
 class AATGPerson;
 class AATGWorld;
 class USpotLightComponent;
@@ -31,6 +27,7 @@ private:
 	UPROPERTY(Transient) TArray<TObjectPtr<AATGPerson>> People;
 	UPROPERTY(Transient) TObjectPtr<USpotLightComponent> Headlight;
 	UPROPERTY(Transient) TObjectPtr<AATGEffects> Effects = nullptr;
+	UPROPERTY(Transient) TObjectPtr<AATGAudio> Audio = nullptr;
 	UPROPERTY(Transient) TObjectPtr<class AATGPoliceView> PoliceView = nullptr;
 	UPROPERTY(Transient) TObjectPtr<class AATGPickups> PickupsView = nullptr;
 	bool bStarted = false;
