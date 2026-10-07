@@ -1,0 +1,57 @@
+# The five actual Chapter I scripts; objective assistance is the browser mission test's equivalent.
+wait 1
+ATG.God 1
+ATG.StoryStart welcome
+wait 4
+shot story_welcome
+wait 65
+ATG.StoryAdvance
+wait 40
+ATG.Missions
+shot story_home
+ATG.StoryStart oldfriends
+wait 2
+shot story_oldfriends
+wait 20
+ATG.StoryAdvance
+wait 1
+ATG.StoryAdvance
+wait 1
+ATG.StoryAdvance
+wait 4
+ATG.StoryAdvance
+wait 4
+ATG.StoryAdvance
+wait 20
+ATG.Missions
+ATG.StoryStart cleansweep
+wait 17
+ATG.StoryAdvance
+wait 6
+ATG.Missions
+ATG.StoryStart toolingup
+wait 17
+ATG.StoryAdvance
+wait 1
+ATG.StoryAdvance
+wait 1
+ATG.StoryAdvance
+wait 1
+ATG.StoryAdvance
+wait 1
+ATG.Missions
+ATG.StoryStart driveby
+wait 17
+ATG.StoryAdvance
+wait 1
+ATG.StoryAdvance
+wait 1
+ATG.StoryAdvance
+wait 1
+ATG.StoryAdvance
+wait 1
+ATG.StoryAdvance
+wait 8
+ATG.Missions
+shot story_chapter1
+quit

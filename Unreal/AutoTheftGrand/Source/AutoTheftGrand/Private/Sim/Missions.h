@@ -170,10 +170,12 @@ public:
 	double distTo(Vehicle* v) const;
 	std::function<void()> driveBy(Ped* p, Character* target = nullptr, double range = 35);
 	void cleanup(bool passed);
+	void onCleanup(std::function<void()> fn) { cleanupFns.push_back(std::move(fn)); }
 private:
 	int nextFn = 0;
 	std::vector<std::pair<int, std::function<void(double)>>> tickers;
 	std::vector<std::pair<int, std::function<std::string()>>> fails;
+	std::vector<std::function<void()>> cleanupFns;
 };
 
 class Missions : public System {

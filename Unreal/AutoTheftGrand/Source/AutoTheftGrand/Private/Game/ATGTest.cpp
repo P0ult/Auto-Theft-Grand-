@@ -22,6 +22,7 @@
 #include "Sim/Pets.h"
 #include "Sim/Shops.h"
 #include "Sim/Missions.h"
+#include "Sim/Story.h"
 
 #include "Engine/Engine.h"
 #include "Engine/World.h"
@@ -195,6 +196,40 @@ ATG_CMD(CmdMissions, "ATG.Missions", "ATG.Missions [id | abort | fail]: start a 
 		else E.start(TCHAR_TO_UTF8(*Args[0]));
 	}
 	UE_LOG(LogATG, Display, TEXT("ATG missions: %d completed, active '%s', cash %.0f, cutscene %d, message '%s'"), (int32)E.completed.size(), E.active ? UTF8_TO_TCHAR(E.active->def.id.c_str()) : TEXT(""), G->player->money, G->cutscene, G->hudModel ? UTF8_TO_TCHAR(G->hudModel->big.text.c_str()) : TEXT(""));
+})
+ATG_CMD(CmdStoryStart, "ATG.StoryStart", "ATG.StoryStart id: stand at a story mission's start and run it for tests", {
+	atg::Game* G = Sim(W); if (!G || !G->missions || Args.IsEmpty()) return;
+	if (G->missions->active) { G->missions->abortActive(); G->missions->update(0); }
+	const std::string Id = TCHAR_TO_UTF8(*Args[0]);
+	for (const auto& D : G->missions->story) if (D.id == Id) {
+		if (G->player->vehicle) G->player->vehicle->takeOut(G->player.get());
+		const auto P = D.start(G->map); G->respawnPlayer(P.x, P.z, 0); G->policeSys->clearWanted(); G->missions->start(D);
+		return;
+	}
+})
+ATG_CMD(CmdStoryAdvance, "ATG.StoryAdvance", "ATG.StoryAdvance: test assistance (reach objectives, seat followers, remove enemy targets)", {
+	atg::Game* G = Sim(W); if (!G || !G->missions || !G->missions->active || G->cutscene) return;
+	auto M = G->missions->active; auto& P = *G->player;
+	G->policeSys->clearWanted();
+	if (M->def.id == "toolingup" && !P.weapons.count("pistol")) P.giveWeapon("pistol", 34);
+	for (const auto& B : M->blips) if (B->color == 0x4aa3ff && B->icon == "car" && std::find(G->blips.begin(), G->blips.end(), B) != G->blips.end()) {
+		for (const auto& V : M->cars) if (!V->isWrecked() && atg::Hypot(V->pos.x - B->x, V->pos.z - B->z) < 1 && P.vehicle != V.get()) {
+			if (P.vehicle) P.vehicle->takeOut(&P); G->vehicles.seatNow(&P, V.get());
+		}
+	}
+	for (auto It = M->markers.rbegin(); It != M->markers.rend(); ++It) if (!(*It)->removed) {
+		const auto& Goal = **It;
+		if (Goal.vehicleOnly && !P.vehicle) { auto* V = G->vehicles.spawn("meridian", P.pos.x + 3, P.pos.z, 0); G->vehicles.seatNow(&P, V); }
+		if (Goal.footOnly && P.vehicle) P.vehicle->takeOut(&P);
+		if (P.vehicle) { P.vehicle->pos = Goal.pos; P.vehicle->vel = atg::V3(); } else P.setPosition(Goal.pos.x, Goal.pos.y, Goal.pos.z);
+		break;
+	}
+	if (G->hudModel->gpsTarget && M->def.id == "cleansweep") { const auto At = *G->hudModel->gpsTarget; G->respawnPlayer(At.x, At.z, 0); }
+	for (const auto& F : M->peds) if (F->state == "follow" && !F->dead && P.vehicle && !F->vehicle) {
+		for (int Seat : { 1, 2, 3 }) if (Seat < (int)P.vehicle->layout.seats.size() && !P.vehicle->occupants[Seat]) { P.vehicle->putIn(F.get(), Seat); break; }
+	}
+	for (const auto& F : M->peds) if (F->missionEnemy && !F->dead) { atg::DamageInfo D; D.source = &P; F->takeDamage(9999, D); }
+	for (const auto& V : M->cars) if (V->color == 0x9d0208 && !V->isWrecked()) V->explode();
 })
 ATG_CMD(CmdMissionTest, "ATG.MissionTest", "ATG.MissionTest [goal | finish | abort | fail]: exercise the mission engine with a test fixture", {
 	atg::Game* G = Sim(W); if (!G || !G->missions) return;

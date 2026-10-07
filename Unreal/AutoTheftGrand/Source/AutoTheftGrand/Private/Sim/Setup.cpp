@@ -21,6 +21,7 @@
 #include "Roadblocks.h"
 #include "Shops.h"
 #include "Skateparks.h"
+#include "Story.h"
 #include "Traffic.h"
 #include "WeaponWheel.h"
 #include "Wildlife.h"
@@ -56,6 +57,7 @@ void InstallSystems(Game& g) {
 	g.addSystem("boats", std::make_unique<BoatSystem>(g));
 	// (shipRaid: later)
 	g.missions = g.addSystem("missions", std::make_unique<Missions>(g));
+	g.missions->story = BuildStory();
 	g.audioSys = g.addSystem("audio", std::make_unique<Audio>(g));
 	g.audio = g.audioSys;
 	g.gameplay = g.addSystem("gameplay", std::make_unique<Gameplay>(g));

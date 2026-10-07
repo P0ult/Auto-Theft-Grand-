@@ -1,0 +1,5 @@
+# Use with -ATGStory: the actual intro starts automatically, and exits safely during its cutscene.
+wait 5
+ATG.Missions
+shot story_startup
+quit

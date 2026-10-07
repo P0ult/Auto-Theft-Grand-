@@ -54,7 +54,9 @@ free passenger seat. Whistle with K (right-stick click on foot) to tell it to st
 and whistle to send your dog after them. Dogs also defend you against attackers. Pet treats heal your pet,
 and the HUD shows its name and state. Save data and online pet replication come with those systems.
 The mission engine runs sequential scripts with dialogue, cutscenes, objectives, timers, counters, GPS
-routes, target arrows, failure conditions, rewards and contact progression. The story scripts are next;
+routes, target arrows, failure conditions, rewards and contact progression. Chapter I is playable:
+Welcome Home, Old Friends, Clean Sweep, Tooling Up and Drive-By. The scripts keep the original cast,
+dialogue, encounters, restrictions and rewards. The other 30 missions are still to come;
 [PORTING.md](PORTING.md) has the plan and the progress.
 
 ## Build and run
@@ -79,6 +81,16 @@ Steps:
 The project opens on the engine's empty `Entry` map. Everything else is spawned by the game mode, so no level
 needs to be saved. To package the game, use **Platforms → Windows → Package Project**. The generated
 materials are cooked because `/Game/ATG` is set to always cook.
+
+To start the story from PowerShell, add `-ATGStory` to the game launch:
+
+```powershell
+& "C:\Program Files\Epic Games\UE_5.8\Engine\Binaries\Win64\UnrealEditor.exe" "C:\ATG\Unreal\AutoTheftGrand\AutoTheftGrand.uproject" -game -windowed -resx=1280 -resy=720 -ATGStory -log
+```
+
+The game opens with Welcome Home. After each mission, yellow contact letters show the next one. Chapter I
+ends after Drive-By; Chapter II has not been ported yet. Without `-ATGStory`, the game starts at the safehouse
+as before. Save/load and the title screen are still pending.
 
 ### Graphics
 
@@ -224,6 +236,8 @@ diff jsveh.txt cppveh.txt
 ./simtest.exe wildlife                                       # spawning, fleeing, damage and walked dogs
 ./simtest.exe pets                                           # adoption, commands, bites, rides and treats
 ./simtest.exe missions                                       # mission lifecycle, waits, failure and routes
+./simtest.exe story                                          # all five Chapter I scripts and the no-guns rule
+node --import ./three-hook.mjs storycompare.mjs               # story metadata against story.js
 node --import ./three-hook.mjs animalcompare.mjs --check      # 17 breeds' rigs against animals.js
 ./simtest.exe aircmp heli > cpp_heli.txt                       # a run (plane, heli, tank, skate or boat) against the
 MODE=heli node ../../../tools/browser-test/run.mjs "http://localhost:8080/index.html?manual&autostart=free&q=low" \
@@ -245,6 +259,9 @@ commands and damage. `ATG.Pet` logs its state. `ATG.ShopView petshop` looks at t
 pass, abort and failure). `ATG.Missions` logs progress; `ATG.Missions id` starts a registered mission.
 `ATG.MissionTest` starts the fixture; `goal` reaches its checkpoint and `finish` kills its target.
 `Tools/tests/missions_shutdown.txt` exits during a suspended cutscene to check shutdown cleanup.
+`Tools/tests/story.txt` runs the actual Chapter I missions in Unreal with objective assistance, like the
+browser's mission runner. `ATG.StoryStart id` positions the player at a mission's start, and
+`ATG.StoryAdvance` reaches its current checkpoint, seats followers and removes hostile targets for tests.
 
 ### Checking the generator without Unreal
 

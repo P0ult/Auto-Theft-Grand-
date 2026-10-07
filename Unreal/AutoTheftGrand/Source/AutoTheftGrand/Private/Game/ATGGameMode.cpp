@@ -14,6 +14,7 @@
 #include "Game/ATGTest.h"
 #include "Game/ATGWorld.h"
 #include "Sim/Game.h"
+#include "Sim/Missions.h"
 #include "Sim/Setup.h"
 
 #include "Components/SpotLightComponent.h"
@@ -67,7 +68,12 @@ void AATGGameMode::StartGame() {
 	FActorSpawnParameters SP; SP.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 	Audio = GetWorld()->SpawnActor<AATGAudio>(AATGAudio::StaticClass(), FTransform::Identity, SP);
 	if (Audio) Audio->Start(G);
-	UE_LOG(LogATG, Log, TEXT("Player at the safehouse (%.0f, %.0f)"), X, Z);
+	if (FParse::Param(FCommandLine::Get(), TEXT("ATGStory")) && G->missions) {
+		G->gangDensity = { { "kings", 0.35 }, { "vipers", 0.4 }, { "cuervos", 0.3 } };
+		G->missions->start("welcome");
+		UE_LOG(LogATG, Log, TEXT("Story started: Welcome Home"));
+	}
+	else { UE_LOG(LogATG, Log, TEXT("Player at the safehouse (%.0f, %.0f)"), X, Z); }
 }
 
 void AATGGameMode::Tick(float Dt) {

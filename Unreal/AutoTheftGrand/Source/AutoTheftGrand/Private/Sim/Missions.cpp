@@ -7,6 +7,17 @@
 #include "Rail.h"
 
 namespace atg {
+namespace {
+size_t ScriptTextLength(const std::string& text) {
+	size_t n = 0; for (unsigned char c : text) if (c < 0x80 || c >= 0xc0) n += c >= 0xf0 ? 2 : 1;
+	return n; // JavaScript string.length counts UTF-16 code units, not UTF-8 bytes
+}
+std::string RewardText(double value) {
+	std::string s = std::to_string((int)value);
+	for (int i = (int)s.size() - 3; i > 0; i -= 3) s.insert(i, ",");
+	return "$" + s;
+}
+}
 
 RouteDriver::RouteDriver(Game& g, Vehicle* v, const V3& to, const RouteDriverOpts& opts)
 	: LaneDriver(g, v, nullptr, true), dest(to), flee(opts.flee), arriveR(opts.arriveR) {
@@ -153,7 +164,7 @@ void MissionContext::poll(double dt) {
 void MissionContext::help(const std::string& text, double dur) { if (game.hud) game.hud->help(text, dur); }
 void MissionContext::objective(const std::string& text) { if (game.hud) game.hud->objective(text); }
 MissionTask MissionContext::say(const std::string& speaker, const std::string& text, double dur) {
-	const double d = IsSet(dur) ? dur : Clamp(1.6 + text.size() * 0.052, 2.2, 7);
+	const double d = IsSet(dur) ? dur : Clamp(1.6 + ScriptTextLength(text) * 0.052, 2.2, 7);
 	if (game.hud) game.hud->subtitle(text, speaker, d + 0.2);
 	Ref<Character> spk = speakers[speaker];
 	if (spk && !spk->dead) spk->animState.talking = true;
@@ -285,6 +296,7 @@ std::function<void()> MissionContext::driveBy(Ped* p, Character* target, double 
 
 void MissionContext::cleanup(bool passed) {
 	(void)passed;
+	for (const auto& fn : cleanupFns) fn(); cleanupFns.clear();
 	if (game.hud) { game.hud->setTimer(NaN()); game.hud->setCounter("", ""); game.hud->setBar(nullptr); game.hud->clearObjective(); gpsOff(); }
 	for (const auto& m : markers) game.pickupsSys->removeMarker(m.get());
 	for (const auto& b : blips) game.removeBlip(b);
@@ -357,7 +369,7 @@ void Missions::pass(const std::shared_ptr<MissionContext>& ctx) {
 	ctx->cleanup(true); completed.insert(d.id); active.reset();
 	if (d.reward) game.player->money += d.reward;
 	game.stats.missions++;
-	if (game.hud) game.hud->bigMessage("MISSION PASSED!", "passed", 5, d.reward ? "$" + std::to_string((int)d.reward) : "RESPECT +");
+	if (game.hud) game.hud->bigMessage("MISSION PASSED!", "passed", 5, d.reward ? RewardText(d.reward) : "RESPECT +");
 	game.sound("passed"); if (!d.log.empty()) log.push_back(d.log); game.events.missionPassed.emit(d.id);
 	std::string next; for (const auto* m : available()) if (m->autoStart) { next = m->id; break; }
 	game.setTimeout(5.5, [this, d, next]() { if (d.after) d.after(game); if (!next.empty()) start(next); else refreshContacts(); if (autosave) autosave(); });

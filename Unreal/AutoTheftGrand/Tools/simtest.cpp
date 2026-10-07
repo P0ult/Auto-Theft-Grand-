@@ -26,6 +26,7 @@
 #include "Sim/Skateboard.h"
 #include "Sim/Skateparks.h"
 #include "Sim/Special.h"
+#include "Sim/Story.h"
 #include "Sim/Traffic.h"
 #include "Sim/WeaponWheel.h"
 #include "Sim/Wildlife.h"
@@ -1505,6 +1506,74 @@ static void TestMissions(World& w) {
 	Check(true, "quitting during a cutscene destroys coroutines before their game systems");
 }
 
+static void TestStory(World& w) {
+	printf("story: Chapter I\n");
+	const auto definitions = BuildStory();
+	Check(definitions.size() == 5, "five Chapter I missions in browser order");
+	for (const auto& def : definitions) {
+		auto g = w.game(true); g->disableAmbient = true; g->player->invincible = true;
+		Missions& e = *g->missions; Player& p = *g->player;
+		e.completed = std::set<std::string>(def.requiresIds.begin(), def.requiresIds.end());
+		const V3 start = def.start(g->map); g->respawnPlayer(start.x, start.z, 0);
+		std::string result, reason;
+		g->events.missionPassed.on([&](const std::string& id) { if (id == def.id) result = "PASSED"; });
+		g->events.missionFailed.on([&](const std::string& id) { if (id == def.id) { result = "FAILED"; reason = g->hudModel->big.sub; } });
+		e.start(def.id);
+		for (int i = 0; i < 1800 && result.empty(); i++) {
+			auto ctx = e.active;
+			if (!ctx) { Run(*g, 0.1); continue; }
+			if (g->cutscene) { g->input.KeyDown("Space"); Run(*g, 0.1); g->input.KeyUp("Space"); Run(*g, 0.2); continue; }
+			g->policeSys->clearWanted();
+			if (def.id == "toolingup" && !p.weapons.count("pistol") && g->hudModel->objectiveText.find("buy a <b>pistol") != std::string::npos) {
+				for (auto& shop : g->shops->shops) if (shop.it->key == "gunshop") {
+					g->respawnPlayer(shop.it->door.x, shop.it->door.z, shop.it->YawIn()); Run(*g, 0.1);
+					g->shops->serve(shop); g->hudModel->menuPress(2); g->hudModel->closeOverlay();
+				}
+			}
+			// Get in the car indicated by the live blue blip, as the browser mission test does.
+			for (const auto& b : ctx->blips) if (b->color == 0x4aa3ff && b->icon == "car" && std::find(g->blips.begin(), g->blips.end(), b) != g->blips.end()) {
+				for (const auto& v : ctx->cars) if (!v->isWrecked() && Hypot(v->pos.x - b->x, v->pos.z - b->z) < 1 && p.vehicle != v.get()) {
+					if (p.vehicle) p.vehicle->takeOut(&p); g->vehicles.seatNow(&p, v.get());
+				}
+			}
+			for (auto it = ctx->markers.rbegin(); it != ctx->markers.rend(); ++it) if (!(*it)->removed) {
+				const auto& m = **it;
+				if (m.vehicleOnly && !p.vehicle) { auto* v = g->vehicles.spawn("meridian", p.pos.x + 3, p.pos.z, 0); g->vehicles.seatNow(&p, v); }
+				if (m.footOnly && p.vehicle) p.vehicle->takeOut(&p);
+				if (p.vehicle) { p.vehicle->pos = m.pos; p.vehicle->vel = V3(); } else p.setPosition(m.pos.x, m.pos.y, m.pos.z);
+				break;
+			}
+			if (g->hudModel->gpsTarget && def.id == "cleansweep") { const auto t = *g->hudModel->gpsTarget; g->respawnPlayer(t.x, t.z, 0); }
+			for (const auto& ped : ctx->peds) if (ped->state == "follow" && !ped->dead && p.vehicle && !ped->vehicle) {
+				for (int s : { 1, 2, 3 }) if (s < (int)p.vehicle->layout.seats.size() && !p.vehicle->occupants[s]) { p.vehicle->putIn(ped.get(), s); break; }
+			}
+			for (const auto& ped : ctx->peds) if (ped->missionEnemy && !ped->dead) { DamageInfo d; d.source = &p; ped->takeDamage(9999, d); }
+			for (const auto& car : ctx->cars) if (car->color == 0x9d0208 && !car->isWrecked()) car->explode();
+			Run(*g, 0.5);
+		}
+		printf("  %s: %s, %.1f sim seconds, cash %.0f, reason '%s'\n", def.id.c_str(), result.empty() ? "TIMEOUT" : result.c_str(), g->time, p.money, reason.c_str());
+		Check(result == "PASSED" && e.completed.count(def.id) && g->stats.missions == 1, "actual story script reaches its reward and cleanup");
+		Check(!g->cutscene && g->policeSys->enabled, "story leaves controls and police running");
+	}
+	// The no-guns rule must fail the mission, and its event listener must be detached on cleanup.
+	auto g = w.game(true); g->disableAmbient = true; g->player->invincible = true;
+	g->missions->completed = { "oldfriends" }; const auto& d = g->missions->story[2]; const V3 start = d.start(g->map);
+	g->respawnPlayer(start.x, start.z, 0); g->missions->start("cleansweep");
+	for (int i = 0; i < 200 && g->cutscene; i++) { g->input.KeyDown("Space"); Run(*g, 0.1); g->input.KeyUp("Space"); Run(*g, 0.2); }
+	g->events.gunshot.emit(g->player.get(), g->player->pos, "pistol"); Run(*g, 0.1);
+	Check(!g->missions->active && g->hudModel->big.sub == "Kings rules: no guns on our own block!", "Clean Sweep fails if the player fires a gun");
+	g->events.gunshot.emit(g->player.get(), g->player->pos, "pistol"); Run(*g, 0.1);
+	Check(!g->missions->active, "the failed mission's listener is safely removed");
+}
+
+static void StoryMeta(World& w) {
+	for (const auto& d : BuildStory()) {
+		const V3 s = d.start(w.map); std::string req;
+		for (const auto& r : d.requiresIds) { if (!req.empty()) req += ","; req += r; }
+		printf("story|%s|%s|%s|%.0f|%s|%.2f,%.2f|%s\n", d.id.c_str(), d.title.c_str(), d.contact.c_str(), d.reward, req.c_str(), s.x, s.z, d.log.c_str());
+	}
+}
+
 static void AnimalCompare(World& w) {
 	auto g = w.game();
 	for (const auto& breed : AnimalBreedOrder()) {
@@ -1529,6 +1598,7 @@ int main(int argc, char** argv) {
 	if (argc > 1 && !std::strcmp(argv[1], "vehcompare")) { VehCompare(w); return 0; }
 	if (argc > 1 && !std::strcmp(argv[1], "aircmp")) { AirCompare(w, argc > 2 ? argv[2] : "plane"); return 0; }
 	if (argc > 1 && !std::strcmp(argv[1], "animalcmp")) { AnimalCompare(w); return 0; }
+	if (argc > 1 && !std::strcmp(argv[1], "storymeta")) { StoryMeta(w); return 0; }
 	auto want = [&](const char* n) { if (argc < 2) return true; for (int i = 1; i < argc; i++) if (!std::strcmp(argv[i], n)) return true; return false; };
 	if (want("walk")) TestWalk(w);
 	if (want("drive")) TestDrive(w);
@@ -1557,6 +1627,7 @@ int main(int argc, char** argv) {
 	if (want("wildlife")) TestWildlife(w);
 	if (want("pets")) TestPets(w);
 	if (want("missions")) TestMissions(w);
+	if (want("story")) TestStory(w);
 	printf(fails ? "%d FAILED\n" : "all passed\n", fails);
 	return fails ? 1 : 0;
 }
