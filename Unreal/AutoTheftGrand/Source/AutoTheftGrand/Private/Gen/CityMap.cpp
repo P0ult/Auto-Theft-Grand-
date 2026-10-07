@@ -920,50 +920,182 @@ void CityMap::BuildLandmarks() {
 	PlanInteriors();
 }
 
-// Walk-in shops (interiors.js planInteriors): the shell walls round the room with a doorway in the shop
-// front, the ceiling slab and the counter. (The furniture and shopkeepers come with the shops phase.)
+// ------------------------------------------------------------------ walk-in shops (interiors.js)
+void InteriorShell::Rect(double u0, double w0, double u1, double w1, double out[4]) const {
+	const double xa = X(u0, w0), xb = X(u1, w1), za = Z(u0, w0), zb = Z(u1, w1);
+	out[0] = Min(xa, xb); out[1] = Min(za, zb); out[2] = Max(xa, xb); out[3] = Max(za, zb);
+}
+double InteriorShell::YawIn() const { return std::atan2(f[0], f[1]); }
+double InteriorShell::YawR() const { return std::atan2(r[0], r[1]); }
+bool InteriorShell::Inside(double x, double z, double pad) const {
+	double q[4]; Rect(-W / 2, 0, W / 2, D, q);
+	return x > q[0] - pad && x < q[2] + pad && z > q[1] - pad && z < q[3] + pad;
+}
+
+namespace {
+const double InteriorDoorW = 2.4, InteriorDoorH = 2.7;
+void InteriorSet3(double* d, double a, double b, double c) { d[0] = a; d[1] = b; d[2] = c; }
+
+// LAYOUTS: the room's colours, counter, the clerk's, service and till spots, the ceiling lights
+InteriorShell::Layout InteriorLayout(const std::string& key, const InteriorShell& F) {
+	InteriorShell::Layout L;
+	const double D = F.D, H = F.W / 2;
+	L.H = H;
+	auto counter = [&](double u0, double w0, double u1, double w1, double t0, double t1, double t2, double b0, double b1, double b2) {
+		L.counter.u0 = u0; L.counter.w0 = w0; L.counter.u1 = u1; L.counter.w1 = w1;
+		InteriorSet3(L.counter.top, t0, t1, t2); InteriorSet3(L.counter.body, b0, b1, b2);
+	};
+	auto spots = [&](double cu, double cw, double su, double sw, double tu, double tw) { L.clerk = { cu, cw }; L.service = { su, sw }; L.till = { tu, tw }; };
+	auto colours = [&](std::array<double, 3> f0, std::array<double, 3> f1, std::array<double, 3> wall, std::array<double, 3> dado) {
+		for (int k = 0; k < 3; k++) { L.floor[0][k] = f0[k]; L.floor[1][k] = f1[k]; L.wall[k] = wall[k]; L.dado[k] = dado[k]; }
+	};
+	if (key == "gunshop") {
+		L.name = "Gun Barn"; L.ceil = 3.6;
+		colours({ 0.25, 0.27, 0.25 }, { 0.3, 0.32, 0.3 }, { 0.62, 0.58, 0.5 }, { 0.36, 0.25, 0.16 });
+		counter(-6, D - 3.6, 6, D - 2.8, 0.3, 0.2, 0.12, 0.2, 0.2, 0.22);
+		spots(0, D - 1.9, 0, D - 4.5, 1.5, D - 3.2);
+		for (const auto& l : std::vector<std::array<double, 2>>{ { -5, 4 }, { 5, 4 }, { -5, 8.5 }, { 5, 8.5 } }) if (l[1] < D - 1) L.lights.push_back(l);
+		L.hostile = true; L.extra = "gunshop";
+	} else if (key == "burger") {
+		L.name = "Big Bun Burgers"; L.ceil = 3.6;
+		colours({ 0.78, 0.1, 0.08 }, { 0.93, 0.92, 0.88 }, { 0.95, 0.88, 0.7 }, { 0.7, 0.12, 0.08 });
+		counter(-7, D - 5.2, 7, D - 4.4, 0.72, 0.72, 0.74, 0.78, 0.14, 0.1);
+		spots(0, D - 3.5, 0, D - 6.1, -2.5, D - 4.8);
+		L.lights = { { -6, 3.5 }, { 6, 3.5 }, { -6, 8 }, { 6, 8 }, { 0, D - 2 } };
+		L.extra = "burger";
+	} else if (key == "liquor" || key == "store") {
+		L.name = key == "store" ? "24/7" : "Ray's Liquor"; L.ceil = 3.4;
+		if (key == "store") colours({ 0.92, 0.92, 0.9 }, { 0.8, 0.84, 0.82 }, { 0.94, 0.96, 0.92 }, { 0.08, 0.5, 0.25 });
+		else colours({ 0.82, 0.82, 0.8 }, { 0.66, 0.68, 0.68 }, { 0.72, 0.84, 0.76 }, { 0.18, 0.36, 0.26 });
+		counter(-H + 2.4, 1.3, -H + 3.2, 5.2, 0.35, 0.22, 0.14, 0.28, 0.18, 0.12);
+		spots(-H + 1.3, 3.2, -H + 4.5, 3.2, -H + 2.8, 2.4); L.clerkFacesR = true;
+		L.lights = { { -5, 3 }, { 2, 3 }, { -5, 8 }, { 2, 8 }, { 8, 6 } };
+		L.extra = "liquor";
+	} else if (key == "petshop") {
+		L.name = "Pet Palace"; L.ceil = 3.5;
+		colours({ 0.82, 0.78, 0.66 }, { 0.74, 0.7, 0.58 }, { 0.86, 0.94, 0.84 }, { 0.2, 0.46, 0.3 });
+		counter(1.2, D - 3.4, H - 1.2, D - 2.7, 0.9, 0.9, 0.86, 0.2, 0.46, 0.3);
+		spots((H + 1.2) / 2, D - 1.7, (H + 1.2) / 2, D - 4.3, H - 2.2, D - 3.05);
+		L.lights = { { -H / 2, 3 }, { H / 2, 3 }, { -H / 2, D - 3 }, { H / 2, D - 3 } };
+		L.extra = "petshop";
+	} else if (key == "bar") {
+		L.name = "The Rusty Anchor"; L.ceil = 3.4;
+		colours({ 0.28, 0.18, 0.11 }, { 0.24, 0.15, 0.09 }, { 0.42, 0.28, 0.2 }, { 0.2, 0.12, 0.07 });
+		counter(-H + 2.6, 2.2, -H + 3.4, D - 2.2, 0.18, 0.1, 0.05, 0.3, 0.18, 0.1);
+		spots(-H + 1.4, D / 2, -H + 4.4, D / 2, -H + 3.0, D - 3.2); L.clerkFacesR = true;
+		L.lights = { { -H + 3, D / 3 }, { -H + 3, D * 2 / 3 }, { 2, D / 2 }, { H - 2.5, 3 }, { H - 2.5, D - 3 } };
+		L.extra = "bar";
+	} else if (key == "cafe") {
+		L.name = "Bean Scene"; L.ceil = 3.4;
+		colours({ 0.55, 0.38, 0.24 }, { 0.6, 0.42, 0.27 }, { 0.93, 0.88, 0.8 }, { 0.36, 0.24, 0.16 });
+		counter(-H + 1.5, D - 3.4, 2.5, D - 2.6, 0.85, 0.85, 0.82, 0.36, 0.24, 0.16);
+		spots(-2, D - 1.6, -2, D - 4.3, 1.2, D - 3.0);
+		L.lights = { { -H / 2, 3 }, { H / 2, 3 }, { -H / 2, D - 3 }, { H / 2, D - 3 } };
+		L.extra = "cafe";
+	}
+	return L;
+}
+
+// the per-shop furniture: its colliders, and what the renderer dresses
+template <typename Box> void InteriorFurniture(InteriorShell& it, const Box& box) {
+	const auto& L = it.L;
+	const double D = it.D, H = it.W / 2;
+	auto add = [&](const std::string& kind, InteriorShell::Furniture fu) { fu.kind = kind; it.furniture.push_back(fu); };
+	auto ext = [](double u0, double w0, double u1, double w1) { InteriorShell::Furniture f; f.u0 = u0; f.w0 = w0; f.u1 = u1; f.w1 = w1; return f; };
+	auto at = [](double u, double w) { InteriorShell::Furniture f; f.u = u; f.w = w; return f; };
+	if (L.extra == "gunshop") {
+		// ammo shelving down both sides, an armour case, pegboard racks on the back wall
+		box(-H + 0.25, 2, -H + 0.85, D - 4.2, 0, 2.2, "shelf"); { auto f = ext(-H + 0.25, 2, -H + 0.85, D - 4.2); f.h = 2.2; f.face = 1; add("shelf", f); }
+		box(H - 0.85, 2, H - 0.25, D - 4.2, 0, 2.2, "shelf"); { auto f = ext(H - 0.85, 2, H - 0.25, D - 4.2); f.h = 2.2; f.face = -1; add("shelf", f); }
+		box(3.4, 3.2, 7.4, 4.2, 0, 1.0, "case"); add("case", ext(3.4, 3.2, 7.4, 4.2)); // (clear of the way to the counter)
+	} else if (L.extra == "burger") {
+		// the kitchen line along the back wall
+		box(-9, D - 1.1, 9, D - 0.25, 0, 1.0, "kitchen"); add("kitchen", {});
+		// tables (not in the aisle to the counter)
+		for (double u : { -7.5, -4.0, 4.0, 7.5 }) for (double w : { 2.8, 6.0 }) {
+			if (w > D - 6.4) continue;
+			box(u - 0.45, w - 0.45, u + 0.45, w + 0.45, 0, 0.8, "table");
+			add("table", at(u, w));
+		}
+	} else if (L.extra == "petshop") {
+		// kennels down the left wall (glass fronts), the aquarium wall on the right, a food aisle in the middle
+		const int nK = (int)Max(2, Min(4, std::floor((D - 2.5) / 2.6)));
+		for (int k = 0; k < nK; k++) {
+			const double w0 = 1.8 + k * 2.6;
+			box(-H + 0.25, w0 - 0.05, -H + 2.4, w0 + 0.05, 0, 1.2, "pen"); // (a divider)
+			auto f = ext(-H + 0.25, w0, -H + 2.4, w0 + 2.5); f.i = k; add("pen", f);
+		}
+		box(-H + 2.35, 1.8, -H + 2.45, 1.8 + nK * 2.6, 0, 1.2, "glass");
+		box(H - 0.9, 1.5, H - 0.25, D - 4.2, 0, 2.0, "tanks"); add("tanks", ext(H - 0.9, 1.5, H - 0.25, D - 4.2));
+		box(-0.5, 2.6, 0.5, Max(4, D - 5.6), 0, 1.6, "shelf"); { auto f = at(0, 0); f.w0 = 2.6; f.w1 = Max(4, D - 5.6); add("aisle", f); }
+	} else if (L.extra == "bar") {
+		// the bottle wall behind the bar, a pool table, booths down the right wall
+		box(-H + 0.25, 1.6, -H + 0.7, D - 1.2, 0, 2.3, "shelf"); add("bottles", {});
+		const double pu = H * 0.25, pw = D * 0.5;
+		box(pu - 1.3, pw - 0.75, pu + 1.3, pw + 0.75, 0, 0.85, "table"); add("pool", at(pu, pw));
+		for (double w = 2.2; w < D - 2; w += 3.2) { box(H - 1.9, w - 0.45, H - 0.25, w + 0.45, 0, 0.75, "table"); add("booth", at(0, w)); }
+		for (double w = 2.8; w < D - 2.2; w += 1.3) add("stool", at(-H + 3.9, w));
+	} else if (L.extra == "cafe") {
+		// a pastry case on the counter, tables by the window
+		for (const auto& q : std::vector<std::array<double, 2>>{ { -H + 2.5, 2.8 }, { H - 2.5, 2.8 }, { H - 2.5, 5.8 }, { 3, 5.8 } }) {
+			const double u = q[0], w = q[1];
+			if (w > D - 5.2 || u > H - 1.5) continue;
+			box(u - 0.4, w - 0.4, u + 0.4, w + 0.4, 0, 0.78, "table"); add("table", at(u, w));
+		}
+	} else if (L.extra == "liquor") {
+		for (double u : { -2.5, 1.5, 5.5 }) { box(u - 0.5, 3.4, u + 0.5, Min(8.6, D - 2.2), 0, 1.75, "shelf"); auto f = at(u, 0); f.w0 = 3.4; f.w1 = Min(8.6, D - 2.2); add("aisle", f); }
+		box(-H + 2, D - 0.95, H - 0.3, D - 0.25, 0, 2.2, "fridge"); { InteriorShell::Furniture f; f.u0 = -H + 2; f.u1 = H - 0.3; add("fridges", f); }
+		box(-H + 0.25, 1.4, -H + 0.7, 5.0, 0.9, 2.4, "shelf"); add("smokes", {});
+	}
+}
+}
+
+// planInteriors: the shell walls round the room with a doorway in the shop front, the ceiling slab, the
+// counter and the furniture (all colliders), and the spots
 void CityMap::PlanInteriors() {
 	interiors.clear();
-	struct Counter { double u0, w0, u1, w1; };
 	for (int bi = 0; bi < (int)buildings.size(); bi++) {
 		const Building& b = buildings[bi];
 		if (!b.shop.valid()) continue;
+		InteriorShell it;
 		const bool z1 = b.shop.front == "z1";
-		const double fx = 0, fz = z1 ? -1 : 1, rx = -fz, rz = fx;
-		const double ox = (b.x0 + b.x1) / 2, oz = z1 ? b.z1 : b.z0, W = b.x1 - b.x0, D = b.z1 - b.z0, fy = b.y0;
-		auto X = [&](double u, double w) { return ox + rx * u + fx * w; };
-		auto Z = [&](double u, double w) { return oz + rz * u + fz * w; };
-		const double H = W / 2;
-		double ceil = 3.4; Counter ctr{ 0, 0, 0, 0 };
-		P3 clerk, service; double clerkYawR = NaN();
-		const std::string& k = b.shop.key;
-		auto sp = [&](double u, double w) { P3 p; p.x = X(u, w); p.z = Z(u, w); p.y = fy; return p; };
-		if (k == "gunshop") { ceil = 3.6; ctr = { -6, D - 3.6, 6, D - 2.8 }; clerk = sp(0, D - 1.9); service = sp(0, D - 4.5); }
-		else if (k == "burger") { ceil = 3.6; ctr = { -7, D - 5.2, 7, D - 4.4 }; clerk = sp(0, D - 3.5); service = sp(0, D - 6.1); }
-		else if (k == "liquor" || k == "store") { ceil = 3.4; ctr = { -H + 2.4, 1.3, -H + 3.2, 5.2 }; clerk = sp(-H + 1.3, 3.2); service = sp(-H + 4.5, 3.2); clerkYawR = 1; }
-		else if (k == "petshop") { ceil = 3.5; ctr = { 1.2, D - 3.4, H - 1.2, D - 2.7 }; clerk = sp((H + 1.2) / 2, D - 1.7); service = sp((H + 1.2) / 2, D - 4.3); }
-		else if (k == "bar") { ceil = 3.4; ctr = { -H + 2.6, 2.2, -H + 3.4, D - 2.2 }; clerk = sp(-H + 1.4, D / 2); service = sp(-H + 4.4, D / 2); clerkYawR = 1; }
-		else if (k == "cafe") { ceil = 3.4; ctr = { -H + 1.5, D - 3.4, 2.5, D - 2.6 }; clerk = sp(-2, D - 1.6); service = sp(-2, D - 4.3); }
-		InteriorShell it; it.key = k; it.name = b.name; it.building = bi;
-		const double y0 = fy, y1 = Max(b.y1, fy + ceil + 0.6);
+		it.fy = b.y0;
+		it.f[0] = 0; it.f[1] = z1 ? -1 : 1;
+		it.r[0] = -it.f[1]; it.r[1] = it.f[0];
+		it.ox = (b.x0 + b.x1) / 2; it.oz = z1 ? b.z1 : b.z0;
+		it.W = b.x1 - b.x0; it.D = b.z1 - b.z0;
+		it.L = InteriorLayout(b.shop.key, it);
+		it.key = b.shop.key; it.name = !b.name.empty() ? b.name : it.L.name; it.building = bi;
+		const InteriorShell::Layout& L = it.L;
+		const double y0 = it.fy, y1 = Max(b.y1, it.fy + L.ceil + 0.6);
 		auto box = [&](double u0, double w0, double u1, double w1, double h0, double h1, const char* type) {
-			const double xa = X(u0, w0), xb = X(u1, w1), za = Z(u0, w0), zb = Z(u1, w1);
-			Collider c; c.minX = Min(xa, xb); c.minZ = Min(za, zb); c.maxX = Max(xa, xb); c.maxZ = Max(za, zb); c.minY = y0 + h0; c.maxY = y0 + h1; c.type = type;
+			double q[4]; it.Rect(u0, w0, u1, w1, q);
+			Collider c; c.minX = q[0]; c.minZ = q[1]; c.maxX = q[2]; c.maxZ = q[3]; c.minY = y0 + h0; c.maxY = y0 + h1; c.type = type;
 			it.colliders.push_back(c); colliders.push_back(c);
 		};
-		const double T = 0.25, DOOR_W = 2.4, DOOR_H = 2.7;
+		const double T = 0.25, H = it.W / 2, D = it.D;
+		// the shell: back, sides, and the front either side of the doorway (plus the lintel over it)
 		box(-H, D - T, H, D, -0.3, y1 - y0, "building");
 		box(-H, 0, -H + T, D, -0.3, y1 - y0, "building");
 		box(H - T, 0, H, D, -0.3, y1 - y0, "building");
-		box(-H, 0, -DOOR_W / 2, T, -0.3, y1 - y0, "building");
-		box(DOOR_W / 2, 0, H, T, -0.3, y1 - y0, "building");
-		box(-DOOR_W / 2, 0, DOOR_W / 2, T, DOOR_H, y1 - y0, "building");
-		box(-H, 0, H, D, ceil, ceil + 0.3, "building");
-		if (y1 - y0 > ceil + 1.5) box(-H, 0, H, D, y1 - y0 - 0.3, y1 - y0, "building");
-		box(ctr.u0, ctr.w0, ctr.u1, ctr.w1, 0, 1.05, "counter");
-		const double yawIn = std::atan2(fx, fz), yawR = std::atan2(rx, rz);
-		it.clerk = clerk; it.service = service; it.clerkYaw = IsSet(clerkYawR) ? yawR : yawIn + kPi;
-		it.door = sp(0, -1.2); it.center = sp(0, D / 2);
+		box(-H, 0, -InteriorDoorW / 2, T, -0.3, y1 - y0, "building");
+		box(InteriorDoorW / 2, 0, H, T, -0.3, y1 - y0, "building");
+		box(-InteriorDoorW / 2, 0, InteriorDoorW / 2, T, InteriorDoorH, y1 - y0, "building");
+		// the roof slab over the room (bullets and the camera stop at it), and the building's own roof on top
+		box(-H, 0, H, D, L.ceil, L.ceil + 0.3, "building");
+		if (y1 - y0 > L.ceil + 1.5) box(-H, 0, H, D, y1 - y0 - 0.3, y1 - y0, "building");
+		// the counter
+		box(L.counter.u0, L.counter.w0, L.counter.u1, L.counter.w1, 0, 1.05, "counter");
+		InteriorFurniture(it, box);
+		// the spots in world space
+		auto sp = [&](double u, double w) { P3 p; p.x = it.X(u, w); p.z = it.Z(u, w); p.y = it.fy; return p; };
+		it.clerk = sp(L.clerk.u, L.clerk.w);
+		it.clerkYaw = L.clerkFacesR ? it.YawR() : it.YawIn() + kPi;
+		it.service = sp(L.service.u, L.service.w);
+		it.till = sp(L.till.u, L.till.w); it.till.y = it.fy + 1.1;
+		it.door = sp(0, -1.2);
+		it.center = sp(0, D / 2);
+		it.light = sp(0, D / 2); it.light.y = it.fy + L.ceil - 0.4;
 		interiors.push_back(it);
 	}
 }

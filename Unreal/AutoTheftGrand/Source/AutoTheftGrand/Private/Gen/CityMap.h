@@ -87,7 +87,38 @@ struct FixedVehicle { std::string type; double x, z, yaw, y, respawn; bool roof 
 struct Footprint { double cx = 0, cz = 0, hx = 0, hz = 0, yaw = 0, y0 = 0, yTop = 0; };
 // vegetation instances: x, y, z, rotation, scale per instance
 struct Vegetation { std::vector<float> pine, oak, bush, cactus, rock, deadtree, palm; };
-struct InteriorShell { std::string key, name; int building; std::vector<Collider> colliders; P3 door, center, clerk, service; double clerkYaw = 0; };
+// a walk-in shop (interiors.js): its frame (u across the front with 0 at the doorway, w into the room from the
+// front wall), its layout and furniture, the colliders, and the spots the shop system and the renderer use
+struct InteriorShell {
+	std::string key, name;
+	int building = -1;
+	// the frame
+	double fy = 0, f[2] = { 0, 1 }, r[2] = { -1, 0 }, ox = 0, oz = 0, W = 0, D = 0;
+	double X(double u, double w) const { return ox + r[0] * u + f[0] * w; }
+	double Z(double u, double w) const { return oz + r[1] * u + f[1] * w; }
+	// the world bounds of a local rectangle: x0, z0, x1, z1
+	void Rect(double u0, double w0, double u1, double w1, double out[4]) const;
+	double YawIn() const;
+	double YawR() const;
+	// the layout (interiors.js LAYOUTS)
+	struct Spot { double u = 0, w = 0; };
+	struct Layout {
+		std::string name, extra;
+		double ceil = 3.4, H = 0;
+		double floor[2][3] = {}, wall[3] = {}, dado[3] = {};
+		struct Counter { double u0 = 0, w0 = 0, u1 = 0, w1 = 0, top[3] = {}, body[3] = {}; } counter;
+		Spot clerk, service, till;
+		bool clerkFacesR = false, hostile = false;
+		std::vector<std::array<double, 2>> lights;
+	} L;
+	// the furniture the renderer dresses (kind, and its spot or extent in the frame)
+	struct Furniture { std::string kind; double u = 0, w = 0, u0 = 0, w0 = 0, u1 = 0, w1 = 0, h = 0; int face = 0, i = 0; };
+	std::vector<Furniture> furniture;
+	std::vector<Collider> colliders;
+	P3 door, center, clerk, service, till, light;
+	double clerkYaw = 0;
+	bool Inside(double x, double z, double pad = 0) const;
+};
 
 struct BldOpts {
 	double y0 = NaN(), rot = 0, base = NaN();
