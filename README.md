@@ -28,8 +28,9 @@ Chrome, Edge or Firefox with hardware acceleration turned on is recommended. If 
 ## Unreal Engine version
 
 A C++ port to Unreal Engine 5.8 is under way in [`Unreal/AutoTheftGrand`](Unreal/AutoTheftGrand/README.md). It
-generates the same world from the same seed. So far you can walk and drive around all of it; the rest of the
-game is being ported in phases ([plan](Unreal/AutoTheftGrand/PORTING.md)).
+generates the same world from the same seed. The living city, combat, police, vehicles, shops and audio are
+ported. Wildlife now spawns by district, wanders, grazes and flees, including birds taking flight and people
+walking dogs. The rest is being ported in phases ([plan](Unreal/AutoTheftGrand/PORTING.md)).
 
 ## Controls
 

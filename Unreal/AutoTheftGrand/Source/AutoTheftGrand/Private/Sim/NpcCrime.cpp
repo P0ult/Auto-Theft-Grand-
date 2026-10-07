@@ -808,7 +808,7 @@ void NpcCrime::makeReckless(Vehicle* v) {
 bool NpcCrime::stage(const std::string& kind) {
 	const V3 p0 = pp();
 	std::vector<Ped*> peds;
-	for (const auto& p : game.peds->list) if (civ(p.get()) && !p->vehicle && (p->state == "wander" || p->state == "idle")) peds.push_back(p.get());
+	for (const auto& p : game.peds->list) if (civ(p.get()) && !p->vehicle && !p->walkedDog && (p->state == "wander" || p->state == "idle")) peds.push_back(p.get());
 	auto within = [&](const V3& p, double r0, double r1) { const double d2 = Dist2(p.x, p.z, p0.x, p0.z); return d2 > r0 * r0 && d2 < r1 * r1; };
 	// (the browser game sorts with a random comparator: a shuffle)
 	auto shuffled = [](std::vector<Ped*> v) { for (int i = (int)v.size() - 1; i > 0; i--) std::swap(v[i], v[(size_t)std::floor(Rand() * (i + 1))]); return v; };

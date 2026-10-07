@@ -13,6 +13,7 @@ class Game;
 class Ped;
 class Player;
 class Vehicle;
+class Animal;
 struct CollObj;
 
 class System {
@@ -178,6 +179,7 @@ class IWildlife {
 public:
 	virtual ~IWildlife() = default;
 	virtual void addWalkedDog(Ped* owner) = 0;
+	virtual std::vector<Animal*> all() const = 0;
 };
 
 } // namespace atg

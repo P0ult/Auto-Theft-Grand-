@@ -17,10 +17,11 @@ double BlastScale(const VehicleDef& def);
 
 struct CombatHit {
 	double t = 0;
-	enum Kind { Static, Char, Vehicle_, Heli } kind = Static; // (Heli: the police helicopter)
+	enum Kind { Static, Char, Vehicle_, Heli, Animal_ } kind = Static; // (Heli: the police helicopter)
 	CollObj* obj = nullptr;
 	Character* ch = nullptr;
 	Vehicle* veh = nullptr;
+	Animal* animal = nullptr;
 	std::string part;
 	int particle = -1;
 	V3 normal, point;

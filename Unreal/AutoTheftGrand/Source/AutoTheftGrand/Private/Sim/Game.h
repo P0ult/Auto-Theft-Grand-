@@ -108,6 +108,7 @@ public:
 	IPolice* police = nullptr;
 	INpcCrime* npcCrime = nullptr;
 	IWildlife* wildlife = nullptr;
+	std::function<void(std::vector<Animal*>&)> animalExtras; // pets (combat and the renderer)
 	PedManager* peds = nullptr;
 	Traffic* traffic = nullptr;
 	RailSystem* rail = nullptr;

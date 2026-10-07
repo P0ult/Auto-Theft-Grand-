@@ -26,6 +26,7 @@
 #include "Sim/Special.h"
 #include "Sim/Traffic.h"
 #include "Sim/WeaponWheel.h"
+#include "Sim/Wildlife.h"
 #include "WorldGen.h"
 #include "crashtrace.h"
 #include <chrono>
@@ -1296,6 +1297,80 @@ static void TestSkate(World& w) {
 	Check(gy - park.y > 0.4, "the ramps are solid");
 }
 
+static void TestWildlife(World& w) {
+	printf("wildlife\n");
+	auto g = w.game(true);
+	g->disableAmbient = true;
+	g->cheats.god = true;
+	ToStreet(w, *g);
+	auto* wild = dynamic_cast<Wildlife*>(g->wildlife);
+	Player& p = *g->player;
+	wild->clear();
+	auto make = [&](const std::string& breed, double dx, double dz) {
+		auto a = std::make_shared<Animal>(*g, breed, p.pos.x + dx, p.pos.z + dz, true, p.pos.y, true, 0);
+		a->state = a->sp.bird ? "peck" : "graze"; wild->list.push_back(a); return a;
+	};
+	auto pigeon = make("pigeon", 0, 3), deer = make("deer", 0, 10);
+	wild->update(1.0 / 30);
+	Check(pigeon->flying && pigeon->state == "fly", "a close player sends birds into flight");
+	Check(deer->state == "flee", "a close player makes deer flee");
+	const double birdY = pigeon->pos.y, deerZ = deer->pos.z;
+	for (int i = 0; i < 30; i++) wild->update(1.0 / 30);
+	Check(pigeon->pos.y > birdY + 1 && deer->pos.z > deerZ + 1, "birds climb and deer run away");
+	auto cat = make("tabby", 0, 30);
+	g->events.gunshot.emit(&p, p.pos, "pistol");
+	Check(cat->state == "flee", "gunfire scares animals within 55 m");
+	cat->pos.z = p.pos.z + 80; cat->state = "graze";
+	g->events.explosion.emit(p.pos, 5, &p);
+	Check(cat->state == "flee", "blast noise scares animals within 90 m");
+	wild->clear();
+	auto rabbit = make("rabbit", 0, 5);
+	Combat* combat = dynamic_cast<Combat*>(g->combat);
+	CombatHit hit;
+	const double h = rabbit->P.hipY + rabbit->sp.bh * rabbit->scale * 0.3;
+	Check(combat->raycast(p.pos.x, p.pos.y + h, p.pos.z + 1, 0, 0, 1, 8, &p, hit) && hit.kind == CombatHit::Animal_ && hit.animal == rabbit.get(), "bullets hit the animal's body sphere");
+	if (hit.kind == CombatHit::Animal_) combat->applyHit(hit, *FindWeapon("sniper"), &p, V3(0, 0, 1));
+	Check(rabbit->dead, "gunshots damage and kill animals");
+	auto cow = make("cow", 0, 8);
+	combat->explosion(cow->pos + V3(0, 0.5, 0), 3, 180, &p);
+	Check(cow->dead, "explosions kill nearby animals");
+	auto roadCat = make("blackcat", 0, 20);
+	Vehicle* car = g->vehicles.spawn("kestrel", roadCat->pos.x, roadCat->pos.z, 0);
+	car->vel.set(0, 0, 10); wild->roadkill();
+	Check(roadCat->dead, "cars kill animals they hit");
+	wild->clear();
+	PedOpts o; o.persistent = true;
+	Ped* owner = g->peds->spawnPed(p.pos.x + 4, p.pos.z + 25, o);
+	wild->addWalkedDog(owner);
+	Check((bool)owner->walkedDog && wild->count() == 0, "walked dogs belong to a pedestrian, outside the ambient cap");
+	auto dog = wild->list.back(); owner->dead = true;
+	wild->update(1.0 / 30);
+	Check(dog->stray && !dog->owner && dog->state == "flee", "a dog flees after its owner dies");
+	dog->pos.x += 200; wild->update(1.0 / 30);
+	Check(dog->removed, "distant animals are removed");
+	wild->clear();
+	g->disableAmbient = false;
+	Run(*g, 10);
+	Check(!wild->list.empty(), "wildlife spawns around the player on valid ground");
+	bool finite = true; for (const auto& a : wild->list) finite = finite && a->pos.finite();
+	Check(finite, "spawned animals remain finite");
+}
+
+// Compare every breed's rig to animals.js at the same explicit speed, phase and clock.
+static void AnimalCompare(World& w) {
+	auto g = w.game();
+	for (const auto& breed : AnimalBreedOrder()) {
+		auto a = std::make_shared<Animal>(*g, breed, 0, 0, true, 0, true, 0);
+		a->id = 7; a->phase = 0.37; a->t = 2.1;
+		for (int i = 0; i < 90; i++) {
+			a->speed = i < 30 ? a->sp.walk : i < 60 ? (a->sp.bird ? a->sp.fly : a->sp.run) : 0;
+			a->state = i >= 60 ? "sit" : "wander"; a->flying = a->sp.bird && i < 60;
+			a->t += 1.0 / 30; a->animate(1.0 / 30);
+			if (i % 30 == 29) printf("rig %s %d %.6f %.6f %.6f %.6f %.6f %.6f %.6f\n", breed.c_str(), i, a->bodyY, a->bodyRotX, a->legRotX[0], a->legRotX[2], a->headRotX, a->tailRotY, a->wingRotZ[0]);
+		}
+	}
+}
+
 int main(int argc, char** argv) {
 	InstallCrashTrace();
 	setvbuf(stdout, nullptr, _IONBF, 0);
@@ -1305,6 +1380,7 @@ int main(int argc, char** argv) {
 	printf("world %.1f s\n", std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count());
 	if (argc > 1 && !std::strcmp(argv[1], "vehcompare")) { VehCompare(w); return 0; }
 	if (argc > 1 && !std::strcmp(argv[1], "aircmp")) { AirCompare(w, argc > 2 ? argv[2] : "plane"); return 0; }
+	if (argc > 1 && !std::strcmp(argv[1], "animalcmp")) { AnimalCompare(w); return 0; }
 	auto want = [&](const char* n) { if (argc < 2) return true; for (int i = 1; i < argc; i++) if (!std::strcmp(argv[i], n)) return true; return false; };
 	if (want("walk")) TestWalk(w);
 	if (want("drive")) TestDrive(w);
@@ -1330,6 +1406,7 @@ int main(int argc, char** argv) {
 	if (want("skate")) TestSkate(w);
 	if (want("boats")) TestBoats(w);
 	if (want("shops")) TestShops(w);
+	if (want("wildlife")) TestWildlife(w);
 	printf(fails ? "%d FAILED\n" : "all passed\n", fails);
 	return fails ? 1 : 0;
 }

@@ -44,6 +44,7 @@ pad, and plays its sounds.
 | entities/skateboard.js, world/skatepark.js | `Gen/BoardModel` (identical to the JS: `Tools/dumpboard.mjs`, `boardtest.cpp`), `Sim/Skateboard`, `Sim/Skateparks`, `ATGCar` (the deck), `ATGWorld` (the park) | All of it: pushing with the back foot, carving, ollies, kickflips, heelflips and shove-its, clean landings paying cash and crooked ones throwing you off, digging in off the pavement; the Santa Luz skatepark's ramps, tables, ledges and rail as collision decks and boxes, its mesh, the boards lying about and two locals skating laps. A ride with an ollie prints the same numbers as the browser game (`simtest aircmp skate`). |
 | entities/boat.js, game/boats.js | `Gen/BoatModels` (identical to the JS: `Tools/dumpboats.mjs`, `boatstest.cpp`), `Sim/Boat`, `Sim/Boats`, `ATGCar` (the boats), `ATGWorld` (the pontoons), `Effects` (the wakes) | All of it: the hulls riding the swell (bigger in storms, smaller on the lake), planing, heeling into turns, running aground, burning and sinking, the bow gun; the marinas and their moored boats, the cruising routes, the harbour patrol and the police boats that ram and shoot when you're wanted at sea. A run prints the same numbers as the browser game (`simtest aircmp boat`). The wake's foam is drawn as soft strips at the shader's average cover rather than with its noise pattern. |
 | game/audio.js | `Sim/WebAudio` (a small Web Audio work-alike), `Sim/Audio`, `Game/ATGAudio` | All of it: every synthesised effect with the same envelopes, filters and sweeps, the panners, the reverb send, the world muffle on WASTED / BUSTED, the compressor, the player's engine, tyres, wind and horn, the aircraft engines, the sirens and the helicopter's rotor, the ambience, birds, crickets and thunder, and the three radio stations. Each effect's loudness every 50 ms comes within a few dB of the browser's own Web Audio rendering of audio.js (`Tools/audiotest.cpp` against `tools/browser-test/tests/audiocmp.mjs`). Three differences: the panner is the equal-power model (the browser game asks for HRTF), the 2.2 s convolution reverb is an algorithmic reverb with the same decay, and the WASTED stinger is the synthesised one (the browser plays a recording when it has one). |
+| entities/animals.js, game/wildlife.js | `Gen/AnimalModels`, `Sim/Animal`, `Sim/Wildlife`, `ATGAnimals` | The same breed models and procedural rigs; district mixes, group sizes, quality caps, valid-ground spawning, grazing, wandering, fleeing, bird flight and landing, walked dogs, cleanup, bullets, melee, blasts and roadkill. `simtest wildlife` checks behaviour; `animalcompare.mjs --check` compares 17 breeds' walk, run/flight and sit poses to the browser. Pets follow next. |
 | game/military.js | `Sim/Military` | All of it: the parked aircraft, tanks and trucks at Fern Creek Airfield, the hospital roof and Fort Carver streamed in within 1.1 km and respawned a while after they're taken or wrecked, their map icons, the garrison on its 15 posts and patrols, the restricted zone (the warning, eight seconds' grace, then the alert, three stars and soldiers opening fire), the lockdown lifted when the stars are gone. |
 | game/army.js | `Sim/Army` | All of it: at five stars Barracks trucks and Ranger jeeps that run you down and unload troops, the Warhawk gunship's autopilot (circling at 60 m, its minigun bursts and rockets), the Mammoth tank that holds back and shells you, holding fire near their own, the radio, the radar blips, pulling out below five stars and the clean-up. |
 | game/npccrime.js | `Sim/NpcCrime`, `ATGHUD` (stars over suspects, speech bubbles) | All of it: jaywalkers, reckless drivers, hit-and-runs, road rage, muggers and car thieves staged near you (more at night and in the rough districts), witnesses and phoned-in reports, stars on the culprit, dispatch, the responding unit (pull-overs, tickets, chases, tackles, the ride in the back) and the radar dots. |
@@ -64,7 +65,7 @@ pad, and plays its sounds.
 simulation layer (above): walking, getting in and out, driving, crashes and parked cars run there and are
 drawn by Unreal. Phases 2, 3, 3b and 4 are done: the living city, the action, the GTA V layer and every
 vehicle. From phase 6, the sound and the radio and the walk-in shops are done. Phase 5 (the missions and the
-rest of the features) has not started.
+rest of the features) has not started. Wildlife is done; pets are next.
 
 **Phase 1: the world and driving (done).**
 - World generation.
@@ -115,7 +116,7 @@ rest of the features) has not started.
 - Landmarks: the pier's rides, the Ferris wheel.
 - Chain-link fences, billboards, rain and puddles.
 - Audio and the radio stations. Done.
-- Wildlife and pets.
+- Wildlife. Done. Pets are next.
 - Multiplayer, likely with Unreal's own replication.
 
 ## Known gaps
@@ -125,8 +126,6 @@ rest of the features) has not started.
 - Billboards (and their colliders) are not built yet.
 - The people's material takes each part's roughness from humanoidMaterial, but not yet its fine fabric,
   hair and denim patterns, or the metalness of buckles and badges.
-- Motorbikes are left out of the traffic and the parked cars until bikes.js is ported (phase 4).
-- The radar and the map show blips as plain squares until the HUD is ported (phase 3b).
 - Online, the trains follow the host's timetable; that comes with multiplayer (phase 6).
 - The HUD uses the engine's default font, scaled up; the browser game's fonts (Anton for the shard) come
   with the phase 3b HUD.

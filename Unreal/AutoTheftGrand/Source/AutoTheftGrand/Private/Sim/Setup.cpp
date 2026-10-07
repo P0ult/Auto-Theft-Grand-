@@ -21,6 +21,7 @@
 #include "Skateparks.h"
 #include "Traffic.h"
 #include "WeaponWheel.h"
+#include "Wildlife.h"
 
 namespace atg {
 
@@ -47,7 +48,8 @@ void InstallSystems(Game& g) {
 	g.phone = g.addSystem("phone", std::make_unique<Phone>(g));
 	g.rail = g.addSystem("rail", std::make_unique<RailSystem>(g));
 	g.shops = g.addSystem("shops", std::make_unique<ShopSystem>(g));
-	// (wildlife, pets: later)
+	g.wildlife = g.addSystem("wildlife", std::make_unique<Wildlife>(g));
+	// (pets: next)
 	g.addSystem("skateparks", std::make_unique<Skateparks>(g));
 	g.addSystem("boats", std::make_unique<BoatSystem>(g));
 	// (shipRaid, missions: later)

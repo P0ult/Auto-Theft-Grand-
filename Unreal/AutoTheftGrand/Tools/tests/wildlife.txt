@@ -1,0 +1,29 @@
+# Animal models, flight and fleeing, plus ambient wildlife in town and the country.
+wait 1
+ATG.God 1
+ATG.Teleport -628 344 0
+ATG.Time 15
+ATG.Animals clear
+ATG.Animal deer 0 12
+ATG.Animal rabbit 2 9
+ATG.Animal cow -2 14
+ATG.Animal tabby 3 8
+ATG.Animal pigeon -2 7
+ATG.Animal seagull 2 12
+ATG.CamAt 6 2 18 0 0.8 10
+wait 0.2
+ATG.Animals
+shot wildlife_models
+ATG.Animals scare
+wait 0.8
+ATG.Animals
+shot wildlife_flee
+ATG.CamAt
+wait 5
+ATG.Animals
+shot wildlife_city
+ATG.Teleport -1500 -1100 0
+wait 6
+ATG.Animals
+shot wildlife_country
+quit

@@ -18,6 +18,7 @@
 #include "Sim/Roadblocks.h"
 #include "Sim/Rail.h"
 #include "Sim/Traffic.h"
+#include "Sim/Wildlife.h"
 
 #include "Engine/Engine.h"
 #include "Engine/World.h"
@@ -138,6 +139,26 @@ ATG_CMD(CmdAudio, "ATG.Audio", "ATG.Audio: log the sound's clock (seconds render
 	atg::Game* G = Sim(W);
 	if (!G || !G->audioSys || !G->audioSys->ctx) { UE_LOG(LogATG, Display, TEXT("ATG audio: off")); return; }
 	UE_LOG(LogATG, Display, TEXT("ATG audio: clock %.2f s, %d nodes, radio %s"), G->audioSys->clock(), (int32)G->audioSys->ctx->nodeCount(), UTF8_TO_TCHAR(G->audioSys->radioLabel().c_str()));
+})
+ATG_CMD(CmdAnimal, "ATG.Animal", "ATG.Animal breed [dx dz]: place an animal beside the player", {
+	atg::Game* G = Sim(W);
+	auto* S = G ? dynamic_cast<atg::Wildlife*>(G->wildlife) : nullptr;
+	if (!S || Args.IsEmpty()) return;
+	const std::string B = TCHAR_TO_UTF8(*Args[0]);
+	if (!atg::AnimalBreeds().count(B)) return;
+	const auto P = G->player->pos;
+	const double X = P.x + Arg(Args, 1, 0), Z = P.z + Arg(Args, 2, 8);
+	auto A = std::make_shared<atg::Animal>(*G, B, X, Z, true, G->collision->floorHeight(X, Z, P.y + 3), true, 0);
+	A->state = A->sp.bird ? "peck" : "graze"; S->list.push_back(A);
+})
+ATG_CMD(CmdAnimals, "ATG.Animals", "ATG.Animals [clear | scare]: log, clear or scare nearby wildlife", {
+	atg::Game* G = Sim(W);
+	auto* S = G ? dynamic_cast<atg::Wildlife*>(G->wildlife) : nullptr;
+	if (!S) return;
+	if (!Args.IsEmpty() && Args[0] == TEXT("clear")) S->clear();
+	if (!Args.IsEmpty() && Args[0] == TEXT("scare")) S->scare(G->player->pos, 90);
+	UE_LOG(LogATG, Display, TEXT("ATG animals: %d animals, %.1f ambient weight"), (int32)S->all().size(), S->count());
+	for (const auto* A : S->all()) UE_LOG(LogATG, Display, TEXT("ATG animal: %s %s at (%.2f, %.2f, %.2f) speed %.2f dead %d"), UTF8_TO_TCHAR(A->breed.c_str()), UTF8_TO_TCHAR(A->state.c_str()), A->pos.x, A->pos.y, A->pos.z, A->speed, A->dead);
 })
 ATG_CMD(CmdMenu, "ATG.Menu", "ATG.Menu [row | down | up | close]: press a shop menu's button, move its highlight or leave; then log the menu", {
 	atg::Game* G = Sim(W);

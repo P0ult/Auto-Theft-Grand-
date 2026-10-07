@@ -34,6 +34,7 @@ private:
 	UPROPERTY(Transient) TObjectPtr<class AATGPoliceView> PoliceView = nullptr;
 	UPROPERTY(Transient) TObjectPtr<class AATGPickups> PickupsView = nullptr;
 	UPROPERTY(Transient) TObjectPtr<class AATGAudio> Audio = nullptr;
+	UPROPERTY(Transient) TObjectPtr<class AATGAnimals> AnimalsView = nullptr;
 	bool bStarted = false;
 	void StartGame();
 	void Frame(double Dt);

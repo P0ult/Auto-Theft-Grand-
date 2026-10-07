@@ -10,6 +10,7 @@
 namespace atg {
 
 class CityMap;
+class Animal;
 
 struct GangDef { std::string id, name; uint32_t color; std::string district; bool friendly; std::vector<std::string> weapons; bool aggroOnly; double range; };
 const std::map<std::string, GangDef>& Gangs();
@@ -63,6 +64,7 @@ public:
 	std::shared_ptr<struct NpcCase> npcCase, npcTask;
 	int npcWanted = 0;                    // (the stars over their head)
 	bool shopClerk = false;
+	Ref<Animal> walkedDog;
 	double loot = 0, crimeClock = NaN();
 	bool hasNpcAim = false; double npcAimAccuracy = 0, npcAimDamageMul = 0; // (a cop's aim before a shoot-out)
 	bool criminal = false;                // (vigilante targets: killing them is no crime)

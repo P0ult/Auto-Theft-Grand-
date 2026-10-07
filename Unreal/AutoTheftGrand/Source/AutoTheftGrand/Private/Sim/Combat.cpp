@@ -5,6 +5,7 @@
 #include "Peds.h"
 #include "Police.h"
 #include "Ragdoll.h"
+#include "Animal.h"
 
 namespace atg {
 
@@ -91,7 +92,11 @@ bool Combat::raycast(double ox, double oy, double oz, double dx, double dy, doub
 	if (game.police && game.police->heliRay(ox, oy, oz, dx, dy, dz, has ? best.t : maxT, ht)) {
 		best = CombatHit(); best.t = ht; best.kind = CombatHit::Heli; best.normal = V3(-dx, -dy, -dz); has = true;
 	}
-	// (the animals join the ray with the wildlife)
+	if (game.wildlife) for (Animal* a : game.wildlife->all()) {
+		if (a->dead || a->removed) continue;
+		const double t = a->rayHit(ox, oy, oz, dx, dy, dz, has ? best.t : maxT);
+		if (t >= 0) { best = CombatHit(); best.t = t; best.kind = CombatHit::Animal_; best.animal = a; has = true; }
+	}
 	if (has) best.point = V3(ox + dx * best.t, oy + dy * best.t, oz + dz * best.t);
 	return has;
 }
@@ -158,6 +163,10 @@ void Combat::applyHit(const CombatHit& hit, const WeaponDef& defIn, Character* s
 			if (fx) fx->bloodPool(c->ragdolling && c->ragdoll ? V3(c->ragdoll->pos[0], 0, c->ragdoll->pos[2]) : c->pos);
 			game.events.kill.emit(shooter, c, def.id, hit.part);
 		}
+	} else if (hit.kind == CombatHit::Animal_) {
+		hit.animal->takeDamage(def.damage * (isPlayer ? 1 : 0.6), shooter, "bullet");
+		if (fx) fx->blood(hit.point, dir, 6);
+		game.soundAt("bulletflesh", hit.point, 0.5);
 	} else if (hit.kind == CombatHit::Vehicle_) {
 		Vehicle* v = hit.veh;
 		v->damage(def.damage * 0.9 * (IsSet(v->def.bulletMul) ? v->def.bulletMul : 1), shooter);
@@ -217,7 +226,14 @@ bool Combat::melee(Character* attacker, const std::string& act) {
 		hitAny = true;
 		if (!strong) break;
 	}
-	// (animals within reach: with the wildlife)
+	if (!hitAny && game.wildlife) for (Animal* a : game.wildlife->all()) {
+		if (a->dead || a->removed || a->inVehicle || (attacker->isPlayer && a->pet)) continue;
+		const double dx = a->pos.x - attacker->pos.x, dz = a->pos.z - attacker->pos.z, d = Hypot(dx, dz);
+		if (!(d <= range + 0.5) || (dx * fx + dz * fz) / (d ? d : 1) < 0.3) continue;
+		a->takeDamage(def.damage * (act == "kick" ? 1.6 : 1), attacker, "melee");
+		game.soundAt(def.id == "knife" ? "stab" : def.id == "bat" ? "bat" : "punch", a->pos, 0.8);
+		hitAny = true; break;
+	}
 	// hitting a car with a bat dents it
 	if (!hitAny && def.id == "bat") {
 		for (const auto& vp : game.vehicles.list) {
@@ -266,7 +282,11 @@ void Combat::explosion(const V3& pos, double radius, double damage, Character* s
 		if (c->ragdolling && c->ragdoll) c->ragdoll->push(0, imp.x, imp.y, imp.z);
 		if (c->dead && !wasDead) game.events.kill.emit(source, c, "explosion", "torso");
 	}
-	// (animals: with the wildlife)
+	if (game.wildlife) for (Animal* a : game.wildlife->all()) {
+		if (a->dead || a->removed || a->inVehicle) continue;
+		const double d = a->pos.distanceTo(pos);
+		if (d < radius) a->takeDamage(damage * (1 - d / radius) * 1.5, source, "explosion");
+	}
 	const std::vector<std::shared_ptr<Vehicle>> list = game.vehicles.list;
 	for (const auto& vp : list) {
 		Vehicle* v = vp.get();

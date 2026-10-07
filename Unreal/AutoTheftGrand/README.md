@@ -46,7 +46,10 @@ their timetable; board one at a platform with F, or climb into the cab and drive
 in the browser game: synthesised gunshots, explosions and crashes placed round you with a city reverb, the
 engine, tyres and wind of whatever you drive, aircraft engines, sirens, the helicopter's rotor, traffic, birds,
 crickets, waves, rain and thunder, and three generated radio stations (N or D-pad right changes station).
-Missions and the rest are still to come; [PORTING.md](PORTING.md) has the plan and the progress.
+Wildlife spawns by district: pigeons, gulls and crows, cats and stray dogs, deer, rabbits, coyotes and cows.
+They graze, peck and wander, flee the player and gunfire, and birds take off and land elsewhere. People walk
+their dogs. Bullets, melee, explosions and cars can kill animals. Pets, missions and the rest are still to
+come; [PORTING.md](PORTING.md) has the plan and the progress.
 
 ## Build and run
 
@@ -153,6 +156,8 @@ Source/AutoTheftGrand/Private/Game/   the Unreal side: draws the simulation and 
   ATGPoliceView     draws the police helicopter (body, rotors, the searchlight's cone and spot light) and the
                     roadblocks' spike strips
   ATGPickups        draws the pickups over their glow and the markers' glowing cylinders and arrows
+  ATGAnimals        draws the animal models with the simulation's legs, head, tail and wings; meshes are
+                    shared between animals of the same breed
   ATGPlayerController  keyboard, mouse and gamepad into the simulation's input; shows its camera
   ATGGameMode       runs the simulation each frame and keeps an actor for each of its vehicles and people
   ATGHUD            the HUD: the GTA V style minimap (turning with the camera, blips, police flashes and
@@ -209,6 +214,8 @@ DEBUG=1 ./native.sh simtestd.exe simtest.cpp                   # with symbols: a
 ./simtest.exe vehcompare > cppveh.txt                          # the car physics against the browser game's:
 node --import ./three-hook.mjs vehcompare.mjs > jsveh.txt      # identical to 4 decimals
 diff jsveh.txt cppveh.txt
+./simtest.exe wildlife                                       # spawning, fleeing, damage and walked dogs
+node --import ./three-hook.mjs animalcompare.mjs --check      # 17 breeds' rigs against animals.js
 ./simtest.exe aircmp heli > cpp_heli.txt                       # a run (plane, heli, tank, skate or boat) against the
 MODE=heli node ../../../tools/browser-test/run.mjs "http://localhost:8080/index.html?manual&autostart=free&q=low" \
   out ../../../tools/browser-test/tests/aircmp.mjs | grep -E '^[0-9.]+ x' > js_heli.txt   # browser game's: identical
@@ -217,6 +224,10 @@ MODE=heli node ../../../tools/browser-test/run.mjs "http://localhost:8080/index.
 The browser game gives the numbers the `city` and `rail` tests compare against (from the repository root,
 with `npm start` running): `node tools/browser-test/run.mjs "http://localhost:8080/index.html?manual&autostart=free&q=low" out/city tools/browser-test/tests/citycompare.mjs`.
 The trains match to the metre: both reach Fern Creek 110.7 s after leaving Union Station.
+
+`Tools/tests/wildlife.txt` checks animal rendering, fleeing and district populations in Unreal. Test commands:
+`ATG.Animal breed [dx dz]` spawns an animal, `ATG.Animals` logs nearby animals, and `ATG.Animals clear` or
+`ATG.Animals scare` clears or frightens ambient wildlife.
 
 ### Checking the generator without Unreal
 
