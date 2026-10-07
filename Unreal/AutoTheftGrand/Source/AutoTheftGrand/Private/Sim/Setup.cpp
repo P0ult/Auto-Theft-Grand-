@@ -8,6 +8,7 @@
 #include "Hud.h"
 #include "NpcCrime.h"
 #include "Peds.h"
+#include "Phone.h"
 #include "Pickups.h"
 #include "Police.h"
 #include "Rail.h"
@@ -36,7 +37,7 @@ void InstallSystems(Game& g) {
 	g.addSystem("heists", std::make_unique<Heists>(g));
 	g.wheel = g.addSystem("weaponWheel", std::make_unique<WeaponWheel>(g));
 	g.special = g.addSystem("special", std::make_unique<Special>(g));
-	// (phone: next)
+	g.phone = g.addSystem("phone", std::make_unique<Phone>(g));
 	g.rail = g.addSystem("rail", std::make_unique<RailSystem>(g));
 	// (shops, wildlife, pets, skateparks, boats, shipRaid, missions, audio: later)
 	g.gameplay = g.addSystem("gameplay", std::make_unique<Gameplay>(g));

@@ -42,6 +42,8 @@ public:
 	void setBar(const std::string* label, double v = 0, const std::string& color = "#e63946") override;
 	void moneyFlash(double amount) override;
 	void promptSave() override;
+	void openPause(const std::string& tab) override { pauseRequest = tab; }
+	std::string pauseRequest; // (the Unreal side opens the map and clears it)
 	void dispatch(const std::string& text, const std::string& where = "") override;
 	void interact(const std::string& text) override { interactText = text; }
 	void fade(double dur = 0.5, std::function<void()> mid = nullptr) override;

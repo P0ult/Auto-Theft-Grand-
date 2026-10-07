@@ -81,7 +81,9 @@ public:
 	Cheats cheats, cheatsOn;
 	bool freeRoam = false, missionActive = false;
 	bool freeroamActive() const { return freeRoam && !missionActive; }
-	bool phoneOpen = false;
+	bool phoneOpen = false, photoMode = false; // (the phone is out; Snapmatic: the HUD hides)
+	class Phone* phone = nullptr;
+	System* taxiSystem = nullptr; // (taxi.js: with the taxis)
 	bool weaponWheelOpen() const; // (the weapon wheel is up: no aiming or firing)
 	// the post-process uniforms the gameplay rules drive (WASTED / BUSTED): desaturation, the death tint, its
 	// night boost and the white flash

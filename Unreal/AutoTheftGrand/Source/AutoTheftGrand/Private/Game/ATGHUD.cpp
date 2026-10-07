@@ -95,6 +95,9 @@ void AATGHUD::DrawHUD() {
 	const double Px = Car ? Car->pos.x : Pl.pos.x, Pz = Car ? Car->pos.z : Pl.pos.z, Heading = Car ? Car->yaw : Pl.yaw;
 
 	if (PC->bMapOpen) { DrawBigMap(W, Px, Pz, Heading); return; }
+	// Snapmatic: nothing but the hint (body.photo-mode .hud, .phone { display: none })
+	if (G->photoMode) { DrawPhotoHint(Dt); return; }
+	PhotoT = 0;
 	// (WASTED / BUSTED: the HUD fades away over half a second)
 	const bool bDead = G->hudModel && G->hudModel->dead;
 	DeadAlpha = Approach(DeadAlpha, bDead ? 0.f : 1.f, 2.f, Dt);
@@ -107,13 +110,14 @@ void AATGHUD::DrawHUD() {
 	const float Right = Canvas->ClipX - 30 * Ui, Bottom = Canvas->ClipY;
 	if (atg::HudModel* M = G->hudModel) {
 		const bool bIn = Car != nullptr;
-		if (M->zone.t > 0) Text(Plain(M->zone.text), Right, Bottom - ((bIn ? 232 : 28) + 34) * Ui, Big, 1.45f * Ui, FLinearColor(1, 1, 1, FMath::Min(1.f, (float)M->zone.t * 3.f) * DeadAlpha), 1.f);
-		if (M->veh.t > 0) Text(Plain(M->veh.text), Right, Bottom - ((bIn ? 274 : 70) + 30) * Ui, Big, 1.25f * Ui, FLinearColor(FColor(0xff, 0xe0, 0x8a)).CopyWithNewOpacity(FMath::Min(1.f, (float)M->veh.t * 3.f) * DeadAlpha), 1.f);
+		if (M->zone.t > 0 && !G->phoneOpen) Text(Plain(M->zone.text), Right, Bottom - ((bIn ? 232 : 28) + 34) * Ui, Big, 1.45f * Ui, FLinearColor(1, 1, 1, FMath::Min(1.f, (float)M->zone.t * 3.f) * DeadAlpha), 1.f);
+		if (M->veh.t > 0 && !G->phoneOpen) Text(Plain(M->veh.text), Right, Bottom - ((bIn ? 274 : 70) + 30) * Ui, Big, 1.25f * Ui, FLinearColor(FColor(0xff, 0xe0, 0x8a)).CopyWithNewOpacity(FMath::Min(1.f, (float)M->veh.t * 3.f) * DeadAlpha), 1.f);
 	}
 
 	DrawSpeedo(G, Dt);
 	if (DeadAlpha > 0.5f && !G->weaponWheelOpen()) DrawCrosshair(G); // (body.wheel-open hides the crosshair)
 	DrawWheel(G, Dt);
+	DrawPhone(G, Dt);
 	if (PC->MessageTime > 0) Text(PC->Message, Canvas->ClipX / 2, 70 * Ui, Small, 1.5f * Ui, FLinearColor(Paper.R, Paper.G, Paper.B, FMath::Min(1.f, PC->MessageTime)), 0.5f);
 	DrawMessages(G, Dt);
 	DrawOverlays(G, Dt);

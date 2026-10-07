@@ -7,6 +7,7 @@
 #include "Sim/Game.h"
 #include "Sim/Hud.h"
 #include "Sim/Weapons.h"
+#include "Sim/Phone.h"
 #include "Sim/Special.h"
 #include "Sim/WeaponWheel.h"
 
@@ -377,6 +378,134 @@ void AATGHUD::DrawSpeedo(atg::Game* G, float Dt) {
 }
 
 // ------------------------------------------------------------------ crosshair and sniper scope (hud.js / CSS)
+// ------------------------------------------------------------------ the phone (phone.js, the .phone css)
+namespace {
+// cubic-bezier(.2, .8, .3, 1) at time x (the slide's easing)
+float Bezier(float x) {
+	auto B = [](float a, float b, float t) { const float u = 1 - t; return 3 * u * u * t * a + 3 * u * t * t * b + t * t * t; };
+	float lo = 0, hi = 1, t = x;
+	for (int i = 0; i < 24; i++) { t = (lo + hi) / 2; if (B(0.2f, 0.3f, t) < x) lo = t; else hi = t; }
+	return B(0.8f, 1.f, t);
+}
+// the app icons (the browser game's glyphs, drawn)
+void AppGlyph(FATGPainter& c, const std::string& name, float x, float y, float s) {
+	c.Fill = FLinearColor::White; c.Stroke = FLinearColor::White; c.LineWidth = 2;
+	if (name == "Contacts") { c.BeginPath(); c.RoundRect(x - s * 0.2f, y - s * 0.32f, s * 0.4f, s * 0.64f, s * 0.12f); c.FillPath(); }
+	else if (name == "Cheats") { for (int k = -1; k <= 1; k += 2) { c.BeginPath(); c.MoveTo(x + k * s * 0.12f - s * 0.05f, y - s * 0.3f); c.LineTo(x + k * s * 0.12f + s * 0.05f, y + s * 0.3f); c.StrokePath(); c.BeginPath(); c.MoveTo(x - s * 0.3f, y + k * s * 0.12f); c.LineTo(x + s * 0.3f, y + k * s * 0.12f); c.StrokePath(); } }
+	else if (name == "Snapmatic") { c.BeginPath(); c.Arc(x, y, s * 0.3f, 0, 2 * PI); c.StrokePath(); c.BeginPath(); c.Arc(x, y, s * 0.13f, 0, 2 * PI); c.FillPath(); }
+	else if (name == "Map") { c.BeginPath(); c.Arc(x, y, s * 0.24f, 0, 2 * PI); c.StrokePath(); c.BeginPath(); c.MoveTo(x, y - s * 0.36f); c.LineTo(x, y + s * 0.36f); c.StrokePath(); c.BeginPath(); c.MoveTo(x - s * 0.36f, y); c.LineTo(x + s * 0.36f, y); c.StrokePath(); }
+	else if (name == "Weather") { c.BeginPath(); c.Arc(x, y, s * 0.16f, 0, 2 * PI); c.FillPath(); for (int k = 0; k < 8; k++) { const float a = k * PI / 4; c.BeginPath(); c.MoveTo(x + FMath::Cos(a) * s * 0.24f, y + FMath::Sin(a) * s * 0.24f); c.LineTo(x + FMath::Cos(a) * s * 0.34f, y + FMath::Sin(a) * s * 0.34f); c.StrokePath(); } }
+	else { c.BeginPath(); c.Rect(x - s * 0.26f, y - s * 0.28f, s * 0.52f, s * 0.56f); c.StrokePath(); for (int k = 0; k < 3; k++) { c.BeginPath(); c.MoveTo(x - s * 0.16f, y - s * 0.12f + k * s * 0.13f); c.LineTo(x + s * 0.16f, y - s * 0.12f + k * s * 0.13f); c.StrokePath(); } }
+}
+}
+
+void AATGHUD::DrawPhone(atg::Game* G, float Dt) {
+	const atg::Phone* Ph = G->phone;
+	if (!Ph) return;
+	// transform: translateY(110%) hidden, translateY(-14px) shown, 0.22 s
+	PhoneT = FMath::Clamp(PhoneT + (Ph->open ? Dt : -Dt) / 0.22f, 0.f, 1.f);
+	if (PhoneT <= 0) { PhoneScroll = 0; return; }
+	const float K = Ph->open ? Bezier(PhoneT) : 1 - Bezier(1 - PhoneT);
+	const float W = Canvas->ClipX, H = Canvas->ClipY;
+	const float Pw = 250, Fh = 430;               // (css px)
+	FATGPainter c(Canvas);
+	c.Translate(W - 0.04f * W - Pw * Ui, H);
+	c.Scale(Ui, Ui);
+	c.Translate(0, -Fh + (1.1f * Fh) * (1 - K) - 14 * K);
+	UFont* Font = GEngine->GetSmallFont();
+	auto Txt = [&](const FString& S, float x, float y, float Px, const FLinearColor& Col, float Ax = 0.f, bool Bold = false) { c.Fill = Col; c.Text(S, x, y, Bold ? GEngine->GetMediumFont() : Font, Px * 1.2f, Ax, 0.f); };
+	// the frame: rings, the body gradient, the screen
+	c.Fill = FLinearColor(0, 0, 0, 0.25f); c.BeginPath(); c.RoundRect(-4, 10, Pw + 8, Fh + 18, 34); c.FillPath();
+	c.Fill = CssColor(0x0a0b0d); c.BeginPath(); c.RoundRect(-5, -5, Pw + 10, Fh + 10, 35); c.FillPath();
+	c.Fill = CssColor(0x3c414a); c.BeginPath(); c.RoundRect(-2, -2, Pw + 4, Fh + 4, 32); c.FillPath();
+	// (linear-gradient(160deg, #2b2f36, #121418 55%): rounded ends in the end colours, bands between)
+	c.Fill = CssColor(0x2b2f36); c.BeginPath(); c.RoundRect(0, 0, Pw, 60, 30); c.FillPath();
+	c.Fill = CssColor(0x121418); c.BeginPath(); c.RoundRect(0, Fh - 60, Pw, 60, 30); c.FillPath();
+	for (int i = 0; i < 12; i++) {
+		const float y0 = 30 + (Fh - 60) * i / 12.f, t = (y0 + (Fh - 60) / 24.f) / Fh;
+		c.Fill = FMath::Lerp(CssColor(0x2b2f36), CssColor(0x121418), FMath::Min(1.f, t / 0.55f));
+		c.FillRect(0, y0, Pw, (Fh - 60) / 12.f + 1);
+	}
+	const float Sx = 9, Sy = 12, Sw = Pw - 18, Sh = Fh - 24;
+	for (int i = 0; i < 16; i++) { // (radial-gradient #3a6ea8 -> #1f3f63 40% -> #0d1a2a, from the top left)
+		const float t = i / 15.f;
+		const FLinearColor A = t < 0.4f ? FMath::Lerp(CssColor(0x3a6ea8), CssColor(0x1f3f63), t / 0.4f) : FMath::Lerp(CssColor(0x1f3f63), CssColor(0x0d1a2a), (t - 0.4f) / 0.6f);
+		c.Fill = A;
+		const float y0 = Sy + Sh * i / 16.f, hh = Sh / 16.f + 1;
+		c.BeginPath();
+		if (i == 0) c.RoundRect(Sx, y0, Sw, hh + 20, 20); else if (i == 15) c.RoundRect(Sx, y0 - 20, Sw, hh + 20, 20); else c.Rect(Sx, y0, Sw, hh);
+		c.FillPath();
+	}
+	// status row
+	const FString Time = UTF8_TO_TCHAR(Ph->statusTime().c_str());
+	const FLinearColor Status = CssColor(0xe8eef6, 0.9f);
+	Txt(Time, 22, 18, 11, Status);
+	Txt(TEXT("iFruit"), Pw / 2, 18, 11, Status, 0.5f);
+	for (int k = 0; k < 4; k++) { c.Fill = k < 3 ? Status : CssColor(0xe8eef6, 0.35f); c.FillRect(Pw - 52 + k * 6, 22, 4, 9); }
+	c.Fill = Status; c.FillRect(Pw - 24, 23, 8, 8);
+	float Y = 38;
+	const bool Home = Ph->screen == "home";
+	if (!Home) {
+		static const std::map<std::string, const TCHAR*> Titles = { { "contacts", TEXT("Contacts") }, { "cheats", TEXT("Cheats") }, { "weather", TEXT("Weather") }, { "stats", TEXT("Stats") } };
+		auto it = Titles.find(Ph->screen);
+		c.Fill = FLinearColor(0, 0, 0, 0.35f); c.BeginPath(); c.RoundRect(18, Y, Pw - 36, 30, 6); c.FillPath();
+		Txt(it != Titles.end() ? it->second : TEXT(""), 26, Y + 6, 15, FLinearColor::White, 0.f, true);
+		Y += 36;
+	}
+	const float BodyTop = Y, BodyBot = Fh - 14 - 30;
+	if (Home) {
+		Txt(Time, Pw / 2, Y + 14, 40, FLinearColor::White, 0.5f);
+		Txt(UTF8_TO_TCHAR(([&]() { long long v = (long long)std::floor(G->player->money + 0.5); std::string s = std::to_string(v < 0 ? -v : v), o; for (size_t i = 0; i < s.size(); i++) { if (i && (s.size() - i) % 3 == 0) o += ','; o += s[i]; } return std::string("$") + (v < 0 ? "-" : "") + o; })().c_str()), Pw / 2, Y + 66, 13, CssColor(0xb9f5c4), 0.5f);
+		Y += 98;
+		const float Cw = (Pw - 24 - 12) / 3;
+		for (int i = 0; i < (int)Ph->items.size(); i++) {
+			const auto& It = Ph->items[i];
+			const float x = 18 + (i % 3) * (Cw + 6), y = Y + (i / 3) * (70 + 12);
+			if (i == Ph->sel) { c.Fill = FLinearColor(1, 1, 1, 0.18f); c.BeginPath(); c.RoundRect(x, y, Cw, 70, 10); c.FillPath(); c.Stroke = FLinearColor(1, 1, 1, 0.85f); c.LineWidth = 2; c.StrokePath(); }
+			const float ix = x + Cw / 2, iy = y + 6 + 22;
+			c.Fill = CssColor(It.color); c.BeginPath(); c.RoundRect(ix - 22, iy - 22, 44, 44, 12); c.FillPath();
+			c.Fill = FLinearColor(0, 0, 0, 0.2f); c.FillRect(ix - 16, iy + 19, 32, 3);
+			AppGlyph(c, It.name, ix, iy, 44);
+			Txt(UTF8_TO_TCHAR(It.name.c_str()), ix, iy + 26, 10.5f, CssColor(0xe7edf5), 0.5f);
+		}
+	} else {
+		// a list that scrolls to keep the highlighted row in view (scrollIntoView, block: nearest)
+		const float RowH = 46, Gap = 4;
+		const float SelTop = Ph->sel * (RowH + Gap), View = BodyBot - BodyTop;
+		if (SelTop - PhoneScroll < 0) PhoneScroll = SelTop;
+		if (SelTop + RowH - PhoneScroll > View) PhoneScroll = SelTop + RowH - View;
+		for (int i = 0; i < (int)Ph->items.size(); i++) {
+			const auto& It = Ph->items[i];
+			const float y = BodyTop + i * (RowH + Gap) - PhoneScroll;
+			if (y < BodyTop - 1 || y + RowH > BodyBot + 1) continue;
+			const bool On = i == Ph->sel;
+			c.Fill = On ? CssColor(0xf2f4f7) : FLinearColor(0, 0, 0, 0.32f); c.BeginPath(); c.RoundRect(18, y, Pw - 36, RowH, 6); c.FillPath();
+			Txt(UTF8_TO_TCHAR(It.name.c_str()), 28, y + 7, 13.5f, On ? CssColor(0x11161d) : CssColor(0xeef3f9), 0.f, true);
+			if (!It.sub.empty()) Txt(UTF8_TO_TCHAR(It.sub.c_str()), 28, y + 26, 11, On ? CssColor(0x4b5768) : CssColor(0xb5c2d3));
+		}
+	}
+	// the foot (the browser game's key glyphs as words)
+	const FLinearColor Foot = CssColor(0xc9d3df);
+	if (G->input.lastDevice == "gamepad") { Txt(TEXT("A Select"), Pw * 0.33f, Fh - 34, 10.5f, Foot, 0.5f); Txt(TEXT("B Back"), Pw * 0.67f, Fh - 34, 10.5f, Foot, 0.5f); }
+	else { Txt(TEXT("Enter Select"), Pw * 0.22f, Fh - 34, 10.5f, Foot, 0.5f); Txt(TEXT("Bksp Back"), Pw * 0.5f, Fh - 34, 10.5f, Foot, 0.5f); Txt(TEXT("I Close"), Pw * 0.78f, Fh - 34, 10.5f, Foot, 0.5f); }
+}
+
+// Snapmatic: the HUD hides; the hint shows for 2.8 s, then fades by 4 s (@keyframes photoHint)
+void AATGHUD::DrawPhotoHint(float Dt) {
+	PhotoT += Dt;
+	const float A = PhotoT < 2.8f ? 1.f : FMath::Max(0.f, 1 - (PhotoT - 2.8f) / 1.2f);
+	if (A <= 0) return;
+	FATGPainter c(Canvas);
+	c.Alpha = A;
+	UFont* Font = GEngine->GetSmallFont();
+	const FString S = TEXT("Snapmatic \x00B7 HUD hidden for photos \x00B7 press I or Backspace to put the camera away");
+	float Tw = 0, Th = 0; Canvas->TextSize(Font, S, Tw, Th);
+	const float Fs = 13 * 1.2f * Ui, Kf = Th > 0 ? Fs / Th : 1, Bw = Tw * Kf + 28 * Ui, Bh = Fs + 16 * Ui;
+	const float X = Canvas->ClipX / 2 - Bw / 2, Y = Canvas->ClipY - 24 * Ui - Bh;
+	c.Fill = FLinearColor(0, 0, 0, 0.55f); c.BeginPath(); c.RoundRect(X, Y, Bw, Bh, 4 * Ui); c.FillPath();
+	c.Fill = CssColor(0xdfe6ee); c.Text(S, Canvas->ClipX / 2, Y + Bh / 2, Font, Fs, 0.5f, 0.5f);
+}
+
 // ------------------------------------------------------------------ the weapon wheel (weaponwheel.js _draw)
 void AATGHUD::DrawWheel(atg::Game* G, float Dt) {
 	const atg::WeaponWheel* WW = G->wheel;

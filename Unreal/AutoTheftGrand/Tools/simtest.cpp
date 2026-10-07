@@ -8,6 +8,7 @@
 #include "Sim/NpcCrime.h"
 #include "Sim/Hud.h"
 #include "Sim/Peds.h"
+#include "Sim/Phone.h"
 #include "Sim/Pickups.h"
 #include "Sim/Police.h"
 #include "Sim/Rail.h"
@@ -706,6 +707,53 @@ static void TestHeists(World& w) {
 	Check(hs->robbed == 1 && p.money - m0 >= 3000 && g->hudModel->big.text == "ARMORED VAN ROBBED", "grabbing the bags robs the van");
 }
 
+// the phone: I takes it out; the arrows and Enter work the apps; a cheat code raises the wanted level, another
+// makes you invincible for five minutes; Lester clears the stars for $500 a star
+static void TestPhone(World& w) {
+	printf("phone\n");
+	auto g = w.game(true);
+	ToStreet(w, *g);
+	Player& p = *g->player;
+	Phone* ph = g->phone;
+	auto tap = [&](const char* k) { g->input.KeyDown(k); g->frame(1.0 / 30); g->input.KeyUp(k); g->frame(1.0 / 30); };
+	tap("KeyI");
+	Check(ph->open && ph->screen == "home" && ph->items.size() == 6 && g->phoneOpen, "I takes it out on the home screen");
+	const V3 p0 = p.pos;
+	tap("ArrowRight");
+	Check(ph->sel == 1, "the arrows move round the apps");
+	Check(Hypot(p.pos.x - p0.x, p.pos.z - p0.z) < 0.5, "the arrows don't move you");
+	tap("Enter");
+	Check(ph->screen == "cheats" && ph->items.size() == 15, "Enter opens Cheats");
+	for (int i = 0; i < 4; i++) tap("ArrowDown");
+	printf("  selected %s\n", ph->items[ph->sel].name.c_str());
+	tap("Enter");
+	printf("  wanted %d, phone open %d\n", g->police->wantedLevel(), ph->open ? 1 : 0);
+	Check(g->police->wantedLevel() == 1 && !ph->open, "FUGITIVE raises the wanted level and puts the phone away");
+	ph->cheat("PAINKILLER");
+	g->frame(1.0 / 30);
+	Check(g->cheatsOn.god && p.invincible, "PAINKILLER: invincible");
+	ph->timed["god"] = g->time + 0.5;
+	Run(*g, 1);
+	Check(!g->cheatsOn.god && !p.invincible, "and it wears off");
+	// Lester
+	p.money = 2000;
+	tap("KeyI"); tap("Enter");
+	Check(ph->screen == "contacts" && ph->items.size() == 4, "Contacts");
+	tap("ArrowDown"); tap("ArrowDown");
+	printf("  %s: %s\n", ph->items[ph->sel].name.c_str(), ph->items[ph->sel].sub.c_str());
+	tap("Enter");
+	Run(*g, 2);
+	printf("  after the call: money %.0f, wanted %d\n", p.money, g->police->wantedLevel());
+	Check(p.money == 1500, "Lester takes $500");
+	Run(*g, 5.5);
+	Check(g->police->wantedLevel() == 0, "and the stars go five seconds later");
+	// Benny delivers a car
+	tap("KeyI"); tap("Enter"); tap("ArrowDown"); tap("Enter");
+	Run(*g, 8);
+	printf("  Benny: delivered %s, money %.0f\n", ph->delivered.get() ? ph->delivered->def.id.c_str() : "nothing", p.money);
+	Check(ph->delivered.get() && ph->delivered->ownedByPlayer && p.money == 1300, "Benny leaves a car at the kerb for $200");
+}
+
 int main(int argc, char** argv) {
 	InstallCrashTrace();
 	setvbuf(stdout, nullptr, _IONBF, 0);
@@ -732,6 +780,7 @@ int main(int argc, char** argv) {
 	if (want("wheel")) TestWheel(w);
 	if (want("special")) TestSpecial(w);
 	if (want("heists")) TestHeists(w);
+	if (want("phone")) TestPhone(w);
 	printf(fails ? "%d FAILED\n" : "all passed\n", fails);
 	return fails ? 1 : 0;
 }

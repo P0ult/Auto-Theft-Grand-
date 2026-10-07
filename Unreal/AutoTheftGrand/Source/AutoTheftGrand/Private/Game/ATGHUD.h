@@ -35,6 +35,9 @@ private:
 	void DrawSpeedo(atg::Game* G, float Dt);
 	void DrawCrosshair(atg::Game* G);
 	void DrawWheel(atg::Game* G, float Dt);
+	void DrawPhone(atg::Game* G, float Dt);
+	void DrawPhotoHint(float Dt);
+	float PhoneT = 0, PhoneScroll = 0, PhotoT = 0;
 	float WheelAlpha = 0;
 	double SpeedoNeedle = 0; float SpeedoAlpha = 0;
 	void DrawMessages(atg::Game* G, float Dt);

@@ -1,0 +1,30 @@
+# The phone: I takes it out (home screen), the arrows and Enter open Contacts; then the Cheats list scrolled down.
+wait 1
+ATG.God 1
+ATG.Teleport -612 376 -2.36
+wait 1
+ATG.Press KeyI
+wait 0.1
+ATG.Release
+wait 0.5
+shot phone_home
+ATG.Press Enter
+wait 0.1
+ATG.Release
+wait 0.3
+shot phone_contacts
+ATG.Press Backspace
+wait 0.1
+ATG.Release
+ATG.Press ArrowRight
+wait 0.1
+ATG.Release
+ATG.Press Enter
+wait 0.1
+ATG.Release
+ATG.Press ArrowUp
+wait 0.1
+ATG.Release
+wait 0.3
+shot phone_cheats
+quit

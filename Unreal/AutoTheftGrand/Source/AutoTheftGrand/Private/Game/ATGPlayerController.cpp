@@ -2,6 +2,7 @@
 #include "Game/ATGCoords.h"
 #include "Game/ATGWorld.h"
 #include "Sim/Game.h"
+#include "Sim/Hud.h"
 
 #include "Engine/World.h"
 #include "InputCoreTypes.h"
@@ -77,6 +78,8 @@ void AATGPlayerController::PlayerTick(float Dt) {
 	// pause and the map (the HUD's keys in the browser game)
 	if (WasInputKeyJustPressed(EKeys::Escape) || WasInputKeyJustPressed(EKeys::P) || WasInputKeyJustPressed(EKeys::Gamepad_Special_Right)) G->paused = !G->paused;
 	if (WasInputKeyJustPressed(EKeys::M) || WasInputKeyJustPressed(EKeys::Gamepad_DPad_Down)) bMapOpen = !bMapOpen;
+	// the phone's Map app (hud.openPause('map'))
+	if (G->hudModel && !G->hudModel->pauseRequest.empty()) { G->hudModel->pauseRequest.clear(); bMapOpen = true; }
 }
 
 void AATGPlayerController::FeedInput(atg::Game& G, double Dt) {
