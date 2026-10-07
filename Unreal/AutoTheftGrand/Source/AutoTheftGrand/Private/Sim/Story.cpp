@@ -287,6 +287,7 @@ std::vector<MissionDef> BuildStory() {
 	AddChapterFour(story);
 	AddChapterFive(story);
 	AddChapterSix(story);
+	AddChapterSeven(story);
 	return story;
 }
 } // namespace atg

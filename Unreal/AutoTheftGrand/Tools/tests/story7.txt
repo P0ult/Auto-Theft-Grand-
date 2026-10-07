@@ -1,0 +1,46 @@
+# Chapter VII: the drive north and the Gull Bay ambush, the skateboard drops, the smuggling boat, the cathedral
+# siege and the arena strongroom.
+wait 1
+ATG.God 1
+ATG.StoryStart northstar unlock
+wait 16
+repeat 5 1 ATG.StoryAdvance
+wait 5
+shot story7_ambush
+repeat 20 1 ATG.StoryAdvance
+wait 14
+ATG.Missions
+shot story7_nina
+ATG.StoryStart boardmeeting unlock
+wait 20
+ATG.StoryAdvance
+wait 1
+shot story7_board
+repeat 14 1 ATG.StoryAdvance
+wait 5
+ATG.Missions
+ATG.StoryStart lowtide unlock
+wait 16
+ATG.StoryAdvance
+wait 3
+shot story7_boat
+repeat 8 1 ATG.StoryAdvance
+wait 5
+ATG.Missions
+ATG.StoryStart sanctuary unlock
+wait 14
+wait 2
+shot story7_cathedral
+repeat 14 1 ATG.StoryAdvance
+wait 6
+ATG.Missions
+ATG.StoryStart boxoffice unlock
+wait 16
+repeat 3 1 ATG.StoryAdvance
+wait 2
+shot story7_strongroom
+repeat 16 1 ATG.StoryAdvance
+wait 8
+ATG.Missions
+shot story7_chapter8
+quit

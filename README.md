@@ -32,8 +32,8 @@ generates the same world from the same seed. The living city, combat, police, ve
 ported. Wildlife spawns by district, wanders, grazes and flees, including birds taking flight and people
 walking dogs. Pet Palace sells dogs and cats that follow you, ride in cars and obey K; dogs defend you.
 The rest is being ported in phases ([plan](Unreal/AutoTheftGrand/PORTING.md)).
-The mission engine and the twenty-six missions in Chapters I–VI are ported, including their dialogue, cutscenes, objectives,
-timers, GPS, credits, flying checkpoints and rewards. Launch Unreal with `-ATGStory` to start Welcome Home. The other nine missions and
+The mission engine and the thirty-one missions in Chapters I–VII are ported, including their dialogue, cutscenes, objectives,
+timers, GPS, credits, flying checkpoints and rewards. Launch Unreal with `-ATGStory` to start Welcome Home. The other four missions and
 remaining features are still being ported.
 
 ## Controls

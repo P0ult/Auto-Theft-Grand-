@@ -1520,9 +1520,9 @@ static void TestMissions(World& w) {
 }
 
 static void TestStory(World& w) {
-	printf("story: Chapters I-VI\n");
+	printf("story: Chapters I-VII\n");
 	const auto definitions = BuildStory();
-	Check(definitions.size() == 26, "twenty-six Chapter I-VI missions in browser order");
+	Check(definitions.size() == 31, "thirty-one Chapter I-VII missions in browser order");
 	for (const auto& def : definitions) {
 		auto g = w.game(true); g->disableAmbient = true; g->player->invincible = true;
 		Missions& e = *g->missions; Player& p = *g->player;

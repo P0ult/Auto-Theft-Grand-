@@ -65,7 +65,10 @@ Chapter V adds Paper Trail, Deacon's Tower and Grand Finale, including the rooft
 the pier showdown and the 40-second credits roll (dismissible with a click, Space or A/B). Credits close
 automatically after 42 real seconds. Chapter VI adds Fare Game, Sol Line Express, Dust Off and Seco Sunrise:
 a cab pickup and escape, the held train and Fern Creek ambush, six low-flight checkpoint rings, and the
-Warhawk raid on the cartel trucks and El Seco. The other nine missions are still to come;
+Warhawk raid on the cartel trucks and El Seco. Chapter VII goes north to San Aurelio: North Star, Board
+Meeting, Low Tide, Sanctuary and Box Office (the Gull Bay ambush, Kiko's skateboard drops against a clock that
+clean tricks stretch, the smuggling boat at dusk, three waves at the cathedral and the drive to Timberline, and
+the arena strongroom). The other four missions (Chapter VIII) are still to come;
 [PORTING.md](PORTING.md) has the plan and the progress.
 
 ## Build and run
@@ -98,7 +101,7 @@ To start the story from PowerShell, add `-ATGStory` to the game launch:
 ```
 
 The game opens with Welcome Home. After each mission, yellow contact letters show the next ones. Chapter VI
-ends after Seco Sunrise; the San Aurelio chapters have not been ported yet. Without `-ATGStory`, the game starts at the safehouse
+ends after Box Office; Chapter VIII has not been ported yet. Without `-ATGStory`, the game starts at the safehouse
 as before. Save/load and the title screen are still pending.
 
 ### Graphics
@@ -245,7 +248,7 @@ diff jsveh.txt cppveh.txt
 ./simtest.exe wildlife                                       # spawning, fleeing, damage and walked dogs
 ./simtest.exe pets                                           # adoption, commands, bites, rides and treats
 ./simtest.exe missions                                       # mission lifecycle, waits, failure and routes
-./simtest.exe story                                          # Chapters I-VI and their failure rules
+./simtest.exe story                                          # Chapters I-VII and their failure rules
 node --import ./three-hook.mjs storycompare.mjs               # story metadata against story.js
 node --import ./three-hook.mjs animalcompare.mjs --check      # 17 breeds' rigs against animals.js
 ./simtest.exe aircmp heli > cpp_heli.txt                       # a run (plane, heli, tank, skate or boat) against the
@@ -278,7 +281,7 @@ hospital sequence. Scripts can use `repeat count interval command` to repeat obj
 checks without interrupting the simulation.
 `Tools/tests/story4.txt` checks Chapter IV's truck delivery, timed stunt run, gang crews and Salazar encounter.
 `Tools/tests/story5.txt` checks the files, rooftop transition, finale, credits and return to the world.
-`Tools/tests/story6.txt` checks Chapter VI and the airborne rings. Native tests also check the rings'
+`Tools/tests/story6.txt` checks Chapter VI and the airborne rings; `Tools/tests/story7.txt` Chapter VII. Native tests also check the rings'
 radius x 1.15 hit threshold and cleanup after completion and cancellation.
 
 ### Checking the generator without Unreal
