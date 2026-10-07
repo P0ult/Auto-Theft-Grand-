@@ -13,6 +13,7 @@ namespace atg {
 class Game;
 class Ped;
 class Marker;
+class Animal;
 
 struct ClerkDef {
 	std::vector<std::string> greet, threat;
@@ -35,6 +36,7 @@ public:
 		double respawnAt = 0, t = 0, robbedAt = -1e9;
 		bool greeted = false;
 		Marker* marker = nullptr;
+		std::vector<std::shared_ptr<Animal>> pets;
 	};
 	std::vector<Shop> shops;
 
@@ -47,6 +49,7 @@ public:
 
 private:
 	Ped* spawnClerk(Shop& s);
+	void stockKennels(Shop& s);
 	void think(Shop& s, double dt);
 	bool threatened(Ped* c);
 };

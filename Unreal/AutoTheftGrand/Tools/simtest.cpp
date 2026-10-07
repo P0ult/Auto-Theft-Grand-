@@ -14,6 +14,7 @@
 #include "Sim/NpcCrime.h"
 #include "Sim/Hud.h"
 #include "Sim/Peds.h"
+#include "Sim/Pets.h"
 #include "Sim/Phone.h"
 #include "Sim/Pickups.h"
 #include "Sim/Police.h"
@@ -1357,6 +1358,81 @@ static void TestWildlife(World& w) {
 }
 
 // Compare every breed's rig to animals.js at the same explicit speed, phase and clock.
+static void TestPets(World& w) {
+	printf("pets\n");
+	auto g = w.game(true); g->disableAmbient = true;
+	ToStreet(w, *g); Player& p = *g->player;
+	PetSystem& s = *g->pets;
+	int adopted = 0; g->events.petAdopted.on([&](Animal*) { adopted++; });
+	Check(s.adopt("missing") == nullptr, "unknown breeds are rejected");
+	Animal* a = s.adopt("lab", "Buddy");
+	Check(a && a->pet && a->owner == &p && a->petName == "Buddy" && adopted == 1, "adoption creates a named pet and emits the event");
+	Check(a->maxHealth == AnimalSpeciesTable().at("dog").hp * 3, "pets have triple health");
+	a->pos = p.pos + V3(0, 0, -12); const V3 start = a->pos;
+	Run(*g, 2);
+	Check(a->pos.distanceTo(start) > 3 && a->state == "follow", "the pet catches up");
+	a->pos = p.pos + V3(a->id % 2 ? 0.9 : -0.9, 0, -1.5); a->speed = 0;
+	Run(*g, 3);
+	Check(a->state == "sit" && a->sitK > 0.5, "it sits when the owner stops");
+	g->input.KeyDown("KeyK"); g->frame(1.0 / 30); g->input.KeyUp("KeyK");
+	Check(s.stay, "K tells it to stay");
+	const V3 st = a->pos; p.pos.z += 10; Run(*g, 1);
+	Check(a->pos.distanceTo(st) < 0.05, "stay keeps it put");
+	s.command(); Check(!s.stay, "another whistle calls it back");
+	a->pos = p.pos + V3(1, 0, -1);
+	Vehicle* v = g->vehicles.spawn("kestrel", p.pos.x + 3, p.pos.z, 0);
+	g->vehicles.seatNow(&p, v, 0);
+	Check(a->inVehicle == v && v->petSeat == 1 && !v->occupants[1], "it rides in a free passenger seat");
+	const auto ride = a->rootMatrix().position();
+	Check(ride.distanceTo(v->seatWorld(1)) < 1, "its pose follows the car's seat");
+	g->vehicles.exit(&p); Run(*g, 1);
+	Check(!a->inVehicle && v->petSeat == -1, "it gets out alongside the car");
+	a->pos = p.pos + V3(1, 0, -1); Vehicle* bike = g->vehicles.spawn("razor", p.pos.x + 3, p.pos.z, 0);
+	g->vehicles.seatNow(&p, bike, 0);
+	Check(!a->inVehicle, "pets run alongside bikes");
+	g->vehicles.exit(&p); Run(*g, 0.5);
+	PedOpts o; o.brain = "script"; o.persistent = true;
+	Ped* enemy = g->peds->spawnPed(p.pos.x, p.pos.z + 6, o);
+	DamageInfo hurt; hurt.source = enemy; hurt.type = "bullet"; p.takeDamage(1, hurt);
+	a->pos = enemy->pos + V3(0, 0, -0.8); s.update(1.0 / 30);
+	Check(s.target == enemy && enemy->health < enemy->maxHealth && enemy->lastAnimalDamager == a, "dogs attack whoever hurt the owner; bites keep their animal source");
+	s.target = nullptr; p.lastHitTime = -99; p.aiming = true;
+	enemy->recoverFrom(); enemy->setPosition(p.pos.x, p.pos.y, p.pos.z + 10); enemy->update(0);
+	g->rig.camPos = p.pos + V3(0, 1.2, -3);
+	g->rig.setCinematic(p.pos + V3(0, 1.2, -3), enemy->chestPos(), 50);
+	g->rig.update(0, nullptr, p);
+	s.command(); Check(s.target == enemy, "aiming and whistling sends the dog at the target");
+	p.aiming = false; enemy->removed = true; s.update(1.0 / 30);
+	Check(!s.target, "removed targets are dropped");
+	a->pos.x += 1000; s.update(1.0 / 30);
+	Check(a->pos.distanceTo(p.pos) < 5, "a far-behind pet catches up on valid ground");
+	const auto net = s.netState(); s.poseRemote("friend", net, 1.0 / 30);
+	Check(net.size() == 7 && s.remote.count("friend"), "the pet has a compact state and a remote pose");
+	s.poseRemote("friend", { 0, NaN(), 0, 0, 0, 0, 0 }, 1.0 / 30);
+	Check(!s.remote.count("friend"), "invalid remote states remove the stand-in");
+	auto old = s.pet; s.adopt("tabby", "Cleo");
+	Check(old->removed && s.info.name == "Cleo", "adopting replaces the previous pet");
+	const InteriorShell* it = nullptr;
+	for (const auto& room : g->map.interiors) if (room.key == "petshop") it = &room;
+	g->respawnPlayer(it->door.x, it->door.z, it->YawIn()); Run(*g, 0.1);
+	auto* shop = g->shops->shopAt(it->center.x, it->center.z);
+	Check(shop && shop->pets.size() == 6, "Pet Palace's pens contain their dogs and cats");
+	p.money = 5000; g->shops->serve(*shop);
+	Check(g->hudModel->menu.kind == "store" && g->hudModel->menu.rows[0].enabled, "the pet menu offers adoption");
+	g->hudModel->menuPress(0);
+	Check(s.info.breed == "lab" && p.money == 3800, "buying a Labrador charges its browser price");
+	s.pet->health = 1; g->hudModel->menuPress(9);
+	Check(s.pet->health == s.pet->maxHealth && p.money == 3785, "pet treats heal for $15");
+	g->hudModel->closeOverlay();
+	s.pet->die(); Run(*g, 26);
+	Check(!s.pet && s.info.breed.empty(), "a dead pet is mourned and removed after 25 seconds");
+	s.adopt("husky", "Blue"); s.pet->pos = p.pos;
+	Vehicle* doomed = g->vehicles.spawn("kestrel", p.pos.x + 1, p.pos.z, 0);
+	s.board(doomed); doomed->exploded = true; s.update(1.0 / 30);
+	Check(s.pet->dead && !s.pet->inVehicle && doomed->petSeat == -1, "a car explosion kills a riding pet and clears its seat");
+	s.release(); Check(!s.pet && s.info.name.empty(), "release clears the pet");
+}
+
 static void AnimalCompare(World& w) {
 	auto g = w.game();
 	for (const auto& breed : AnimalBreedOrder()) {
@@ -1407,6 +1483,7 @@ int main(int argc, char** argv) {
 	if (want("boats")) TestBoats(w);
 	if (want("shops")) TestShops(w);
 	if (want("wildlife")) TestWildlife(w);
+	if (want("pets")) TestPets(w);
 	printf(fails ? "%d FAILED\n" : "all passed\n", fails);
 	return fails ? 1 : 0;
 }

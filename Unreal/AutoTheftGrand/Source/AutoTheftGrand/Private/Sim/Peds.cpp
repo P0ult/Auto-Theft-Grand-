@@ -1,4 +1,5 @@
 #include "Peds.h"
+#include "Animal.h"
 #include "Collision.h"
 #include "Game.h"
 
@@ -180,7 +181,7 @@ void Ped::wander(double dt) {
 
 void Ped::flee(double dt) {
 	Character* t = threat.get();
-	V3 tp = t && t != this ? (t->vehicle ? t->vehicle->pos : t->pos) : threatPos;
+	V3 tp = t && t != this ? (t->vehicle ? t->vehicle->pos : t->pos) : threatAnimal ? threatAnimal->pos : threatPos;
 	if (!Finite(tp.x) || !Finite(tp.z)) { threat = nullptr; tp = threatPos; }
 	double dx = pos.x - tp.x, dz = pos.z - tp.z;
 	if (!Finite(dx) || !Finite(dz)) { dx = std::sin(yaw); dz = std::cos(yaw); }
@@ -202,17 +203,19 @@ void Ped::flee(double dt) {
 
 void Ped::attack(double dt) {
 	Character* t = threat.get();
-	if (!t || t == this || t->dead || t->removed) { threat = nullptr; node = -1; setState(!gang.empty() ? "guard" : "wander"); return; }
-	const V3 tp = t->vehicle ? t->vehicle->pos : t->pos;
+	Animal* a = t ? nullptr : threatAnimal.get();
+	if ((!t && !a) || (t && (t == this || t->dead || t->removed)) || (a && (a->dead || a->removed))) { threat = nullptr; threatAnimal = nullptr; node = -1; setState(!gang.empty() ? "guard" : "wander"); return; }
+	Vehicle* tv = t ? t->vehicle : a->inVehicle.get();
+	const V3 tp = tv ? tv->pos : t ? t->pos : a->pos;
 	const double dx = tp.x - pos.x, dz = tp.z - pos.z;
 	const double d = Hypot(dx, dz);
 	const double grange = !gang.empty() ? Gangs().at(gang).range : 0;
-	if (!(d <= Max(60, grange + 25)) || d < 1e-3) { threat = nullptr; setState(!gang.empty() ? "guard" : "wander"); return; }
+	if (!(d <= Max(60, grange + 25)) || d < 1e-3) { threat = nullptr; threatAnimal = nullptr; setState(!gang.empty() ? "guard" : "wander"); return; }
 	const WeaponDef& def = weaponDef();
 	if (def.type == "gun") {
 		aiming = true;
 		faceTowards(tp.x, tp.z, dt, 12);
-		const double aimY = (t->vehicle ? tp.y + 1.0 : tp.y + 1.3) - (pos.y + 1.45);
+		const double aimY = (tv ? tp.y + 1.0 : tp.y + 1.3) - (pos.y + 1.45);
 		aimPitch = std::atan2(aimY, d);
 		hasAimDir = true;
 		aimDir = V3(dx / d * std::cos(aimPitch), std::sin(aimPitch), dz / d * std::cos(aimPitch));
@@ -230,8 +233,9 @@ void Ped::attack(double dt) {
 				w.clip--;
 				fireTimer = def.rate * (def.automatic ? 1.2 : 2.5) + Rand(0, 0.35) + (def.automatic && Rand() < 0.15 ? 0.8 : 0);
 				const V3 muzzle = muzzleWorld();
-				V3 dir = (V3(tp.x, tp.y + (t->vehicle ? 0.9 : 1.2), tp.z) - muzzle).normalized();
-				const double inacc = (1 - accuracy) * 0.12 + (Hypot(t->vel.x, t->vel.z) > 4 ? 0.05 : 0);
+				V3 dir = (V3(tp.x, tp.y + (tv ? 0.9 : 1.2), tp.z) - muzzle).normalized();
+				const V3 targetVel = t ? t->vel : a->vel;
+				const double inacc = (1 - accuracy) * 0.12 + (Hypot(targetVel.x, targetVel.z) > 4 ? 0.05 : 0);
 				dir.x += Rand(-inacc, inacc); dir.y += Rand(-inacc, inacc) * 0.6; dir.z += Rand(-inacc, inacc); dir.normalize();
 				anim->recoil = def.recoil;
 				ICombat::FireOpts fo; fo.fromMuzzle = true; fo.spreadMul = 1.5;
@@ -244,15 +248,15 @@ void Ped::attack(double dt) {
 		else {
 			stop();
 			meleeTimer -= dt;
-			if (meleeTimer <= 0 && !anim->busy() && !t->vehicle) {
+			if (meleeTimer <= 0 && !anim->busy() && !tv) {
 				meleeTimer = Rand(0.85, 1.5);
 				const std::string act = weapon == "knife" ? "stab" : weapon == "bat" ? "swing" : RandPick(std::vector<std::string>{ "jab", "cross", "jab", "kick" });
-				auto a = anim->play(act);
+				auto action = anim->play(act);
 				Game* g = &game; Ref<Character> self(this);
-				if (a) a->onHit = [g, self, act]() { if (Character* c = self.get()) if (g->combat) g->combat->meleeHit(c, act); };
+				if (action) action->onHit = [g, self, act]() { if (Character* c = self.get()) if (g->combat) g->combat->meleeHit(c, act); };
 			}
 		}
-		if (t->vehicle && d < 4 && t->vehicle->speedAbs() < 2 && brave > 0.6 && !game.vehicles.isBusy(this) && t->isPlayer) meleeTimer -= dt;
+		if (tv && d < 4 && tv->speedAbs() < 2 && brave > 0.6 && !game.vehicles.isBusy(this) && t && t->isPlayer) meleeTimer -= dt;
 	}
 }
 
@@ -269,7 +273,7 @@ void Ped::followLeader(double dt) {
 	}
 	if (!L->vehicle && vehicle) { game.vehicles.exit(this); return; }
 	Character* t = threat.get();
-	if (t && !t->dead && weapons.count(weapon) && weaponDef().type == "gun") { attack(dt); setState("follow"); return; }
+	if (((t && !t->dead) || (threatAnimal && !threatAnimal->dead)) && weapons.count(weapon) && weaponDef().type == "gun") { attack(dt); setState("follow"); return; }
 	const double d = Hypot(L->pos.x - pos.x, L->pos.z - pos.z);
 	const double side = followSlot - 1;
 	const double tx = L->pos.x - std::sin(L->yaw) * 1.6 + std::cos(L->yaw) * side * 1.2, tz = L->pos.z - std::cos(L->yaw) * 1.6 - std::sin(L->yaw) * side * 1.2;
@@ -448,7 +452,19 @@ void PedManager::onNoise(Character* src, const V3& p, double radius, bool gunfir
 }
 
 void PedManager::onPedDamaged(Ped* ped, Character* src, double, const DamageInfo& info) {
+	if (info.animalSource && !ped->dead) {
+		Animal* a = info.animalSource;
+		ped->threat = nullptr; ped->threatAnimal = a;
+		if (ped->brain == "cop" || ped->brain == "script" || ped->state == "follow") return;
+		if (!ped->gang.empty()) {
+			ped->setState("attack");
+			for (const auto& q : list) if (q->gang == ped->gang && !q->dead && Dist2(q->pos.x, q->pos.z, ped->pos.x, ped->pos.z) < 30 * 30) { q->threat = nullptr; q->threatAnimal = a; q->setState("attack"); }
+		} else if (ped->brave > 0.78 && info.type == "melee") { ped->setState("attack"); if (game.time - ped->lastSay > 3) ped->say(RandPick(PedLines("fight"))); }
+		else { ped->threatPos = a->pos; ped->setState("flee"); if (Rand() < 0.5) ped->say(RandPick(PedLines("flee"))); }
+		return;
+	}
 	if (ped->dead || !src || src == ped) return;
+	ped->threatAnimal = nullptr;
 	if (ped->brain == "cop" || ped->brain == "script") { ped->threat = src; return; }
 	if (ped->state == "follow") { ped->threat = src; return; }
 	if (!ped->gang.empty()) {

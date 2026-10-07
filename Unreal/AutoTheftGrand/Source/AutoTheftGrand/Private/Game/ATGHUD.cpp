@@ -6,6 +6,7 @@
 #include "Sim/Ragdoll.h"
 #include "Sim/Game.h"
 #include "Sim/Hud.h"
+#include "Sim/Pets.h"
 
 #include "CanvasItem.h"
 #include "Engine/Canvas.h"
@@ -106,6 +107,12 @@ void AATGHUD::DrawHUD() {
 	// the minimap and its bars, bottom left (hud-radar: 300 x 190, left 28, bottom 26, the bars 13 px under it)
 	DrawMinimap(G, W, Dt, 28 * Ui, Canvas->ClipY - (26 + 13 + 190) * Ui);
 	DrawTopRight(G, Canvas->ClipX - 30 * Ui, 22 * Ui);
+	if (G->pets && G->pets->pet && !G->pets->pet->removed) {
+		const auto& A = *G->pets->pet;
+		const std::string S = A.petName + (A.dead ? " \xE2\x80\xA0" : G->pets->target ? " \xC2\xB7 attacking" : G->pets->stay ? " \xC2\xB7 staying" : A.inVehicle ? " \xC2\xB7 riding" : "");
+		const FColor C = !A.dead && A.health < A.maxHealth * 0.35 ? FColor(0xff, 0x8a, 0x7a) : FColor(0xe9, 0xf7, 0xdf);
+		Text(UTF8_TO_TCHAR(S.c_str()), Canvas->ClipX - 30 * Ui, 225 * Ui, Small, 1.35f * Ui, FLinearColor(C).CopyWithNewOpacity(DeadAlpha), 1.f);
+	}
 	// zone and vehicle names, bottom right (higher in a vehicle, above the speedometer)
 	const float Right = Canvas->ClipX - 30 * Ui, Bottom = Canvas->ClipY;
 	if (atg::HudModel* M = G->hudModel) {

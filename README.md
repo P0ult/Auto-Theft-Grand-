@@ -29,8 +29,9 @@ Chrome, Edge or Firefox with hardware acceleration turned on is recommended. If 
 
 A C++ port to Unreal Engine 5.8 is under way in [`Unreal/AutoTheftGrand`](Unreal/AutoTheftGrand/README.md). It
 generates the same world from the same seed. The living city, combat, police, vehicles, shops and audio are
-ported. Wildlife now spawns by district, wanders, grazes and flees, including birds taking flight and people
-walking dogs. The rest is being ported in phases ([plan](Unreal/AutoTheftGrand/PORTING.md)).
+ported. Wildlife spawns by district, wanders, grazes and flees, including birds taking flight and people
+walking dogs. Pet Palace sells dogs and cats that follow you, ride in cars and obey K; dogs defend you.
+The rest is being ported in phases ([plan](Unreal/AutoTheftGrand/PORTING.md)).
 
 ## Controls
 

@@ -4,6 +4,7 @@
 #include "Game/ATGMeshUtil.h"
 #include "Sim/Animal.h"
 #include "Sim/Game.h"
+#include "Sim/Shops.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
 #include "Materials/MaterialInstanceDynamic.h"
@@ -67,7 +68,9 @@ void AATGAnimals::Pose(FATGAnimalView& View, const atg::Animal& A) {
 void AATGAnimals::Sync(atg::Game* G) {
 	if (!G || !G->wildlife) return;
 	for (auto& KV : Animals) KV.Value.bSeen = false;
-	for (atg::Animal* A : G->wildlife->all()) {
+	auto Live = G->wildlife->all();
+	if (G->shops) for (const auto& S : G->shops->shops) for (const auto& A : S.pets) Live.push_back(A.get());
+	for (atg::Animal* A : Live) {
 		if (A->removed) continue;
 		FATGAnimalView& V = Animals.FindOrAdd(A->id);
 		V.bSeen = true;

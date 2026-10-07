@@ -39,6 +39,7 @@ public:
 	int node = -1, prevNode = -1;
 	V3 targetPos;
 	Ref<Character> threat;
+	Ref<Animal> threatAnimal;
 	V3 threatPos;
 	double brave, fireTimer = 0, meleeTimer = 0, thinkTimer, lastSay = -10;
 	Ref<Character> follow;

@@ -1,0 +1,48 @@
+# Adopt through the shop menu, see the pens, whistle, walk with a pet and ride in a car.
+wait 1
+ATG.God 1
+ATG.Time 15
+ATG.Money 5000
+ATG.ShopView petshop
+wait 3
+shot pets_kennels
+ATG.CamAt
+ATG.Teleport 71.5 -12.4 3.14159
+wait 0.3
+ATG.Menu
+shot pets_menu
+ATG.Menu 0
+ATG.Menu close
+ATG.Pet
+ATG.Teleport -628 344 0
+wait 2
+ATG.Pet lab Buddy
+ATG.CamAt 3 1.2 3 0 0.4 0
+wait 3
+shot pets_sit
+ATG.Press KeyK
+wait 0.1
+ATG.Release
+ATG.Pet
+shot pets_stay
+ATG.Pet command
+ATG.CamAt
+ATG.Press KeyW
+wait 1
+ATG.Release
+ATG.Spawn kestrel
+wait 0.3
+ATG.Enter
+wait 1
+ATG.Pet
+ATG.CamAt 0 1.4 4 0 0.8 0
+wait 0.3
+shot pets_ride
+ATG.Enter
+wait 1
+ATG.Pet
+ATG.Pet hurt 1000
+wait 0.3
+ATG.Pet
+shot pets_dead
+quit

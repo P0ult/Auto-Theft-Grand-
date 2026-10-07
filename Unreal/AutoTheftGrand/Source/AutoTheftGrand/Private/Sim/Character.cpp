@@ -1,4 +1,5 @@
 #include "Character.h"
+#include "Animal.h"
 #include "Collision.h"
 #include "Game.h"
 #include "Vehicle.h"
@@ -270,8 +271,9 @@ bool Character::takeDamage(double amount, const DamageInfo& info) {
 	}
 	health -= dmg;
 	lastDamager = info.source;
+	lastAnimalDamager = info.animalSource;
 	lastHitTime = game.time;
-	if (info.source) onDamaged(info.source, dmg, info);
+	if (info.source || info.animalSource) onDamaged(info.source, dmg, info);
 	if (info.source) game.events.charDamaged.emit(this, dmg, info.source);
 	if (health <= 0) {
 		health = 0;

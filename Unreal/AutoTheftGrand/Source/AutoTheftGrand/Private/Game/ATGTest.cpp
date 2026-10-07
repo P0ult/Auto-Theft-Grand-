@@ -19,6 +19,8 @@
 #include "Sim/Rail.h"
 #include "Sim/Traffic.h"
 #include "Sim/Wildlife.h"
+#include "Sim/Pets.h"
+#include "Sim/Shops.h"
 
 #include "Engine/Engine.h"
 #include "Engine/World.h"
@@ -159,6 +161,29 @@ ATG_CMD(CmdAnimals, "ATG.Animals", "ATG.Animals [clear | scare]: log, clear or s
 	if (!Args.IsEmpty() && Args[0] == TEXT("scare")) S->scare(G->player->pos, 90);
 	UE_LOG(LogATG, Display, TEXT("ATG animals: %d animals, %.1f ambient weight"), (int32)S->all().size(), S->count());
 	for (const auto* A : S->all()) UE_LOG(LogATG, Display, TEXT("ATG animal: %s %s at (%.2f, %.2f, %.2f) speed %.2f dead %d"), UTF8_TO_TCHAR(A->breed.c_str()), UTF8_TO_TCHAR(A->state.c_str()), A->pos.x, A->pos.y, A->pos.z, A->speed, A->dead);
+})
+ATG_CMD(CmdPet, "ATG.Pet", "ATG.Pet [breed name | command | release | hurt amount]: adopt or command a pet; log its state", {
+	atg::Game* G = Sim(W);
+	if (!G || !G->pets) return;
+	if (!Args.IsEmpty()) {
+		if (Args[0] == TEXT("command")) G->pets->command();
+		else if (Args[0] == TEXT("release")) G->pets->release();
+		else if (Args[0] == TEXT("hurt")) { if (G->pets->pet) G->pets->pet->takeDamage(Arg(Args, 1, 10)); }
+		else G->pets->adopt(TCHAR_TO_UTF8(*Args[0]), Args.Num() > 1 ? TCHAR_TO_UTF8(*Args[1]) : "");
+	}
+	if (const auto* A = G->pets->pet.get()) { UE_LOG(LogATG, Display, TEXT("ATG pet: %s (%s) %s health %.1f/%.1f riding %d staying %d target %d at (%.2f, %.2f, %.2f)"), UTF8_TO_TCHAR(A->petName.c_str()), UTF8_TO_TCHAR(A->breed.c_str()), UTF8_TO_TCHAR(A->state.c_str()), A->health, A->maxHealth, (bool)A->inVehicle, G->pets->stay, (bool)G->pets->target, A->pos.x, A->pos.y, A->pos.z); }
+	else { UE_LOG(LogATG, Display, TEXT("ATG pet: none")); }
+})
+ATG_CMD(CmdShopView, "ATG.ShopView", "ATG.ShopView key: stand inside a shop and look at its kennels or counter", {
+	atg::Game* G = Sim(W);
+	if (!G || !G->shops || Args.IsEmpty()) return;
+	for (const auto& S : G->shops->shops) if (S.it->key == TCHAR_TO_UTF8(*Args[0])) {
+		const auto& I = *S.it;
+		G->respawnPlayer(I.X(0, 1.5), I.Z(0, 1.5), I.YawIn());
+		const double U = I.key == "petshop" ? -I.W / 2 + 3.5 : 0;
+		G->rig.setCinematic(atg::V3(I.X(U, 2), I.fy + 1.5, I.Z(U, 2)), atg::V3(I.X(-I.W / 2 + 1.3, 6), I.fy + 0.45, I.Z(-I.W / 2 + 1.3, 6)), 55);
+		return;
+	}
 })
 ATG_CMD(CmdMenu, "ATG.Menu", "ATG.Menu [row | down | up | close]: press a shop menu's button, move its highlight or leave; then log the menu", {
 	atg::Game* G = Sim(W);

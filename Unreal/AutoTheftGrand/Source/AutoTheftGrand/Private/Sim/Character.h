@@ -12,6 +12,7 @@ namespace atg {
 class Game;
 class Character;
 class Vehicle;
+class Animal;
 struct CollObj;
 
 struct DamageInfo {
@@ -19,6 +20,7 @@ struct DamageInfo {
 	double headMul = NaN();
 	std::string type;      // bullet, melee, explosion, fire, fall, drown, vehicle, ...
 	Character* source = nullptr;
+	Animal* animalSource = nullptr;
 	bool knockdown = false;
 	bool hasImpulse = false; V3 impulse;
 	bool hasHitPoint = false; V3 hitPoint;
@@ -62,6 +64,7 @@ public:
 	bool crouching = false;
 	AnimState animState;
 	Ref<Character> lastDamager;
+	Ref<Animal> lastAnimalDamager;
 	double lastHitTime = -10;
 	bool removed = false, visible = true, invincible = false;
 	bool hiddenInVehicle = false;

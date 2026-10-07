@@ -3,6 +3,7 @@
 #include "Camera.h"
 #include "Game.h"
 #include "Peds.h"
+#include "Pets.h"
 #include "Pickups.h"
 #include "Player.h"
 #include "Police.h"
@@ -146,19 +147,25 @@ const std::map<std::string, std::string>& PetBlurb() {
 	return m;
 }
 
-// Pet Palace's animals and treats. (Adopting needs the pets, which aren't ported yet: until then the animals
-// are listed but can't be bought, and the treats find no pet.)
+// Pet Palace's animals and treats.
 std::vector<StoreItem> PetStock(Game& game) {
 	std::vector<StoreItem> out;
-	const bool pets = game.system("pets") != nullptr;
+	const bool pets = game.pets != nullptr;
 	for (const std::string& b : PetBreeds()) {
 		const AnimalBreed& br = AnimalBreeds().at(b);
 		auto blurb = PetBlurb().find(b);
-		StoreItem it = Item(br.name, blurb != PetBlurb().end() ? blurb->second : "", br.price > 0 ? (int)br.price : 800, [](Player&, Game&) { return std::string("Something went wrong."); });
+		StoreItem it = Item(br.name, blurb != PetBlurb().end() ? blurb->second : "", br.price > 0 ? (int)br.price : 800, [b](Player&, Game& g) {
+			Animal* a = g.pets ? g.pets->adopt(b) : nullptr;
+			return a ? "Meet " + a->petName + "! Whistle (K) to make them stay or come." : std::string("Something went wrong.");
+		});
 		it.available = pets;
 		out.push_back(it);
 	}
-	out.push_back(Item("Pet treats", "Heal your pet", 15, [](Player&, Game&) { return std::string("You don't have a pet yet."); }));
+	out.push_back(Item("Pet treats", "Heal your pet", 15, [](Player&, Game& g) {
+		Animal* a = g.pets ? g.pets->pet.get() : nullptr;
+		if (!a || a->dead) return std::string("You don't have a pet yet.");
+		a->health = a->maxHealth; return a->petName + " loves them.";
+	}));
 	return out;
 }
 
@@ -217,7 +224,7 @@ void ShopSystem::serve(Shop& s) {
 	}
 	else if (key == "bar") { if (hud) hud->openStore(nm, "Cold beer, strong spirits", BarStock()); }
 	else if (key == "cafe") { if (hud) hud->openStore(nm, "Coffee & snacks", CafeStock()); }
-	else if (key == "petshop") { if (hud) hud->openStore(nm, "Dogs & cats looking for a home", PetStock(game)); }
+	else if (key == "petshop") { if (hud) hud->openStore(nm, game.pets && game.pets->pet && !game.pets->pet->dead ? "Adopting a new friend replaces " + game.pets->pet->petName : "Dogs & cats looking for a home", PetStock(game)); }
 }
 
 Ped* ShopSystem::spawnClerk(Shop& s) {
@@ -235,8 +242,23 @@ Ped* ShopSystem::spawnClerk(Shop& s) {
 	c->scriptThink = [this, i](double dt) { think(shops[i], dt); };
 	s.clerk = std::static_pointer_cast<Ped>(c->shared_from_this());
 	s.state = "calm"; s.t = 0; s.greeted = false;
-	// (the pet shop's dogs and cats in their kennels come with the pets)
+	if (it.key == "petshop" && s.pets.empty()) stockKennels(s);
 	return c;
+}
+
+void ShopSystem::stockKennels(Shop& s) {
+	const InteriorShell& it = *s.it;
+	const std::vector<std::string> breeds = { "lab", "pug", "husky", "tabby", "shepherd", "siamese", "poodle", "blackcat" };
+	int i = 0;
+	for (const auto& pen : it.furniture) if (pen.kind == "pen") {
+		for (int k = 0; k < (i % 2 ? 1 : 2); k++) {
+			const double u = (pen.u0 + pen.u1) / 2 + (k ? 0.45 : -0.3), w = (pen.w0 + pen.w1) / 2 + (k ? 0.5 : -0.3);
+			auto a = std::make_shared<Animal>(game, breeds[(i * 2 + k) % breeds.size()], it.X(u, w), it.Z(u, w), true, it.fy + 0.09, true, it.YawR() + (k ? 0.6 : -0.4));
+			a->state = (i + k) % 3 ? "sit" : "idle"; a->display = true;
+			s.pets.push_back(a);
+		}
+		i++;
+	}
 }
 
 void ShopSystem::think(Shop& s, double dt) {
@@ -314,6 +336,13 @@ void ShopSystem::update(double dt) {
 	for (Shop& s : shops) {
 		const InteriorShell& it = *s.it;
 		const double d = std::hypot(pp.x - it.center.x, pp.z - it.center.z);
+		if (!s.pets.empty()) {
+			if (d > 110) { for (const auto& a : s.pets) a->remove(); s.pets.clear(); }
+			else if (d < 60) for (const auto& a : s.pets) {
+				a->t += dt; a->happy = Hypot(p.pos.x - a->pos.x, p.pos.z - a->pos.z) < 4; a->animate(dt);
+				if (a->happy && Rand() < dt * 0.15) game.soundAt(a->kind == "dog" ? "bark" : "meow", a->pos, 0.5);
+			}
+		}
 		Ped* c = s.clerk.get();
 		if (c && (c->removed || c->dead)) {
 			if (s.state != "dead") {

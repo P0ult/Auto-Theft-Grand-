@@ -58,6 +58,7 @@ public:
 	double health, maxHealth, burnTime = 0;
 	bool onFire = false, exploded = false, sunk = false;
 	std::shared_ptr<Character> occupants[4];
+	int petSeat = -1;
 	bool sirenOn = false, sirenMute = false, lightsOn = false, horn = false; // (sirenMute: lights only)
 	// street crime (npccrime.js): the case a police car is on, the last bump, the last person hit, the last honk
 	std::shared_ptr<struct NpcCase> npcJob;

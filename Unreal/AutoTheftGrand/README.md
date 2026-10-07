@@ -48,8 +48,12 @@ engine, tyres and wind of whatever you drive, aircraft engines, sirens, the heli
 crickets, waves, rain and thunder, and three generated radio stations (N or D-pad right changes station).
 Wildlife spawns by district: pigeons, gulls and crows, cats and stray dogs, deer, rabbits, coyotes and cows.
 They graze, peck and wander, flee the player and gunfire, and birds take off and land elsewhere. People walk
-their dogs. Bullets, melee, explosions and cars can kill animals. Pets, missions and the rest are still to
-come; [PORTING.md](PORTING.md) has the plan and the progress.
+their dogs. Bullets, melee, explosions and cars can kill animals. Pet Palace has dogs and cats in its pens,
+and sells all nine pet breeds at the browser's prices. Your pet follows, sits when you stop and rides in a
+free passenger seat. Whistle with K (right-stick click on foot) to tell it to stay or come; aim at someone
+and whistle to send your dog after them. Dogs also defend you against attackers. Pet treats heal your pet,
+and the HUD shows its name and state. Save data and online pet replication come with those systems.
+Missions and the rest are still to come; [PORTING.md](PORTING.md) has the plan and the progress.
 
 ## Build and run
 
@@ -102,6 +106,7 @@ far:
 | Left mouse / RT | Punch (jab-cross-kick combo) / fire | Right + left mouse, LB + RB | Drive-by |
 | Right mouse / LT | Aim (people put their hands up) | Q / E, wheel | Switch drive-by weapon |
 | R | Reload | | |
+| K / RS click | Whistle: pet stay / come (aiming at someone: dog attack) | | |
 | Q / E, wheel, 1-9, RB / LB tap | Switch weapon | | |
 | Tab / LB (hold) | Weapon wheel (the game slows; point with the mouse or right stick, let go to pick) | Tab (hold) | Weapon wheel |
 | Caps Lock / Z / LS + RS click | Special ability: slow motion (the yellow bar under the map) | Caps Lock / Z | Special ability: slow motion with extra grip |
@@ -215,6 +220,7 @@ DEBUG=1 ./native.sh simtestd.exe simtest.cpp                   # with symbols: a
 node --import ./three-hook.mjs vehcompare.mjs > jsveh.txt      # identical to 4 decimals
 diff jsveh.txt cppveh.txt
 ./simtest.exe wildlife                                       # spawning, fleeing, damage and walked dogs
+./simtest.exe pets                                           # adoption, commands, bites, rides and treats
 node --import ./three-hook.mjs animalcompare.mjs --check      # 17 breeds' rigs against animals.js
 ./simtest.exe aircmp heli > cpp_heli.txt                       # a run (plane, heli, tank, skate or boat) against the
 MODE=heli node ../../../tools/browser-test/run.mjs "http://localhost:8080/index.html?manual&autostart=free&q=low" \
@@ -228,6 +234,9 @@ The trains match to the metre: both reach Fern Creek 110.7 s after leaving Union
 `Tools/tests/wildlife.txt` checks animal rendering, fleeing and district populations in Unreal. Test commands:
 `ATG.Animal breed [dx dz]` spawns an animal, `ATG.Animals` logs nearby animals, and `ATG.Animals clear` or
 `ATG.Animals scare` clears or frightens ambient wildlife.
+`Tools/tests/pets.txt` visits Pet Palace, buys a pet, whistles and takes it for a car ride. `ATG.Pet breed
+name` adopts directly for tests; `ATG.Pet command`, `ATG.Pet release` and `ATG.Pet hurt amount` exercise its
+commands and damage. `ATG.Pet` logs its state. `ATG.ShopView petshop` looks at the kennels.
 
 ### Checking the generator without Unreal
 
