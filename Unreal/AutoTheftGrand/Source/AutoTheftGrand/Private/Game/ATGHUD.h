@@ -16,6 +16,8 @@ class AATGHUD : public AHUD {
 	GENERATED_BODY()
 public:
 	virtual void DrawHUD() override;
+	// the shop menu's button under a screen point (the row index), or -1
+	int32 MenuRowAt(float X, float Y) const;
 
 private:
 	double RadarRange = 110;
@@ -37,6 +39,8 @@ private:
 	void DrawWheel(atg::Game* G, float Dt);
 	void DrawPhone(atg::Game* G, float Dt);
 	void DrawPhotoHint(float Dt);
+	void DrawShopMenu(atg::Game* G);
+	TArray<FBox2D> MenuRects;
 	float PhoneT = 0, PhoneScroll = 0, PhotoT = 0;
 	float WheelAlpha = 0;
 	double SpeedoNeedle = 0; float SpeedoAlpha = 0;

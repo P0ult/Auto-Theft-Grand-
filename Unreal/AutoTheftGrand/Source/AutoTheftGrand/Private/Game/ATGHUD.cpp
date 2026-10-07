@@ -127,7 +127,9 @@ void AATGHUD::DrawHUD() {
 	if (PC->MessageTime > 0) Text(PC->Message, Canvas->ClipX / 2, 70 * Ui, Small, 1.5f * Ui, FLinearColor(Paper.R, Paper.G, Paper.B, FMath::Min(1.f, PC->MessageTime)), 0.5f);
 	DrawMessages(G, Dt);
 	DrawOverlays(G, Dt);
-	if (G->paused) {
+	if (G->hudModel && !G->hudModel->menu.kind.empty()) DrawShopMenu(G);
+	else if (G->paused) {
+		MenuRects.Reset();
 		DrawRect(FLinearColor(0, 0, 0, 0.55f), 0, 0, Canvas->ClipX, Canvas->ClipY);
 		Text(TEXT("PAUSED"), Canvas->ClipX / 2, Canvas->ClipY * 0.42f, Big, 3.f * Ui, Gold, 0.5f);
 		Text(TEXT("Esc / Start to carry on"), Canvas->ClipX / 2, Canvas->ClipY * 0.42f + 90 * Ui, Small, 1.4f * Ui, Paper, 0.5f);

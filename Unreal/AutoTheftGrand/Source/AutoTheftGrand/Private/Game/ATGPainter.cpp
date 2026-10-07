@@ -149,19 +149,20 @@ void FATGPainter::Text(const FString& S, float X, float Y, UFont* Font, float Si
 	Canvas->DrawItem(Item);
 }
 
-void FATGPainter::FontText(const FString& S, float X, float Y, float Px, const TCHAR* Face, float AlignX, float Condense) {
-	if (S.IsEmpty() || !GEngine || !FEngineFontServices::IsInitialized()) return;
+float FATGPainter::FontText(const FString& S, float X, float Y, float Px, const TCHAR* Face, float AlignX, float Condense) {
+	if (S.IsEmpty() || !GEngine || !FEngineFontServices::IsInitialized()) return 0;
 	const float K = ScaleOf();
 	// (Slate sizes are points at 96 dpi)
 	const FSlateFontInfo Info(GEngine->GetLargeFont(), FMath::Max(1.f, Px * K * 0.75f), FName(Face));
 	const TSharedPtr<FSlateFontMeasure> Measure = FEngineFontServices::Get().GetFontMeasure();
-	if (!Measure.IsValid()) return;
+	if (!Measure.IsValid()) return 0;
 	const FVector2D Size = Measure->Measure(S, Info);
 	const float Above = (float)Measure->GetMaxCharacterHeight(Info) - FMath::Abs((float)Measure->GetBaseline(Info));
 	const FVector2f P = ToScreen(X, Y);
 	FCanvasTextItem Item(FVector2D(P.X - Size.X * Condense * AlignX, P.Y - Above), FText::FromString(S), Info, WithAlpha(Fill));
 	Item.Scale = FVector2D(Condense, 1.f);
 	Canvas->DrawItem(Item);
+	return K > 0 ? (float)Size.X * Condense / K : 0.f;
 }
 
 void FATGPainter::TexturedPoly(UTexture* Tex, const TArray<FVector2f>& Pts, const TArray<FVector2f>& Uvs, const FLinearColor& Tint) {

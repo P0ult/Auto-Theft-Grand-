@@ -9,7 +9,9 @@
 namespace atg {
 
 class Character;
+class Game;
 class Ped;
+class Player;
 class Vehicle;
 struct CollObj;
 
@@ -82,6 +84,15 @@ public:
 	virtual void wakeBreak(int /*key*/) {}
 };
 
+// an item in a shop menu (hud.js openStore: { name, desc, price, use(player, game) }): what buying it does, and
+// a message for the menu (empty: "<name> bought.")
+struct StoreItem {
+	std::string name, desc;
+	int price = 0;
+	std::function<std::string(Player&, Game&)> use;
+	bool available = true; // (the pet shop's animals wait for the pets)
+};
+
 // on-screen help and messages (src/ui/hud.js)
 class IHud {
 public:
@@ -95,6 +106,9 @@ public:
 	virtual void setBar(const std::string* /*label (null hides it)*/, double = 0, const std::string& = "#e63946") {}
 	virtual void moneyFlash(double) {}
 	virtual void promptSave() {} // (the safehouse's save point)
+	// the shop menus: the Gun Barn's weapons and armour, and a store's items (both pause the game)
+	virtual void openShop() {}
+	virtual void openStore(const std::string& /*title*/, const std::string& /*sub*/, const std::vector<StoreItem>& /*items*/) {}
 	virtual void openPause(const std::string&) {} // (the pause menu on a tab: map, teleport)
 	virtual void dispatch(const std::string&, const std::string& = "") {}
 	// the radio station's name (and genre) at the top of the screen

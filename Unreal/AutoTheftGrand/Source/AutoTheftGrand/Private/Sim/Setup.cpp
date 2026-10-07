@@ -17,6 +17,7 @@
 #include "Police.h"
 #include "Rail.h"
 #include "Roadblocks.h"
+#include "Shops.h"
 #include "Skateparks.h"
 #include "Traffic.h"
 #include "WeaponWheel.h"
@@ -45,7 +46,8 @@ void InstallSystems(Game& g) {
 	g.special = g.addSystem("special", std::make_unique<Special>(g));
 	g.phone = g.addSystem("phone", std::make_unique<Phone>(g));
 	g.rail = g.addSystem("rail", std::make_unique<RailSystem>(g));
-	// (shops, wildlife, pets: later)
+	g.shops = g.addSystem("shops", std::make_unique<ShopSystem>(g));
+	// (wildlife, pets: later)
 	g.addSystem("skateparks", std::make_unique<Skateparks>(g));
 	g.addSystem("boats", std::make_unique<BoatSystem>(g));
 	// (shipRaid, missions: later)

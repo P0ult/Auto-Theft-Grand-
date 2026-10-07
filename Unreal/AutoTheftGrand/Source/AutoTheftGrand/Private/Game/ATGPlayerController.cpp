@@ -2,6 +2,7 @@
 #include "Game/ATGCoords.h"
 #include "Game/ATGWorld.h"
 #include "Sim/Game.h"
+#include "Game/ATGHUD.h"
 #include "Sim/Hud.h"
 
 #include "Engine/World.h"
@@ -75,11 +76,51 @@ void AATGPlayerController::PlayerTick(float Dt) {
 	AATGWorld* W = AATGWorld::Get(this);
 	atg::Game* G = W ? W->Game() : nullptr;
 	if (!G) return;
+	if (MenuInput(*G, Dt)) return;
 	// pause and the map (the HUD's keys in the browser game)
 	if (WasInputKeyJustPressed(EKeys::Escape) || WasInputKeyJustPressed(EKeys::P) || WasInputKeyJustPressed(EKeys::Gamepad_Special_Right)) G->paused = !G->paused;
 	if (WasInputKeyJustPressed(EKeys::M) || WasInputKeyJustPressed(EKeys::Gamepad_DPad_Down)) bMapOpen = !bMapOpen;
 	// the phone's Map app (hud.openPause('map'))
 	if (G->hudModel && !G->hudModel->pauseRequest.empty()) { G->hudModel->pauseRequest.clear(); bMapOpen = true; }
+}
+
+// A shop menu on screen: the mouse cursor shows, a click or Enter / Space / pad A presses a button, the arrows,
+// W / S, the D-pad or the left stick move the highlight (padnav.js: a 0.38 s wait, then every 0.11 s), and
+// Esc, Backspace or pad B leaves (hud.js togglePause closes an open menu). True while one is open.
+bool AATGPlayerController::MenuInput(atg::Game& G, float Dt) {
+	atg::HudModel* M = G.hudModel;
+	const bool bOpen = M && !M->menu.kind.empty();
+	if (bOpen != bMenuCursor) {
+		bMenuCursor = bOpen;
+		bShowMouseCursor = bOpen;
+		if (bOpen) { FInputModeGameAndUI Mode; Mode.SetHideCursorDuringCapture(false); Mode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock); SetInputMode(Mode); }
+		else SetInputMode(FInputModeGameOnly());
+		MenuLastDir = 0;
+	}
+	if (!bOpen) return false;
+	if (WasInputKeyJustPressed(EKeys::Escape) || WasInputKeyJustPressed(EKeys::BackSpace) || WasInputKeyJustPressed(EKeys::Gamepad_FaceButton_Right) || WasInputKeyJustPressed(EKeys::Gamepad_Special_Right)) {
+		M->closeOverlay();
+		return true;
+	}
+	AATGHUD* Hud = Cast<AATGHUD>(GetHUD());
+	float Mx, My;
+	if (Hud && WasInputKeyJustPressed(EKeys::LeftMouseButton) && GetMousePosition(Mx, My)) {
+		const int32 Row = Hud->MenuRowAt(Mx, My);
+		if (Row >= 0) M->menuPress(Row);
+		return true;
+	}
+	if (WasInputKeyJustPressed(EKeys::Enter) || WasInputKeyJustPressed(EKeys::SpaceBar) || WasInputKeyJustPressed(EKeys::Gamepad_FaceButton_Bottom)) {
+		M->menuPress(M->menu.focus);
+		return true;
+	}
+	const float Ly = GetInputAnalogKeyState(EKeys::Gamepad_LeftY);
+	int32 Dir = 0;
+	if (IsInputKeyDown(EKeys::Up) || IsInputKeyDown(EKeys::W) || IsInputKeyDown(EKeys::Gamepad_DPad_Up) || Ly > 0.6f) Dir = -1;
+	else if (IsInputKeyDown(EKeys::Down) || IsInputKeyDown(EKeys::S) || IsInputKeyDown(EKeys::Gamepad_DPad_Down) || Ly < -0.6f) Dir = 1;
+	if (!Dir) MenuLastDir = 0;
+	else if (Dir != MenuLastDir) { MenuLastDir = Dir; MenuRepeatT = 0.38f; M->menuMove(Dir); }
+	else if ((MenuRepeatT -= FMath::Min(0.1f, Dt)) <= 0) { MenuRepeatT = 0.11f; M->menuMove(Dir); }
+	return true;
 }
 
 void AATGPlayerController::FeedInput(atg::Game& G, double Dt) {

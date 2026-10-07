@@ -53,8 +53,27 @@ public:
 	void showWasted(const std::string& kind) override { shard = kind == "busted" ? "busted" : "wasted"; shardT = 0; }
 	void deathMode(bool on) override { dead = on; if (!on) shard.clear(); }
 
+	// the shop menus (hud.js openShop / openStore, with padnav.js's highlight): one row per button, the last
+	// one leaving. ATGHUD draws them and turns clicks, keys and the pad into menuPress / menuMove / closeOverlay.
+	struct MenuRow { std::string icon, name, desc, button; bool enabled = true, primary = false; };
+	struct Menu {
+		std::string kind;          // "" (closed), "gunshop" or "store"
+		std::string title, sub, note;
+		std::vector<MenuRow> rows;
+		int focus = 0;
+	} menu;
+	void openShop() override;
+	void openStore(const std::string& title, const std::string& sub, const std::vector<StoreItem>& items) override;
+	void closeOverlay();
+	void menuPress(int row);
+	void menuMove(int dir); // (the highlight to the next button up, -1, or down, +1)
+
 	// after game.update, with the real frame time
 	void update(double dt);
+
+private:
+	std::vector<StoreItem> storeItems;
+	void menuRender();
 };
 
 } // namespace atg

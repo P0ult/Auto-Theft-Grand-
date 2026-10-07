@@ -11,6 +11,8 @@
 #include "Sim/Game.h"
 #include "Sim/Peds.h"
 #include "Sim/Heists.h"
+#include "Sim/Hud.h"
+#include "Sim/Player.h"
 #include "Sim/NpcCrime.h"
 #include "Sim/Police.h"
 #include "Sim/Roadblocks.h"
@@ -137,6 +139,20 @@ ATG_CMD(CmdAudio, "ATG.Audio", "ATG.Audio: log the sound's clock (seconds render
 	if (!G || !G->audioSys || !G->audioSys->ctx) { UE_LOG(LogATG, Display, TEXT("ATG audio: off")); return; }
 	UE_LOG(LogATG, Display, TEXT("ATG audio: clock %.2f s, %d nodes, radio %s"), G->audioSys->clock(), (int32)G->audioSys->ctx->nodeCount(), UTF8_TO_TCHAR(G->audioSys->radioLabel().c_str()));
 })
+ATG_CMD(CmdMenu, "ATG.Menu", "ATG.Menu [row | down | up | close]: press a shop menu's button, move its highlight or leave; then log the menu", {
+	atg::Game* G = Sim(W);
+	atg::HudModel* M = G ? G->hudModel : nullptr;
+	if (!M) return;
+	if (Args.Num()) {
+		if (Args[0] == TEXT("close")) M->closeOverlay();
+		else if (Args[0] == TEXT("down")) M->menuMove(1);
+		else if (Args[0] == TEXT("up")) M->menuMove(-1);
+		else M->menuPress(FCString::Atoi(*Args[0]));
+	}
+	if (M->menu.kind.empty()) { UE_LOG(LogATG, Display, TEXT("ATG menu: closed, money %.0f"), G->player->money); return; }
+	UE_LOG(LogATG, Display, TEXT("ATG menu: %s, focus %d, money %.0f, note '%s'"), UTF8_TO_TCHAR(M->menu.title.c_str()), M->menu.focus, G->player->money, UTF8_TO_TCHAR(M->menu.note.c_str()));
+	for (int32 I = 0; I < (int32)M->menu.rows.size(); I++) UE_LOG(LogATG, Display, TEXT("ATG menu:   %d %s [%s]"), I, UTF8_TO_TCHAR(M->menu.rows[I].name.c_str()), UTF8_TO_TCHAR(M->menu.rows[I].button.c_str()));
+})
 ATG_CMD(CmdState, "ATG.State", "ATG.State: log the player's position, vehicle and speed", {
 	atg::Game* G = Sim(W);
 	if (!G) { UE_LOG(LogATG, Display, TEXT("ATG state: no game")); return; }
@@ -189,6 +205,7 @@ ATG_CMD(CmdFx, "ATG.Fx", "ATG.Fx: log the effects pools", {
 ATG_CMD(CmdGive, "ATG.Give", "ATG.Give weapon [ammo]: give the player a weapon and hold it", {
 	if (atg::Game* G = Sim(W)) if (Args.Num()) { const std::string Id = TCHAR_TO_UTF8(*Args[0]); if (atg::FindWeapon(Id)) { G->player->giveWeapon(Id, Arg(Args, 1, 200)); G->player->equip(Id); } }
 })
+ATG_CMD(CmdMoney, "ATG.Money", "ATG.Money amount: set the player's cash", { if (atg::Game* G = Sim(W)) G->player->money = Arg(Args, 0, 1000); })
 ATG_CMD(CmdWanted, "ATG.Wanted", "ATG.Wanted stars: set the wanted level (0 clears it)", {
 	if (atg::Game* G = Sim(W)) if (G->policeSys) { const int L = (int)Arg(Args, 0, 1); if (L <= 0) G->policeSys->clear(); else G->policeSys->setLevel(L); }
 })

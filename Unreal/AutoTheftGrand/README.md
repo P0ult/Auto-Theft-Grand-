@@ -38,7 +38,10 @@ shoot its back doors open, grab the cash and fight off the guards. The phone cal
 Benny (your last car delivered), Merryweather (three armed contractors), takes the GTA V cheat codes, and has
 Snapmatic, the map, the weather and your stats.
 Health, armour, cash and weapons lie about the city, dropped by the dead or waiting to respawn, with 30
-hidden packages to find; the Spray Shack repaints and repairs your car and loses the police for $100. The Sol Line's passenger and freight trains run
+hidden packages to find; the Spray Shack repaints and repairs your car and loses the police for $100. Eight shops
+have a way in and a clerk behind the counter: buy guns and armour at the Gun Barn, a Big Bun combo, snacks and
+scratch cards, drinks that make the room sway, and coffee; point a gun at a clerk and the till is yours (and the
+cops are called), except at the Gun Barn, where the owner reaches for his shotgun. The Sol Line's passenger and freight trains run
 their timetable; board one at a platform with F, or climb into the cab and drive it. Everything is heard as
 in the browser game: synthesised gunshots, explosions and crashes placed round you with a city reverb, the
 engine, tyres and wind of whatever you drive, aircraft engines, sirens, the helicopter's rotor, traffic, birds,
@@ -118,6 +121,8 @@ far:
 On a skateboard: W push, S foot-brake, A / D carve, Space ollie; in the air A / D kickflip / heelflip and
 S shove-it; F step off.
 Boats drive like cars (W / S, A / D); the police boat's bow gun fires with the left mouse button / RB.
+In a shop, step onto the marker at the counter to open its menu: click a button, or move the highlight with
+↑ ↓ / W S / the D-pad and buy with Enter / Space / A; Esc, Backspace or B leaves.
 
 ## How it is put together
 
@@ -181,7 +186,8 @@ suspect's stars, the patrol that comes for them and a staged car theft; `wheel.t
 special ability; `heist.txt` at a robbed armoured van; `phone.txt` at the phone; `bikes.txt` and `bikes2.txt` at
 the motorbikes and bicycles; `aircraft.txt` at each aircraft and the tank, parked, flying and firing; `army.txt` at the army at five stars and
 Fort Carver's gate and restricted area; `skate.txt` at a skateboard, a kickflip and the skatepark; `boats.txt` at the Santa Luz marina, a speedboat's
-wake and the police boats; `shops.txt` inside each kind of shop. The runs are silent and step at a fixed 1/30 s; `SOUND=1 Tools/run.sh
+wake and the police boats; `shops.txt` inside each kind of shop; `shopmenu.txt` at the Gun Barn's clerk and menu
+and a drink at the bar. The runs are silent and step at a fixed 1/30 s; `SOUND=1 Tools/run.sh
 Tools/tests/audio.txt` runs at real speed with the sound on, and `ATG.Audio` logs the sound's clock and live
 node count.
 

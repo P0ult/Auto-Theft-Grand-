@@ -17,6 +17,7 @@ public:
 	explicit Player(Game& game);
 	double money = 250;
 	bool sprinting = false;
+	double drunk = 0;   // (drinks at the bar: the camera sways, shops.js)
 	double stamina = 1, aimHold = 0, fireCooldown = 0, comboTimer = 0, reloading = 0, maxArmor = 100;
 	int comboIndex = 0;
 	bool enterRequest = false;

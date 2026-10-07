@@ -125,6 +125,7 @@ public:
 	class WeaponWheel* wheel = nullptr;
 	class Special* special = nullptr;
 	class Pickups* pickupsSys = nullptr; // (the pickups and markers, for the systems that place them)
+	class ShopSystem* shops = nullptr;
 	class Police* policeSys = nullptr; // (the police itself, for the systems that spawn units through it)
 	class Military* military = nullptr; // (Fort Carver: whether the base is on alert)
 	class Audio* audioSys = nullptr;     // (the sound: the Unreal side starts it and pulls its samples)

@@ -1,6 +1,7 @@
 #include "Gameplay.h"
 #include "Game.h"
 #include "Peds.h"
+#include "Shops.h"
 
 namespace atg {
 
@@ -161,7 +162,7 @@ void Gameplay::respawn(const std::string& kind) {
 				if (q->threat.get() == &p || q->state == "attack") { q->threat = nullptr; q->setState(!q->gang.empty() ? "guard" : "wander"); }
 			}
 		}
-		// (shops.calmDown comes with the shops)
+		if (game.shops) game.shops->calmDown();
 		p.setPosition(spotP.x, spotP.z);
 		p.yaw = spotRot;
 		p.visible = true;

@@ -40,6 +40,7 @@ pad, and plays its sounds.
 | entities/bikes.js | `Gen/BikeModels` (the models, identical to the JS: `Tools/dumpbikes.mjs`, `bikestest.cpp`), `Sim/Bike`, `ATGCar` | All of it: motorbikes and bicycles on the car tyre model, leaning into turns and onto the stand, the rider astride (feet on the pegs or the turning pedals), hard hits throwing the riders, knobbly tyres off-road; in traffic and parked. |
 | entities/aircraft.js | `Gen/AircraftModels` (the models, identical to the JS: `Tools/dumpaircraft.mjs`, `aircrafttest.cpp`), `Sim/Aircraft`, `ATGCarAir.cpp` | All of it: planes and jets on the arcade flight model (the take-off roll, rotation, lift fading below stall speed, weathervaning, the hammerhead stall, bank-to-turn, gear that tucks away, belly landings, crashes into the ground), helicopters (the tilting rotor disc, the auto-hover, the flare near the ground, downwash dust and spray, the spin when shot down), the tank (tracks, the turret and gun turning toward the crosshair, the cannon, its recoil and the hull's rock, the turret blown off its ring), the cannons, missiles, minigun and rockets, wrecks tumbling down and sinking. A take-off and climb, a hover and a tank drive print the same numbers to two decimals as the browser game (`simtest aircmp` against `tools/browser-test/tests/aircmp.mjs`). |
 | world/interiors.js | `Gen/CityMap` (`PlanInteriors`), `Gen/InteriorMesh` (identical to the JS: `Tools/dumpinteriors.mjs`, `interiorstest.cpp`), `ATGWorld`, `ATGPictures` | The walk-in shops: the doorways cut into the buildings, the rooms, their furniture and its colliders, the clerks' and tills' spots, and how they are drawn: the lit and glowing surfaces, the glass cases, the weapons on the Gun Barn's wall, the posters and menu boards (painted once into render targets; the engine's Roboto stands in for Impact, Arial and Georgia) and the room light that follows the shop nearest the camera. The shopkeepers and the shop menus come with shops.js. |
+| game/shops.js, ui/hud.js (openShop, openStore), ui/padnav.js | `Sim/Shops`, `Sim/Hud` (the menu model), `ATGHudModern.cpp` (`DrawShopMenu`), `ATGPlayerController` (`MenuInput`) | The clerks with their looks, greetings and threats, serving at the counter's marker, hands up and the till's cash on the counter (and the cops called), the Gun Barn's owner fighting back, a dead clerk's shop shut until you've been away, the stocks (the Gun Barn's weapons and armour, Big Bun, the 24/7s, Ray's Liquor and its scratch cards, the bar's drinks and the sway, the cafe), the menus with the mouse, the keys and the pad. Pet Palace lists its animals but can't sell them until the pets are ported, and its kennels are empty. `simtest shops` runs a visit to four of them. |
 | entities/skateboard.js, world/skatepark.js | `Gen/BoardModel` (identical to the JS: `Tools/dumpboard.mjs`, `boardtest.cpp`), `Sim/Skateboard`, `Sim/Skateparks`, `ATGCar` (the deck), `ATGWorld` (the park) | All of it: pushing with the back foot, carving, ollies, kickflips, heelflips and shove-its, clean landings paying cash and crooked ones throwing you off, digging in off the pavement; the Santa Luz skatepark's ramps, tables, ledges and rail as collision decks and boxes, its mesh, the boards lying about and two locals skating laps. A ride with an ollie prints the same numbers as the browser game (`simtest aircmp skate`). |
 | entities/boat.js, game/boats.js | `Gen/BoatModels` (identical to the JS: `Tools/dumpboats.mjs`, `boatstest.cpp`), `Sim/Boat`, `Sim/Boats`, `ATGCar` (the boats), `ATGWorld` (the pontoons), `Effects` (the wakes) | All of it: the hulls riding the swell (bigger in storms, smaller on the lake), planing, heeling into turns, running aground, burning and sinking, the bow gun; the marinas and their moored boats, the cruising routes, the harbour patrol and the police boats that ram and shoot when you're wanted at sea. A run prints the same numbers as the browser game (`simtest aircmp boat`). The wake's foam is drawn as soft strips at the shader's average cover rather than with its noise pattern. |
 | game/audio.js | `Sim/WebAudio` (a small Web Audio work-alike), `Sim/Audio`, `Game/ATGAudio` | All of it: every synthesised effect with the same envelopes, filters and sweeps, the panners, the reverb send, the world muffle on WASTED / BUSTED, the compressor, the player's engine, tyres, wind and horn, the aircraft engines, the sirens and the helicopter's rotor, the ambience, birds, crickets and thunder, and the three radio stations. Each effect's loudness every 50 ms comes within a few dB of the browser's own Web Audio rendering of audio.js (`Tools/audiotest.cpp` against `tools/browser-test/tests/audiocmp.mjs`). Three differences: the panner is the equal-power model (the browser game asks for HRTF), the 2.2 s convolution reverb is an algorithmic reverb with the same decay, and the WASTED stinger is the synthesised one (the browser plays a recording when it has one). |
@@ -61,9 +62,9 @@ pad, and plays its sounds.
 
 **Status.** Phase 1 builds and runs on UE 5.8.3 (Visual Studio 2026). The game logic has moved into the
 simulation layer (above): walking, getting in and out, driving, crashes and parked cars run there and are
-drawn by Unreal. Phase 2 is done: traffic, people, traffic lights, trains and the skinned humanoid. Phase 3
-is under way: WASTED and BUSTED, the effects, combat, the police and the pickups are done here; shops are on a second branch
-(`oc-phase3`, worked by a second agent and merged here once checked).
+drawn by Unreal. Phases 2, 3, 3b and 4 are done: the living city, the action, the GTA V layer and every
+vehicle. From phase 6, the sound and the radio and the walk-in shops are done. Phase 5 (the missions and the
+rest of the features) has not started.
 
 **Phase 1: the world and driving (done).**
 - World generation.
@@ -82,7 +83,7 @@ is under way: WASTED and BUSTED, the effects, combat, the police and the pickups
 
 **Phase 3: action.**
 - Weapons, melee, damage and effects (combat.js, effects.js). Done.
-- Pickups (done) and shops (the clerks need the interiors' furniture and the shop menus: with the interiors).
+- Pickups and shops. Done (Pet Palace's animals come with the pets).
 - Street crime (npccrime.js). Done.
 - Wanted level and police (police.js). Done.
 - Car damage, fire and explosions; vehicle tumbling (vehicle.js `_tumble`). Done (with vehicle.js in phase 1).
@@ -110,7 +111,7 @@ is under way: WASTED and BUSTED, the effects, combat, the police and the pickups
 - Save and load.
 
 **Phase 6: the finish.**
-- Walk-in interiors with their furniture (done) and shopkeepers.
+- Walk-in interiors with their furniture and shopkeepers. Done.
 - Landmarks: the pier's rides, the Ferris wheel.
 - Chain-link fences, billboards, rain and puddles.
 - Audio and the radio stations. Done.
@@ -119,8 +120,7 @@ is under way: WASTED and BUSTED, the effects, combat, the police and the pickups
 
 ## Known gaps
 
-- The shops' rooms are built and can be walked into, but nobody works there yet: the clerks, robberies and the
-  shop menus come with shops.js.
+- Pet Palace lists its dogs and cats but can't sell them, and its kennels are empty, until the pets are ported.
 - The Santa Luz pier is a plain deck; the landmarks' own colliders come with them (phase 6).
 - Billboards (and their colliders) are not built yet.
 - The people's material takes each part's roughness from humanoidMaterial, but not yet its fine fabric,

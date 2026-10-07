@@ -1,5 +1,9 @@
 #include "Hud.h"
 #include "Game.h"
+#include "Player.h"
+#include "Weapons.h"
+
+#include <cstdio>
 
 namespace atg {
 
@@ -52,6 +56,131 @@ void HudModel::setBar(const std::string* label, double v, const std::string& col
 void HudModel::promptSave() {
 	if (game.missionActive) { help("You can't save during a mission."); return; }
 	if (game.freeRoam) { help("Free roam isn't saved \xe2\x80\x94 your story save is left untouched."); return; }
+}
+
+// ------------------------------------------------------------------ the shop menus
+namespace {
+const std::vector<std::string>& GunShopItems() {
+	static const std::vector<std::string> v = { "bat", "knife", "pistol", "smg", "shotgun", "rifle", "sniper", "minigun", "rpg", "grenade", "molotov" };
+	return v;
+}
+// a number as JavaScript prints it in a template string (whole numbers without a decimal point)
+std::string HudNum(double v) {
+	if (v == std::floor(v) && std::fabs(v) < 1e15) return std::to_string((long long)v);
+	char b[32]; std::snprintf(b, sizeof b, "%.15g", v); return b;
+}
+}
+
+void HudModel::openShop() {
+	if (game.player->vehicle) return;
+	game.paused = true;
+	game.menuOpen = true;
+	menu = Menu();
+	menu.kind = "gunshop";
+	menu.title = "GUN BARN";
+	menu.sub = "Est. 1979 \xe2\x80\x94 No questions asked";
+	menuRender();
+}
+
+void HudModel::openStore(const std::string& title, const std::string& sub, const std::vector<StoreItem>& items) {
+	if (game.player->vehicle) return;
+	game.paused = true;
+	game.menuOpen = true;
+	menu = Menu();
+	menu.kind = "store";
+	menu.title = title; menu.sub = sub;
+	storeItems = items;
+	menuRender();
+}
+
+// render(): the rows from the player's cash, weapons and armour
+void HudModel::menuRender() {
+	Player& p = *game.player;
+	menu.rows.clear();
+	if (menu.kind == "gunshop") {
+		for (const std::string& id : GunShopItems()) {
+			const WeaponDef* d = FindWeapon(id);
+			if (!d) continue;
+			const bool owned = p.weapons.count(id) > 0;
+			MenuRow r;
+			r.icon = id;
+			r.name = d->name;
+			r.desc = d->type == "melee" ? "Melee" : d->type == "thrown" ? "Explosive" :
+				"Dmg " + HudNum(d->damage) + (d->pellets > 1 ? "\xc3\x97" + std::to_string(d->pellets) : "") + " \xc2\xb7 " + (d->automatic ? "Automatic" : "Semi") + " \xc2\xb7 Clip " + std::to_string(d->clip);
+			r.button = owned && d->type != "melee" ? "Ammo $" + HudNum(d->ammoPrice) : owned ? "Owned" : "Buy $" + HudNum(d->price);
+			r.enabled = !(owned && d->type == "melee");
+			menu.rows.push_back(r);
+		}
+		MenuRow a;
+		a.name = "Body Armor"; a.desc = "Absorbs 80% of incoming damage";
+		a.button = p.armor >= 100 ? "Full" : "Buy $200";
+		menu.rows.push_back(a);
+		MenuRow l; l.button = "Leave shop (Esc)"; l.primary = true;
+		menu.rows.push_back(l);
+	} else {
+		for (const StoreItem& it : storeItems) {
+			MenuRow r;
+			r.name = it.name; r.desc = it.desc;
+			r.button = "Buy $" + std::to_string(it.price);
+			r.enabled = it.available;
+			menu.rows.push_back(r);
+		}
+		MenuRow l; l.button = "Leave (Esc)"; l.primary = true;
+		menu.rows.push_back(l);
+	}
+	menu.focus = Clamp(menu.focus, 0, (int)menu.rows.size() - 1);
+	if (!menu.rows[menu.focus].enabled) menuMove(1);
+}
+
+void HudModel::menuMove(int dir) {
+	const int n = (int)menu.rows.size();
+	for (int k = 1; k <= n; k++) {
+		const int i = menu.focus + dir * k;
+		if (i < 0 || i >= n) return;
+		if (menu.rows[i].enabled) { menu.focus = i; return; }
+	}
+}
+
+void HudModel::menuPress(int row) {
+	if (menu.kind.empty() || row < 0 || row >= (int)menu.rows.size() || !menu.rows[row].enabled) return;
+	menu.focus = row;
+	if (row == (int)menu.rows.size() - 1) { closeOverlay(); return; }
+	Player& p = *game.player;
+	if (menu.kind == "gunshop") {
+		if (row < (int)GunShopItems().size()) {
+			const std::string& id = GunShopItems()[row];
+			const WeaponDef* d = FindWeapon(id);
+			if (!d) return;
+			const bool owned = p.weapons.count(id) > 0;
+			const double cost = owned ? d->ammoPrice : d->price;
+			if (p.money < cost) { if (game.audio) game.audio->play("locked"); menu.rows[row].button = "Not enough cash"; return; }
+			p.money -= cost;
+			if (owned) p.giveWeapon(id, d->ammoPack); else { p.giveWeapon(id, d->type == "melee" ? 0 : d->ammoPack); p.switchTo(id); }
+			if (game.audio) game.audio->play("cash");
+			game.events.purchase.emit(id);
+		} else {
+			// body armour
+			if (p.armor >= 100) return;
+			if (p.money < 200) { menu.rows[row].button = "Not enough cash"; return; }
+			p.money -= 200; p.armor = 100;
+			if (game.audio) game.audio->play("cash");
+		}
+	} else {
+		const StoreItem& it = storeItems[row];
+		if (p.money < it.price) { if (game.audio) game.audio->play("locked"); menu.rows[row].button = "Not enough cash"; return; }
+		p.money -= it.price;
+		if (game.audio) game.audio->play("cash");
+		const std::string msg = it.use ? it.use(p, game) : std::string();
+		menu.note = msg.empty() ? it.name + " bought." : msg;
+	}
+	menuRender();
+}
+
+void HudModel::closeOverlay() {
+	menu = Menu();
+	storeItems.clear();
+	game.menuOpen = false;
+	game.paused = false;
 }
 
 void HudModel::moneyFlash(double amount) {

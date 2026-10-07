@@ -1,0 +1,35 @@
+# The shop clerks and menus: the Gun Barn's owner behind his counter, the gun menu (buy a pistol, the highlight
+# moved down), and a whiskey at The Rusty Anchor.
+wait 1
+ATG.God 1
+ATG.Time 15
+ATG.NoBust 1
+ATG.Money 5000
+ATG.Teleport -50 -60 3.14159
+wait 2
+ATG.CamAt 1.2 1.5 2.5 0 1.0 -5
+wait 0.5
+shot shopmenu_clerk
+ATG.CamAt
+ATG.Teleport -50 -63.5 3.14159
+wait 0.5
+ATG.Menu
+shot shopmenu_guns
+ATG.Menu 2
+ATG.Menu down
+ATG.Menu down
+wait 0.3
+shot shopmenu_bought
+ATG.Menu close
+wait 0.5
+ATG.Teleport -582 138.2 0
+wait 2
+ATG.Teleport -590.66 138.24 1.5708
+wait 0.5
+ATG.Menu 1
+wait 0.3
+shot shopmenu_bar
+ATG.Menu close
+wait 0.5
+ATG.State
+quit

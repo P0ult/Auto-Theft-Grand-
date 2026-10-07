@@ -20,6 +20,7 @@
 #include "Sim/Rail.h"
 #include "Sim/Roadblocks.h"
 #include "Sim/Setup.h"
+#include "Sim/Shops.h"
 #include "Sim/Skateboard.h"
 #include "Sim/Skateparks.h"
 #include "Sim/Special.h"
@@ -508,6 +509,113 @@ static void TestPickups(World& w) {
 	printf("  spray: money %.0f -> %.0f, colour %06x -> %06x, wanted %d\n", m1, p.money, c0, v->color, g->policeSys->level);
 	Check(p.money == m1 - 100 && v->color != c0 && v->painted, "a new paint job for $100");
 	Check(g->policeSys->level == 0, "and the cops lose you");
+}
+
+// the walk-in shops: a clerk turns up behind each counter, the Gun Barn's counter opens the gun menu, a gun in a
+// clerk's face empties the till (or, at the Gun Barn, starts a shoot-out), drinks make the camera sway, and a
+// dead clerk's shop opens again once you've been away a while
+static void TestShops(World& w) {
+	printf("shops\n");
+	auto g = w.game(true);
+	Player& p = *g->player;
+	ShopSystem* S = g->shops;
+	HudModel& hud = *g->hudModel;
+	printf("  %zu shops:", S->shops.size());
+	for (auto& s : S->shops) printf(" %s", s.it->key.c_str());
+	printf("\n");
+	Check(S->shops.size() == 8, "a clerk for each of the eight shops");
+	auto shop = [&](const std::string& key) -> ShopSystem::Shop& { for (auto& s : S->shops) if (s.it->key == key) return s; return S->shops[0]; };
+	auto at = [&](const P3& q) { g->respawnPlayer(q.x, q.z, 0); };
+	// the Gun Barn: step up to the counter
+	ShopSystem::Shop& gun = shop("gunshop");
+	at(gun.it->center);
+	Run(*g, 1);
+	Check(gun.clerk && gun.state == "calm" && gun.marker->visible, "the Gun Barn's clerk is behind the counter");
+	printf("  clerk at (%.2f, %.2f) yaw %.2f, said '%s'\n", gun.clerk->pos.x, gun.clerk->pos.z, gun.clerk->yaw, hud.speeches.empty() ? "" : hud.speeches.back().text.c_str());
+	Check(!hud.speeches.empty(), "and says hello");
+	p.money = 1000;
+	at(gun.it->service);
+	g->frame(1.0 / 30); g->frame(1.0 / 30);
+	printf("  menu '%s' (%s), %zu rows, paused %d\n", hud.menu.title.c_str(), hud.menu.kind.c_str(), hud.menu.rows.size(), (int)g->paused);
+	Check(hud.menu.kind == "gunshop" && hud.menu.rows.size() == 13 && g->paused, "the gun menu (11 weapons, armour, leave), the game paused");
+	for (auto& r : hud.menu.rows) printf("    %-14s %-40s [%s]%s\n", r.name.c_str(), r.desc.c_str(), r.button.c_str(), r.enabled ? "" : " (disabled)");
+	hud.menuPress(2);
+	printf("  bought a pistol: money %.0f, holding %s, ammo %.0f\n", p.money, p.weapon.c_str(), p.weapons.count("pistol") ? p.weapons["pistol"].ammo + p.weapons["pistol"].clip : 0);
+	Check(p.weapon == "pistol" && p.money == 1000 - FindWeapon("pistol")->price, "a pistol, paid for");
+	Check(hud.menu.rows[2].button.rfind("Ammo $", 0) == 0, "its button now sells ammo");
+	hud.menuPress(11);
+	Check(p.armor == 100, "body armour");
+	p.money = 10;
+	hud.menuPress(7);
+	Check(hud.menu.rows[7].button == "Not enough cash" && !p.weapons.count("minigun"), "not enough cash for the minigun");
+	hud.menuPress((int)hud.menu.rows.size() - 1);
+	Check(hud.menu.kind.empty() && !g->paused, "leaving closes it");
+	// Ray's Liquor: a gun in the clerk's face
+	ShopSystem::Shop& liq = shop("liquor");
+	at(liq.it->center);
+	Run(*g, 1.5);
+	Check(liq.clerk && liq.state == "calm", "Ray is behind the counter");
+	const double m0 = p.money;
+	auto aimAt = [&](Ped* c) {
+		const double a = std::atan2(c->pos.x - p.pos.x, c->pos.z - p.pos.z);
+		p.yaw = a; g->rig.yaw = a + kPi; g->rig.pitch = -0.05;
+		g->input.mouse.right = true;
+	};
+	for (int i = 0; i < 30 && liq.state == "calm"; i++) { aimAt(liq.clerk.get()); g->frame(1.0 / 30); }
+	printf("  aimed: state %s, aiming %d\n", liq.state.c_str(), (int)p.aiming);
+	Check(liq.state == "handsup", "hands up");
+	g->input.mouse.right = false;
+	Run(*g, 3);
+	Run(*g, 0.5);
+	printf("  after the till: state %s, money %.0f -> %.0f, wanted %d\n", liq.state.c_str(), m0, p.money, g->policeSys->level);
+	Check(liq.state == "robbed" && g->policeSys->level >= 1, "the till handed over, the cops called");
+	at(liq.it->service);
+	Run(*g, 0.5);
+	printf("  at the till: money %.0f\n", p.money);
+	Check(p.money > m0 + 140, "the cash on the counter");
+	g->policeSys->setLevel(0);
+	// the Gun Barn doesn't hand over the till
+	at(gun.it->center);
+	Run(*g, 0.5);
+	for (int i = 0; i < 30 && gun.state == "calm"; i++) { aimAt(gun.clerk.get()); g->frame(1.0 / 30); }
+	g->input.mouse.right = false;
+	printf("  Gun Barn: state %s, clerk %s with %s, state %s\n", gun.state.c_str(), gun.clerk->brain.c_str(), gun.clerk->weapon.c_str(), gun.clerk->state.c_str());
+	Check(gun.state == "hostile" && gun.clerk->weapon == "shotgun" && gun.clerk->state == "attack", "the owner pulls a shotgun");
+	S->calmDown();
+	Check(!gun.clerk && gun.state == "closed", "and calms down after a respawn");
+	g->policeSys->setLevel(0);
+	// the bar: two whiskeys
+	ShopSystem::Shop& bar = shop("bar");
+	at(bar.it->center);
+	Run(*g, 1);
+	p.money = 100;
+	at(bar.it->service);
+	g->frame(1.0 / 30); g->frame(1.0 / 30);
+	Check(hud.menu.kind == "store" && hud.menu.title == "THE RUSTY ANCHOR", "the bar's menu");
+	hud.menuPress(1); hud.menuPress(1);
+	printf("  two whiskeys: drunk %.2f, note '%s', money %.0f\n", p.drunk, hud.menu.note.c_str(), p.money);
+	Check(std::fabs(p.drunk - 1.2) < 1e-9 && hud.menu.note == "The room is starting to spin..." && p.money == 76, "the room sways");
+	hud.closeOverlay();
+	const double y0 = g->rig.yaw;
+	Run(*g, 2);
+	Check(g->rig.yaw != y0 && p.drunk < 1.2, "the camera sways and it wears off");
+	// kill Ray: the shop shuts until you've been away
+	at(liq.it->center);
+	Run(*g, 0.5);
+	Ped* ray = liq.clerk.get();
+	DamageInfo di; di.source = &p; di.weapon = "pistol";
+	ray->takeDamage(500, di);
+	Run(*g, 0.5);
+	at(liq.it->service);
+	Run(*g, 0.2);
+	printf("  dead clerk: state %s, help '%s'\n", liq.state.c_str(), hud.helpLine.text.c_str());
+	Check(liq.state == "dead" && hud.menu.kind.empty() && hud.helpLine.text == "There's nobody behind the counter.", "a dead clerk: nobody serves");
+	g->respawnPlayer(liq.it->center.x + 150, liq.it->center.z, 0);
+	Run(*g, 61);
+	Check(!liq.clerk && liq.state == "closed", "gone once you've been away a minute");
+	at(liq.it->center);
+	Run(*g, 0.5);
+	Check(liq.clerk && liq.state == "calm" && liq.clerk.get() != ray, "and a new clerk turns up");
 }
 
 // roadblocks: at four stars a driving suspect meets a line of cruisers ahead with cops in cover and a spike
@@ -1221,6 +1329,7 @@ int main(int argc, char** argv) {
 	if (want("army")) TestArmy(w);
 	if (want("skate")) TestSkate(w);
 	if (want("boats")) TestBoats(w);
+	if (want("shops")) TestShops(w);
 	printf(fails ? "%d FAILED\n" : "all passed\n", fails);
 	return fails ? 1 : 0;
 }

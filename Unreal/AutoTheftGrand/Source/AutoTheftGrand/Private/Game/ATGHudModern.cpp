@@ -15,6 +15,10 @@
 #include "Engine/Engine.h"
 #include "Engine/Font.h"
 #include "Engine/Texture2D.h"
+#include "EngineFontServices.h"
+#include "Fonts/FontMeasure.h"
+#include "GameFramework/PlayerController.h"
+#include "Sim/Player.h"
 
 namespace {
 float FadeTo(float V, float Target, float Rate, float Dt) { return V < Target ? FMath::Min(Target, V + Rate * Dt) : FMath::Max(Target, V - Rate * Dt); }
@@ -602,4 +606,100 @@ void AATGHUD::DrawCrosshair(atg::Game* G) {
 	Bar(X0 + Half - T / 2, Y0 + S - L, T, L);
 	Bar(X0, Y0 + Half - T / 2, L, T);
 	Bar(X0 + S - L, Y0 + Half - T / 2, L, T);
+}
+
+// ---- hud.js openShop / openStore: the menu panel (.menu-panel.shop) with a row per item (.shop-item) and the
+// leave button, the pad highlight (.pad-focus) and the mouse's hover; the buttons' screen rectangles are kept
+// for clicks
+void AATGHUD::DrawShopMenu(atg::Game* G) {
+	MenuRects.Reset();
+	atg::HudModel* M = G->hudModel;
+	if (!M || M->menu.kind.empty()) return;
+	const atg::HudModel::Menu& Mn = M->menu;
+	const float W = Canvas->ClipX, H = Canvas->ClipY;
+	DrawRect(FLinearColor(0, 0, 0, 0.55f), 0, 0, W, H);
+	FATGPainter c(Canvas);
+	auto Str = [](const std::string& S) { return FString(UTF8_TO_TCHAR(S.c_str())); };
+	const float Pw = 620, PadX = 30, PadY = 26, Cw = Pw - PadX * 2;
+	const int32 N = (int32)Mn.rows.size() - 1; // (the last row is the leave button)
+	auto RowH = [&](int32 I) { return Mn.rows[I].icon.empty() ? 51.f : 68.f; };
+	float Ph = PadY + 46 + 18 + 12 + 34 + 10;
+	for (int32 I = 0; I < N; I++) Ph += RowH(I) + (I ? 6 : 0);
+	Ph += 6 + 40 + PadY;
+	// (the browser scrolls a panel taller than 94% of the screen; this one shrinks to fit)
+	const float S = Ui * FMath::Min(1.f, 0.94f * H / (Ph * Ui));
+	c.Translate((W - Pw * S) / 2, (H - Ph * S) / 2);
+	c.Scale(S, S);
+	float Mx = -1, My = -1;
+	if (APlayerController* PC = GetOwningPlayerController()) PC->GetMousePosition(Mx, My);
+	const FLinearColor Gold = CssColor(0xe8b64c), Muted = CssColor(0xaaaaaa);
+	c.Fill = CssColor(0x080a0e, 0.86f); c.BeginPath(); c.RoundRect(0, 0, Pw, Ph, 6); c.FillPath();
+	c.Stroke = FLinearColor(1, 1, 1, 0.08f); c.LineWidth = 1; c.StrokePath();
+	float y = PadY;
+	c.Fill = Gold; c.FontText(Str(Mn.title), PadX, y + 34, 34, TEXT("Bold"), 0, 0.8f);
+	y += 46;
+	c.Fill = Muted; c.FontText(Str(Mn.sub), PadX, y + 12, 13, TEXT("Regular"));
+	y += 18 + 12;
+	// Cash: $00001234 — note
+	const double Money = G->player ? G->player->money : 0;
+	c.Fill = FLinearColor::White;
+	float x = PadX + c.FontText(TEXT("Cash: "), PadX, y + 26, 26, TEXT("Bold"), 0, 0.8f);
+	c.Fill = CssColor(0x3ba34a);
+	x += c.FontText(FString::Printf(TEXT("$%08lld"), (long long)FMath::Max(0.0, FMath::Floor(Money))), x, y + 26, 26, TEXT("Bold"), 0, 0.8f);
+	if (!Mn.note.empty()) { c.Fill = Muted; c.FontText(TEXT(" — ") + Str(Mn.note), x, y + 26, 26, TEXT("Regular"), 0, 0.8f); }
+	y += 34 + 10;
+	// a button (.btn, .btn.primary): its box, the focus ring, the hover, the label
+	auto Button = [&](int32 I, float Bx, float By, float Bw, float Bh) {
+		const atg::HudModel::MenuRow& R = Mn.rows[I];
+		const FVector2f A = c.ToScreen(Bx, By), B = c.ToScreen(Bx + Bw, By + Bh);
+		const FBox2D Box(FVector2D(A.X, A.Y), FVector2D(B.X, B.Y));
+		while (MenuRects.Num() <= I) MenuRects.Add(FBox2D(ForceInit));
+		MenuRects[I] = Box;
+		const bool bHover = R.enabled && Box.IsInside(FVector2D(Mx, My));
+		c.Save();
+		if (!R.enabled) c.Alpha = 0.4f;
+		if (I == Mn.focus) {
+			c.Fill = FLinearColor(Gold.R, Gold.G, Gold.B, 0.25f); c.BeginPath(); c.RoundRect(Bx - 6, By - 6, Bw + 12, Bh + 12, 7); c.FillPath();
+			c.Stroke = Gold; c.LineWidth = 2; c.BeginPath(); c.RoundRect(Bx - 3, By - 3, Bw + 6, Bh + 6, 5); c.StrokePath();
+		}
+		if (R.primary) c.Fill = bHover ? CssColor(0xffd27a) : Gold;
+		else c.Fill = bHover ? FLinearColor(Gold.R, Gold.G, Gold.B, 0.25f) : FLinearColor(1, 1, 1, 0.08f);
+		c.BeginPath(); c.RoundRect(Bx, By, Bw, Bh, 3); c.FillPath();
+		c.Stroke = R.primary || bHover ? Gold : FLinearColor(1, 1, 1, 0.18f); c.LineWidth = 1; c.StrokePath();
+		c.Fill = R.primary ? CssColor(0x1a1205) : FLinearColor::White;
+		c.FontText(Str(R.button), Bx + Bw / 2, By + Bh / 2 + 5.5f, 15, TEXT("Bold"), 0.5f);
+		c.Restore();
+	};
+	auto ButtonW = [&](const std::string& Label) {
+		// (measured by drawing nothing: the label's width at 15 px plus the padding)
+		float Tw = 0;
+		if (FEngineFontServices::IsInitialized() && GEngine) {
+			const FSlateFontInfo Info(GEngine->GetLargeFont(), 15 * c.ScaleOf() * 0.75f, FName(TEXT("Bold")));
+			Tw = (float)FEngineFontServices::Get().GetFontMeasure()->Measure(Str(Label), Info).X / FMath::Max(0.001f, c.ScaleOf());
+		}
+		return Tw + 38;
+	};
+	for (int32 I = 0; I < N; I++) {
+		const atg::HudModel::MenuRow& R = Mn.rows[I];
+		const float Rh = RowH(I);
+		c.Fill = FLinearColor(1, 1, 1, 0.04f); c.BeginPath(); c.RoundRect(PadX, y, Cw, Rh, 4); c.FillPath();
+		float Tx = PadX + 10;
+		if (!R.icon.empty()) {
+			c.Fill = FLinearColor(0, 0, 0, 0.4f); c.BeginPath(); c.Arc(Tx + 28, y + Rh / 2, 28, 0, 2 * PI); c.FillPath();
+			c.Save(); c.Translate(Tx, y + 6); WeaponIcon(c, R.icon, 56); c.Restore();
+			Tx += 56 + 14;
+		}
+		const float Top = y + (Rh - 35) / 2;
+		c.Fill = FLinearColor::White; c.FontText(Str(R.name), Tx, Top + 17, 17, TEXT("Bold"));
+		c.Fill = Muted; c.FontText(Str(R.desc), Tx, Top + 32, 12, TEXT("Regular"));
+		const float Bw = FMath::Max(130.f, ButtonW(R.button)), Bh = 40;
+		Button(I, PadX + Cw - 10 - Bw, y + (Rh - Bh) / 2, Bw, Bh);
+		y += Rh + 6;
+	}
+	Button(N, PadX, y, ButtonW(Mn.rows[N].button), 40);
+}
+
+int32 AATGHUD::MenuRowAt(float X, float Y) const {
+	for (int32 I = 0; I < MenuRects.Num(); I++) if (MenuRects[I].bIsValid && MenuRects[I].IsInside(FVector2D(X, Y))) return I;
+	return -1;
 }

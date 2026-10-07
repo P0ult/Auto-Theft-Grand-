@@ -44,5 +44,10 @@ public:
 
 private:
 	TSet<FString> Held;   // keys the simulation has been told are down
+	// the shop menus (padnav.js): the cursor while one is open, and the highlight's key repeat
+	bool bMenuCursor = false;
+	int32 MenuLastDir = 0;
+	float MenuRepeatT = 0;
+	bool MenuInput(atg::Game& G, float Dt);
 	double MouseDx = 0, MouseDy = 0, Wheel = 0;
 };
