@@ -68,6 +68,10 @@ public:
 	bool criminal = false;                // (vigilante targets: killing them is no crime)
 	// police (police.js): the car a cop came in, the spot a roadblock cop holds, when they next shout
 	Ref<Vehicle> homeCar;
+	// soldiers (military.js, army.js): a garrison post's patrol between two points; response: sent by the army
+	// at five stars (killing one doesn't lock Fort Carver down)
+	bool soldier = false, response = false;
+	bool hasPatrol = false; double patrol[2][2] = {}; int patrolLeg = 0; double patrolWait = 0;
 	bool hasHoldPos = false; V3 holdPos;
 	double lineT = NaN();
 	std::map<std::string, double> num;    // (free slots for systems that hang their own numbers on a person)

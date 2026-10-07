@@ -119,13 +119,14 @@ public:
 	std::map<std::string, double> gangDensity; // (missions thin gangs out)
 	bool disableAmbient = false;               // (no ambient traffic or pedestrians: some missions)
 	// what the missions and other systems tell the police (missions.js maxWanted / noBust, vigilante.active)
-	double missionMaxWanted = NaN(); bool missionNoBust = false, missionNoSpray = false, missionNoRoadblocks = false, vigilanteActive = false;
+	double missionMaxWanted = NaN(); bool missionNoBust = false, missionNoSpray = false, missionNoRoadblocks = false, missionNoArmy = false, vigilanteActive = false;
 	// (systems the police reset after WASTED / BUSTED)
 	System* army = nullptr; System* roadblocks = nullptr;
 	class WeaponWheel* wheel = nullptr;
 	class Special* special = nullptr;
 	class Pickups* pickupsSys = nullptr; // (the pickups and markers, for the systems that place them)
 	class Police* policeSys = nullptr; // (the police itself, for the systems that spawn units through it)
+	class Military* military = nullptr; // (Fort Carver: whether the base is on alert)
 	double viewAspect = 16.0 / 9.0;            // (the screen's, for what the camera can see)
 
 	// characters: a registry of everyone alive (the renderer draws these), and who counts for collisions

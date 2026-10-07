@@ -25,8 +25,10 @@ raise the stars, patrol cars turn into pursuers that ram you, cops shoot or come
 stars the helicopter circles overhead with its searchlight and roadblocks close the road ahead, with a spike
 strip at four stars. Stay out of sight long enough and they give up. Motorbikes and bicycles lean through the corners and throw you off in a hard crash.
 Planes, jets and helicopters fly as they do in the browser game, and the Mammoth tank turns its turret
-toward the crosshair and fires shells; until the airfield and Fort Carver are ported, `ATG.Spawn raptor`
-(or `skipper`, `hercules`, `skylark`, `warhawk`, `mammoth`) brings one out. The city has its own crime too:
+toward the crosshair and fires shells. The Skipper waits at Fern Creek Airfield, a Skylark on the hospital
+roof, and Fort Carver keeps Raptors, a Hercules, a Warhawk, Mammoths and army trucks behind its fence,
+guarded by soldiers: trespass and the army opens fire. At five stars the army joins the chase with troop
+trucks, jeeps, the Warhawk gunship and a tank. The city has its own crime too:
 jaywalkers, speeders, road rage, muggings and car thefts, with stars over the culprit and a patrol that
 writes a ticket, gives chase or makes an arrest. Every few minutes an armoured van does its rounds nearby:
 shoot its back doors open, grab the cash and fight off the guards. The phone calls Lester (lose the cops),
@@ -34,7 +36,7 @@ Benny (your last car delivered), Merryweather (three armed contractors), takes t
 Snapmatic, the map, the weather and your stats.
 Health, armour, cash and weapons lie about the city, dropped by the dead or waiting to respawn, with 30
 hidden packages to find; the Spray Shack repaints and repairs your car and loses the police for $100. The Sol Line's passenger and freight trains run
-their timetable; board one at a platform with F, or climb into the cab and drive it. Missions, roadblocks, the army
+their timetable; board one at a platform with F, or climb into the cab and drive it. Missions, boats
 and the rest are still to come; [PORTING.md](PORTING.md) has the plan and the progress.
 
 ## Build and run
@@ -157,7 +159,7 @@ Unreal's axes (centimetres, Z up) only at the edges; `Game/ATGCoords.h` has the 
 screen with fixed 1/30 s frames and a script of console commands (`ATG.Teleport`, `ATG.Press KeyW`,
 `ATG.Spawn zenith`, `ATG.Enter`, `ATG.Time 21`, `ATG.State`, `ATG.City`, `ATG.Station union`, `ATG.Kill`,
 `ATG.Bust`, `ATG.Explode`, `ATG.Wreck`, `ATG.Fx`, `ATG.Give rpg 5`, `ATG.Wanted 3`, `ATG.NoBust 1`, `ATG.Police`,
-`ATG.CamHeli`, `ATG.Roadblock`, `ATG.CamRoadblock`, `ATG.Crime mug`, `ATG.Crimes`, `ATG.MouseMove 60 40`, `ATG.Heist here`, `ATG.CamAt 3 1.6 2 0 0.7 5.5`, `ATG.Press MouseRight MouseLeft`, `shot name`,
+`ATG.CamHeli`, `ATG.Roadblock`, `ATG.CamRoadblock`, `ATG.CamArmy heli`, `ATG.Crime mug`, `ATG.Crimes`, `ATG.MouseMove 60 40`, `ATG.Heist here`, `ATG.CamAt 3 1.6 2 0 0.7 5.5`, `ATG.Press MouseRight MouseLeft`, `shot name`,
 `wait 2`, `quit`); screenshots go to `Saved/Screenshots/WindowsEditor/ATG/`. `Tools/tests/city.txt` and
 `city2.txt` look at the traffic, the people, the traffic lights and the trains; `human.txt` at a person
 up close, walking and running; `wasted.txt` at WASTED and BUSTED; `effects.txt` at an explosion and a burning
@@ -166,7 +168,8 @@ pursuit and the helicopter by night and by day; `pickups.txt` at a pickup and th
 markers; `roadblocks.txt` at a roadblock and its spike strip; `npccrime.txt` at a
 suspect's stars, the patrol that comes for them and a staged car theft; `wheel.txt` at the weapon wheel; `special.txt` at the
 special ability; `heist.txt` at a robbed armoured van; `phone.txt` at the phone; `bikes.txt` and `bikes2.txt` at
-the motorbikes and bicycles; `aircraft.txt` at each aircraft and the tank, parked, flying and firing.
+the motorbikes and bicycles; `aircraft.txt` at each aircraft and the tank, parked, flying and firing; `army.txt` at the army at five stars and
+Fort Carver's gate and restricted area.
 
 The simulation is tested without Unreal. `Tools/native.sh` builds a tool with MSVC from Git Bash:
 
@@ -177,7 +180,7 @@ cd Tools
                                                                # WASTED, effects, combat, police, pickups,
                                                                # roadblocks, street crime, the wheel, special,
                                                                # armoured vans, the phone, bikes,
-                                                               # aircraft and the tank
+                                                               # aircraft and the tank, the army
 DEBUG=1 ./native.sh simtestd.exe simtest.cpp                   # with symbols: a crash prints a stack trace
 ./simtest.exe vehcompare > cppveh.txt                          # the car physics against the browser game's:
 node --import ./three-hook.mjs vehcompare.mjs > jsveh.txt      # identical to 4 decimals

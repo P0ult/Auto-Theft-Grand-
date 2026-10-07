@@ -1,0 +1,34 @@
+# The army at five stars (troop trucks and jeeps, the Warhawk gunship, the Mammoth tank), then Fort Carver:
+# its flight line from the gate and the restricted-area warning inside the fence.
+wait 1
+ATG.God 1
+ATG.Time 13
+ATG.NoBust 1
+ATG.Teleport 105 60
+wait 1
+ATG.Wanted 5
+wait 10
+shot army_a
+ATG.Wanted 5
+wait 12
+ATG.Wanted 5
+ATG.CamArmy heli
+wait 0.2
+shot army_heli
+ATG.CamArmy 0
+wait 8
+ATG.Wanted 5
+ATG.CamArmy tank
+wait 0.2
+shot army_tank
+ATG.CamArmy 0
+ATG.Wanted 0
+ATG.Teleport -3790 -4060 -1.5708
+wait 4
+ATG.Cam 1.5708 0.15
+wait 0.5
+shot base_gate
+ATG.Teleport -3870 -4060 -1.5708
+wait 1.5
+shot base_restricted
+quit

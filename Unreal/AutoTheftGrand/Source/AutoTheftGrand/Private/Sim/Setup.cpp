@@ -1,10 +1,12 @@
 #include "Setup.h"
 #include "Special.h"
+#include "Army.h"
 #include "Combat.h"
 #include "Effects.h"
 #include "Game.h"
 #include "Gameplay.h"
 #include "Heists.h"
+#include "Military.h"
 #include "Hud.h"
 #include "NpcCrime.h"
 #include "Peds.h"
@@ -32,7 +34,8 @@ void InstallSystems(Game& g) {
 	g.npcCrime = g.addSystem("npcCrime", std::make_unique<NpcCrime>(g));
 	g.pickupsSys = g.addSystem("pickups", std::make_unique<Pickups>(g));
 	g.pickups = g.pickupsSys;
-	// (military, army: next)
+	g.military = g.addSystem("military", std::make_unique<Military>(g));
+	g.army = g.addSystem("army", std::make_unique<Army>(g));
 	g.roadblocks = g.addSystem("roadblocks", std::make_unique<Roadblocks>(g));
 	g.addSystem("heists", std::make_unique<Heists>(g));
 	g.wheel = g.addSystem("weaponWheel", std::make_unique<WeaponWheel>(g));

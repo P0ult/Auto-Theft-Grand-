@@ -4,6 +4,7 @@
 #include "Game/ATGPlayerController.h"
 #include "Game/ATGWorld.h"
 #include "Sim/Aircraft.h"
+#include "Sim/Army.h"
 #include "Sim/Effects.h"
 #include "Sim/Weapons.h"
 #include "Sim/Game.h"
@@ -194,6 +195,20 @@ ATG_CMD(CmdCamHeli, "ATG.CamHeli", "ATG.CamHeli [0]: hold the camera behind the 
 	const atg::V3 H = G->policeSys->heli->pos, P = G->player->pos;
 	atg::V3 Back = P - H; Back.y = 0; Back = Back.normalized();
 	G->rig.setCinematic(P + Back * 8 + atg::V3(0, 3, 0), H, 50);
+})
+ATG_CMD(CmdCamArmy, "ATG.CamArmy", "ATG.CamArmy heli|tank|truck|jeep (0: let go): hold the camera behind the player looking at an army unit", {
+	atg::Game* G = Sim(W);
+	atg::Army* A = G ? dynamic_cast<atg::Army*>(G->army) : nullptr;
+	if (!A || !Args.Num()) return;
+	if (Args[0] == TEXT("0")) { G->rig.clearCinematic(); return; }
+	const std::string K = TCHAR_TO_UTF8(*Args[0]);
+	for (const auto& U : A->units) if (U.kind == K) if (atg::Vehicle* V = U.veh.get()) {
+		const atg::V3 T = V->cgPoint(), P = G->player->vehicle ? G->player->vehicle->pos : G->player->pos;
+		atg::V3 Back = P - T; Back.y = 0; Back = Back.normalized();
+		G->rig.setCinematic(P + Back * 9 + atg::V3(0, 3, 0), T, 50);
+		return;
+	}
+	UE_LOG(LogATG, Warning, TEXT("ATG.CamArmy: no %s"), *Args[0]);
 })
 ATG_CMD(CmdRoadblock, "ATG.Roadblock", "ATG.Roadblock: the police close the road ahead of the player's car now", {
 	atg::Game* G = Sim(W);

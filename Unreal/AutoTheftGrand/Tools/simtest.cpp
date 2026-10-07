@@ -1,12 +1,14 @@
 // Native tests for the simulation (no Unreal): Tools/native.sh simtest.exe simtest.cpp && ./simtest.exe [test ...]
 // Each test sets up a game on the generated world, runs fixed 1/30 s frames and prints what it measured.
 #include "Sim/Aircraft.h"
+#include "Sim/Army.h"
 #include "Sim/Bike.h"
 #include "Sim/Combat.h"
 #include "Sim/Effects.h"
 #include "Sim/Game.h"
 #include "Sim/Gameplay.h"
 #include "Sim/Heists.h"
+#include "Sim/Military.h"
 #include "Sim/NpcCrime.h"
 #include "Sim/Hud.h"
 #include "Sim/Peds.h"
@@ -19,6 +21,7 @@
 #include "Sim/Special.h"
 #include "Sim/Traffic.h"
 #include "Sim/WeaponWheel.h"
+#include "WorldGen.h"
 #include "crashtrace.h"
 #include <chrono>
 #include <cstdio>
@@ -905,6 +908,93 @@ static void TestAircraft(World& w) {
 	}
 }
 
+static void TestArmy(World& w) {
+	printf("army\n");
+	// Fort Carver: the hardware streams in, the garrison stands at its posts, trespassing puts the base on alert
+	{
+		auto g = w.game(true);
+		Player& p = *g->player;
+		p.invincible = true;
+		g->missionNoBust = true;
+		Military* mil = g->military;
+		Check(mil != nullptr, "Fort Carver is installed");
+		if (!mil) return;
+		g->respawnPlayer(BASE.maxX + 60, BASE.gateZ, -kPi / 2);
+		Run(*g, 2);
+		int parked = 0, soldiers = 0;
+		for (const auto& e : mil->fixed) if (e.veh.get()) parked++;
+		for (const auto& r : mil->soldiers) if (r.get() && !r->dead) soldiers++;
+		printf("  at the gate: %d parked aircraft and vehicles, %d soldiers, inside %d\n", parked, soldiers, (int)mil->inside);
+		Check(parked >= 8, "the hardware is parked out");
+		Check(soldiers == 15, "the garrison is at its posts");
+		Check(!mil->inside && !mil->alerted, "outside the fence nothing happens");
+		g->respawnPlayer(BASE.maxX - 40, BASE.gateZ, -kPi / 2);
+		Run(*g, 1);
+		printf("  inside: inside %d, alerted %d, stars %d\n", (int)mil->inside, (int)mil->alerted, g->policeSys->level);
+		Check(mil->inside && !mil->alerted, "a warning on the way in");
+		Run(*g, 8);
+		int attacking = 0;
+		for (const auto& r : mil->soldiers) if (r.get() && r->state == "attack") attacking++;
+		printf("  8 s later: alerted %d, army hostile %d, stars %d, %d soldiers attacking\n", (int)mil->alerted, (int)g->peds->gangAggro["army"], g->policeSys->level, attacking);
+		Check(mil->alerted && g->peds->gangAggro["army"] && g->policeSys->level >= 3, "staying puts the base on alert and brings three stars");
+		// the hardware: take a jet and it is replaced later
+		Military::Fixed* jet = nullptr;
+		for (auto& e : mil->fixed) if (e.type == "raptor" && e.veh.get()) { jet = &e; break; }
+		Check(jet != nullptr, "a Raptor on the flight line");
+		if (jet) {
+			Vehicle* v = jet->veh.get();
+			v->pos.x += 40;
+			Run(*g, 1);
+			printf("  moved the Raptor: slot empty %d, respawn in %.0f s\n", (int)!jet->hasVeh, jet->timer);
+			Check(!jet->hasVeh && jet->timer > 100, "a taken jet is respawned later");
+		}
+	}
+	// five stars: trucks and jeeps, then the gunship, then the tank; they pull out below five
+	{
+		auto g = w.game(true);
+		ToStreet(w, *g);
+		Player& p = *g->player;
+		p.invincible = true;
+		g->missionNoBust = true;
+		Army* army = dynamic_cast<Army*>(g->army);
+		Check(army != nullptr, "the army is installed");
+		if (!army) return;
+		g->policeSys->setLevel(5);
+		int deployed = 0;
+		g->events.armyDeployed.on([&]() { deployed++; });
+		std::map<std::string, int> seen;
+		bool heliFired = false;
+		for (int i = 0; i < 30; i++) {
+			p.health = 100;
+			g->policeSys->raise(5);
+			Run(*g, 1);
+			for (const auto& u : army->units) if (u.veh.get()) seen[u.kind]++;
+			for (const auto& u : army->units) if (u.kind == "heli") if (Heli* h = dynamic_cast<Heli*>(u.veh.get())) if (h->gunT > 0 || h->missileT > 0) heliFired = true;
+		}
+		std::map<std::string, int> now;
+		double heliD = -1, heliAlt = -1, tankD = -1;
+		for (const auto& u : army->units) if (Vehicle* v = u.veh.get()) {
+			now[u.kind]++;
+			const double d = Hypot(v->pos.x - p.pos.x, v->pos.z - p.pos.z);
+			if (u.kind == "heli") { heliD = d; heliAlt = v->altitude(); }
+			if (u.kind == "tank") tankD = d;
+		}
+		printf("  after 30 s at five stars: active %d, deployed %d, trucks %d, jeeps %d, gunship %d (%.0f m away, %.0f m up), tank %d (%.0f m away), troops %zu\n",
+			(int)army->active, deployed, now["truck"], now["jeep"], now["heli"], heliD, heliAlt, now["tank"], tankD, army->troops.size());
+		Check(army->active && deployed == 1, "five stars mobilise the army");
+		Check(seen["truck"] + seen["jeep"] > 0, "troop trucks and jeeps come");
+		Check(seen["heli"] > 0 && seen["tank"] > 0, "then the gunship and the tank");
+		Check(heliD >= 0 && heliD < 140, "the gunship circles the target");
+		Check(heliFired, "the gunship opens fire");
+		g->policeSys->setLevel(2);
+		Run(*g, 1);
+		bool leaving = true;
+		for (const auto& u : army->units) if (u.veh.get() && !u.leaving) leaving = false;
+		printf("  two stars: active %d, all leaving %d\n", (int)army->active, (int)leaving);
+		Check(!army->active && leaving, "below five stars they pull out");
+	}
+}
+
 // the same runs as tools/browser-test/tests/aircmp.mjs (mode: plane, heli or tank), printed the same way
 static void AirCompare(World& w, const std::string& mode) {
 	auto g = w.game();
@@ -972,6 +1062,7 @@ int main(int argc, char** argv) {
 	if (want("phone")) TestPhone(w);
 	if (want("bikes")) TestBikes(w);
 	if (want("aircraft")) TestAircraft(w);
+	if (want("army")) TestArmy(w);
 	printf(fails ? "%d FAILED\n" : "all passed\n", fails);
 	return fails ? 1 : 0;
 }
