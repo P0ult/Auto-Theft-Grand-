@@ -150,14 +150,14 @@ void FATGPainter::Text(const FString& S, float X, float Y, UFont* Font, float Si
 	Canvas->DrawItem(Item);
 }
 
-// Face "Hud", "Title", "Script" or "Text" (optionally "Text Bold") picks one of the browser game's font stacks;
+// Face "Hud", "Title", "Script" or "Text" (or "Text Bold", "Text BoldItalic") picks one of the browser game's font stacks;
 // anything else is a typeface of the engine's Roboto
 static FSlateFontInfo PainterFont(const TCHAR* Face, float Px) {
 	const FString F(Face);
 	if (F == TEXT("Hud")) return ATGFonts::Get(EATGFont::Hud, Px);
 	if (F == TEXT("Title")) return ATGFonts::Get(EATGFont::Title, Px);
 	if (F == TEXT("Script")) return ATGFonts::Get(EATGFont::Script, Px);
-	if (F.StartsWith(TEXT("Text"))) return ATGFonts::Get(EATGFont::Text, Px, F.EndsWith(TEXT("Bold")));
+	if (F.StartsWith(TEXT("Text"))) return ATGFonts::Get(EATGFont::Text, Px, F.Contains(TEXT("Bold")), F.Contains(TEXT("Italic")));
 	return FSlateFontInfo(GEngine->GetLargeFont(), FMath::Max(1.f, Px * 0.75f), FName(Face));
 }
 

@@ -52,6 +52,15 @@ void AATGHUD::Text(const FString& S, float X, float Y, UFont* Font, float Scale,
 	Canvas->DrawItem(Item);
 }
 
+// CSS text: one of the browser's font stacks at Px (screen pixels), its baseline at Y, with black text-shadows
+// (dx, dy, opacity) drawn under it
+void AATGHUD::CssText(const FString& S, float X, float Y, float Px, const TCHAR* Face, const FLinearColor& Col, float AlignX, std::initializer_list<FVector3f> Shadows) {
+	if (S.IsEmpty()) return;
+	FATGPainter c(Canvas);
+	for (const FVector3f& Sh : Shadows) { c.Fill = FLinearColor(0, 0, 0, Sh.Z * Col.A); c.FontText(S, X + Sh.X, Y + Sh.Y, Px, Face, AlignX); }
+	c.Fill = Col; c.FontText(S, X, Y, Px, Face, AlignX);
+}
+
 void AATGHUD::Arrow(float Cx, float Cy, double Heading, float Size, const FLinearColor& Color) {
 	// forward in game axes is (sin h, cos h): on the north-up map x goes right and z goes down
 	const FVector2D F(FMath::Sin(Heading), FMath::Cos(Heading)), R(-F.Y, F.X);
@@ -131,13 +140,15 @@ void AATGHUD::DrawHUD() {
 	const float Right = Canvas->ClipX - 30 * Ui, Bottom = Canvas->ClipY;
 	if (atg::HudModel* M = G->hudModel) {
 		const bool bIn = Car != nullptr;
-		if (M->zone.t > 0 && !G->phoneOpen) Text(Plain(M->zone.text), Right, Bottom - ((bIn ? 232 : 28) + 34) * Ui, Big, 1.45f * Ui, FLinearColor(1, 1, 1, FMath::Min(1.f, (float)M->zone.t * 3.f) * DeadAlpha), 1.f);
-		if (M->veh.t > 0 && !G->phoneOpen) Text(Plain(M->veh.text), Right, Bottom - ((bIn ? 274 : 70) + 30) * Ui, Big, 1.25f * Ui, FLinearColor(FColor(0xff, 0xe0, 0x8a)).CopyWithNewOpacity(FMath::Min(1.f, (float)M->veh.t * 3.f) * DeadAlpha), 1.f);
+		// (.hud-zone: 600 italic 30 px, white; .hud-vehname: 600 italic 26 px, #ffe08a; both with a 2 px shadow)
+		if (M->zone.t > 0 && !G->phoneOpen) CssText(Plain(M->zone.text), Right, Bottom - ((bIn ? 232 : 28) + 8) * Ui, 30 * Ui, TEXT("Text BoldItalic"), FLinearColor(1, 1, 1, FMath::Min(1.f, (float)M->zone.t * 3.f) * DeadAlpha), 1.f, { FVector3f(2 * Ui, 2 * Ui, 1) });
+		if (M->veh.t > 0 && !G->phoneOpen) CssText(Plain(M->veh.text), Right, Bottom - ((bIn ? 274 : 70) + 7) * Ui, 26 * Ui, TEXT("Text BoldItalic"), FLinearColor(FColor(0xff, 0xe0, 0x8a)).CopyWithNewOpacity(FMath::Min(1.f, (float)M->veh.t * 3.f) * DeadAlpha), 1.f, { FVector3f(2 * Ui, 2 * Ui, 1) });
 		// the radio station, top centre (hud-radio: gold, the genre small and white under it)
 		if (M->radio.t > 0) {
 			const float A = FMath::Min(1.f, (float)M->radio.t * 3.f) * DeadAlpha;
-			Text(Plain(M->radio.text), Canvas->ClipX / 2, 22 * Ui, Big, 1.35f * Ui, FLinearColor(FColor(0xe8, 0xb6, 0x4c)).CopyWithNewOpacity(A), 0.5f);
-			if (!M->radioGenre.empty()) Text(Plain(M->radioGenre), Canvas->ClipX / 2, 62 * Ui, Small, 1.3f * Ui, FLinearColor(1, 1, 1, A), 0.5f);
+			// (.hud-radio: the HUD font, 34 px, gold, a 3 px shadow; small: 18 px white)
+			CssText(Plain(M->radio.text), Canvas->ClipX / 2, (22 + 30) * Ui, 34 * Ui, TEXT("Hud"), FLinearColor(FColor(0xe8, 0xb6, 0x4c)).CopyWithNewOpacity(A), 0.5f, { FVector3f(3 * Ui, 3 * Ui, 1) });
+			if (!M->radioGenre.empty()) CssText(Plain(M->radioGenre), Canvas->ClipX / 2, (22 + 30 + 20) * Ui, 18 * Ui, TEXT("Hud"), FLinearColor(1, 1, 1, A), 0.5f, { FVector3f(3 * Ui, 3 * Ui, 1) });
 		}
 	}
 
@@ -194,6 +205,58 @@ void AATGHUD::DrawBigMap(AATGWorld* W, double Px, double Pz, double Heading) {
 }
 
 // ------------------------------------------------------------------ the HUD model (hud.js messages and overlays)
+// .hud-help: top 20, left 24, at most 380 px wide, padding 14 x 18, the text font at 16 px with line-height 1.4,
+// a 78 % black box with 3 px corners; <b> in gold
+void AATGHUD::HelpBox(const FString& Html, float Alpha) {
+	struct FWord { FString S; bool bBold; };
+	TArray<FWord> Words;
+	{
+		bool bBold = false, bTag = false;
+		FString Tag, Cur;
+		auto Flush = [&]() { if (!Cur.IsEmpty()) { Words.Add({ Cur, bBold }); Cur.Reset(); } };
+		for (const TCHAR Ch : Html) {
+			if (bTag) {
+				if (Ch == TEXT('>')) {
+					bTag = false;
+					const FString T = Tag.TrimStartAndEnd().ToLower();
+					if (T == TEXT("b") || T.StartsWith(TEXT("b "))) { Flush(); bBold = true; }
+					else if (T == TEXT("/b")) { Flush(); bBold = false; }
+					else if (T == TEXT("br") || T == TEXT("br/")) { Flush(); Words.Add({ TEXT("\n"), false }); }
+				} else Tag.AppendChar(Ch);
+				continue;
+			}
+			if (Ch == TEXT('<')) { bTag = true; Tag.Reset(); continue; }
+			if (FChar::IsWhitespace(Ch)) { Flush(); Words.Add({ TEXT(" "), bBold }); continue; }
+			Cur.AppendChar(Ch);
+		}
+		Flush();
+	}
+	const float Px = 16 * Ui, LineH = Px * 1.4f, PadX = 18 * Ui, PadY = 14 * Ui, MaxW = 380 * Ui - PadX * 2;
+	FATGPainter c(Canvas);
+	auto Face = [](bool b) { return b ? TEXT("Text Bold") : TEXT("Text"); };
+	// lay the words out in lines
+	struct FPlaced { FString S; bool bBold; float X; int32 Line; };
+	TArray<FPlaced> Out;
+	float X = 0, Widest = 0; int32 Line = 0;
+	for (const FWord& W : Words) {
+		if (W.S == TEXT("\n")) { Widest = FMath::Max(Widest, X); X = 0; Line++; continue; }
+		const float Ww = c.FontWidth(W.S, Px, Face(W.bBold));
+		if (W.S == TEXT(" ")) { if (X > 0) X += Ww; continue; }
+		if (X > 0 && X + Ww > MaxW) { Widest = FMath::Max(Widest, X); X = 0; Line++; }
+		Out.Add({ W.S, W.bBold, X, Line });
+		X += Ww;
+	}
+	Widest = FMath::Max(Widest, X);
+	const float Bx = 24 * Ui, By = 20 * Ui;
+	c.Fill = FLinearColor(0, 0, 0, 0.78f * Alpha);
+	c.BeginPath(); c.RoundRect(Bx, By, Widest + PadX * 2, LineH * (Line + 1) + PadY * 2, 3 * Ui); c.FillPath();
+	const FLinearColor KeyGold = FLinearColor(FColor(0xe8, 0xb6, 0x4c)).CopyWithNewOpacity(Alpha), White = FLinearColor(1, 1, 1, Alpha);
+	for (const FPlaced& P : Out) {
+		c.Fill = P.bBold ? KeyGold : White;
+		c.FontText(P.S, Bx + PadX + P.X, By + PadY + P.Line * LineH + LineH * 0.5f + Px * 0.35f, Px, Face(P.bBold));
+	}
+}
+
 void AATGHUD::WrappedBox(const FString& S, float X, float Y, float MaxW, UFont* Font, float Scale, float Alpha) {
 	TArray<FString> Words, Lines;
 	S.ParseIntoArrayWS(Words);
@@ -222,21 +285,42 @@ void AATGHUD::DrawMessages(atg::Game* G, float Dt) {
 	const float A = DeadAlpha;
 	// help: top left (transition 0.25 s)
 	HelpAlpha = Approach(HelpAlpha, M->helpLine.t > 0 ? 1.f : 0.f, 4.f, Dt);
-	if (HelpAlpha > 0 && !M->helpLine.text.empty()) WrappedBox(Plain(M->helpLine.text), 24 * Ui, 20 * Ui, 380 * Ui, Small, 1.35f * Ui, HelpAlpha * A);
+	if (HelpAlpha > 0 && !M->helpLine.text.empty()) HelpBox(UTF8_TO_TCHAR(M->helpLine.text.c_str()), HelpAlpha * A);
 	// big message: 36% down the screen (transition 0.4 s)
 	BigAlpha = Approach(BigAlpha, M->big.t > 0 ? 1.f : 0.f, 2.5f, Dt);
 	if (BigAlpha > 0 && !M->big.text.empty()) {
 		const std::string& St = M->big.style;
-		const FLinearColor Col = St == "failed" ? FLinearColor(0.83f, 0.2f, 0.2f) : St == "wasted" ? FLinearColor(0.72f, 0.13f, 0.1f) : St == "busted" ? FLinearColor(0.17f, 0.42f, 0.85f) : St == "hint" ? Paper : Gold;
-		const float Y = Canvas->ClipY * 0.36f;
-		Text(Plain(M->big.text), Canvas->ClipX / 2, Y, Big, (St == "title" ? 3.2f : 3.6f) * Ui, FLinearColor(Col.R, Col.G, Col.B, BigAlpha * A), 0.5f);
-		if (!M->big.sub.empty()) Text(Plain(M->big.sub), Canvas->ClipX / 2, Y + 90 * Ui, Big, 1.7f * Ui, FLinearColor(1, 1, 1, BigAlpha * A), 0.5f);
+		// css .hud-big.title / passed / failed / wasted / busted / hint / chapter: the font, its size, colour and shadows
+		const TCHAR* Face = TEXT("Title"); float Px = 70; uint32 Hex = 0xe8b64c;
+		const TArray<FVector3f> Drop3 = { FVector3f(3, 3, 1) };
+		TArray<FVector3f> Sh = { FVector3f(4, 4, 1), FVector3f(-2, -2, 1), FVector3f(2, -2, 1), FVector3f(-2, 2, 1) };
+		if (St == "title") { Face = TEXT("Script"); Px = 64; Sh = Drop3; }
+		else if (St == "failed") { Px = 62; Hex = 0xdd3333; Sh = { FVector3f(4, 4, 1), FVector3f(-2, -2, 1) }; }
+		else if (St == "wasted" || St == "busted") { Px = 110; Hex = St == "wasted" ? 0xb8201a : 0x2b6cd8; Sh = { FVector3f(5, 5, 1), FVector3f(-2, -2, 1), FVector3f(2, -2, 1), FVector3f(-2, 2, 1) }; }
+		else if (St == "hint") { Face = TEXT("Hud"); Px = 44; Hex = 0xffffff; Sh = Drop3; }
+		else if (St == "chapter") { Px = 40; Hex = 0xffffff; Sh = Drop3; }
+		TArray<FVector3f> Scaled;
+		for (const FVector3f& V : Sh) Scaled.Add(FVector3f(V.X * Ui, V.Y * Ui, V.Z));
+		const float Top = Canvas->ClipY * 0.36f, Base = Top + Px * 0.95f * Ui;
+		const FLinearColor Col = FLinearColor(FColor((Hex >> 16) & 255, (Hex >> 8) & 255, Hex & 255)).CopyWithNewOpacity(BigAlpha * A);
+		FATGPainter c(Canvas);
+		for (const FVector3f& V : Scaled) { c.Fill = FLinearColor(0, 0, 0, V.Z * Col.A); c.FontText(Plain(M->big.text), Canvas->ClipX / 2 + V.X, Base + V.Y, Px * Ui, Face, 0.5f); }
+		c.Fill = Col; c.FontText(Plain(M->big.text), Canvas->ClipX / 2, Base, Px * Ui, Face, 0.5f);
+		// (small: the HUD font 34 px white, 6 px under; a chapter's is the script, 58 px gold)
+		if (!M->big.sub.empty()) {
+			const bool bChapter = St == "chapter";
+			const float SubPx = bChapter ? 58.f : 34.f;
+			CssText(Plain(M->big.sub), Canvas->ClipX / 2, Base + (Px * 0.25f + 6 + SubPx * 0.95f) * Ui, SubPx * Ui, bChapter ? TEXT("Script") : TEXT("Hud"),
+				(bChapter ? FLinearColor(FColor(0xe8, 0xb6, 0x4c)) : FLinearColor::White).CopyWithNewOpacity(BigAlpha * A), 0.5f, { FVector3f(3 * Ui, 3 * Ui, 1) });
+		}
 	}
 	// subtitles: bottom centre
 	SubsAlpha = Approach(SubsAlpha, M->subs.t > 0 ? 1.f : 0.f, 4.f, Dt);
 	if (SubsAlpha > 0 && !M->subs.text.empty()) {
 		const FString S = M->subsSpeaker.empty() ? Plain(M->subs.text) : FString(UTF8_TO_TCHAR(M->subsSpeaker.c_str())) + TEXT(": ") + Plain(M->subs.text);
-		Text(S, Canvas->ClipX / 2, Canvas->ClipY * 0.86f, Small, 1.6f * Ui, FLinearColor(1, 1, 1, SubsAlpha * A), 0.5f);
+		// (.hud-subtitles: the text font, 600, 22 px, 13 % up from the bottom, a 2 px shadow and a 1 px outline)
+		CssText(S, Canvas->ClipX / 2, Canvas->ClipY * 0.87f - 6 * Ui, 22 * Ui, TEXT("Text Bold"), FLinearColor(1, 1, 1, SubsAlpha * A), 0.5f,
+			{ FVector3f(2 * Ui, 2 * Ui, 1), FVector3f(-Ui, -Ui, 1) });
 	}
 	// the bar (drift, mission progress)
 	if (M->bar.on) {
@@ -354,14 +438,12 @@ void AATGHUD::DrawOverlays(atg::Game* G, float Dt) {
 		DrawRect(FLinearColor(0, 0, 0, 0.3f * BandA), 0, By + Bh * 0.86f, W, Bh * 0.14f);
 		const float K = FMath::Clamp(T / 0.5f, 0.f, 1.f), E = 1 - FMath::Pow(1 - K, 3.f);
 		// (font-size: clamp(66px, 12.5vh, 128px), colour #c3272b)
-		const FString Word = UTF8_TO_TCHAR(M->shard.c_str());
-		float Tw = 0, Th = 0;
-		GetTextSize(Word, Tw, Th, GEngine->GetLargeFont(), 1.f);
-		const float Want = FMath::Clamp(0.125f * H, 66.f * Ui, 128.f * Ui);
-		const float Scale = (1.5f - 0.5f * E) * Want / FMath::Max(1.f, Th), Alpha = FMath::Clamp(K / 0.6f, 0.f, 1.f);
-		GetTextSize(Word, Tw, Th, GEngine->GetLargeFont(), Scale);
+		// (the title font, lower case, line-height 1; text-shadows 2 px down-right and a 1 px outline)
+		const FString Word = FString(UTF8_TO_TCHAR(M->shard.c_str())).ToLower();
+		const float Px = FMath::Clamp(0.125f * H, 66.f * Ui, 128.f * Ui) * (1.5f - 0.5f * E), Alpha = FMath::Clamp(K / 0.6f, 0.f, 1.f);
 		FLinearColor Red = FLinearColor(FColor(0xc3, 0x27, 0x2b)); Red.A = Alpha;
-		Text(Word, W / 2, H / 2 - Th / 2, GEngine->GetLargeFont(), Scale, Red, 0.5f);
+		CssText(Word, W / 2, H / 2 + Px * 0.36f, Px, TEXT("Title"), Red, 0.5f,
+			{ FVector3f(2 * Ui, 2 * Ui, 0.9f), FVector3f(-Ui, -Ui, 0.7f), FVector3f(Ui, -Ui, 0.7f), FVector3f(-Ui, Ui, 0.7f) });
 	}
 	// the black fade
 	const double F = M ? M->fadeState.value() : 0;

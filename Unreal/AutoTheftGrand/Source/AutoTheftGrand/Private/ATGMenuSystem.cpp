@@ -1189,7 +1189,7 @@ TSharedRef<SWidget> SATGPauseMenu::CreateStatsTab() {
 	Table.Add({ "Hidden packages", FString::Printf(TEXT("%d / 30"), G->pickupsSys ? (int32)G->pickupsSys->collectedPackages.size() : 0) });
 	Table.Add({ "Distance driven", FString::Printf(TEXT("%.1f km"), S.driven / 1000) });
 	Table.Add({ "Distance on foot", FString::Printf(TEXT("%.1f km"), S.walked / 1000) });
-	Out->AddSlot().AutoHeight()[MakeTable(Table)];
+	Out->AddSlot().AutoHeight().HAlign(HAlign_Left)[SNew(SBox).MinDesiredWidth(640.f)[MakeTable(Table)]];
 	return Out;
 }
 
@@ -1216,7 +1216,7 @@ TSharedRef<SWidget> SATGPauseMenu::CreateSettingsTab() {
 	// (`.settings`: a column of rows, at most 520 px wide, 10 px apart)
 	TSharedRef<SVerticalBox> Col = SNew(SVerticalBox);
 	for (const FATGMenuRowDef& D : Defs) AddRow(Col, MakeRow(FText::FromString(D.Label), D.Action, false, FText::FromString(D.Note), true), 5.f);
-	Out->AddSlot().AutoHeight()[SNew(SBox).MaxDesiredWidth(620.f)[Col]];
+	Out->AddSlot().AutoHeight().HAlign(HAlign_Left)[SNew(SBox).WidthOverride(620.f)[Col]];
 	return Out;
 }
 

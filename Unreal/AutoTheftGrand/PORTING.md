@@ -147,9 +147,11 @@ missions recorded). Several optional single-player features and phase 6 items re
 - The people's material takes each part's roughness from humanoidMaterial, but not yet its fine fabric,
   hair and denim patterns, or the metalness of buckles and badges.
 - Online, the trains follow the host's timetable; that comes with multiplayer (phase 6).
-- The menus and the pause map use the browser's font stacks (`ATGFonts`), but the HUD (cash, zone names, the
-  WASTED shard) still draws with the engine's fonts. The Google fonts themselves are not in the repository: put
-  them in `Content/Fonts/`, or the Windows fallbacks of the CSS stacks are used.
+- The menus, the pause map and most of the HUD (cash, ammo, zone and vehicle names, the radio, help, subtitles,
+  the big messages and the WASTED shard) use the browser's font stacks (`ATGFonts`); the speedometer, the phone
+  and the radar's letters still use the engine's fonts, and the mission title is not tilted. The Google fonts
+  themselves are not in the repository: put them in `Content/Fonts/`, or the Windows fallbacks of the CSS stacks
+  are used.
 - The title's GRAND is solid gold; the browser's gold gradient fill is not drawn yet.
 - Settings lacks the HUD style choice (the classic round radar is not ported).
 - The WASTED look approximates postfx.js with Unreal's post-process (saturation, gain, vignette); the radial

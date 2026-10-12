@@ -14,8 +14,8 @@
 enum class EATGFont : uint8 { Hud, Title, Script, Text };
 
 namespace ATGFonts {
-// Bold picks the stack's bold face where it has one (Rubik / Segoe UI / Roboto); the display fonts have one weight.
-FSlateFontInfo Get(EATGFont Font, float Px, bool bBold = false);
+// Bold (and Bold + Italic) pick the text stack's faces (Rubik / Segoe UI / Roboto); the display fonts have one weight.
+FSlateFontInfo Get(EATGFont Font, float Px, bool bBold = false, bool bItalic = false);
 // which file each stack ended up with (for the log and the tests)
 FString Describe(EATGFont Font);
 // let the fonts go (the game module's shutdown)

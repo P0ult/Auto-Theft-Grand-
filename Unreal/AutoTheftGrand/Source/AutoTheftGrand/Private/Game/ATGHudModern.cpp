@@ -314,8 +314,10 @@ void AATGHUD::DrawTopRight(atg::Game* G, float Right, float Top) {
 		else { c.Stroke = FLinearColor(1, 1, 1, 0.4f); c.LineWidth = 1.5f; c.StrokePath(); }
 	}
 	// cash
-	c.Fill = CssColor(0xb9eab3);
-	c.Text(FString::Printf(TEXT("$%08lld"), (long long)FMath::Max(0.0, FMath::Floor(p.money))), 0, 52, GEngine->GetLargeFont(), 30, 1.f, 0.5f, true);
+	// (.hud-money: the text font, 600, 30 px, #b9eab3, a 2 px shadow)
+	const FString Cash = FString::Printf(TEXT("$%08lld"), (long long)FMath::Max(0.0, FMath::Floor(p.money)));
+	c.Fill = FLinearColor(0, 0, 0, 0.9f); c.FontText(Cash, 2, 52 + 11 + 2, 30, TEXT("Text Bold"), 1.f);
+	c.Fill = CssColor(0xb9eab3); c.FontText(Cash, 0, 52 + 11, 30, TEXT("Text Bold"), 1.f);
 	// weapon and ammo
 	const atg::WeaponDef& def = p.weaponDef();
 	c.Save(); c.Translate(-96 + 6, 72); WeaponIcon(c, p.weapon, 96); c.Restore();
@@ -326,8 +328,9 @@ void AATGHUD::DrawTopRight(atg::Game* G, float Right, float Top) {
 		else if (def.type == "thrown") Ammo = FString::Printf(TEXT("%d"), (int)(it->second.clip + it->second.ammo));
 		else Ammo = FString::Printf(TEXT("%d  %d"), (int)it->second.clip, (int)it->second.ammo);
 	}
-	c.Fill = FLinearColor::White;
-	c.Text(Ammo, -96, 106, GEngine->GetLargeFont(), 22, 1.f, 0.5f, true);
+	// (.hud-ammo: the text font, 600, 22 px, white, a 2 px shadow)
+	c.Fill = FLinearColor(0, 0, 0, 0.9f); c.FontText(Ammo, -96 + 2, 106 + 8 + 2, 22, TEXT("Text Bold"), 1.f);
+	c.Fill = FLinearColor::White; c.FontText(Ammo, -96, 106 + 8, 22, TEXT("Text Bold"), 1.f);
 }
 
 // ------------------------------------------------------------------ the speedometer (hud.js _drawSpeedo)
