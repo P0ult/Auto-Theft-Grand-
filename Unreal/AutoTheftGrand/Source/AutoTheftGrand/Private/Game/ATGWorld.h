@@ -159,6 +159,8 @@ private:
 	UPROPERTY(Transient) TObjectPtr<UPointLightComponent> InteriorLight;
 	UPROPERTY(Transient) TObjectPtr<UMaterialInstanceDynamic> ShipLampMat;
 	UPROPERTY(Transient) TObjectPtr<UProceduralMeshComponent> RainComp;
+	UPROPERTY(Transient) TObjectPtr<UMaterialInstanceDynamic> BillboardMat;
+	UPROPERTY(Transient) TArray<TObjectPtr<UMaterialInstanceDynamic>> SignMats;
 	double LampTimer = 0;
 	void UpdateSky(float Dt);
 	void UpdateLamps(float Dt);

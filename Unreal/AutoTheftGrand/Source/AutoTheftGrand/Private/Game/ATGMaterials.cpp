@@ -32,7 +32,7 @@
 
 namespace {
 // bump when the generated materials change: new assets are made under new names
-constexpr int32 GMatVersion = 6;
+constexpr int32 GMatVersion = 7;
 const TCHAR* GMatNames[] = { TEXT("Terrain"), TEXT("Road"), TEXT("Street"), TEXT("Ground"), TEXT("Building"), TEXT("VertexLit"), TEXT("Frond"), TEXT("Water"), TEXT("Standard"), TEXT("Glass"), TEXT("FxAlpha"), TEXT("FxAdd"), TEXT("Unlit"), TEXT("Picture"), TEXT("Rain") };
 
 FString AssetName(const TCHAR* Base) { return FString::Printf(TEXT("M_ATG_%s_%d"), Base, GMatVersion); }
@@ -926,8 +926,8 @@ UMaterial* MakeMaterial(EATGMat Which, UMaterialParameterCollection* C) {
 		Tex->Coordinates.Connect(0, B.UV(0));
 		TArray<TPair<FString, UMaterialExpression*>> Ins;
 		Ins.Add({ TEXT("Tex"), Tex }); Ins.Add({ TEXT("Mode"), B.VecParam(TEXT("Mode"), FLinearColor(1, 0, 0, 0)) }); Ins.Add({ TEXT("Boost"), B.Mpc(C, TEXT("EmissiveBoost")) });
-		UMaterialExpressionCustom* A = B.Custom(TEXT("return float4(Tex.rgb * Mode.x, 0.9);"), CMOT_Float4, Ins, TEXT("ATG picture surface"));
-		UMaterialExpressionCustom* E = B.Custom(TEXT("return float4(Tex.rgb * (1 - Mode.x) * Boost, 0);"), CMOT_Float4, Ins, TEXT("ATG picture light"));
+		UMaterialExpressionCustom* A = B.Custom(TEXT("return float4(Tex.rgb * Mode.x, Mode.z > 0 ? Mode.z : 0.9);"), CMOT_Float4, Ins, TEXT("ATG picture surface"));
+		UMaterialExpressionCustom* E = B.Custom(TEXT("return float4(Tex.rgb * Mode.y * Boost, 0);"), CMOT_Float4, Ins, TEXT("ATG picture light"));
 		Split(A);
 		B.Out()->EmissiveColor.Connect(0, B.Mask(E, true, true, true, false));
 		break;

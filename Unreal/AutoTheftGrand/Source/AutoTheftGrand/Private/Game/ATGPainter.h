@@ -44,8 +44,11 @@ public:
 	// canvas fillText: text with its baseline at (X, Y), Px pixels to the em, AlignX 0 left, 0.5 centre, 1 right.
 	// Rendered crisply at that size from the engine's Roboto (Face "Regular", "Bold", "Italic" or "Bold Italic");
 	// Condense < 1 narrows it (for the browser's Impact)
-	// Returns its width in this painter's units.
+	// Returns its width in this painter's units. FontWidth measures without drawing.
 	float FontText(const FString& S, float X, float Y, float Px, const TCHAR* Face, float AlignX = 0.f, float Condense = 1.f);
+	float FontWidth(const FString& S, float Px, const TCHAR* Face, float Condense = 1.f) const;
+	// canvas createLinearGradient from (X, Y) to (X + W, Y + H) with two stops, filling that rectangle
+	void GradientRect(float X, float Y, float W, float H, const FLinearColor& C0, const FLinearColor& C1);
 	// a polygon textured from Tex (a fan): points in this painter's space, uvs per point
 	void TexturedPoly(UTexture* Tex, const TArray<FVector2f>& Pts, const TArray<FVector2f>& Uvs, const FLinearColor& Tint);
 	FVector2f ToScreen(float X, float Y) const { return FVector2f(M.a * X + M.c * Y + M.e, M.b * X + M.d * Y + M.f); }

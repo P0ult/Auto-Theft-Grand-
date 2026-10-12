@@ -1,0 +1,30 @@
+# The shops' name signs, the rooftop billboards and a chain-link fence, by day and by night.
+wait 1
+ATG.God 1
+ATG.Time 15
+ATG.Teleport -50 -45 3.14159
+wait 3
+ATG.CamAt -6 3 14 0 4 -10
+wait 0.5
+shot signs_gunbarn
+ATG.CamAt
+ATG.Teleport -584 -505 0
+wait 3
+ATG.CamAt 0 22 5 0 20 -32
+wait 0.5
+shot signs_billboards
+ATG.CamAt 0 22 -70 0 20 -32
+wait 0.5
+shot signs_billboards_back
+ATG.Time 22
+wait 1
+ATG.CamAt 0 22 5 0 20 -32
+wait 0.5
+shot signs_billboards_night
+ATG.CamAt
+ATG.Teleport -50 -45 3.14159
+wait 2
+ATG.CamAt -6 3 14 0 4 -10
+wait 0.5
+shot signs_gunbarn_night
+quit

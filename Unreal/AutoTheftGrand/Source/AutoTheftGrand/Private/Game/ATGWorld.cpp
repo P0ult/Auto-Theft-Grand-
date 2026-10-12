@@ -5,6 +5,7 @@
 #include "Game/ATGMeshUtil.h"
 #include "Game/ATGPictures.h"
 #include "Gen/BikeModels.h"
+#include "Gen/CitySigns.h"
 #include "Gen/InteriorMesh.h"
 #include "Gen/MapImage.h"
 #include "Game/ATGHumanMesh.h"
@@ -476,7 +477,7 @@ void AATGWorld::QueueBuild() {
 				Q.Quad(P0, P1, P2, P3v, N, U0, U1, U2, U3);
 				UMaterialInstanceDynamic* M = UMaterialInstanceDynamic::Create(ATGMaterials::Get(EATGMat::Picture), this);
 				M->SetTextureParameterValue(TEXT("Picture"), Tex);
-				M->SetVectorParameterValue(TEXT("Mode"), FLinearColor(P.lit ? 1.f : 0.f, 0, 0, 0));
+				M->SetVectorParameterValue(TEXT("Mode"), FLinearColor(P.lit ? 1.f : 0.f, P.lit ? 0.f : 1.f, 0, 0));
 				ATGMesh::ToSection(C, Sec, Q, false);
 				C->SetMaterial(Sec++, M);
 			}
@@ -492,6 +493,67 @@ void AATGWorld::QueueBuild() {
 				S->SetWorldTransform(ATG::ToUE(M4::Compose(V3(Wp.x, Wp.y, Wp.z), Quat::FromEuler(0, Wp.yaw, Wp.roll))));
 				S->RegisterComponent();
 			}
+		}
+	});
+	// ---- the rooftop billboards and the shops' name signs (city.js _billboards, _signs): the faces and signs are
+	// painted pictures, lit by the sun and glowing at night
+	Steps.Add([this, D, MLit]() {
+		atg::CityBillboards BB = atg::BuildBillboards(D->Map);
+		if (!BB.frame.Empty()) {
+			UProceduralMeshComponent* F = NewMeshComponent(TEXT("Billboards"), false);
+			ATGMesh::ToSection(F, 0, BB.frame, false);
+			F->SetMaterial(0, MLit);
+			// (the atlas's v runs up in three.js; the render target's runs down)
+			for (size_t I = 1; I < BB.faces.C[0].size(); I += 2) BB.faces.C[0][I] = 1.f - BB.faces.C[0][I];
+			ATGMesh::ToSection(F, 1, BB.faces, false);
+			UMaterialInstanceDynamic* M = UMaterialInstanceDynamic::Create(ATGMaterials::Get(EATGMat::Picture), this);
+			if (UTexture* Ads = Picture(TEXT("ads"))) M->SetTextureParameterValue(TEXT("Picture"), Ads);
+			M->SetVectorParameterValue(TEXT("Mode"), FLinearColor(1.f, 0.05f, 0.5f, 0.f));
+			F->SetMaterial(1, M);
+			BillboardMat = M;
+		}
+		// the chain-link panels: translucent steel, seen from both sides (std({ color: 0x9aa0a6, roughness 0.5,
+		// metalness 0.6, opacity 0.35, DoubleSide }))
+		atg::MeshBuf Chain = atg::BuildChainLink(D->Map);
+		if (!Chain.Empty()) {
+			Chain.Color(1, 1, 1);
+			for (size_t I = 0; I < Chain.C[1].size(); I += 2) { Chain.C[1][I] = 1; Chain.C[1][I + 1] = 1; }
+			for (size_t I = 0; I < Chain.C[2].size(); I += 2) Chain.C[2][I] = 1;
+			const size_t Tris = Chain.I.size();
+			for (size_t I = 0; I < Tris; I += 3) Chain.Tri(Chain.I[I], Chain.I[I + 2], Chain.I[I + 1]);
+			UProceduralMeshComponent* Cl = NewMeshComponent(TEXT("ChainLink"), false);
+			ATGMesh::ToSection(Cl, 0, Chain, false);
+			UMaterialInstanceDynamic* M = UMaterialInstanceDynamic::Create(ATGMaterials::Get(EATGMat::Glass), this);
+			M->SetVectorParameterValue(TEXT("Color"), HexLinear(0x9aa0a6));
+			M->SetVectorParameterValue(TEXT("Surface"), FLinearColor(0.5f, 0.6f, 0.35f, 0.f));
+			Cl->SetMaterial(0, M);
+			Cl->SetCastShadow(false);
+		}
+		// one quad per sign (three.js PlaneGeometry facing its local +z, turned by yaw)
+		TMap<FString, UMaterialInstanceDynamic*> ByText;
+		UProceduralMeshComponent* S = NewMeshComponent(TEXT("Signs"), false);
+		S->SetCastShadow(false);
+		int32 Sec = 0;
+		for (const atg::CitySign& Sg : atg::PlaceSigns(D->Map)) {
+			const FString Text = Str(Sg.text);
+			UMaterialInstanceDynamic** Found = ByText.Find(Text);
+			UMaterialInstanceDynamic* M = Found ? *Found : nullptr;
+			if (!M) {
+				M = UMaterialInstanceDynamic::Create(ATGMaterials::Get(EATGMat::Picture), this);
+				if (UTexture* T = Picture(TEXT("sign:") + Text)) M->SetTextureParameterValue(TEXT("Picture"), T);
+				M->SetVectorParameterValue(TEXT("Mode"), FLinearColor(0.f, 0.55f, 0.f, 0.f));
+				ByText.Add(Text, M);
+				SignMats.Add(M);
+			}
+			const double Rx = std::cos(Sg.yaw), Rz = -std::sin(Sg.yaw), Hw = Sg.w / 2, Hh = Sg.h / 2;
+			const double P0[3] = { Sg.x - Rx * Hw, Sg.y - Hh, Sg.z - Rz * Hw }, P1[3] = { Sg.x + Rx * Hw, Sg.y - Hh, Sg.z + Rz * Hw };
+			const double P2[3] = { Sg.x + Rx * Hw, Sg.y + Hh, Sg.z + Rz * Hw }, P3v[3] = { Sg.x - Rx * Hw, Sg.y + Hh, Sg.z - Rz * Hw };
+			const double N[3] = { std::sin(Sg.yaw), 0, std::cos(Sg.yaw) };
+			const double U0[2] = { 0, 1 }, U1[2] = { 1, 1 }, U2[2] = { 1, 0 }, U3[2] = { 0, 0 };
+			atg::MeshBuf Q; Q.Color(1, 1, 1);
+			Q.Quad(P0, P1, P2, P3v, N, U0, U1, U2, U3);
+			ATGMesh::ToSection(S, Sec, Q, false);
+			S->SetMaterial(Sec++, M);
 		}
 	});
 	// ---- the rain (effects.js Rain): 6000 streaks, placed and animated by their material round the camera
@@ -964,6 +1026,9 @@ void AATGWorld::UpdateLamps(float Dt) {
 		}
 	}
 	for (UPointLightComponent* L : Lamps) L->SetIntensity(StreetLights * LampCandelas);
+	// the billboards light up at night (emissiveIntensity 0.05 + night * 1.6); the signs brighten (0.55 + night * 2.2)
+	if (BillboardMat) BillboardMat->SetVectorParameterValue(TEXT("Mode"), FLinearColor(1.f, 0.05f + Night * 1.6f, 0.5f, 0.f));
+	for (UMaterialInstanceDynamic* M : SignMats) if (M) M->SetVectorParameterValue(TEXT("Mode"), FLinearColor(0.f, 0.55f + Night * 2.2f, 0.f, 0.f));
 	// the cargo ship's deck lamps (lampMat.color.setScalar(0.4 + night * 3))
 	if (ShipLampMat) { const float V = 0.4f + Night * 3.f; ShipLampMat->SetVectorParameterValue(TEXT("Color"), FLinearColor(V, V, V)); }
 	// the shops' light, in the one nearest the camera (within 45 m)

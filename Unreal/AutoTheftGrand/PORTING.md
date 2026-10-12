@@ -131,7 +131,9 @@ missions recorded). Several optional single-player features and phase 6 items re
   surfaces (materials.js WET_GLSL) on the terrain, roads, streets, lots and flat roofs, and the weather in the sky
   (cloud and rain dim the sun, the fog thickens and greys, lightning, lamps on earlier). The ripples in puddles are
   not drawn yet.
-- Chain-link fences and billboards.
+- Chain-link fences, billboards and the shops' name signs. Done: `Gen/CitySigns` places the 71 rooftop billboards
+  (with their collision) and 74 signs as city.js does (`Tools/dumpsigns.mjs` against `signstest.cpp`: identical);
+  `ATGPictures` paints the ad atlas and the signs, which glow at night; the fences get their see-through panels.
 - Audio and the radio stations. Done.
 - Wildlife and pets. Done (saved pets and online replication await save/load and multiplayer).
 - Multiplayer, likely with Unreal's own replication.
@@ -139,7 +141,6 @@ missions recorded). Several optional single-player features and phase 6 items re
 ## Known gaps
 
 - The Santa Luz pier is a plain deck; the landmarks' own colliders come with them (phase 6).
-- Billboards (and their colliders) are not built yet.
 - The people's material takes each part's roughness from humanoidMaterial, but not yet its fine fabric,
   hair and denim patterns, or the metalness of buckles and badges.
 - Online, the trains follow the host's timetable; that comes with multiplayer (phase 6).

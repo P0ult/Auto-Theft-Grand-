@@ -165,6 +165,28 @@ float FATGPainter::FontText(const FString& S, float X, float Y, float Px, const 
 	return K > 0 ? (float)Size.X * Condense / K : 0.f;
 }
 
+float FATGPainter::FontWidth(const FString& S, float Px, const TCHAR* Face, float Condense) const {
+	if (S.IsEmpty() || !GEngine || !FEngineFontServices::IsInitialized()) return 0;
+	const float K = ScaleOf();
+	const FSlateFontInfo Info(GEngine->GetLargeFont(), FMath::Max(1.f, Px * K * 0.75f), FName(Face));
+	const TSharedPtr<FSlateFontMeasure> Measure = FEngineFontServices::Get().GetFontMeasure();
+	return Measure.IsValid() && K > 0 ? (float)Measure->Measure(S, Info).X * Condense / K : 0.f;
+}
+
+void FATGPainter::GradientRect(float X, float Y, float W, float H, const FLinearColor& C0, const FLinearColor& C1) {
+	// (linear along the diagonal: each corner's colour is exact, and the triangles interpolate between them)
+	const float D = W * W + H * H;
+	auto At = [&](float T) { return WithAlpha(FMath::Lerp(C0, C1, T)); };
+	const FVector2f P00 = ToScreen(X, Y), P10 = ToScreen(X + W, Y), P11 = ToScreen(X + W, Y + H), P01 = ToScreen(X, Y + H);
+	const FLinearColor K00 = At(0), K10 = At(D > 0 ? W * W / D : 0), K11 = At(1), K01 = At(D > 0 ? H * H / D : 0);
+	TArray<FCanvasUVTri> Batch;
+	FCanvasUVTri A, B;
+	A.V0_Pos = FVector2D(P00); A.V1_Pos = FVector2D(P10); A.V2_Pos = FVector2D(P11); A.V0_Color = K00; A.V1_Color = K10; A.V2_Color = K11;
+	B.V0_Pos = FVector2D(P00); B.V1_Pos = FVector2D(P11); B.V2_Pos = FVector2D(P01); B.V0_Color = K00; B.V1_Color = K11; B.V2_Color = K01;
+	Batch.Add(A); Batch.Add(B);
+	FCanvasTriangleItem Item(Batch, GWhiteTexture); Item.BlendMode = SE_BLEND_Translucent; Canvas->DrawItem(Item);
+}
+
 void FATGPainter::TexturedPoly(UTexture* Tex, const TArray<FVector2f>& Pts, const TArray<FVector2f>& Uvs, const FLinearColor& Tint) {
 	if (!Tex || Pts.Num() < 3) return;
 	TArray<FCanvasUVTri> Batch;

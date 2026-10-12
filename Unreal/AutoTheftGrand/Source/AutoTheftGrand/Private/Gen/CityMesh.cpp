@@ -300,7 +300,7 @@ struct BuildingBuilder {
 			const double mx = (f.x0 + f.x1) / 2, mz = (f.z0 + f.z1) / 2;
 			if (alongX) det.Box(f.x0, y1 - 0.05, mz - 0.03, f.x1, y1, mz + 0.03, true);
 			else det.Box(mx - 0.03, y1 - 0.05, f.z0, mx + 0.03, y1, f.z1, true);
-			// (the see-through chain-link mesh itself comes with the transparent materials)
+			// (the see-through chain-link panel: BuildChainLink)
 		}
 	}
 	void rotFence(const Fence& f) {
@@ -317,6 +317,27 @@ struct BuildingBuilder {
 	}
 };
 } // namespace
+
+// city.js _fences: the see-through chain-link panels of the metal fences (one quad each, its uvs a 10 cm grid)
+MeshBuf BuildChainLink(const CityMap& map) {
+	MeshBuf g;
+	for (const Fence& f : map.fences) {
+		if (f.rot != 0 || f.type == "hedge" || f.type == "wood") continue;
+		const double y0 = (IsSet(f.y) ? f.y : 0) + CURB_H, y1 = y0 + f.h;
+		const bool alongX = std::fabs(f.x1 - f.x0) > std::fabs(f.z1 - f.z0);
+		const double len = alongX ? f.x1 - f.x0 : f.z1 - f.z0;
+		const double mx = (f.x0 + f.x1) / 2, mz = (f.z0 + f.z1) / 2;
+		const double u0[2] = { 0, 0 }, u1[2] = { len / 0.1, 0 }, u2[2] = { len / 0.1, f.h / 0.1 }, u3[2] = { 0, f.h / 0.1 };
+		if (alongX) {
+			const double a[3] = { f.x0, y0, mz }, b[3] = { f.x1, y0, mz }, c[3] = { f.x1, y1, mz }, d[3] = { f.x0, y1, mz }, n[3] = { 0, 0, 1 };
+			g.Quad(a, b, c, d, n, u0, u1, u2, u3);
+		} else {
+			const double a[3] = { mx, y0, f.z0 }, b[3] = { mx, y0, f.z1 }, c[3] = { mx, y1, f.z1 }, d[3] = { mx, y1, f.z0 }, n[3] = { 1, 0, 0 };
+			g.Quad(a, b, c, d, n, u0, u1, u2, u3);
+		}
+	}
+	return g;
+}
 
 std::map<std::pair<int, int>, CityChunk> BuildBuildings(const CityMap& map) {
 	BuildingBuilder bb(map);

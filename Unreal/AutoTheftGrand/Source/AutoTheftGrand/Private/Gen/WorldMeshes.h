@@ -60,6 +60,7 @@ MeshBuf BuildPads(const CityMap& map);
 struct CityChunk { MeshBuf bld, det; double cx = 0, cz = 0; };
 std::map<std::pair<int, int>, CityChunk> BuildBuildings(const CityMap& map);
 MeshBuf BuildPools(const CityMap& map);
+MeshBuf BuildChainLink(const CityMap& map); // (the see-through panels of the metal fences)
 
 // ------------------------------------------------------------------ props & vegetation (props.js, vegetation.js)
 struct PropTemplate {

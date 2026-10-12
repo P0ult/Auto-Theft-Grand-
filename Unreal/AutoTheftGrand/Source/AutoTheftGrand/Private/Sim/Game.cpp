@@ -1,4 +1,5 @@
 #include "Game.h"
+#include "CitySigns.h"
 #include "Missions.h"
 #include "Special.h"
 #include "WeaponWheel.h"
@@ -59,6 +60,8 @@ Game::Game(const WorldData& w, const Settings& s)
 	for (const ColPrim& c : w.roadPrims) collision->add(c);
 	for (const ColPrim& c : w.roadDecks) collision->add(c);
 	for (const ColPrim& c : VegetationCircles(map)) collision->add(c);
+	// the rooftop billboards (city.js _billboards)
+	for (const CityBillboards::Box& b : BuildBillboards(map).colliders) collision->addBox(b.minX, b.minY, b.minZ, b.maxX, b.maxY, b.maxZ, "billboard");
 	input.sensitivity = settings.sensitivity;
 	input.invertY = settings.invertY;
 	player = makeCharacter<Player>();

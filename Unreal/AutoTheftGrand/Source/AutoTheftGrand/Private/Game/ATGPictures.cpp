@@ -26,6 +26,38 @@ void PicGlow(FATGPainter& g, const FString& S, float X, float Y, float Px, float
 }
 }
 
+namespace {
+// canvas fillText with textBaseline "middle" and a maxWidth (the text squeezed to fit)
+void PicMiddle(FATGPainter& g, const FString& S, float X, float Y, float Px, const TCHAR* Face, float Condense, float MaxW) {
+	const float Wd = g.FontWidth(S, Px, Face, Condense);
+	const float K = Wd > MaxW && Wd > 0 ? MaxW / Wd : 1.f;
+	g.FontText(S, X, Y + Px * 0.35f, Px, Face, 0.5f, Condense * K);
+}
+// textures.js ADS
+struct PicAd { uint32 Bg0, Bg1, Fg; const TCHAR* Title; const TCHAR* Sub; };
+const PicAd PicAds[] = {
+	{ 0xd62828, 0x8b0000, 0xffffff, TEXT("SOLAR COLA"), TEXT("Taste the heat") },
+	{ 0xffb703, 0xfb8500, 0x3a0ca3, TEXT("MAXX BURGER"), TEXT("Big. Bigger. MAXX.") },
+	{ 0x023047, 0x219ebc, 0xffb703, TEXT("VISTA FM 98.1"), TEXT("West Coast Classics") },
+	{ 0x2b9348, 0x007f5f, 0xffffff, TEXT("SPEEDY LOANS"), TEXT("Cash in 5 minutes*") },
+	{ 0x111111, 0x444444, 0xe5e5e5, TEXT("ZENITH MOTORS"), TEXT("Drive the future") },
+	{ 0xf1faee, 0xa8dadc, 0x1d3557, TEXT("DR. SMILE"), TEXT("Dental that shines") },
+	{ 0x7209b7, 0x3a0ca3, 0xfee440, TEXT("LOS SOLES LOTTO"), TEXT("You could be next!") },
+	{ 0xe76f51, 0xf4a261, 0xffffff, TEXT("SANTA LUZ PIER"), TEXT("Ride the big wheel") },
+};
+// city.js _signs styles: background, lettering, whether it glows
+struct PicSign { const TCHAR* Text; uint32 Bg, Fg; bool Glow; };
+const PicSign PicSigns[] = {
+	{ TEXT("GUN BARN"), 0x1b1b1b, 0xff5a36, true }, { TEXT("HOSPITAL"), 0xf4f4f4, 0xd62828, false }, { TEXT("POLICE"), 0x0b1f4d, 0xe8eefc, true },
+	{ TEXT("SPRAY SHACK"), 0x222222, 0x6df0ff, true }, { TEXT("BIG BUN"), 0x6b1a00, 0xffd166, true }, { TEXT("GARAGE"), 0x222222, 0xffffff, true },
+	{ TEXT("LIQUOR"), 0x1d0826, 0xff5ec4, true }, { TEXT("GAS"), 0xb3121b, 0xffffff, true }, { TEXT("MOTEL"), 0x123d4a, 0xff6fb5, true },
+	{ TEXT("SALOON"), 0x3b2412, 0xffcc66, true }, { TEXT("CANTINA"), 0x5a1a4a, 0xffd166, true }, { TEXT("FORT CARVER"), 0x2f3a26, 0xe9e4c8, true },
+	{ TEXT("AIRFIELD"), 0x1c2f4a, 0xffffff, true }, { TEXT("MALL"), 0x20252b, 0x7ee0ff, true }, { TEXT("LODGE"), 0x2d3d22, 0xf4e3b2, true },
+	{ TEXT("PET PALACE"), 0x1f6f4a, 0xfff3a8, true }, { TEXT("24/7"), 0x0f7a3a, 0xffffff, true }, { TEXT("RUSTY ANCHOR"), 0x2a1a10, 0xff9a3c, true },
+	{ TEXT("BEAN SCENE"), 0x3b2418, 0xf2d7b0, true },
+};
+}
+
 UTextureRenderTarget2D* ATGPictures::Paint(UObject* Outer, const FString& Name) {
 	int32 W = 0, H = 0;
 	if (Name == TEXT("target")) { W = 256; H = 320; }
@@ -34,6 +66,8 @@ UTextureRenderTarget2D* ATGPictures::Paint(UObject* Outer, const FString& Name) 
 	else if (Name == TEXT("neon")) { W = 512; H = 160; }
 	else if (Name == TEXT("cafemenu")) { W = 768; H = 256; }
 	else if (Name == TEXT("lotto")) { W = 256; H = 128; }
+	else if (Name == TEXT("ads")) { W = 1024; H = 1024; }
+	else if (Name.StartsWith(TEXT("sign:"))) { W = 1024; H = 192; }
 	else return nullptr;
 	UTextureRenderTarget2D* RT = UKismetRenderingLibrary::CreateRenderTarget2D(Outer, W, H, RTF_RGBA8_SRGB, FLinearColor::Black, false);
 	if (!RT) return nullptr;
@@ -85,6 +119,31 @@ UTextureRenderTarget2D* ATGPictures::Paint(UObject* Outer, const FString& Name) 
 			Fill(0xf2b36b); Txt(Items[k][1], x + 150, y, 24, TEXT("Bold"), 0);
 		}
 		Fill(0xc9a27a); Txt(TEXT("Roasted in Los Soles"), 30, 130, 22, TEXT("Italic"), 0);
+	} else if (Name == TEXT("ads")) {
+		// textures.js adAtlas: eight ads, 2 x 4
+		const float Aw = 512, Ah = 256;
+		for (int32 i = 0; i < 8; i++) {
+			const PicAd& Ad = PicAds[i];
+			const float x = (i % 2) * Aw, y = (i / 2) * Ah;
+			g.GradientRect(x, y, Aw, Ah, CssColor(Ad.Bg0), CssColor(Ad.Bg1));
+			g.Fill = FLinearColor(1, 1, 1, 0.12f);
+			for (int32 k = 0; k < 6; k++) PicDisc(g, x + 60 + k * 90, y + Ah - 20, 40.f + k * 6);
+			Fill(Ad.Fg);
+			PicMiddle(g, Ad.Title, x + Aw / 2, y + Ah * 0.42f, 74, TEXT("Bold"), PicImpact, Aw - 30);
+			PicMiddle(g, Ad.Sub, x + Aw / 2, y + Ah * 0.75f, 34, TEXT("Italic"), 1.f, Aw - 40);
+			g.Stroke = FLinearColor(0, 0, 0, 0.5f); g.LineWidth = 8;
+			g.BeginPath(); g.Rect(x + 4, y + 4, Aw - 8, Ah - 8); g.StrokePath();
+		}
+	} else if (Name.StartsWith(TEXT("sign:"))) {
+		// textures.js signTexture with city.js's style for the name
+		const FString Text = Name.Mid(5);
+		PicSign St = { nullptr, 0x111111, 0xffffff, true };
+		for (const PicSign& S : PicSigns) if (Text == S.Text) St = S;
+		Fill(St.Bg); g.FillRect(0, 0, w, h);
+		const float Wd = g.FontWidth(Text, 130, TEXT("Bold"), PicImpact);
+		const float K = Wd > w - 40 && Wd > 0 ? (w - 40) / Wd : 1.f;
+		if (St.Glow) PicGlow(g, Text, w / 2, h / 2 + 6 + 130 * 0.35f, 130, 0.5f, PicImpact * K, St.Fg, 24);
+		Fill(St.Fg); PicMiddle(g, Text, w / 2, h / 2 + 6, 130, TEXT("Bold"), PicImpact, w - 40);
 	} else if (Name == TEXT("lotto")) {
 		Fill(0xffd60a); g.FillRect(0, 0, w, h);
 		Fill(0xc1121f); Txt(TEXT("LOTTO"), w / 2, 58, 44, TEXT("Bold"), 0.5f, PicImpact);
