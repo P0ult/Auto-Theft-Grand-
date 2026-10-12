@@ -97,6 +97,8 @@ public:
 	// a prop's mesh (built in the world's axes), for its debris when it is knocked over
 	UStaticMesh* PropMesh(int32 PropIndex) const;
 	const FATGVehicleMeshes& VehicleMeshes(const atg::VehicleDef& Def);
+	// the headlight glow (vehiclemodels.js beamGeometry: a 7 x 11 plane on the road, shared by every car)
+	UStaticMesh* BeamMesh();
 	// the trains' rolling stock (one entry per TrainModel)
 	const FATGVehicleMeshes& TrainMeshes(const atg::TrainModel& Model);
 	// a two-wheeler's: body, trim, fork, crank, glass, head, tail (empty ones null), and the wheel

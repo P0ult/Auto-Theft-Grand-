@@ -119,6 +119,16 @@ void AATGCar::Build(atg::Vehicle* V) {
 		C->RegisterComponent();
 		Parts.Add(C);
 	}
+	if (Model->beamZ > 0) if (UStaticMesh* BM = W->BeamMesh()) {
+		Beam = NewObject<UStaticMeshComponent>(this);
+		Beam->SetupAttachment(Root);
+		Beam->SetStaticMesh(BM);
+		Beam->SetRelativeLocation(ATG::LocalToUE(0, 0.03, Model->beamZ));
+		Beam->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		Beam->SetCastShadow(false);
+		Beam->SetVisibility(false);
+		Beam->RegisterComponent();
+	}
 	for (const auto& Wh : Model->wheels) {
 		USceneComponent* P = NewObject<USceneComponent>(this);
 		P->SetupAttachment(Root);
@@ -409,6 +419,7 @@ void AATGCar::Sync(float Dt) {
 		bBurnt = true;
 		for (int32 I = 0; I < Parts.Num(); I++) if (Model->parts[I].mat == atg::EVMat::Paint) Parts[I]->SetMaterial(0, BurntMat);
 		HeadMat->SetVectorParameterValue(TEXT("Emissive"), FLinearColor::Black);
+		if (Beam) Beam->SetVisibility(false);
 	}
 	// lights
 	if (!bBurnt) {
@@ -418,6 +429,7 @@ void AATGCar::Sync(float Dt) {
 			HeadMat->SetVectorParameterValue(TEXT("Emissive"), bLights ? FLinearColor(6.f, 5.6f, 4.6f) : Hex(0x222222));
 		}
 		const int32 Tail = V->isWrecked() ? 0 : V->braking ? 2 : V->lightsOn ? 1 : 0;
+		if (Beam) { const bool bBeam = V->lightsOn && !V->airborne; if (Beam->IsVisible() != bBeam) Beam->SetVisibility(bBeam); }
 		if (Tail != TailState) {
 			TailState = Tail;
 			static const uint32 Cols[3] = { 0x5a0000, 0x8a0000, 0xaa0000 };

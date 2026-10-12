@@ -832,6 +832,20 @@ void AATGWorld::SyncBrokenProps() {
 	}
 }
 
+UStaticMesh* AATGWorld::BeamMesh() {
+	static TWeakObjectPtr<UStaticMesh> Cached;
+	if (Cached.IsValid() && Cached->GetOuter() == this) return Cached.Get();
+	// (in the car's own axes: 7 across, 11 along z, centred; uv y is 1 at the near end, 0 at the far end)
+	atg::MeshBuf Q; Q.Color(1, 1, 1);
+	const double A[3] = { -3.5, 0, -5.5 }, B[3] = { 3.5, 0, -5.5 }, C[3] = { 3.5, 0, 5.5 }, D[3] = { -3.5, 0, 5.5 }, Up[3] = { 0, 1, 0 };
+	const double U0[2] = { 0, 1 }, U1[2] = { 1, 1 }, U2[2] = { 1, 0 }, U3[2] = { 0, 0 };
+	Q.Quad(A, D, C, B, Up, U0, U3, U2, U1);
+	UStaticMesh* M = ATGMesh::BuildStaticMesh(this, TEXT("HeadlightBeam"), TArray<FATGPart>{ { &Q, ATGMaterials::Get(EATGMat::Beam) } }, EATGAxes::Local);
+	Meshes.Add(M);
+	Cached = M;
+	return M;
+}
+
 const FATGVehicleMeshes& AATGWorld::VehicleMeshes(const atg::VehicleDef& Def) {
 	const FString Id = Str(Def.id);
 	if (const FATGVehicleMeshes* M = VehicleCache.Find(Id)) return *M;

@@ -31,6 +31,8 @@ private:
 	atg::Ref<atg::Vehicle> Vehicle;
 	const atg::VehicleModel* Model = nullptr;
 	UPROPERTY(VisibleAnywhere) TObjectPtr<USceneComponent> Root;
+	// the headlights' glow on the road (shown while the lights are on and the car is on the ground)
+	UPROPERTY(Transient) TObjectPtr<UStaticMeshComponent> Beam;
 	UPROPERTY(VisibleAnywhere) TObjectPtr<USceneComponent> Body;
 	UPROPERTY(Transient) TObjectPtr<USceneComponent> DoorPivot;
 	UPROPERTY(Transient) TObjectPtr<USceneComponent> HoodPivot;

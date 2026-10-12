@@ -32,8 +32,8 @@
 
 namespace {
 // bump when the generated materials change: new assets are made under new names
-constexpr int32 GMatVersion = 10;
-const TCHAR* GMatNames[] = { TEXT("Terrain"), TEXT("Road"), TEXT("Street"), TEXT("Ground"), TEXT("Building"), TEXT("VertexLit"), TEXT("Frond"), TEXT("Water"), TEXT("Standard"), TEXT("Glass"), TEXT("FxAlpha"), TEXT("FxAdd"), TEXT("Unlit"), TEXT("Picture"), TEXT("Rain"), TEXT("Wood"), TEXT("Cutout") };
+constexpr int32 GMatVersion = 12;
+const TCHAR* GMatNames[] = { TEXT("Terrain"), TEXT("Road"), TEXT("Street"), TEXT("Ground"), TEXT("Building"), TEXT("VertexLit"), TEXT("Frond"), TEXT("Water"), TEXT("Standard"), TEXT("Glass"), TEXT("FxAlpha"), TEXT("FxAdd"), TEXT("Unlit"), TEXT("Picture"), TEXT("Rain"), TEXT("Wood"), TEXT("Cutout"), TEXT("Beam") };
 
 FString AssetName(const TCHAR* Base) { return FString::Printf(TEXT("M_ATG_%s_%d"), Base, GMatVersion); }
 FString MpcName() { return FString::Printf(TEXT("MPC_ATG_%d"), GMatVersion); }
@@ -1047,6 +1047,22 @@ return float4(c * (1.0 - Wet * 0.3), 0.85);
 		break;
 	}
 	case EATGMat::FxAlpha:
+	case EATGMat::Beam: {
+		// vehiclemodels.js beamMaterial: the headlights' glow on the road ahead, added to what is under it
+		// (uv: x across, y 0 far .. 1 near)
+		M->SetShadingModel(MSM_Unlit);
+		M->BlendMode = BLEND_Additive;
+		TArray<TPair<FString, UMaterialExpression*>> Ins; UVs(Ins);
+		UMaterialExpressionCustom* E = B.Custom(TEXT(R"HLSL(
+float x = (uv0.x - 0.5) * 2.0; float y = uv0.y;
+float w = lerp(1.0, 0.3, y);
+float a = smoothstep(w, w * 0.2, abs(x)) * smoothstep(0.0, 0.5, y) * smoothstep(1.0, 0.85, y);
+float twin = 0.75 + 0.25 * smoothstep(0.1, 0.35, abs(x));
+return float4(float3(1.0, 0.92, 0.75) * a * twin * 0.55, 1.0);
+)HLSL"), CMOT_Float4, Ins, TEXT("ATG headlight beam"));
+		B.Out()->EmissiveColor.Connect(0, B.Mask(E, true, true, true, false));
+		break;
+	}
 	case EATGMat::FxAdd: {
 		const bool bAdd = Which == EATGMat::FxAdd;
 		M->SetShadingModel(MSM_Unlit);

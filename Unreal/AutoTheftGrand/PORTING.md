@@ -156,5 +156,4 @@ missions recorded). Several optional single-player features and phase 6 items re
 - Settings lacks the HUD style choice (the classic round radar is not ported).
 - The WASTED look approximates postfx.js with Unreal's post-process (saturation, gain, vignette); the radial
   blur of the death effect is not there yet.
-- Headlight beams on the road are not drawn yet.
 - Smoke and decals are lit by a grey stand-in for effects.js's sky-coloured light.
