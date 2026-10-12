@@ -1,4 +1,5 @@
 #include "Game.h"
+#include "Net.h"
 #include "CitySigns.h"
 #include "Landmarks.h"
 #include "Missions.h"
@@ -118,6 +119,7 @@ void Game::frame(double dt) {
 	input.inVehicle = player && player->vehicle;
 	const double sdt = paused ? 0 : dt * timeScale * fxScale();
 	if (!paused) update(sdt, dt);
+	if (net) net->tick(dt);
 	if (hudModel) hudModel->update(dt);
 	input.endFrame();
 	// timers run on real time

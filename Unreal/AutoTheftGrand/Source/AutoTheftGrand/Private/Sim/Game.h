@@ -116,6 +116,7 @@ public:
 	ICombat* combat = nullptr;
 	IPickups* pickups = nullptr;
 	IPolice* police = nullptr;
+	class NetSystem* net = nullptr; // (multiplayer: net.js; not in the systems list, it ticks on real time)
 	INpcCrime* npcCrime = nullptr;
 	IWildlife* wildlife = nullptr;
 	class PetSystem* pets = nullptr;

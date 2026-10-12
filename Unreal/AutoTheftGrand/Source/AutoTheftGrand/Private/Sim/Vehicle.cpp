@@ -1,4 +1,5 @@
 #include "Vehicle.h"
+#include "Net.h"
 #include "Character.h"
 #include "Game.h"
 #include "Input.h"
@@ -647,7 +648,7 @@ void Vehicle::resolveStatic(const Contact& ct) {
 void Vehicle::damage(double amount, Character* source) {
 	if (exploded) return;
 	if (game.cheatsOn.vehGod && DrvIsPlayer(this)) return;
-	if (remote) return; // (another player's: their client decides)
+	if (remote) { if (game.net) game.net->sendVehicleHit(this, amount, source); return; } // (another player's: their client decides)
 	health -= amount;
 	if (source) lastDamager = source;
 	game.events.vehicleDamaged.emit(this, amount, source);

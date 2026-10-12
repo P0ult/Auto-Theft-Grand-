@@ -5,6 +5,8 @@
 // dents, lost panels, lights) is kept as plain state here.
 #pragma once
 
+#include "Json.h"
+
 #include "Collision.h"
 #include "VehicleModels.h"
 
@@ -34,6 +36,7 @@ struct SpawnOpts {
 struct VehicleAI { virtual ~VehicleAI() = default; virtual void update(double dt) = 0; };
 
 class Vehicle : public std::enable_shared_from_this<Vehicle> {
+	friend class NetSystem; // (multiplayer poses other players' vehicles: net.js _netStep)
 public:
 	Vehicle(Game& game, const std::string& type, double x, double z, double yaw, const SpawnOpts& opts);
 	virtual ~Vehicle() = default;
@@ -110,6 +113,13 @@ public:
 	struct Tumble { Quat q; V3 w; double rest = 0, flipT = 0, rockT = 0, bailT = 0, scrapeT = 0, rPrev = 0; int landed = 0; V3 cg; bool settled = false, hinted = false; };
 	std::unique_ptr<Tumble> tb;
 	Quat netQ; bool hasNetQ = false;
+	// multiplayer (net.js): whose stand-in this is (a peer id), its pose between two of their states, where they
+	// left it, and its own mass while another player drives it (it is immovable here then)
+	std::string remoteOwner, parkedOf;
+	int netId = 0;
+	double parkedT = 0, mass0 = NaN();
+	struct NetPose { Json A, B; double k = 0, sp = 0, st = 0, tu = 0, gp = 0; bool gr = false, br = false, sr = false; double pr[2] = { 0, 0 }; bool hasTq = false; Quat tq; };
+	std::unique_ptr<NetPose> netT;
 
 	Character* driver() const { return occupants[0].get(); }
 	double speed() const { return vel.x * std::sin(yaw) + vel.z * std::cos(yaw); }

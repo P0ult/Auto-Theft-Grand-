@@ -1,4 +1,5 @@
 #include "Setup.h"
+#include "Net.h"
 #include "FreeRoam.h"
 #include "ModShop.h"
 #include "Properties.h"
@@ -80,6 +81,11 @@ void InstallSystems(Game& g) {
 	g.saveSys = g.addSystem("save", std::make_unique<SaveSystem>(g)); // (game.save: not a system in main.js; it has no frame work)
 	g.missions->autosave = [&g]() { if (g.saveSys) g.saveSys->save(true); };
 	g.pickupsSys->refreshPackages();
+	// multiplayer (main.js: game.net, outside the systems list: it ticks on real time after the update)
+	auto net = std::make_unique<NetSystem>(g);
+	g.net = net.get();
+	g.ownedSystems.push_back(std::move(net));
+	if (g.pets) g.pets->peerPresent = [&g](const std::string& id) { return g.net && g.net->online() && g.net->peers.count(id) > 0; };
 }
 
 void StartGame(Game& g) {

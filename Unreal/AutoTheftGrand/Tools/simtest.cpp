@@ -13,6 +13,7 @@
 #include "Sim/Heists.h"
 #include "Sim/Military.h"
 #include "Sim/Missions.h"
+#include "Sim/Net.h"
 #include "Sim/NpcCrime.h"
 #include "Sim/Hud.h"
 #include "Sim/Peds.h"
@@ -893,6 +894,116 @@ static void TestWaypoint(World& w) {
 	g->frame(1.0 / 30);
 	printf("  new waypoint: dest (%.0f, %.0f)\n", T.ride ? T.ride->tx : 0.0, T.ride ? T.ride->tz : 0.0);
 	Check(T.ride && T.ride->tx != ox, "and changes course for a new one");
+}
+
+// ---- multiplayer over a loopback relay: two games in one room (net.js)
+struct LoopRoom;
+struct LoopTransport : NetTransport {
+	LoopRoom& room; std::string id; bool in = false; Json last;
+	LoopTransport(LoopRoom& r, std::string i) : room(r), id(std::move(i)) {}
+	void join(const std::string&, std::function<void(bool, const std::string&)> done) override;
+	void send(const Json& st) override;
+	void leave() override;
+	bool connected() const override { return in; }
+	std::string selfId() const override { return id; }
+};
+struct LoopRoom { std::vector<LoopTransport*> members; };
+void LoopTransport::join(const std::string&, std::function<void(bool, const std::string&)> done) {
+	in = true; room.members.push_back(this);
+	for (LoopTransport* m : room.members) if (m != this && m->last.isObj() && onPeer) onPeer(m->id, m->last, false);
+	done(true, "");
+}
+void LoopTransport::send(const Json& st) {
+	// (through the text, as the relay carries it)
+	last = Json::parse(st.dump());
+	for (LoopTransport* m : room.members) if (m != this && m->onPeer) m->onPeer(id, last, false);
+}
+void LoopTransport::leave() {
+	in = false;
+	room.members.erase(std::remove(room.members.begin(), room.members.end(), this), room.members.end());
+	for (LoopTransport* m : room.members) if (m->onLeft) m->onLeft(id);
+}
+
+static void TestNet(World& w) {
+	printf("net\n");
+	// the JSON the state travels as
+	const Json j = Json::parse("{\"a\":[1,2.5,-0.25,1e3],\"s\":\"h\\u00e9 \\\"x\\\"\",\"n\":null,\"t\":true}");
+	printf("  json: %s\n", j.dump().c_str());
+	Check(j.dump() == "{\"a\":[1,2.5,-0.25,1000],\"s\":\"h\xC3\xA9 \\\"x\\\"\",\"n\":null,\"t\":true}", "JSON reads and writes as the browser does");
+	auto ga = w.game(true), gb = w.game(true);
+	ToStreet(w, *ga); ToStreet(w, *gb, 30);
+	ga->net->name = "Alice"; gb->net->name = "Bob";
+	LoopRoom room;
+	ga->net->connect(std::make_unique<LoopTransport>(room, "pA"), "test");
+	gb->net->connect(std::make_unique<LoopTransport>(room, "pB"), "test");
+	auto both = [&](double secs) { const int n = (int)std::round(secs * 30); for (int i = 0; i < n; i++) { ga->frame(1.0 / 30); gb->frame(1.0 / 30); } };
+	both(1);
+	printf("  status %s / %s, peers %zu / %zu\n", ga->net->status.c_str(), gb->net->status.c_str(), ga->net->peers.size(), gb->net->peers.size());
+	Check(ga->net->online() && gb->net->online() && ga->net->peers.size() == 1 && gb->net->peers.size() == 1, "both join the room and see each other");
+	auto avatarOf = [](Game& g, const char* id) -> RemoteAvatar* { auto it = g.net->peers.find(id); return it == g.net->peers.end() ? nullptr : it->second->avatar.get(); };
+	RemoteAvatar* aOnB = avatarOf(*gb, "pA");
+	const V3 pa = ga->player->pos;
+	printf("  Alice at (%.1f, %.1f), her avatar on Bob's screen at (%.1f, %.1f), named '%s'\n", pa.x, pa.z, aOnB ? aOnB->pos.x : 0, aOnB ? aOnB->pos.z : 0, gb->net->peers.begin()->second->name.c_str());
+	Check(aOnB && Hypot(aOnB->pos.x - pa.x, aOnB->pos.z - pa.z) < 0.5, "Bob sees Alice where she stands");
+	bool listed = false;
+	for (Character* c : gb->allCharacters()) if (c == aOnB) listed = true;
+	Check(listed, "her avatar counts as a character there (shots and cars meet it)");
+	// she walks: her avatar follows, 150 ms behind
+	ga->player->setPosition(pa.x + 6, pa.z);
+	both(1);
+	printf("  she moved 6 m: avatar at (%.1f, %.1f)\n", aOnB->pos.x, aOnB->pos.z);
+	Check(Hypot(aOnB->pos.x - (pa.x + 6), aOnB->pos.z - pa.z) < 0.5, "and follows her as she moves");
+	// she shoots: Bob hears and sees it
+	int shots = 0;
+	gb->events.gunshot.on([&](Character* c, V3, const std::string& id) { if (c == aOnB && id == "pistol") shots++; });
+	ga->player->giveWeapon("pistol", 50); ga->player->equip("pistol");
+	{
+		Combat* cb = dynamic_cast<Combat*>(ga->combat);
+		const V3 from = ga->player->pos + V3(0, 1.5, 0);
+		cb->fireWeapon(ga->player.get(), *FindWeapon("pistol"), from, V3(0, 0, 1));
+	}
+	both(0.5);
+	printf("  shots heard on Bob's side: %d, Alice holds '%s' there\n", shots, aOnB->weapon.c_str());
+	Check(shots == 1, "her shot reaches him (once)");
+	Check(aOnB->weapon == "pistol", "with the weapon she holds");
+	// he shoots her avatar: she takes the damage on her side
+	const double h0 = ga->player->health;
+	gb->player->giveWeapon("pistol", 50); gb->player->equip("pistol");
+	gb->player->setPosition(aOnB->pos.x, aOnB->pos.z - 6);
+	both(0.3);
+	{
+		Combat* cb = dynamic_cast<Combat*>(gb->combat);
+		for (int i = 0; i < 3; i++) {
+			const V3 from = gb->player->pos + V3(0, 1.4, 0), to = aOnB->pos + V3(0, 1.1, 0);
+			cb->fireWeapon(gb->player.get(), *FindWeapon("pistol"), from, (to - from).normalized());
+			both(0.2);
+		}
+	}
+	both(0.5);
+	printf("  Alice's health %.0f -> %.0f (Bob shot her avatar)\n", h0, ga->player->health);
+	Check(ga->player->health < h0, "his hits on her avatar hurt her");
+	// she drives: Bob sees her car
+	Vehicle* car = ga->vehicles.spawn("zenith", ga->player->pos.x + 3, ga->player->pos.z, 0);
+	ga->vehicles.seatNow(ga->player.get(), car);
+	car->vel = V3(0, 0, 8);
+	both(1);
+	auto itB = gb->net->peers.find("pA");
+	Vehicle* proxy = itB != gb->net->peers.end() ? itB->second->veh : nullptr;
+	printf("  her car (%s) at (%.1f, %.1f); Bob's stand-in %s at (%.1f, %.1f), driver %s\n", car->type.c_str(), car->pos.x, car->pos.z, proxy ? proxy->type.c_str() : "-", proxy ? proxy->pos.x : 0, proxy ? proxy->pos.z : 0, proxy && proxy->driver() == aOnB ? "her avatar" : "?");
+	Check(proxy && proxy->remote && proxy->remoteOwner == "pA" && proxy->type == "zenith", "Bob shows her car as a stand-in");
+	Check(proxy && Hypot(proxy->pos.x - car->pos.x, proxy->pos.z - car->pos.z) < 3 && proxy->driver() == aOnB, "where it is, with her at the wheel");
+	// chat
+	ga->net->say("hello <b>Bob</b>");
+	both(0.3);
+	const std::string last = gb->net->chat.empty() ? "" : gb->net->chat.back().text;
+	printf("  Bob's chat: '%s'\n", last.c_str());
+	Check(last == "hello &lt;b&gt;Bob&lt;/b&gt;", "chat arrives, escaped");
+	// she leaves
+	ga->net->disconnect();
+	both(0.3);
+	printf("  after she left: Bob's peers %zu, her avatar removed %d, stand-in released %d, last line '%s'\n", gb->net->peers.size(), aOnB->removed ? 1 : 0, proxy && !proxy->remote ? 1 : 0, gb->net->chat.back().text.c_str());
+	Check(gb->net->peers.empty() && aOnB->removed && proxy && !proxy->remote, "when she leaves, her avatar goes and her car stays as an ordinary car");
+	gb->net->disconnect(true);
 }
 
 static void TestJobs(World& w) {
@@ -2093,6 +2204,7 @@ int main(int argc, char** argv) {
 	if (want("shipraid")) TestShipRaid(w);
 	if (want("jobs")) TestJobs(w);
 	if (want("waypoint")) TestWaypoint(w);
+	if (want("net")) TestNet(w);
 	if (want("wildlife")) TestWildlife(w);
 	if (want("pets")) TestPets(w);
 	if (want("missions")) TestMissions(w);

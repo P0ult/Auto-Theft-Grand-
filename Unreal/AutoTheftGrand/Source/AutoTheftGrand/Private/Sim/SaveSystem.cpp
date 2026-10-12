@@ -14,7 +14,7 @@ namespace atg {
 
 SaveSystem::SaveSystem(Game& g) : game(g) {}
 
-// ------------------------------------------------------------------ a small JSON writer / reader
+// ------------------------------------------------------------------ a small JSON writer (Json.h reads)
 namespace {
 
 struct W {
@@ -39,84 +39,7 @@ struct W {
 	}
 };
 
-struct P {
-	const char* p;
-	Json value(const char* msg) {
-		ws();
-		char c = peek();
-		if (c == '{') return obj(msg);
-		if (c == '[') return arr(msg);
-		if (c == '"') return str();
-		if (c == 't') { expect("true"); Json v; v.type = Json::Bool; v.b = true; return v; }
-		if (c == 'f') { expect("fals"); expectCh('e'); Json v; v.type = Json::Bool; return v; }
-		if (c == 'n') { expect("null"); return Json(); }
-		return numOrFail(msg);
-	}
-	char peek() const { return *p; }
-	void ws() { while (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r') p++; }
-	void expect(const char* word) { while (*word && *p == *word) { p++; word++; } }
-	void expectCh(char c) { ws(); if (*p == c) p++; }
-	Json str() {
-		Json v; v.type = Json::Str;
-		if (*p != '"') return v;
-		p++;
-		while (*p && *p != '"') {
-			if (*p == '\\' && p[1]) {
-				p++;
-				char e = *p++;
-				if (e == 'n') v.s += '\n'; else if (e == 't') v.s += '\t'; else if (e == 'r') v.s += '\r';
-				else if (e == 'u') { std::string h(p, 4); p += 4; v.s += (char)std::strtol(h.c_str(), nullptr, 16); }
-				else v.s += e;
-			} else v.s += *p++;
-		}
-		if (*p == '"') p++;
-		return v;
-	}
-	Json numOrFail(const char* msg) {
-		Json v; v.type = Json::Num;
-		char* end = nullptr;
-		v.n = std::strtod(p, &end);
-		if (end == p) throw msg;
-		p = end;
-		return v;
-	}
-	Json arr(const char* msg) {
-		Json v; v.type = Json::Arr;
-		p++;
-		ws();
-		if (peek() == ']') { p++; return v; }
-		for (;;) {
-			v.a.push_back(value(msg));
-			ws();
-			if (*p == ',') { p++; continue; }
-			if (*p == ']') { p++; return v; }
-			throw msg;
-		}
-	}
-	Json obj(const char* msg) {
-		Json v; v.type = Json::Obj;
-		p++;
-		ws();
-		if (peek() == '}') { p++; return v; }
-		for (;;) {
-			ws();
-			Json k = str();
-			expectCh(':');
-			v.o.push_back({ k.s, value(msg) });
-			ws();
-			if (*p == ',') { p++; continue; }
-			if (*p == '}') { p++; return v; }
-			throw msg;
-		}
-	}
-};
-
 } // namespace
-
-Json Json::parse(const std::string& text) {
-	P p{ text.c_str() };
-	try { p.ws(); return p.value("bad json"); } catch (const char*) { return Json(); }
-}
 
 namespace {
 double Num(const Json& v, double alt = 0) { return v.type == Json::Num ? v.n : alt; }

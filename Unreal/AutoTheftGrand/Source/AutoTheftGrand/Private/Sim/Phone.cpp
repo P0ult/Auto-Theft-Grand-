@@ -1,4 +1,5 @@
 #include "Phone.h"
+#include "Net.h"
 #include "Collision.h"
 #include "Game.h"
 #include "Gameplay.h"
@@ -349,7 +350,7 @@ void Phone::pegasus() {
 // ------------------------------------------------------------------ cheats
 void Phone::cheat(const std::string& code) {
 	Player& p = *game.player;
-	const bool free = game.freeroamActive(); // (admin.js allowed: free roam, not online)
+	const bool free = game.freeroamActive() && !(game.net && game.net->online()); // (admin.js allowed: free roam, not online)
 	auto say = [&](const std::string& t) { if (game.hud) game.hud->help("Cheat activated: <b>" + code + "</b>" + DOT + t, 3.5); game.sound("pickup"); };
 	auto timedCheat = [&](const std::string& key, const std::string& label) {
 		if (free) {
@@ -373,6 +374,7 @@ void Phone::cheat(const std::string& code) {
 		return true;
 	};
 	hide();
+	if (game.net && game.net->online()) { if (game.hud) game.hud->help("Cheats are switched off online.", 3); return; }
 	if (code == "PAINKILLER") timedCheat("god", "Invincibility");
 	else if (code == "TURTLE") { p.health = p.maxHealth; p.armor = 100; say("Max health and armour"); }
 	else if (code == "TOOLUP") { for (const auto& w : Weapons()) p.giveWeapon(w.first, (w.second.clip ? w.second.clip : 1) * 8); say("Weapons"); }
@@ -420,9 +422,9 @@ void Phone::update(double) {
 	}
 	{ std::vector<Ref<Ped>> keep; for (auto& r : mercs) if (Ped* m = r.get()) if (!m->removed) keep.push_back(r); mercs = keep; }
 	// (admin.js: what the rest of the game reads as the cheats: free roam's switches, or the phone's timed ones)
-	if (game.freeroamActive()) game.cheatsOn = game.cheats;
+	if (game.freeroamActive() && !(game.net && game.net->online())) game.cheatsOn = game.cheats;
 	else {
-		const auto ph = activeCheats();
+		const auto ph = game.net && game.net->online() ? std::map<std::string, bool>() : activeCheats();
 		Cheats c;
 		for (const auto& k : ph) ApplyCheat(c, k.first);
 		game.cheatsOn = c;

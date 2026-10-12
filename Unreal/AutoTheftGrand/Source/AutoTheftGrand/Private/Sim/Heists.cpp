@@ -1,4 +1,5 @@
 #include "Heists.h"
+#include "Net.h"
 #include "Collision.h"
 #include "Game.h"
 #include "Gameplay.h"
@@ -86,7 +87,7 @@ void Heists::update(double dt) {
 	Player& p = *game.player;
 	timer -= dt;
 	if (!van) {
-		if (timer <= 0 && enabled && !game.missionActive && !p.dead && (game.police ? game.police->wantedLevel() : 0) == 0 && game.gameplay && game.gameplay->state == "playing") {
+		if (timer <= 0 && enabled && !game.missionActive && !p.dead && !(game.net && game.net->online()) && (game.police ? game.police->wantedLevel() : 0) == 0 && game.gameplay && game.gameplay->state == "playing") {
 			timer = 20; // (retry if no road)
 			if (spawn()) timer = Rand(EVERY[0], EVERY[1]);
 		}

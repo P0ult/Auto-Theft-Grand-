@@ -1,4 +1,5 @@
 #include "Combat.h"
+#include "Net.h"
 #include "Collision.h"
 #include "Effects.h"
 #include "Game.h"
@@ -125,7 +126,7 @@ bool Combat::fireWeaponHit(Character* shooter, const WeaponDef& def, const V3& o
 		const bool h = raycast(muzzle.x, muzzle.y, muzzle.z, d.x, d.y, d.z, def.range, shooter, hit);
 		const V3 end = h ? hit.point : muzzle + d * Min(def.range, dist + 30);
 		if (i < 3 && game.effects) game.effects->tracer(muzzle, end);
-		// (online: net.onShot)
+		if (i == 0 && game.net) game.net->onShot(shooter, def.id, muzzle, end);
 		if (h) { anyHit = true; applyHit(hit, def, shooter, d); }
 	}
 	if (game.effects) game.effects->muzzleFlash(muzzle, base, def.id == "shotgun");
@@ -261,7 +262,8 @@ void Combat::explosion(const V3& pos, double radius, double damage, Character* s
 	const double vis = IsSet(opts.size) ? 6.75 * size : radius * 0.75;
 	if (game.effects) game.effects->explosion(pos, vis, opts.hasFoot ? opts.foot : nullptr);
 	{ SoundOpts so; so.size = size; game.soundAt("explosion", pos, Min(1.6, 0.7 + size * 0.3), so); }
-	if (visualOnly) return;
+	if (visualOnly) return; // (another player's vehicle blowing up: their client deals the damage)
+	if (game.net) game.net->onExplosion(pos, radius, source, vis);
 	const V3 pd = game.player->vehicle ? game.player->vehicle->pos : game.player->pos;
 	const double dp = (pos - pd).length();
 	const double reach = 60 * Max(1, std::sqrt(size));

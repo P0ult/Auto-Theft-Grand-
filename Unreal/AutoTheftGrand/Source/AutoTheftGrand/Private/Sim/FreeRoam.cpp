@@ -1,4 +1,5 @@
 #include "FreeRoam.h"
+#include "Net.h"
 #include "Aircraft.h"
 #include "Combat.h"
 #include "Collision.h"
@@ -85,7 +86,8 @@ void FreeRoam::earlyInput(double dt) {
 
 void FreeRoam::applyAdminPowers(double dt) {
 	Player& p = *game.player;
-	if (!active()) {
+	// (admin.js allowed: free roam, and not online)
+	if (!active() || (game.net && game.net->online())) {
 		if (!adminApplied) return;
 		p.invincible = false;
 		p.infiniteSprint = false;

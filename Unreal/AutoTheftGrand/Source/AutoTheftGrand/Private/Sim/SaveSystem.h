@@ -3,23 +3,12 @@
 // The save is the browser game's format, so the same structure works for both. Free roam never touches it.
 #pragma once
 
+#include "Json.h"
 #include "Systems.h"
 
 namespace atg {
 
 class Game;
-
-// a minimal JSON value, enough for the save file
-struct Json {
-	enum Type { Null, Bool, Num, Str, Arr, Obj } type = Null;
-	bool b = false;
-	double n = 0;
-	std::string s;
-	std::vector<Json> a;
-	std::vector<std::pair<std::string, Json>> o;
-	const Json* get(const std::string& key) const { for (const auto& kv : o) if (kv.first == key) return &kv.second; return nullptr; }
-	static Json parse(const std::string& text);
-};
 
 class SaveSystem : public System {
 public:
