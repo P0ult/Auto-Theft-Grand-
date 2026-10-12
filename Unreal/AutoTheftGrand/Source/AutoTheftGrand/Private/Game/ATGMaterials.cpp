@@ -32,8 +32,8 @@
 
 namespace {
 // bump when the generated materials change: new assets are made under new names
-constexpr int32 GMatVersion = 5;
-const TCHAR* GMatNames[] = { TEXT("Terrain"), TEXT("Road"), TEXT("Street"), TEXT("Ground"), TEXT("Building"), TEXT("VertexLit"), TEXT("Frond"), TEXT("Water"), TEXT("Standard"), TEXT("Glass"), TEXT("FxAlpha"), TEXT("FxAdd"), TEXT("Unlit"), TEXT("Picture") };
+constexpr int32 GMatVersion = 6;
+const TCHAR* GMatNames[] = { TEXT("Terrain"), TEXT("Road"), TEXT("Street"), TEXT("Ground"), TEXT("Building"), TEXT("VertexLit"), TEXT("Frond"), TEXT("Water"), TEXT("Standard"), TEXT("Glass"), TEXT("FxAlpha"), TEXT("FxAdd"), TEXT("Unlit"), TEXT("Picture"), TEXT("Rain") };
 
 FString AssetName(const TCHAR* Base) { return FString::Printf(TEXT("M_ATG_%s_%d"), Base, GMatVersion); }
 FString MpcName() { return FString::Printf(TEXT("MPC_ATG_%d"), GMatVersion); }
@@ -58,6 +58,23 @@ struct ATGN {
 	float stripe(float x, float c, float w, float aa) { return 1.0 - smoothstep(w - aa, w + aa, abs(x - c)); }
 	float rectM(float2 f, float2 lo, float2 hi, float aa) { float2 a = smoothstep(lo - aa, lo + aa, f) * (1.0 - smoothstep(hi - aa, hi + aa, f)); return a.x * a.y; }
 	float bandG(float x, float c, float w) { return step(abs(x - c), w); }
+	// materials.js WET_GLSL: standing water in low spots of level ground (flatN: the normal's up component) and
+	// rain on ground-like surfaces: darker, glossier, puddles of clear water (porous: 0 asphalt .. 1 soil)
+	float puddle(float2 xz, float flatN, float wet) {
+		if (wet < 0.02) return 0.0;
+		float flat_ = smoothstep(0.965, 0.995, flatN);
+		float n = vn2(xz * 0.075) * 0.55 + vn2(xz * 0.23 + 7.3) * 0.3 + vn2(xz * 0.9 + 3.1) * 0.15;
+		float thr = lerp(0.76, 0.5, wet);
+		return smoothstep(thr, thr + 0.035, n) * flat_;
+	}
+	void wetGround(inout float3 col, inout float rough, float porous, float2 xz, float flatN, float wet) {
+		if (wet < 0.005) return;
+		float pud = puddle(xz, flatN, wet) * (1.0 - porous * 0.6);
+		col *= 1.0 - wet * (0.22 + 0.2 * porous);
+		col = lerp(col, col * 0.42 + float3(0.006, 0.008, 0.01), pud);
+		rough = lerp(rough, lerp(0.3, 0.6, porous), wet * 0.75);
+		rough = lerp(rough, 0.03, pud);
+	}
 )HLSL");
 static const TCHAR* NoiseEnd = TEXT(R"HLSL(
 };
@@ -122,6 +139,8 @@ rock *= 0.72 + 0.45 * n3;
 col = lerp(col, rock, steep);
 col = lerp(col, float3(0.5, 0.48, 0.45) * (0.8 + 0.3 * n3), smoothstep(470.0, 620.0, h) * (1.0 - steep) * 0.7);
 float rough = lerp(0.96, 0.9, sand);
+// rain: muddy puddles on level fields and tracks (sand and the forest floor soak it up)
+N.wetGround(col, rough, saturate(0.78 + sand * 0.22 + forest * 0.22 - farm * 0.15), wp, abs(NRM.z), Wet);
 return float4(col, rough);
 )HLSL");
 
@@ -201,6 +220,8 @@ if (type > 6.5 && type < 7.5) {
 	col = lerp(col, float3(0.8, 0.8, 0.78), saturate(paintW));
 	rough = lerp(0.92, 0.6, saturate(paintW + paintY));
 }
+// rain: gloss, puddles (ballast drains, dirt turns to mud)
+N.wetGround(col, rough, (type > 6.5 && type < 7.5) ? 1.0 : (type > 4.5 && type < 5.5) ? 0.75 : 0.0, wp, abs(NRM.z), Wet);
 return float4(col, rough);
 )HLSL");
 
@@ -259,6 +280,7 @@ col *= 1.0 - crack * 0.5;
 col = lerp(col, float3(0.75, 0.62, 0.18), saturate(paintY));
 col = lerp(col, float3(0.78, 0.78, 0.76), saturate(paintW));
 float rough = lerp(0.92, 0.6, saturate(paintY + paintW));
+N.wetGround(col, rough, 0.0, wp, abs(NRM.z), Wet);
 return float4(col, rough);
 )HLSL");
 
@@ -350,6 +372,9 @@ if (pad && type > 8.5) {
 	col = float3(0.76, 0.66, 0.48) * (0.85 + 0.1 * rip + 0.1 * n); rough = 1.0;
 }
 if (gn.y < 0.5) { col = float3(0.6, 0.59, 0.56) * (0.85 + 0.2 * n); rough = 0.8; }
+// rain: soil and sand soak it up, hard surfaces get puddles
+bool soft = (!pad && ((type > 0.5 && type < 2.5) || (type > 6.5 && type < 8.5))) || (pad && type > 12.5);
+N.wetGround(col, rough, soft ? 0.85 : 0.1, wp, abs(NRM.z), Wet);
 return float4(col, rough);
 )HLSL");
 
@@ -407,6 +432,7 @@ if (roof > 1.5) {
 	float n = N.fbm3(wpos.xz * 0.9);
 	col = lerp(float3(0.34, 0.33, 0.32), float3(0.42, 0.4, 0.37), step(0.5, seed)) * (0.75 + 0.4 * n);
 	rough = 0.95;
+	N.wetGround(col, rough, 0.15, wpos.xz, abs(NRM.z), Wet); // flat roofs pool water too
 } else {
 	float2 uv = uv0;
 	float2 cell = floor(uv);
@@ -752,6 +778,9 @@ UMaterialParameterCollection* MakeMpc() {
 	Add(TEXT("StreetLights"), 0.f);
 	Add(TEXT("EmissiveBoost"), 3.f);
 	Add(TEXT("SimTime"), 0.f); // (the simulation's shader clock: the traffic lights and the traffic agree)
+	Add(TEXT("Wet"), 0.f);     // (environment.js uWet: how soaked the ground is)
+	Add(TEXT("Rain"), 0.f);    // (uRain: rain falling right now)
+	{ FCollectionVectorParameter V; V.ParameterName = FName(TEXT("CamPos")); V.DefaultValue = FLinearColor(0, 0, 0, 0); C->VectorParameters.Add(V); } // (the camera, in game metres)
 	C->PostEditChange();
 	SaveAsset(C);
 	return C;
@@ -774,36 +803,36 @@ UMaterial* MakeMaterial(EATGMat Which, UMaterialParameterCollection* C) {
 	switch (Which) {
 	case EATGMat::Terrain: {
 		TArray<TPair<FString, UMaterialExpression*>> Ins; UVs(Ins);
-		Ins.Add({ TEXT("LP"), B.LocalPos() }); Ins.Add({ TEXT("NRM"), B.Normal() });
+		Ins.Add({ TEXT("LP"), B.LocalPos() }); Ins.Add({ TEXT("NRM"), B.Normal() }); Ins.Add({ TEXT("Wet"), B.Mpc(C, TEXT("Wet")) });
 		Split(B.Custom(Wrap(TerrainFields, TerrainBody), CMOT_Float4, Ins, TEXT("ATG terrain")));
 		break;
 	}
 	case EATGMat::Road: {
 		TArray<TPair<FString, UMaterialExpression*>> Ins; UVs(Ins);
-		Ins.Add({ TEXT("LP"), B.LocalPos() }); Ins.Add({ TEXT("PD"), B.Depth() });
+		Ins.Add({ TEXT("LP"), B.LocalPos() }); Ins.Add({ TEXT("PD"), B.Depth() }); Ins.Add({ TEXT("NRM"), B.Normal() }); Ins.Add({ TEXT("Wet"), B.Mpc(C, TEXT("Wet")) });
 		Split(B.Custom(Wrap(TEXT(""), RoadBody), CMOT_Float4, Ins, TEXT("ATG road network")));
 		break;
 	}
 	case EATGMat::Street: {
 		TArray<TPair<FString, UMaterialExpression*>> Ins;
-		Ins.Add({ TEXT("LP"), B.LocalPos() }); Ins.Add({ TEXT("PD"), B.Depth() });
+		Ins.Add({ TEXT("LP"), B.LocalPos() }); Ins.Add({ TEXT("PD"), B.Depth() }); Ins.Add({ TEXT("NRM"), B.Normal() }); Ins.Add({ TEXT("Wet"), B.Mpc(C, TEXT("Wet")) });
 		Split(B.Custom(StreetCode(), CMOT_Float4, Ins, TEXT("ATG city streets")));
 		break;
 	}
 	case EATGMat::Ground: {
 		TArray<TPair<FString, UMaterialExpression*>> Ins; UVs(Ins);
-		Ins.Add({ TEXT("LP"), B.LocalPos() }); Ins.Add({ TEXT("NRM"), B.Normal() });
+		Ins.Add({ TEXT("LP"), B.LocalPos() }); Ins.Add({ TEXT("NRM"), B.Normal() }); Ins.Add({ TEXT("Wet"), B.Mpc(C, TEXT("Wet")) });
 		Split(B.Custom(Wrap(TEXT(""), GroundBody), CMOT_Float4, Ins, TEXT("ATG ground")));
 		break;
 	}
 	case EATGMat::Building: {
 		UMaterialExpression* Lp = B.LocalPos(); UMaterialExpression* Nrm = B.Normal(); UMaterialExpression* Cam = B.Camera(); UMaterialExpression* Pd = B.Depth();
-		UMaterialExpression* Night = B.Mpc(C, TEXT("Night")); UMaterialExpression* Boost = B.Mpc(C, TEXT("EmissiveBoost")); UMaterialExpression* T = B.Time();
+		UMaterialExpression* Night = B.Mpc(C, TEXT("Night")); UMaterialExpression* Boost = B.Mpc(C, TEXT("EmissiveBoost")); UMaterialExpression* T = B.Time(); UMaterialExpression* Wet = B.Mpc(C, TEXT("Wet"));
 		UMaterialExpression* U[4] = { B.UV(0), B.UV(1), B.UV(2), B.UV(3) };
 		auto Ins = [&](bool WithBoost) {
 			TArray<TPair<FString, UMaterialExpression*>> I;
 			for (int32 i = 0; i < 4; i++) I.Add({ FString::Printf(TEXT("uv%d"), i), U[i] });
-			I.Add({ TEXT("LP"), Lp }); I.Add({ TEXT("NRM"), Nrm }); I.Add({ TEXT("CAM"), Cam }); I.Add({ TEXT("PD"), Pd }); I.Add({ TEXT("Night"), Night }); I.Add({ TEXT("Time"), T });
+			I.Add({ TEXT("LP"), Lp }); I.Add({ TEXT("NRM"), Nrm }); I.Add({ TEXT("CAM"), Cam }); I.Add({ TEXT("PD"), Pd }); I.Add({ TEXT("Night"), Night }); I.Add({ TEXT("Time"), T }); I.Add({ TEXT("Wet"), Wet });
 			if (WithBoost) I.Add({ TEXT("Boost"), Boost });
 			return I;
 		};
@@ -901,6 +930,42 @@ UMaterial* MakeMaterial(EATGMat Which, UMaterialParameterCollection* C) {
 		UMaterialExpressionCustom* E = B.Custom(TEXT("return float4(Tex.rgb * (1 - Mode.x) * Boost, 0);"), CMOT_Float4, Ins, TEXT("ATG picture light"));
 		Split(A);
 		B.Out()->EmissiveColor.Connect(0, B.Mask(E, true, true, true, false));
+		break;
+	}
+	case EATGMat::Rain: {
+		// effects.js Rain: each streak falls through a 60 x 40 x 60 m box that wraps round the camera, slanted by
+		// the wind; the world position offset puts it there (the mesh sits at the origin), a quad 2.4 cm wide
+		M->SetShadingModel(MSM_Unlit);
+		M->BlendMode = BLEND_Translucent;
+		M->TwoSided = true;
+		TArray<TPair<FString, UMaterialExpression*>> Ins;
+		Ins.Add({ TEXT("uv0"), B.UV(0) }); Ins.Add({ TEXT("uv1"), B.UV(1) }); Ins.Add({ TEXT("uv2"), B.UV(2) });
+		Ins.Add({ TEXT("LP"), B.LocalPos() }); Ins.Add({ TEXT("T"), B.Mpc(C, TEXT("SimTime")) }); Ins.Add({ TEXT("Cam"), B.Mpc(C, TEXT("CamPos")) });
+		Ins.Add({ TEXT("Amount"), B.Mpc(C, TEXT("Rain")) }); Ins.Add({ TEXT("Night"), B.Mpc(C, TEXT("Night")) });
+		const TCHAR* Wpo = TEXT(R"HLSL(
+float2 wind = float2(1.5, 0.8);
+float k = uv2.x, side = uv2.y;
+float fall = 18.0 + uv1.y * 6.0;
+float py = uv1.x - T * fall; py -= 40.0 * floor(py / 40.0);
+float2 q = uv0 + wind * (40.0 - py) * 0.05 - Cam.xz + 30.0; q -= 60.0 * floor(q / 60.0);
+float3 w = float3(q.x - 30.0 + Cam.x, py - 12.0 + Cam.y, q.y - 30.0 + Cam.z);
+w.xz -= wind * k * 0.04; w.y += k * 0.55;
+float3 toCam = Cam.xyz - w; toCam.y = 0.0;
+float3 sd = normalize(float3(-toCam.z, 0.0, toCam.x) + float3(1e-4, 0.0, 0.0)) * 0.012 * side;
+w += sd;
+return float3(w.x, w.z, w.y) * 100.0 - LP;
+)HLSL");
+		const TCHAR* Col = TEXT(R"HLSL(
+float k = uv2.x;
+float a = step(uv1.y, Amount) * (0.35 + k * 0.4);
+float3 c = lerp(float3(0.71, 0.75, 0.8), float3(0.12, 0.13, 0.16), Night);
+return float4(c, a * 0.35);
+)HLSL");
+		UMaterialExpressionCustom* P = B.Custom(Wpo, CMOT_Float3, Ins, TEXT("ATG rain position"));
+		UMaterialExpressionCustom* E = B.Custom(Col, CMOT_Float4, Ins, TEXT("ATG rain colour"));
+		B.Out()->WorldPositionOffset.Connect(0, P);
+		B.Out()->EmissiveColor.Connect(0, B.Mask(E, true, true, true, false));
+		B.Out()->Opacity.Connect(0, B.Mask(E, false, false, false, true));
 		break;
 	}
 	case EATGMat::FxAlpha:

@@ -27,7 +27,8 @@ class UMaterialParameterCollection;
 // FxAlpha / FxAdd: the effects (ATGEffects): particles, decals, skid marks and tracers, alpha blended or additive
 // Unlit: vertex colour x Color, shining on its own (three.js MeshBasicMaterial); Picture: a texture (the parameter
 // "Picture"), lit when Mode.x is 1 and shining on its own when it is 0 (the shops' posters and menu boards)
-enum class EATGMat : uint8 { Terrain, Road, Street, Ground, Building, VertexLit, Frond, Water, Standard, Glass, FxAlpha, FxAdd, Unlit, Picture, Count };
+// Rain: effects.js Rain, streaks falling round the camera (uv0 = box x, z; uv1 = box y, seed; uv2 = end, side)
+enum class EATGMat : uint8 { Terrain, Road, Street, Ground, Building, VertexLit, Frond, Water, Standard, Glass, FxAlpha, FxAdd, Unlit, Picture, Rain, Count };
 
 namespace ATGMaterials {
 	// the material (falls back to the engine default if the generated one is missing)

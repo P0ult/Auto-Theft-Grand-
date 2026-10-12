@@ -494,6 +494,25 @@ void AATGWorld::QueueBuild() {
 			}
 		}
 	});
+	// ---- the rain (effects.js Rain): 6000 streaks, placed and animated by their material round the camera
+	Steps.Add([this]() {
+		FRandomStream Rng(5);
+		atg::MeshBuf M;
+		for (int32 I = 0; I < 6000; I++) {
+			const double X = Rng.FRand() * 60, Y = Rng.FRand() * 40, Z = Rng.FRand() * 60, Seed = Rng.FRand();
+			M.Set(1, Y, Seed);
+			uint32_t Q[4];
+			const double Corner[4][2] = { { 0, -1 }, { 0, 1 }, { 1, 1 }, { 1, -1 } };
+			for (int32 K = 0; K < 4; K++) { M.Set(2, Corner[K][0], Corner[K][1]); Q[K] = M.V(X, Y + Corner[K][0] * 0.55, Z, 0, 1, 0, X, Z); }
+			M.Tri(Q[0], Q[1], Q[2]); M.Tri(Q[0], Q[2], Q[3]);
+		}
+		RainComp = NewMeshComponent(TEXT("Rain"), false);
+		ATGMesh::ToSection(RainComp, 0, M, false);
+		RainComp->SetMaterial(0, ATGMaterials::Get(EATGMat::Rain));
+		RainComp->SetCastShadow(false);
+		RainComp->SetBoundsScale(5000.f); // (the streaks are moved to the camera in the material)
+		RainComp->SetVisibility(false);
+	});
 	// ---- the MV Pacific Star at Port Morena (cargoship.js: one material per part; its lamps shine at night)
 	Steps.Add([this, D]() {
 		atg::ShipRaid* SR = D->Sim ? dynamic_cast<atg::ShipRaid*>(D->Sim->system("shipRaid")) : nullptr;
@@ -880,28 +899,46 @@ void AATGWorld::UpdateSky(float Dt) {
 	MoonDir.Normalize();
 	const double SunY = SunDir.Y;
 	Night = (float)(1 - SmoothStep(-0.18, 0.06, SunY));
-	StreetLights = (float)(1 - SmoothStep(0.02, 0.15, SunY));
+	// the weather (environment.js): cloud and rain dim the sun, fog thickens, lightning flashes, and the street
+	// lights come on earlier under a gloomy sky
+	double Cloud = 0.35, Rain = 0, FogBoost = 0, Lightning = 0;
+	if (atg::Game* G = Game()) { Cloud = G->env.cloudCover; Rain = G->env.rain; FogBoost = G->env.fogBoost; Lightning = G->env.lightning; }
+	const double Gloom = Cloud * 0.05 + Rain * 0.08 + FogBoost * 0.04;
+	StreetLights = (float)(1 - SmoothStep(0.02, 0.15, SunY - Gloom));
 
 	// directional lights shine along -direction (from the sky down)
 	const FVector SunUE = ATG::DirToUE(SunDir.X, SunDir.Y, SunDir.Z);
 	Sun->SetWorldRotation((-SunUE).Rotation());
 	const float SunK = (float)SmoothStep(-0.12, 0.02, SunY);
-	Sun->SetIntensity(SunLux * SunK);
+	const float Weather = (float)((1 - Cloud * 0.55) * (1 - Rain * 0.4));
+	Sun->SetIntensity(SunLux * SunK * Weather + SunLux * (float)Lightning * 1.8f);
+	Sun->SetLightColor(Lightning > 0 ? FLinearColor(0.8f, 0.85f, 1.f) : FLinearColor::White);
 	Sun->SetCastShadows(SunK > 0.01f);
 	if (MoonDir.Y < 0.12) { MoonDir.Y = 0.12; MoonDir.Normalize(); }
 	const FVector MoonUE = ATG::DirToUE(MoonDir.X, MoonDir.Y, MoonDir.Z);
 	Moon->SetWorldRotation((-MoonUE).Rotation());
 	const float MoonK = Night * (float)SmoothStep(-0.05, 0.2, MoonDir.Y);
-	Moon->SetIntensity(MoonLux * MoonK);
+	Moon->SetIntensity(MoonLux * MoonK * (float)(1 - Cloud * 0.5));
 	Moon->SetCastShadows(SunK <= 0.01f && MoonK > 0.2f);
 	SkyLight->SetIntensity(1.f + Night * 1.5f);
-	Fog->SetFogInscatteringColor(FMath::Lerp(FLinearColor(0.45f, 0.5f, 0.6f), FLinearColor(0.012f, 0.014f, 0.022f), Night * 0.95f));
+	FLinearColor FogCol = FMath::Lerp(FLinearColor(0.45f, 0.5f, 0.6f), FLinearColor(0.012f, 0.014f, 0.022f), Night * 0.95f);
+	if (Cloud > 0.6 || Rain > 0.1) { const float L = (FogCol.R + FogCol.G + FogCol.B) / 3; FogCol = FMath::Lerp(FogCol, FLinearColor(L, L * 1.02f, L * 1.06f), (float)FMath::Clamp(Rain + (Cloud - 0.6), 0.0, 0.8)); }
+	Fog->SetFogInscatteringColor(FogCol);
+	// (uFogDensity = 0.00105 + fogBoost * 0.009 + rain * 0.002: the clear-weather density scaled the same way)
+	Fog->SetFogDensity(0.012f * (float)((0.00105 + FogBoost * 0.009 + Rain * 0.002) / 0.00105));
 
 	if (UMaterialParameterCollection* C = ATGMaterials::Collection()) {
 		if (UWorld* W = GetWorld()) if (UMaterialParameterCollectionInstance* I = W->GetParameterCollectionInstance(C)) {
 			I->SetScalarParameterValue(TEXT("Night"), Night);
 			I->SetScalarParameterValue(TEXT("StreetLights"), StreetLights);
-			if (atg::Game* G = Game()) I->SetScalarParameterValue(TEXT("SimTime"), (float)G->env.uTime);
+			if (atg::Game* G = Game()) {
+				I->SetScalarParameterValue(TEXT("SimTime"), (float)G->env.uTime); I->SetScalarParameterValue(TEXT("Wet"), (float)G->env.wet); I->SetScalarParameterValue(TEXT("Rain"), (float)G->env.rain);
+				if (const APlayerController* PC = W->GetFirstPlayerController()) if (PC->PlayerCameraManager) {
+					double Cx, Cy, Cz; ATG::FromUE(PC->PlayerCameraManager->GetCameraLocation(), Cx, Cy, Cz);
+					I->SetVectorParameterValue(TEXT("CamPos"), FLinearColor((float)Cx, (float)Cy, (float)Cz, 0.f));
+				}
+				if (RainComp) RainComp->SetVisibility(G->env.rain > 0.02);
+			}
 		}
 	}
 }

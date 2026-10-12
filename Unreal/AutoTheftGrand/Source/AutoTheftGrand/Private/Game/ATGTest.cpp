@@ -115,7 +115,7 @@ ATG_CMD(CmdTeleport, "ATG.Teleport", "ATG.Teleport x z [heading]: move the playe
 })
 
 ATG_CMD(CmdTime, "ATG.Time", "ATG.Time hours: set the clock", { if (atg::Game* G = Sim(W)) if (Args.Num()) G->env.setTime(Arg(Args, 0)); })
-ATG_CMD(CmdWeather, "ATG.Weather", "ATG.Weather clear|cloudy|rain|storm|fog", { if (atg::Game* G = Sim(W)) if (Args.Num()) G->env.setWeather(TCHAR_TO_UTF8(*Args[0]), true); })
+ATG_CMD(CmdWeather, "ATG.Weather", "ATG.Weather clear|cloudy|rain|storm|fog [wet]: set the weather now (wet: how soaked the ground already is, 0..1)", { if (atg::Game* G = Sim(W)) if (Args.Num()) { G->env.setWeather(TCHAR_TO_UTF8(*Args[0]), true); if (Args.Num() > 1) G->env.wet = Arg(Args, 1, 0); } })
 ATG_CMD(CmdGod, "ATG.God", "ATG.God 0|1: the player takes no damage", { if (atg::Game* G = Sim(W)) { G->cheats.god = Arg(Args, 0, 1) != 0; G->player->invincible = G->cheats.god; } })
 
 ATG_CMD(CmdSpawn, "ATG.Spawn", "ATG.Spawn type [heading]: a vehicle in front of the player (side-on, or facing heading)", {

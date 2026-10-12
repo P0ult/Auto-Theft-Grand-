@@ -158,6 +158,7 @@ private:
 	// the one light that follows the shop nearest the camera (city.js interiorLight)
 	UPROPERTY(Transient) TObjectPtr<UPointLightComponent> InteriorLight;
 	UPROPERTY(Transient) TObjectPtr<UMaterialInstanceDynamic> ShipLampMat;
+	UPROPERTY(Transient) TObjectPtr<UProceduralMeshComponent> RainComp;
 	double LampTimer = 0;
 	void UpdateSky(float Dt);
 	void UpdateLamps(float Dt);

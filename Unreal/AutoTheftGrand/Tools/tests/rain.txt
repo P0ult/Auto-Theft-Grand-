@@ -1,0 +1,18 @@
+# Rain: streaks falling round the camera, the streets dark and glossy with puddles on level ground, and the
+# same street dry for comparison.
+wait 1
+ATG.God 1
+ATG.Time 14
+ATG.Weather clear 0
+ATG.Teleport -587 344 0
+wait 3
+ATG.CamAt 1 2.5 -3 0 0.2 25
+wait 0.5
+shot rain_dry
+ATG.Weather rain 1
+wait 3
+shot rain_wet
+ATG.Time 21
+wait 2
+shot rain_night
+quit
