@@ -19,6 +19,7 @@ public:
 	bool sprinting = false;
 	double drunk = 0;   // (drinks at the bar: the camera sways, shops.js)
 	double stamina = 1, aimHold = 0, fireCooldown = 0, comboTimer = 0, reloading = 0, maxArmor = 100;
+	bool infiniteSprint = false;
 	int comboIndex = 0;
 	bool enterRequest = false;
 	double spin = 0, spinSnd = 0;

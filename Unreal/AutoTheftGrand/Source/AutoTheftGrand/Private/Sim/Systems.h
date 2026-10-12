@@ -93,6 +93,17 @@ struct StoreItem {
 	int price = 0;
 	std::function<std::string(Player&, Game&)> use;
 	bool available = true; // (the pet shop's animals wait for the pets)
+	std::string button;    // (a panel's own label; empty: "Buy $price")
+	bool closes = false;   // (pressing it closes the panel: a race starting, a cab destination)
+	int64_t swatch = -1;   // (a paint colour shown beside the name)
+};
+// a panel menu that isn't a shop (modshop.js, races.js, properties.js, taxi.js build theirs in the page): it can
+// open in a vehicle, refresh rebuilds its rows after each press, onClose runs when it closes (either way)
+struct PanelOpts {
+	bool inVehicle = false;
+	std::string leave = "Leave (Esc)";
+	std::function<std::vector<StoreItem>()> refresh;
+	std::function<void()> onClose;
 };
 
 // on-screen help and messages (src/ui/hud.js)
@@ -111,6 +122,8 @@ public:
 	// the shop menus: the Gun Barn's weapons and armour, and a store's items (both pause the game)
 	virtual void openShop() {}
 	virtual void openStore(const std::string& /*title*/, const std::string& /*sub*/, const std::vector<StoreItem>& /*items*/) {}
+	virtual void openPanel(const std::string& /*title*/, const std::string& /*sub*/, const std::vector<StoreItem>& /*items*/, const PanelOpts& = PanelOpts()) {}
+	virtual void closeOverlay() {}
 	virtual void openPause(const std::string&) {} // (the pause menu on a tab: map, teleport)
 	virtual void dispatch(const std::string&, const std::string& = "") {}
 	// the radio station's name (and genre) at the top of the screen

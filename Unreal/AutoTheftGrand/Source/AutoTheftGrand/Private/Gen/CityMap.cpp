@@ -223,7 +223,7 @@ void CityMap::Build() {
 		blocks.erase(std::find(blocks.begin(), blocks.end(), c1));
 		cellBlocks[(size_t)o.j * nI + o.i] = c0;
 	}
-	{ Landmark L; L.x = 106; L.z = CITY_MAXZ + 8; L.y = 2.6; L.vals = { { "x0", 92 }, { "x1", 120 }, { "z0", CITY_MAXZ + 8 }, { "z1", 960 } }; landmarks["pier"] = L; }
+	{ Landmark L; L.x = NaN(); L.z = NaN(); L.y = 2.6; L.vals = { { "x0", 92 }, { "x1", 120 }, { "z0", CITY_MAXZ + 8 }, { "z1", 960 } }; landmarks["pier"] = L; }
 	for (int bi : blocks) FillBlock(blockStore[bi]);
 	ClearUnderFreeway();
 	StreetProps();

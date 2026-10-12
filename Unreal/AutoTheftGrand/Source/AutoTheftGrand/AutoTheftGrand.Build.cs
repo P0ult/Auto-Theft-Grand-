@@ -19,11 +19,10 @@ public class AutoTheftGrand : ModuleRules
 			"Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput", "ProceduralMeshComponent", "PhysicsCore",
 			"MeshDescription", "StaticMeshDescription", "RenderCore", "RHI"
 		});
-		PrivateDependencyModuleNames.AddRange(new string[] { "Slate", "SlateCore", "AudioExtensions" });
+		PrivateDependencyModuleNames.AddRange(new string[] { "Slate", "SlateCore", "AudioExtensions", "AssetRegistry" });
 		if (Target.bBuildEditor)
 		{
 			// the materials are generated and saved as assets from C++ when the editor starts
-			PrivateDependencyModuleNames.AddRange(new string[] { "AssetRegistry" });
 		}
 		PrivateIncludePaths.Add(ModuleDirectory + "/Private");
 		PrivateIncludePaths.Add(ModuleDirectory + "/Private/Gen"); // (the simulation includes the generator by plain names)

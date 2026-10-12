@@ -702,6 +702,12 @@ void AATGHUD::DrawShopMenu(atg::Game* G) {
 			c.Save(); c.Translate(Tx, y + 6); WeaponIcon(c, R.icon, 56); c.Restore();
 			Tx += 56 + 14;
 		}
+		if (R.swatch >= 0) {
+			// (modshop.js .swatch: the paint colour as a round chip)
+			c.Fill = CssColor((uint32)R.swatch); c.BeginPath(); c.Arc(Tx + 14, y + Rh / 2, 14, 0, 2 * PI); c.FillPath();
+			c.Stroke = FLinearColor(1, 1, 1, 0.5f); c.LineWidth = 2; c.StrokePath();
+			Tx += 28 + 12;
+		}
 		const float Top = y + (Rh - 35) / 2;
 		c.Fill = FLinearColor::White; c.FontText(Str(R.name), Tx, Top + 17, 17, TEXT("Bold"));
 		c.Fill = Muted; c.FontText(Str(R.desc), Tx, Top + 32, 12, TEXT("Regular"));

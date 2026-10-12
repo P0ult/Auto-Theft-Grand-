@@ -169,7 +169,7 @@ void Combat::applyHit(const CombatHit& hit, const WeaponDef& defIn, Character* s
 		game.soundAt("bulletflesh", hit.point, 0.5);
 	} else if (hit.kind == CombatHit::Vehicle_) {
 		Vehicle* v = hit.veh;
-		v->damage(def.damage * 0.9 * (IsSet(v->def.bulletMul) ? v->def.bulletMul : 1), shooter);
+		v->damage(def.damage * 0.9 * (IsSet(v->def.bulletMul) ? v->def.bulletMul : 1) * v->bulletMod, shooter);
 		if (fx) fx->impact(hit.point, hit.normal, "metal");
 		game.soundAt("bulletmetal", hit.point, 0.5);
 		// tyres and fuel: a small chance to ignite when already damaged

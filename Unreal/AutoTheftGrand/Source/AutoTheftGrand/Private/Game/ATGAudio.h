@@ -6,7 +6,9 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "Sound/SoundWaveProcedural.h"
+#include "Sound/SoundWave.h"
 #include <atomic>
+#include <functional>
 #include "ATGAudio.generated.h"
 
 class UAudioComponent;
@@ -28,6 +30,11 @@ public:
 	// start the game's sound, if this machine has an audio device
 	void Start(atg::Game* G);
 	virtual void EndPlay(const EEndPlayReason::Type Reason) override;
+
+	// Sound assets
+	UPROPERTY(EditAnywhere, Category = "ATG Audio")
+	TObjectPtr<USoundWave> WastedSound;
+
 private:
 	UPROPERTY(Transient) TObjectPtr<UAudioComponent> Component;
 	UPROPERTY(Transient) TObjectPtr<UATGSoundStream> Stream;

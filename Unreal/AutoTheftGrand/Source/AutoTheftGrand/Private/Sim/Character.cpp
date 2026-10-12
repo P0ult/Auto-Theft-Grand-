@@ -259,7 +259,7 @@ void Character::faceTowards(double x, double z, double dt, double rate) {
 
 // ------------------------------------------------------------------ damage
 bool Character::takeDamage(double amount, const DamageInfo& info) {
-	if (dead || invincible) return false;
+	if (dead || invincible || (isPlayer && game.cheatsOn.god)) return false;
 	if (protectUntil > 0 && game.time < protectUntil) return false;
 	double dmg = amount;
 	if (info.part == "head") dmg *= IsSet(info.headMul) ? info.headMul : 4;

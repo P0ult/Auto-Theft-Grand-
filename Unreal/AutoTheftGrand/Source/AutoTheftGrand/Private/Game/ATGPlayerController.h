@@ -10,6 +10,7 @@
 
 class AATGWorld;
 namespace atg { class Game; }
+class UATGMenuSystem;
 
 UCLASS()
 class AATGCameraManager : public APlayerCameraManager {
@@ -43,6 +44,12 @@ public:
 	double ScriptDx = 0, ScriptDy = 0;
 
 private:
+	UPROPERTY() TObjectPtr<UATGMenuSystem> MenuSystem;
+	bool bMainMenuNavigation = false;
+	int32 MenuLastX = 0, MenuLastY = 0, MenuLastTab = 0;
+	bool bMenuPadActive = false;
+	float SystemMenuRepeatT = 0;
+	void MenuSystemInput(float Dt);
 	TSet<FString> Held;   // keys the simulation has been told are down
 	// the shop menus (padnav.js): the cursor while one is open, and the highlight's key repeat
 	bool bMenuCursor = false;

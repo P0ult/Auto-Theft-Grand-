@@ -421,6 +421,35 @@ void Effects::update(double dt) {
 	alphaPool.update(dt);
 	addPool.update(dt);
 	dotAlpha.update(dt);
+
+	// spawn rain particles
+	if (game.env.rain > 0) {
+		const double rainIntensity = game.env.rain;
+		const double spawnRate = rainIntensity * 800; // particles per second
+		const int spawnCount = (int)Clamp(spawnRate * dt, 0, 50);
+		const V3 cam = game.rig.camPos;
+		for (int i = 0; i < spawnCount; i++) {
+			Particle p = Pt();
+			// spawn in a box around the camera
+			const double spread = 40;
+			p.x = cam.x + Rand(-spread, spread);
+			p.y = cam.y + Rand(5, 25);
+			p.z = cam.z + Rand(-spread, spread);
+			p.vx = Rand(-2, 2);
+			p.vy = -Rand(20, 40); // fast downward
+			p.vz = Rand(-2, 2);
+			p.life = Rand(0.5, 1.5);
+			p.size0 = 0.05;
+			p.size1 = 0.05;
+			Col(p, 0.7f, 0.75f, 0.85f);
+			p.alpha = 0.4 * rainIntensity;
+			p.grav = 0;
+			p.drag = 0.1;
+			p.fadeIn = 0.05;
+			dotAlpha.spawn(std::move(p));
+		}
+	}
+
 	// decals: grow, then fade over 5 s after their life
 	for (Decal& d : decals) {
 		if (!d.live) continue;

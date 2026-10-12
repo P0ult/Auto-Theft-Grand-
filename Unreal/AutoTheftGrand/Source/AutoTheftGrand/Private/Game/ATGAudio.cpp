@@ -2,6 +2,9 @@
 #include "AutoTheftGrand.h"
 #include "Sim/Audio.h"
 #include "Sim/Game.h"
+#include "Kismet/GameplayStatics.h"
+#include "AssetRegistry/AssetRegistryModule.h"
+#include "AssetRegistry/IAssetRegistry.h"
 
 #include "AudioDevice.h"
 #include "Components/AudioComponent.h"
@@ -31,6 +34,41 @@ void AATGAudio::Start(atg::Game* G) {
 	UWorld* W = GetWorld();
 	if (!W || !W->GetAudioDevice().IsValid()) { UE_LOG(LogATG, Log, TEXT("No audio device: the game runs silent")); return; }
 	G->audioSys->init();
+	// Load wasted sound if not set
+	if (!WastedSound) {
+		// Try to find the asset via asset registry
+		FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+		IAssetRegistry& AssetRegistry = AssetRegistryModule.Get();
+		TArray<FAssetData> AssetList;
+		FTopLevelAssetPath SoundWaveClassPath = USoundWave::StaticClass()->GetClassPathName();
+		AssetRegistry.GetAssetsByClass(SoundWaveClassPath, AssetList, true);
+		for (const FAssetData& Asset : AssetList) {
+			if (Asset.AssetName.ToString().Contains("wasted")) {
+				WastedSound = Cast<USoundWave>(Asset.GetAsset());
+				if (WastedSound) {
+					UE_LOG(LogATG, Log, TEXT("Found wasted sound: %s"), *WastedSound->GetName());
+					break;
+				}
+			}
+		}
+		if (!WastedSound) {
+			UE_LOG(LogATG, Warning, TEXT("Wasted sound not found in asset registry, trying direct load"));
+			WastedSound = LoadObject<USoundWave>(nullptr, TEXT("/Game/Audio/wasted.wasted"));
+		}
+		if (!WastedSound) {
+			UE_LOG(LogATG, Error, TEXT("Failed to load wasted sound!"));
+		}
+	}
+	// Set up sample playback callback
+	if (atg::Audio* AudioSys = G->audioSys) {
+		AudioSys->onPlaySample = [this](const std::string& name, double vol) -> bool {
+			if (name == "wasted" && WastedSound) {
+				UGameplayStatics::PlaySound2D(GetWorld(), WastedSound, (float)vol);
+				return true;
+			}
+			return false;
+		};
+	}
 	Stream = NewObject<UATGSoundStream>(this);
 	Stream->SetSampleRate(atg::wa::SR);
 	Stream->NumChannels = 2;

@@ -7,6 +7,7 @@
 #include "Sim/Boats.h"
 #include "Sim/Combat.h"
 #include "Sim/Effects.h"
+#include "Sim/FreeRoam.h"
 #include "Sim/Game.h"
 #include "Sim/Gameplay.h"
 #include "Sim/Heists.h"
@@ -22,6 +23,7 @@
 #include "Sim/Rail.h"
 #include "Sim/Roadblocks.h"
 #include "Sim/Setup.h"
+#include "Sim/ShipRaid.h"
 #include "Sim/Shops.h"
 #include "Sim/Skateboard.h"
 #include "Sim/Skateparks.h"
@@ -87,6 +89,160 @@ static void TestWalk(World& w) {
 	Run(*g, 0.2);
 	printf("  jumping: y %.2f vy %.2f grounded %d\n", p.pos.y, p.vel.y, p.grounded ? 1 : 0);
 	Check(!p.grounded, "jumps");
+}
+
+// Admin-tab actions and each cheat's observable effect, including restoring temporary global state.
+static void TestAdmin(World& w) {
+	printf("admin\n");
+	auto g = w.game(true);
+	StartJourney(*g, "free");
+	FreeRoam& admin = *g->freeroam;
+	Player& p = *g->player;
+	Check(admin.active(), "free-roam unlocks admin powers");
+	Check(!admin.toggleCheat("not a cheat"), "unknown cheat names are rejected");
+	const std::vector<std::string> toggles = { "God mode", "Bulletproof vehicle", "Never wanted", "Super jump", "Super run", "Infinite sprint", "Low gravity", "Explosive bullets", "One-hit kills", "Freeze time", "Slow motion", "Riot" };
+	g->missionActive = true;
+	Check(!admin.toggleCheat("God mode") && !admin.setCheat("God mode", true), "cheats are rejected while a mission is active");
+	g->missionActive = false;
+	for (const std::string& key : toggles) {
+		Check(admin.toggleCheat(key), (key + " toggle is handled").c_str());
+	}
+	g->freeroam->earlyInput(1.0 / 30);
+	const std::vector<bool Cheats::*> fields = { &Cheats::god, &Cheats::vehGod, &Cheats::neverWanted, &Cheats::superJump, &Cheats::superRun, &Cheats::infSprint, &Cheats::lowGravity, &Cheats::explosive, &Cheats::oneHit, &Cheats::freezeTime, &Cheats::slowmo, &Cheats::riot };
+	for (size_t i = 0; i < toggles.size(); ++i) {
+		Check(g->cheatsOn.*fields[i], (toggles[i] + " reaches active cheats").c_str());
+	}
+	for (auto it = toggles.rbegin(); it != toggles.rend(); ++it) admin.toggleCheat(*it);
+	admin.earlyInput(1.0 / 30);
+	g->frame(1.0 / 30);
+	Check(g->adminPowersActive && !g->cheatsOn.god && !p.invincible && !p.infiniteSprint && g->gravity == 1, "disabled cheats apply their off state");
+	Check(g->timeScale == 1 && g->env.timeScale == 1, "disabling slow motion and freeze restores normal time");
+	Check(!admin.setCheat("unknown", true), "unknown cheat names are rejected by setCheat");
+	g->missionActive = true;
+	Check(!admin.toggleCheat("God mode") && !admin.setCheat("God mode", true), "cheats are rejected while a mission is active");
+	g->missionActive = false;
+
+	Check(admin.setCheat("God mode", true), "set a cheat directly for repeatable application");
+	g->freeroam->earlyInput(1.0 / 30);
+	DamageInfo hit; hit.type = "bullet";
+	p.health = 25;
+	g->freeroam->earlyInput(1.0 / 30);
+	const bool godDamageBlocked = !p.takeDamage(50, hit);
+	Check(godDamageBlocked && p.health == p.maxHealth, "god mode prevents damage and restores health");
+	admin.setCheat("God mode", false); admin.earlyInput(1.0 / 30);
+
+	ToStreet(w, *g);
+	const double startY = p.pos.y;
+	Check(admin.setCheat("Super jump", true), "super jump switch is accepted"); g->freeroam->earlyInput(1.0 / 30);
+	g->input.KeyDown("Space"); g->frame(1.0 / 30); g->input.KeyUp("Space");
+	Check(p.vel.y > 10, "super jump input applies its stronger lift"); Run(*g, 0.25);
+	Check(p.pos.y > startY + 2, "super jump clears the ground");
+	admin.setCheat("Super jump", false); g->freeroam->earlyInput(1.0 / 30);
+
+	ToStreet(w, *g);
+	p.setPosition(p.pos.x, p.pos.z); p.grounded = true; p.vel = V3(); p.anim->action.reset();
+	g->rig.yaw = kPi;
+	const double baseTime = g->timeScale;
+	Check(admin.setCheat("Super run", true) && admin.setCheat("Infinite sprint", true), "super run and infinite sprint switches are accepted");
+	g->freeroam->earlyInput(1.0 / 30);
+	Check(p.infiniteSprint, "infinite sprint reaches the movement controller");
+	g->input.KeyDown("ShiftLeft"); g->input.KeyDown("KeyW");
+	g->frame(1.0 / 30); p.stamina = 0.01;
+	const V3 runStart = p.pos; Run(*g, 0.8); g->input.ClearKeys();
+	const double runDistance = Hypot(p.pos.x - runStart.x, p.pos.z - runStart.z);
+	Check(p.sprinting && p.stamina > 0.99 && runDistance > 6, "super run doubles speed and infinite sprint does not drain stamina");
+	admin.setCheat("Super run", false); admin.setCheat("Infinite sprint", false); g->freeroam->earlyInput(1.0 / 30);
+
+	Check(admin.setCheat("Low gravity", true), "low gravity switch is accepted"); g->freeroam->earlyInput(1.0 / 30);
+	Check(std::fabs(g->gravity - 0.3) < 1e-9, "low gravity changes world gravity");
+	Check(admin.setCheat("Freeze time", true), "freeze time switch is accepted"); g->freeroam->earlyInput(1.0 / 30);
+	const double frozenHours = g->env.hours; Run(*g, 1);
+	Check(g->env.timeScale == 0 && g->env.hours == frozenHours, "freeze time stops the environment clock");
+	admin.setCheat("Freeze time", false); g->freeroam->earlyInput(1.0 / 30);
+	const double resumedHours = g->env.hours;
+	Run(*g, 1);
+	Check(g->env.timeScale == 1 && g->env.hours != resumedHours, "unfreezing resumes the clock");
+	Check(admin.setCheat("Slow motion", true), "slow-motion switch is accepted"); g->freeroam->earlyInput(1.0 / 30);
+	Check(std::fabs(g->timeScale - baseTime * 0.45) < 1e-9, "slow motion scales simulation time");
+	admin.setCheat("Slow motion", false); g->freeroam->earlyInput(1.0 / 30);
+	Check(g->timeScale == baseTime, "slow motion restores the prior simulation scale");
+	admin.setCheat("Low gravity", false); g->freeroam->earlyInput(1.0 / 30);
+	const double oldEnvTimeScale = g->env.timeScale;
+	Check(admin.setTimeOfDay(25), "time-of-day action is accepted");
+	Check(std::fabs(g->env.hours - 1) < 1e-9, "time of day wraps to a 24-hour clock");
+	const double preWeatherTimeScale = g->env.timeScale;
+	g->missionActive = true;
+	Check(!admin.setTimeOfDay(14) && std::fabs(g->env.hours - 1) < 1e-9 && !admin.setWeather("rain"), "time and weather actions are rejected while a mission is active");
+	g->missionActive = false;
+	admin.setTimeOfDay(12); Check(std::fabs(g->env.hours - 12) < 1e-9, "time of day sets the clock");
+	Check(admin.setWeather("storm") && g->env.weather == "storm" && g->env.rain == 1, "storm weather applies immediately");
+	Check(!admin.setWeather("bogus"), "invalid weather is rejected");
+	for (const char* weather : { "clear", "cloudy", "rain", "storm", "fog" }) {
+		Check(admin.setWeather(weather) && g->env.weather == weather, (std::string("weather ") + weather).c_str());
+	}
+	Check(g->env.weatherLocked && g->env.weatherTimer > 1e8, "admin weather stays locked");
+	for (const auto& invalid : { std::string("none"), std::string("stormy") }) Check(!admin.setWeather(invalid), "invalid weather names are rejected");
+	g->missionActive = true;
+	Check(!admin.setWeather("storm"), "weather changes are rejected while a mission is active");
+	g->missionActive = false;
+	Check(admin.setCheat("Bulletproof vehicle", true), "bulletproof vehicle switch is accepted");
+	Vehicle* car = g->vehicles.spawn("zenith", p.pos.x + 3, p.pos.z, 0); g->vehicles.seatNow(&p, car);
+	g->freeroam->earlyInput(1.0 / 30);
+	car->health = 20; car->damage(10, &p);
+	Check(car->health == 20, "bulletproof vehicle blocks damage");
+	car->health = 20; car->onFire = true; car->burnTime = 4; g->freeroam->earlyInput(1.0 / 30);
+	Check(car->health == car->maxHealth && !car->onFire && car->burnTime == 0, "bulletproof vehicle restores health and clears fire");
+	car->undent(); Check(car->dents.empty(), "vehicle repair state can be reset");
+	admin.setCheat("Bulletproof vehicle", false); g->freeroam->earlyInput(1.0 / 30); car->takeOut(&p);
+
+	Check(admin.setCheat("Never wanted", true), "never wanted switch is accepted");
+	g->policeSys->setLevel(2); g->freeroam->earlyInput(1.0 / 30);
+	Check(g->policeSys->level == 0 && g->policeSys->heat == 0, "never wanted clears stars and heat");
+	g->policeSys->crime(1, p.pos, true); Check(g->policeSys->level == 0, "never wanted blocks new crimes");
+	admin.setCheat("Never wanted", false); admin.setWanted(3);
+	Check(g->policeSys->level == 3, "wanted action sets the requested stars");
+	Check(!g->cheats.neverWanted, "raising stars turns off never wanted");
+	admin.setWanted(0); Check(g->policeSys->level == 0, "wanted clear action removes stars");
+	admin.setWanted(99); Check(g->policeSys->level == 5, "wanted level clamps to five stars");
+	admin.setWanted(-2); Check(g->policeSys->level == 0, "wanted level clamps to clear");
+
+	Check(admin.setCheat("Explosive bullets", true), "explosive bullets switch is accepted");
+	g->freeroam->earlyInput(1.0 / 30);
+	PedOpts po; po.state = "idle"; po.hasY = true; po.y = 0; Ped* target = g->peds->spawnPed(p.pos.x + 2, p.pos.z + 8, po);
+	CombatHit body; body.kind = CombatHit::Char; body.ch = target; body.point = target->chestPos();
+	auto* combat = dynamic_cast<Combat*>(g->combat);
+	auto* effects = dynamic_cast<Effects*>(g->effects);
+	const size_t fireBefore = effects ? effects->emitters.size() : 0;
+	combat->applyHit(body, *FindWeapon("pistol"), &p, V3(0,0,1));
+	Check(effects && effects->emitters.size() > fireBefore, "explosive bullets create an impact explosion");
+	admin.setCheat("Explosive bullets", false); g->freeroam->earlyInput(1.0 / 30);
+	Check(admin.setCheat("One-hit kills", true), "one-hit kills switch is accepted");
+	g->freeroam->earlyInput(1.0 / 30);
+	PedOpts po2; po2.state = "idle"; po2.hasY = true; po2.y = 0; Ped* target2 = g->peds->spawnPed(p.pos.x + 4, p.pos.z + 8, po2);
+	CombatHit body2; body2.kind = CombatHit::Char; body2.ch = target2; body2.point = target2->chestPos();
+	combat->applyHit(body2, *FindWeapon("pistol"), &p, V3(0,0,1));
+	Check(target2->dead, "one-hit kills multiply player bullet damage");
+	admin.setCheat("One-hit kills", false); g->freeroam->earlyInput(1.0 / 30);
+	for (const auto& pedestrian : g->peds->list) if (pedestrian->state == "attack") { pedestrian->threat = nullptr; pedestrian->threatAnimal = nullptr; pedestrian->setState("idle"); }
+	const auto previousPeds = g->peds->list;
+	for (const auto& pedestrian : previousPeds) g->peds->remove(pedestrian.get());
+	std::vector<Ped*> rioters;
+	for (int i = 0; i < 12; ++i) { Ped* civilian = g->peds->spawnPed(p.pos.x + i * 0.5, p.pos.z + 5); civilian->setState("idle"); rioters.push_back(civilian); }
+	Check(admin.setCheat("Riot", true), "riot switch is accepted"); admin.earlyInput(2.0);
+	bool fighting = false; for (Ped* civilian : rioters) fighting |= civilian->state == "attack" && (bool)civilian->threat;
+	Check(fighting, "riot makes nearby civilians fight");
+	const int attackers = (int)std::count_if(rioters.begin(), rioters.end(), [](const Ped* civilian) { return civilian->state == "attack" && civilian->threat; });
+	admin.earlyInput(1.0 / 30);
+	Check((int)std::count_if(rioters.begin(), rioters.end(), [](const Ped* civilian) { return civilian->state == "attack" && civilian->threat; }) == attackers, "riot keeps assigned citizens fighting");
+	admin.setCheat("Riot", false);
+
+	g->missionActive = true;
+	admin.earlyInput(1.0 / 30);
+	Check(!g->adminPowersActive && !p.infiniteSprint && !p.sprinting && g->gravity == 1, "leaving free roam resets admin powers");
+	Check(!g->cheats.god && !g->cheats.riot && !g->cheats.slowmo && !g->cheats.freezeTime, "leaving free roam clears admin cheat switches");
+	Check(std::fabs(g->env.timeScale - oldEnvTimeScale) < 1e-9 && oldEnvTimeScale == preWeatherTimeScale, "leaving free roam restores environment time");
+	g->missionActive = false;
+	Check(std::isfinite(g->env.hours), "environment clock remains finite after admin actions");
 }
 
 static void TestDrive(World& w) {
@@ -500,19 +656,28 @@ static void TestPickups(World& w) {
 	Check(pk->packages.size() == 30 && pk->packages[0]->removed, "and it's gone");
 	Run(*g, 70);
 	Check(find("health") && find("weapon", "smg"), "the world's pickups don't expire");
-	// the Spray Shack
+	// the Spray Shack is Los Soles Customs now (modshop.js): driving onto the marker opens the menu, and
+	// its Respray & repair row is the old $100 service
 	const Landmark& S = w.map.landmarks.at("spray");
 	Vehicle* v = g->vehicles.spawn("zenith", S.x + 20, S.z, 0);
 	g->vehicles.seatNow(&p, v, 0);
 	g->policeSys->setLevel(2);
 	g->missionNoBust = true;
+	v->health = v->maxHealth * 0.4;
 	const uint32_t c0 = v->color;
 	const double m1 = p.money;
 	v->pos.x = S.x; v->pos.z = S.z;
 	Run(*g, 1.5);
-	printf("  spray: money %.0f -> %.0f, colour %06x -> %06x, wanted %d\n", m1, p.money, c0, v->color, g->policeSys->level);
-	Check(p.money == m1 - 100 && v->color != c0 && v->painted, "a new paint job for $100");
+	HudModel& hud = *g->hudModel;
+	Check(hud.menu.kind == "store" && hud.menu.title == "LOS SOLES CUSTOMS", "the Customs menu opens on the marker");
+	int respray = -1;
+	for (int i = 0; i < (int)hud.menu.rows.size(); i++) if (hud.menu.rows[i].button.rfind("Respray", 0) == 0) respray = i;
+	Check(respray >= 0, "and has a Respray & repair row");
+	if (respray >= 0) hud.menuPress(respray);
+	printf("  respray: money %.0f -> %.0f, colour %06x -> %06x, wanted %d\n", m1, p.money, c0, v->color, g->policeSys->level);
+	Check(p.money == m1 - 100 && v->color != c0 && v->painted && v->health == v->maxHealth, "a new paint job for $100");
 	Check(g->policeSys->level == 0, "and the cops lose you");
+	hud.closeOverlay();
 }
 
 // the walk-in shops: a clerk turns up behind each counter, the Gun Barn's counter opens the gun menu, a gun in a
@@ -620,6 +785,64 @@ static void TestShops(World& w) {
 	at(liq.it->center);
 	Run(*g, 0.5);
 	Check(liq.clerk && liq.state == "calm" && liq.clerk.get() != ray, "and a new clerk turns up");
+}
+
+// the ship raid: the Pacific Star's collision, its crew turning up as you come near, the warning on deck, the
+// alert and the coast guard, the safe on the bridge, the contraband, and the crew leaving once you're gone
+static void TestShipRaid(World& w) {
+	printf("shipraid\n");
+	auto g = w.game(true);
+	Player& p = *g->player;
+	ShipRaid& R = *g->shipRaid;
+	p.invincible = true;
+	printf("  %zu collision calls, cargoShip landmark %d\n", R.ship.colliders.size(), (int)g->map.landmarks.count("cargoShip"));
+	Check(R.ship.colliders.size() == 162 && g->map.landmarks.count("cargoShip"), "the ship's collision and its landmark");
+	const double deck = g->collision->floorHeight(R.ship.gangwayTop.x, R.ship.gangwayTop.z, R.ship.gangwayTop.y + 1);
+	printf("  floor at the top of the gangway %.2f (deck %.2f)\n", deck, SHIP.deckY);
+	Check(std::fabs(deck - SHIP.deckY) < 0.05, "the deck is walkable");
+	g->respawnPlayer(R.ship.gangwayFoot.x, R.ship.gangwayFoot.z, 0);
+	Run(*g, 1);
+	printf("  spawned %d, crew %zu, markers %zu, loot %d\n", (int)R.spawned, R.crew.size(), R.markers.size(), R.lootLeft);
+	Check(R.spawned && R.crew.size() == 13 && R.markers.size() == 4 && R.lootLeft == 3, "a crew of 13, the safe and three containers");
+	p.setPosition(R.ship.gangwayTop.x, R.ship.gangwayTop.y, R.ship.gangwayTop.z);
+	Run(*g, 0.5);
+	printf("  on deck: warned %d, alerted %d, message '%s'\n", (int)R.warned, (int)R.alerted, g->hudModel->big.text.c_str());
+	Check(R.warned && !R.alerted && g->hudModel->big.text == "MV PACIFIC STAR", "told to get off the ship");
+	Run(*g, 26);
+	Check(R.alerted, "overstay and the crew turn on you");
+	Run(*g, 10);
+	printf("  wanted %d after the radio call\n", g->policeSys->level);
+	Check(g->policeSys->level >= 2, "the captain calls the coast guard");
+	g->policeSys->clearWanted();
+	g->missionNoBust = true;
+	// the safe
+	const double m0 = p.money;
+	p.setPosition(R.ship.safe.x, R.ship.safe.y, R.ship.safe.z - 0.6);
+	Run(*g, 6.5);
+	printf("  safe: done %d, payroll %.0f, message '%s %s'\n", (int)R.safeDone, R.lastSafe, g->hudModel->big.text.c_str(), g->hudModel->big.sub.c_str());
+	Check(R.safeDone && R.lastSafe >= 12000 && R.lastSafe <= 18000, "the safe cracks after six seconds");
+	for (auto& q : g->pickupsSys->list) if (q->kind == "money" && Dist2(q->pos.x, q->pos.z, R.ship.safe.x, R.ship.safe.z) < 9 && !q->removed) { p.setPosition(q->pos.x, q->pos.y, q->pos.z); g->frame(1.0 / 30); g->frame(1.0 / 30); }
+	printf("  money %.0f -> %.0f\n", m0, p.money);
+	Check(p.money >= m0 + R.lastSafe, "and the payroll is picked up");
+	// the contraband
+	int raided = 0;
+	g->events.shipRaided.on([&]() { raided++; });
+	for (int k = 0; k < 3; k++) {
+		Marker* m = nullptr;
+		for (Marker* q : R.markers) if (!q->removed) { m = q; break; }
+		if (!m) break;
+		p.setPosition(m->pos.x + 3, m->pos.y, m->pos.z); g->frame(1.0 / 30);
+		p.setPosition(m->pos.x, m->pos.y, m->pos.z); Run(*g, 0.3);
+	}
+	printf("  loot left %d, raided %d, stats %.0f\n", R.lootLeft, raided, g->stats.shipRaids);
+	Check(R.lootLeft == 0 && raided == 1 && g->stats.shipRaids == 1 && !R.restocked(), "three containers opened: the ship is raided");
+	// away for a while: the crew go
+	g->respawnPlayer(SHIP.x - 700, SHIP.z, 0);
+	Run(*g, 22);
+	Check(!R.spawned && R.crew.empty() && R.markers.empty(), "the crew leave once you're far away");
+	g->respawnPlayer(R.ship.gangwayFoot.x, R.ship.gangwayFoot.z, 0);
+	Run(*g, 1);
+	Check(!R.spawned, "and don't come back until it's restocked");
 }
 
 // roadblocks: at four stars a driving suspect meets a line of cruisers ahead with cops in cover and a spike
@@ -1522,7 +1745,7 @@ static void TestMissions(World& w) {
 static void TestStory(World& w) {
 	printf("story: Chapters I-VII\n");
 	const auto definitions = BuildStory();
-	Check(definitions.size() == 31, "thirty-one Chapter I-VII missions in browser order");
+	Check(definitions.size() == 35, "all 35 missions (Chapters I-VIII) in browser order");
 	for (const auto& def : definitions) {
 		auto g = w.game(true); g->disableAmbient = true; g->player->invincible = true;
 		Missions& e = *g->missions; Player& p = *g->player;
@@ -1552,6 +1775,8 @@ static void TestStory(World& w) {
 				if (!p.vehicle) { auto* own = g->vehicles.spawn("meridian", target->pos.x, target->pos.z - 40, 0); g->vehicles.seatNow(&p, own); }
 				p.vehicle->pos = target->pos - target->fwd() * 40; p.vehicle->vel = V3(); p.vehicle->yaw = target->yaw;
 			}
+			// (missions.mjs: stand at the captain's safe until it opens)
+			if (def.id == "pacificstar" && g->shipRaid->spawned && !g->shipRaid->safeDone) { const auto& S = g->shipRaid->ship.safe; if (p.vehicle) p.vehicle->takeOut(&p); p.setPosition(S.x, S.y, S.z - 0.6); Run(*g, 0.5); continue; }
 			if (def.id == "solline" && p.vehicle && p.vehicle->def.kind == "train") {
 				auto* train = dynamic_cast<Train*>(p.vehicle); const auto& station = g->rail->stations[g->rail->station("union")];
 				train->s = station.s + train->len / 2; train->v = 0; train->place();
@@ -1664,13 +1889,15 @@ int main(int argc, char** argv) {
 	SeedRand(12345);
 	const auto t0 = std::chrono::steady_clock::now();
 	World w;
-	printf("world %.1f s\n", std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count());
+	// (to stderr: stdout is compared line for line against the browser game in the compare modes)
+	fprintf(stderr, "world %.1f s\n", std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count());
 	if (argc > 1 && !std::strcmp(argv[1], "vehcompare")) { VehCompare(w); return 0; }
 	if (argc > 1 && !std::strcmp(argv[1], "aircmp")) { AirCompare(w, argc > 2 ? argv[2] : "plane"); return 0; }
 	if (argc > 1 && !std::strcmp(argv[1], "animalcmp")) { AnimalCompare(w); return 0; }
 	if (argc > 1 && !std::strcmp(argv[1], "storymeta")) { StoryMeta(w); return 0; }
 	auto want = [&](const char* n) { if (argc < 2) return true; for (int i = 1; i < argc; i++) if (!std::strcmp(argv[i], n)) return true; return false; };
 	if (want("walk")) TestWalk(w);
+	if (want("admin")) TestAdmin(w);
 	if (want("drive")) TestDrive(w);
 	if (want("crash")) TestCrash(w);
 	if (want("parked")) TestParked(w);
@@ -1694,6 +1921,7 @@ int main(int argc, char** argv) {
 	if (want("skate")) TestSkate(w);
 	if (want("boats")) TestBoats(w);
 	if (want("shops")) TestShops(w);
+	if (want("shipraid")) TestShipRaid(w);
 	if (want("wildlife")) TestWildlife(w);
 	if (want("pets")) TestPets(w);
 	if (want("missions")) TestMissions(w);

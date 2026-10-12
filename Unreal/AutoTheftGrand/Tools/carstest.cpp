@@ -16,10 +16,9 @@ int main() {
 				if (p.name != k) continue;
 				double sx = 0, sy = 0, sz = 0;
 				for (size_t i = 0; i < p.mesh.Count(); i++) { sx += p.mesh.P[i * 3]; sy += p.mesh.P[i * 3 + 1]; sz += p.mesh.P[i * 3 + 2]; }
-				// (the hinged panels are stored relative to their hinges here; three.js keeps the hood / trunk in the car frame)
 				if (p.pivot == "hood") { sy += m.hoodHinge[1] * p.mesh.Count(); sz += m.hoodHinge[2] * p.mesh.Count(); }
 				if (p.pivot == "trunk") { sy += m.trunkHinge[1] * p.mesh.Count(); sz += m.trunkHinge[2] * p.mesh.Count(); }
-				printf("part %s v %zu i %zu sum %.2f %.2f %.2f\n", k, p.mesh.Count(), p.mesh.I.size(), sx + 0.0, sy + 0.0, sz + 0.0);
+				printf("part %s v %zu i %zu sum %.2f %.2f %.2f\n", k, p.mesh.Count(), p.mesh.I.size(), sx, sy, sz);
 			}
 		}
 		printf("wheel v %zu\n", m.wheel.Count());

@@ -90,6 +90,19 @@ void HudModel::openStore(const std::string& title, const std::string& sub, const
 	menu.kind = "store";
 	menu.title = title; menu.sub = sub;
 	storeItems = items;
+	panel = PanelOpts();
+	menuRender();
+}
+
+void HudModel::openPanel(const std::string& title, const std::string& sub, const std::vector<StoreItem>& items, const PanelOpts& opts) {
+	if (game.player->vehicle && !opts.inVehicle) return;
+	game.paused = true;
+	game.menuOpen = true;
+	menu = Menu();
+	menu.kind = "store";
+	menu.title = title; menu.sub = sub;
+	storeItems = items;
+	panel = opts;
 	menuRender();
 }
 
@@ -121,11 +134,12 @@ void HudModel::menuRender() {
 		for (const StoreItem& it : storeItems) {
 			MenuRow r;
 			r.name = it.name; r.desc = it.desc;
-			r.button = "Buy $" + std::to_string(it.price);
+			r.button = it.button.empty() ? "Buy $" + std::to_string(it.price) : it.button;
 			r.enabled = it.available;
+			r.swatch = it.swatch;
 			menu.rows.push_back(r);
 		}
-		MenuRow l; l.button = "Leave (Esc)"; l.primary = true;
+		MenuRow l; l.button = panel.leave; l.primary = true;
 		menu.rows.push_back(l);
 	}
 	menu.focus = Clamp(menu.focus, 0, (int)menu.rows.size() - 1);
@@ -166,21 +180,27 @@ void HudModel::menuPress(int row) {
 			if (game.audio) game.audio->play("cash");
 		}
 	} else {
-		const StoreItem& it = storeItems[row];
+		const StoreItem it = storeItems[row]; // (a copy: use() may rebuild or close the menu)
 		if (p.money < it.price) { if (game.audio) game.audio->play("locked"); menu.rows[row].button = "Not enough cash"; return; }
 		p.money -= it.price;
-		if (game.audio) game.audio->play("cash");
+		if (game.audio && it.price > 0) game.audio->play("cash");
 		const std::string msg = it.use ? it.use(p, game) : std::string();
-		menu.note = msg.empty() ? it.name + " bought." : msg;
+		if (it.closes) { if (!menu.kind.empty()) closeOverlay(); return; }
+		if (menu.kind.empty()) return; // (use() closed it)
+		menu.note = msg.empty() ? (it.button.empty() ? it.name + " bought." : std::string()) : msg;
+		if (panel.refresh) storeItems = panel.refresh();
 	}
 	menuRender();
 }
 
 void HudModel::closeOverlay() {
+	auto onClose = std::move(panel.onClose);
 	menu = Menu();
 	storeItems.clear();
+	panel = PanelOpts();
 	game.menuOpen = false;
 	game.paused = false;
+	if (onClose) onClose();
 }
 
 void HudModel::moneyFlash(double amount) {

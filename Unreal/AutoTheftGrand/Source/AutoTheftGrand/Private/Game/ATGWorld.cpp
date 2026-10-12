@@ -13,6 +13,7 @@
 #include "Gen/WeaponModels.h"
 #include "Gen/WorldMeshes.h"
 #include "Sim/Boats.h"
+#include "Sim/ShipRaid.h"
 #include "Sim/Skateparks.h"
 #include "Sim/Game.h"
 #include "Sim/Setup.h"
@@ -332,6 +333,16 @@ FString AATGWorld::TimeString() const {
 
 atg::Game* AATGWorld::Game() const { return Data && bReady ? Data->Sim.get() : nullptr; }
 
+bool AATGWorld::RestartSimulation() {
+	if (!Data || !bReady) return false;
+	atg::WorldData W;
+	W.map = &Data->Map; W.roadPrims = Data->Roads.prims; W.roadDecks = Data->Roads.decks; W.props = Data->Props; W.propDefs = &Data->PropDefs;
+	Data->Sim.reset();
+	Data->Sim = std::make_unique<atg::Game>(W);
+	atg::InstallSystems(*Data->Sim);
+	return true;
+}
+
 // ------------------------------------------------------------------ building the components
 UProceduralMeshComponent* AATGWorld::NewMeshComponent(const TCHAR* Name, bool bCollision) {
 	UProceduralMeshComponent* C = NewObject<UProceduralMeshComponent>(this, MakeUniqueObjectName(this, UProceduralMeshComponent::StaticClass(), FName(Name)));
@@ -481,6 +492,33 @@ void AATGWorld::QueueBuild() {
 				S->SetWorldTransform(ATG::ToUE(M4::Compose(V3(Wp.x, Wp.y, Wp.z), Quat::FromEuler(0, Wp.yaw, Wp.roll))));
 				S->RegisterComponent();
 			}
+		}
+	});
+	// ---- the MV Pacific Star at Port Morena (cargoship.js: one material per part; its lamps shine at night)
+	Steps.Add([this, D]() {
+		atg::ShipRaid* SR = D->Sim ? dynamic_cast<atg::ShipRaid*>(D->Sim->system("shipRaid")) : nullptr;
+		if (!SR) return;
+		auto Mat = [&](const FLinearColor& Col, double Rough, double Metal) {
+			UMaterialInstanceDynamic* M = UMaterialInstanceDynamic::Create(ATGMaterials::Get(EATGMat::Standard), this);
+			M->SetVectorParameterValue(TEXT("Color"), Col);
+			M->SetVectorParameterValue(TEXT("Surface"), FLinearColor((float)Rough, (float)Metal, 1.f, 0.f));
+			return M;
+		};
+		const atg::CargoShip& S = SR->ship;
+		struct FShipPart { const atg::MeshBuf* Mesh; UMaterialInterface* Mat; bool bShadow; };
+		ShipLampMat = UMaterialInstanceDynamic::Create(ATGMaterials::Get(EATGMat::Unlit), this);
+		const FShipPart Parts[] = {
+			{ &S.hull, Mat(FLinearColor::White, 0.55, 0.35), true }, { &S.deck, Mat(FLinearColor::White, 0.85, 0.1), false },
+			{ &S.steel, Mat(FLinearColor::White, 0.6, 0.4), true }, { &S.white, Mat(FLinearColor::White, 0.6, 0.1), true },
+			{ &S.cont, Mat(FLinearColor::White, 0.75, 0.3), true }, { &S.glass, Mat(HexLinear(0x1a2733), 0.08, 0.6), false },
+			{ &S.lamp, ShipLampMat, false },
+		};
+		for (const FShipPart& P : Parts) {
+			if (P.Mesh->Empty()) continue;
+			UProceduralMeshComponent* C = NewMeshComponent(TEXT("CargoShip"), false);
+			ATGMesh::ToSection(C, 0, *P.Mesh, false);
+			C->SetMaterial(0, P.Mat);
+			C->SetCastShadow(P.bShadow);
 		}
 	});
 	// ---- roads (surfaces and concrete collide; rails don't)
@@ -889,6 +927,8 @@ void AATGWorld::UpdateLamps(float Dt) {
 		}
 	}
 	for (UPointLightComponent* L : Lamps) L->SetIntensity(StreetLights * LampCandelas);
+	// the cargo ship's deck lamps (lampMat.color.setScalar(0.4 + night * 3))
+	if (ShipLampMat) { const float V = 0.4f + Night * 3.f; ShipLampMat->SetVectorParameterValue(TEXT("Color"), FLinearColor(V, V, V)); }
 	// the shops' light, in the one nearest the camera (within 45 m)
 	if (InteriorLight && Data) {
 		const APlayerController* PC = GetWorld() ? GetWorld()->GetFirstPlayerController() : nullptr;

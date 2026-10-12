@@ -550,7 +550,7 @@ if (sig > 0.5) {
 
 // ---- palm fronds: a leaflet mask drawn from the card's uvs (the browser game used a painted texture)
 static const TCHAR* FrondBody = TEXT(R"HLSL(
-float3 col = float3(uv1.x, uv1.y, uv2.x);
+float3 col = VertexColor.rgb;
 float u = uv0.x, v = uv0.y;
 float d = abs(u - 0.5) * 2.0;
 float width = 1.0 - v * 0.55;

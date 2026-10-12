@@ -1,0 +1,51 @@
+# The title screen and the menus (-ATGMenu): the city flyover runs behind the title, the pause menu holds the
+# world still, and Free Roam followed by New Game starts a clean world (no free roam kit, cash or story state).
+wait 4
+ATG.MenuState
+shot menu_title
+# Down on the title must move forward; up must return to the prior enabled action.
+ATG.Menu Nav 0 1
+ATG.MenuState
+ATG.Menu Nav 0 -1
+ATG.MenuState
+ATG.Menu Nav 0 1
+ATG.MenuState
+shot menu_title_selected
+ATG.Menu FreeRoam
+wait 2
+ATG.State
+shot menu_freeroam
+ATG.Menu Pause
+wait 1
+ATG.MenuState
+shot menu_pause_map
+# Free-roam tabs run Map, Teleport, Vehicles, Admin, Online, Stats, Settings, Controls.
+ATG.Menu Tab 1
+ATG.Menu Tab 1
+ATG.Menu Tab 1
+ATG.Menu Tab 1
+ATG.Menu Tab 1
+ATG.Menu Tab 1
+wait 0.5
+ATG.MenuState
+shot menu_pause_settings
+# Down should move between rows, not jump sideways to the footer.
+ATG.Menu Nav 0 1
+ATG.MenuState
+ATG.Menu Nav 0 1
+ATG.MenuState
+ATG.Menu Nav 0 1
+ATG.MenuState
+ATG.Menu Tab 1
+wait 0.5
+ATG.MenuState
+ATG.Menu Quit
+wait 3
+ATG.MenuState
+shot menu_title_again
+ATG.State
+ATG.Menu NewGame
+wait 4
+ATG.State
+shot menu_story
+quit

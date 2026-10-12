@@ -1,9 +1,14 @@
 #include "Game/ATGPlayerController.h"
+#include "Game/ATGGameMode.h"
 #include "Game/ATGCoords.h"
 #include "Game/ATGWorld.h"
 #include "Sim/Game.h"
 #include "Game/ATGHUD.h"
 #include "Sim/Hud.h"
+#include "Sim/FreeRoam.h"
+#include "ATGMenuSystem.h"
+#include "Sim/Traffic.h"
+#include "Sim/Peds.h"
 
 #include "Engine/World.h"
 #include "InputCoreTypes.h"
@@ -64,6 +69,49 @@ void AATGPlayerController::BeginPlay() {
 	SetInputMode(FInputModeGameOnly());
 }
 
+void AATGPlayerController::MenuSystemInput(float Dt)
+{
+	AATGGameMode* GM = Cast<AATGGameMode>(GetWorld() ? GetWorld()->GetAuthGameMode() : nullptr);
+	if (!GM || !GM->IsMenuOpen()) { MenuLastX = MenuLastY = MenuLastTab = 0; bMenuPadActive = false; return; }
+	if (!MenuSystem) MenuSystem = GM->GetMenuSystem();
+	if (!MenuSystem) return;
+	float MouseX = 0.f, MouseY = 0.f;
+	GetInputMouseDelta(MouseX, MouseY);
+	const bool bMouseMoved = !FMath::IsNearlyZero(MouseX) || !FMath::IsNearlyZero(MouseY);
+	const bool bPadMoved = WasInputKeyJustPressed(EKeys::Gamepad_FaceButton_Bottom) || WasInputKeyJustPressed(EKeys::Gamepad_FaceButton_Right)
+		|| WasInputKeyJustPressed(EKeys::Gamepad_DPad_Up) || WasInputKeyJustPressed(EKeys::Gamepad_DPad_Down)
+		|| WasInputKeyJustPressed(EKeys::Gamepad_DPad_Left) || WasInputKeyJustPressed(EKeys::Gamepad_DPad_Right)
+		|| WasInputKeyJustPressed(EKeys::Gamepad_LeftShoulder) || WasInputKeyJustPressed(EKeys::Gamepad_RightShoulder)
+		|| WasInputKeyJustPressed(EKeys::Gamepad_Special_Right)
+		|| FMath::Abs(GetInputAnalogKeyState(EKeys::Gamepad_LeftX)) > 0.6f || FMath::Abs(GetInputAnalogKeyState(EKeys::Gamepad_LeftY)) > 0.6f;
+	if (bMouseMoved) bMenuPadActive = false;
+	else if (bPadMoved) bMenuPadActive = true;
+	bShowMouseCursor = !bMenuPadActive;
+	const bool bMain = MenuSystem->GetMenuState() == FATGMenuSystem::EATGMenuState::MainMenu;
+	const float LX = GetInputAnalogKeyState(EKeys::Gamepad_LeftX);
+	// Unreal's menu-axis sign here is opposite the simulation's stick convention: a downward pull must
+	// produce positive Y (the next row), not the previous row.
+	const float LY = GetInputAnalogKeyState(EKeys::Gamepad_LeftY);
+	int32 X = 0, Y = 0;
+	if (IsInputKeyDown(EKeys::Left) || IsInputKeyDown(EKeys::Gamepad_DPad_Left) || LX < -0.6f) X = -1;
+	else if (IsInputKeyDown(EKeys::Right) || IsInputKeyDown(EKeys::Gamepad_DPad_Right) || LX > 0.6f) X = 1;
+	if (IsInputKeyDown(EKeys::Up) || IsInputKeyDown(EKeys::Gamepad_DPad_Up) || LY > 0.6f) Y = -1;
+	else if (IsInputKeyDown(EKeys::Down) || IsInputKeyDown(EKeys::Gamepad_DPad_Down) || LY < -0.6f) Y = 1;
+	if (Y) X = 0;
+	const int32 D = Y ? Y : X;
+	const bool bTabDir = WasInputKeyJustPressed(EKeys::Gamepad_LeftShoulder) || WasInputKeyJustPressed(EKeys::PageUp) || WasInputKeyJustPressed(EKeys::Gamepad_RightShoulder) || WasInputKeyJustPressed(EKeys::PageDown);
+	if (!bMain && bTabDir) {
+		GM->MenuCycleTab(WasInputKeyJustPressed(EKeys::Gamepad_LeftShoulder) || WasInputKeyJustPressed(EKeys::PageUp) ? -1 : 1);
+		MenuLastX = MenuLastY = 0;
+		SystemMenuRepeatT = .38f;
+	}
+	else if (D && (X != MenuLastX || Y != MenuLastY)) { MenuLastX = X; MenuLastY = Y; SystemMenuRepeatT = .38f; GM->MenuNavigate(X, Y); }
+	else if (D) { SystemMenuRepeatT -= FMath::Min(.1f, Dt); if (SystemMenuRepeatT <= 0) { SystemMenuRepeatT=.11f; GM->MenuNavigate(X,Y); } }
+	else { MenuLastX=MenuLastY=0; }
+	if (WasInputKeyJustPressed(EKeys::Enter) || WasInputKeyJustPressed(EKeys::SpaceBar) || WasInputKeyJustPressed(EKeys::Gamepad_FaceButton_Bottom)) GM->MenuActivate();
+	if (WasInputKeyJustPressed(EKeys::Escape) || WasInputKeyJustPressed(EKeys::BackSpace) || WasInputKeyJustPressed(EKeys::P) || WasInputKeyJustPressed(EKeys::Gamepad_Special_Right) || WasInputKeyJustPressed(EKeys::Gamepad_FaceButton_Right)) GM->MenuBack();
+}
+
 void AATGPlayerController::PlayerTick(float Dt) {
 	Super::PlayerTick(Dt);
 	MessageTime = FMath::Max(0.f, MessageTime - Dt);
@@ -76,12 +124,35 @@ void AATGPlayerController::PlayerTick(float Dt) {
 	AATGWorld* W = AATGWorld::Get(this);
 	atg::Game* G = W ? W->Game() : nullptr;
 	if (!G) return;
+	if (AATGGameMode* GM = Cast<AATGGameMode>(GetWorld()->GetAuthGameMode())) {
+		if (GM->IsMenuOpen()) {
+			MenuSystemInput(Dt);
+			MouseDx = MouseDy = Wheel = 0;
+			return; // closing a menu must not reopen it or leak the same input into gameplay.
+		}
+	}
+	MenuSystemInput(Dt);
 	if (MenuInput(*G, Dt)) return;
 	// pause and the map (the HUD's keys in the browser game)
-	if (WasInputKeyJustPressed(EKeys::Escape) || WasInputKeyJustPressed(EKeys::P) || WasInputKeyJustPressed(EKeys::Gamepad_Special_Right)) G->paused = !G->paused;
+	// Only handle ESC/P if the menu system is NOT managing menus
+	if (WasInputKeyJustPressed(EKeys::Escape) || WasInputKeyJustPressed(EKeys::P) || WasInputKeyJustPressed(EKeys::Gamepad_Special_Right)) {
+		if (AATGGameMode* GM = Cast<AATGGameMode>(GetWorld()->GetAuthGameMode())) {
+			// Check if menu system is managing menus
+			if (!GM->IsMenuOpen()) {
+				GM->ShowPauseMenu();
+				MouseDx = MouseDy = Wheel = 0;
+				return;
+			}
+			// If menu is open, let the menu system handle ESC (via button clicks)
+		}
+	}
 	if (WasInputKeyJustPressed(EKeys::M) || WasInputKeyJustPressed(EKeys::Gamepad_DPad_Down)) bMapOpen = !bMapOpen;
 	// the phone's Map app (hud.openPause('map'))
-	if (G->hudModel && !G->hudModel->pauseRequest.empty()) { G->hudModel->pauseRequest.clear(); bMapOpen = true; }
+	if (G->hudModel && !G->hudModel->pauseRequest.empty()) {
+		const bool bTeleport = G->hudModel->pauseRequest == "teleport" && G->freeroam && G->freeroam->active();
+		G->hudModel->pauseRequest.clear();
+		if (bTeleport) G->freeroam->openTeleport(); else bMapOpen = true;
+	}
 }
 
 // A shop menu on screen: the mouse cursor shows, a click or Enter / Space / pad A presses a button, the arrows,
@@ -113,7 +184,7 @@ bool AATGPlayerController::MenuInput(atg::Game& G, float Dt) {
 		M->menuPress(M->menu.focus);
 		return true;
 	}
-	const float Ly = GetInputAnalogKeyState(EKeys::Gamepad_LeftY);
+	const float Ly = -GetInputAnalogKeyState(EKeys::Gamepad_LeftY);
 	int32 Dir = 0;
 	if (IsInputKeyDown(EKeys::Up) || IsInputKeyDown(EKeys::W) || IsInputKeyDown(EKeys::Gamepad_DPad_Up) || Ly > 0.6f) Dir = -1;
 	else if (IsInputKeyDown(EKeys::Down) || IsInputKeyDown(EKeys::S) || IsInputKeyDown(EKeys::Gamepad_DPad_Down) || Ly < -0.6f) Dir = 1;
@@ -133,7 +204,7 @@ void AATGPlayerController::FeedInput(atg::Game& G, double Dt) {
 	Held = Now;
 	// mouse: the browser's movementY is positive downwards
 	In.mouse.dx = MouseDx * MouseSensitivity / 0.07; // (Unreal reports mouse movement in its own units: ~0.07 per pixel)
-	In.mouse.dy = -MouseDy * MouseSensitivity / 0.07;
+	In.mouse.dy = -MouseDy * MouseSensitivity / 0.07 * (In.invertY ? -1 : 1);
 	MouseDx = MouseDy = 0;
 	In.mouse.dx += ScriptDx; In.mouse.dy += ScriptDy; ScriptDx = ScriptDy = 0;
 	// (test scripts hold the buttons as MouseLeft / MouseRight)
@@ -149,8 +220,8 @@ void AATGPlayerController::FeedInput(atg::Game& G, double Dt) {
 		EKeys::Gamepad_LeftThumbstick, EKeys::Gamepad_RightThumbstick, EKeys::Gamepad_DPad_Up, EKeys::Gamepad_DPad_Down, EKeys::Gamepad_DPad_Left, EKeys::Gamepad_DPad_Right, EKeys::Invalid };
 	bool bAny = false;
 	for (int32 I = 0; I < atg::GP::COUNT; I++) if (Pad[I].IsValid() && IsInputKeyDown(Pad[I])) { B[I] = true; bAny = true; }
-	const double Lx = GetInputAnalogKeyState(EKeys::Gamepad_LeftX), Ly = -GetInputAnalogKeyState(EKeys::Gamepad_LeftY);
-	const double Rx = GetInputAnalogKeyState(EKeys::Gamepad_RightX), Ry = -GetInputAnalogKeyState(EKeys::Gamepad_RightY);
+const double Lx = GetInputAnalogKeyState(EKeys::Gamepad_LeftX), Ly = -GetInputAnalogKeyState(EKeys::Gamepad_LeftY);
+const double Rx = GetInputAnalogKeyState(EKeys::Gamepad_RightX), Ry = GetInputAnalogKeyState(EKeys::Gamepad_RightY);
 	const double Lt = GetInputAnalogKeyState(EKeys::Gamepad_LeftTriggerAxis), Rt = GetInputAnalogKeyState(EKeys::Gamepad_RightTriggerAxis);
 	const bool bPad = bAny || FMath::Abs(Lx) + FMath::Abs(Ly) + FMath::Abs(Rx) + FMath::Abs(Ry) + Lt + Rt > 0.01 || In.gp.connected;
 	In.SetPad(bPad, Lx, Ly, Rx, Ry, Lt, Rt, B);

@@ -101,7 +101,7 @@ TrainModel MakeCarriage(uint32_t color) {
 	body.Color(0.9, 0.9, 0.88);
 	Bx(body, -W, 2.55, z0, W, 3.55, z1, false);
 	body.Color(paint.r, paint.g, paint.b);
-	Bx(body, -W, 3.55, z0, W, 3.8, z1, false);
+	Bx(body, -W, 3.55, z0, W, 3.8, z1, true);
 	body.Color(0.42, 0.43, 0.45);
 	body.Add(Geo::Cylinder(W, W, CAR_L, 20, 1, false, -kPi / 2, kPi), Mat4::Compose(0, 3.8, 0, kPi / 2, 0, 0, 1, 1, 0.28));
 	// doors (two per side) in a darker paint with windows

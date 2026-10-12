@@ -8,6 +8,8 @@
 #include "Hud.h"
 #include "Phone.h"
 #include "Police.h"
+#include "ShipRaid.h"
+#include "Weapons.h"
 
 namespace atg {
 namespace {
@@ -408,6 +410,264 @@ void AddChapterSeven(std::vector<MissionDef>& story) {
 		co_await m.say("Nina", "He's already noticed. That's the point. Next: the ship.", 3);
 	};
 	story.push_back(std::move(bo));
+}
+
+void AddChapterEight(std::vector<MissionDef>& story) {
+	// ================================================================ CHAPTER VIII — HARBOR SAINTS
+	MissionDef ps; ps.id = "pacificstar"; ps.title = "Pacific Star"; ps.contact = "R"; ps.requiresIds = { "boxoffice" }; ps.reward = 15000;
+	ps.log = "Boarded the MV Pacific Star at Port Morena, cracked the captain's safe for the Saints' manifest and raced a speedboat all the way up the coast to San Aurelio with the coast guard behind.";
+	ps.start = [](const CityMap& map) { auto it = map.landmarks.find("cargoShip"); const Landmark& s = it != map.landmarks.end() ? it->second : map.landmarks.at("docksQuay"); return V3(s.x - 4, 0, s.z - 8); };
+	ps.run = [](MissionContext& m, Game& game) -> MissionTask {
+		ShipRaid* R = game.shipRaid;
+		if (!R) throw MissionFail("The ship has sailed.");
+		const Landmark& s0 = game.map.landmarks.at("cargoShip");
+		Ped* rico = m.ped(s0.x - 5, s0.z - 9, StoryCast("rico", true));
+		m.speakers = { { "Rico", rico }, { "Dre", &m.player() } };
+		co_await m.cutscene([&m, rico]() -> MissionTask {
+			m.face(rico, &m.player()); m.face(&m.player(), rico);
+			m.twoShot(&m.player(), rico, 1, 3.4);
+			co_await m.lines({
+				{ "Rico", "The Pacific Star. Castell's guns come in on her, and the manifest in the captain's safe says exactly where they go." },
+				{ "Rico", "Crew's armed and the security's ex-military. Get up to the bridge, crack the safe, then get off the ship." },
+				{ "Rico", "There's a speedboat tied up north of the bow. Take it up the coast to Nina at Aurelio Marina. Long way. Don't stop." },
+			});
+		});
+		rico->setPosition(rico->pos.x, rico->pos.z - 400);
+		// a fresh crew and a full safe
+		if (R->spawned) R->despawn();
+		R->lootedAt = -1e9;
+		R->spawn();
+		m.player().giveWeapon("rifle", 240); m.player().giveWeapon("shotgun", 40); m.player().giveWeapon("grenade", 5);
+		// (only until the safe is open: the crew go home once you're 420 m away, and the browser game kept the
+		// check and failed the mission on the way up the coast)
+		auto stopShip = m.failIf([R]() { return !R->spawned; }, "You left the ship.");
+		Blip bb; bb.x = R->ship.safe.x; bb.z = R->ship.safe.z; bb.color = 0x6cff6c; bb.icon = "money";
+		auto bridge = game.addBlip(bb); m.blips.push_back(bridge);
+		m.objective("Board the <span class=\"y\">Pacific Star</span> and crack the <span class=\"g\">captain's safe</span> on the bridge.");
+		co_await m.until([R]() { return R->safeDone; });
+		stopShip();
+		game.removeBlip(bridge);
+		game.hud->subtitle("Got the manifest? Then move! Coast guard's been called.", "Rico", 3.5);
+		const V3 bs = WaterSpot(game, CityMap::CITY_MAXX + 58, 140, 3);
+		Vehicle* boat = m.car("speedboat", bs.x, bs.z, kPi, Paint(0x1d3557));
+		co_await m.getIn(boat, "Get off the ship and into the <span class=\"b\">speedboat</span>.");
+		m.keepAlive(boat, "The speedboat sank.");
+		m.wanted(3);
+		const Landmark& mr = game.map.landmarks.at("aurMarina");
+		const bool hasPontoon = mr.pts.count("pontoon0") && mr.pts.count("pontoon1");
+		const Pontoon pt = MarinaPontoon(mr);
+		const V3 dest = WaterSpot(game, hasPontoon ? (pt.x0 + pt.x1) / 2 : mr.x + 50, mr.z + 10, 1.4);
+		m.help("Open water all the way: out past the docks, then north up the coast. Police boats will try to ram you.", 7);
+		GoToOpts go; go.vehicle = true; go.radius = 10; go.y = WATER_Y + 0.1; go.inCar = boat; go.text = "Run the manifest up the coast to <span class=\"y\">Aurelio Marina</span>.";
+		co_await m.goTo(dest.x, dest.z, go);
+		co_await m.loseWanted("Lose the <span class=\"r\">coast guard</span>.");
+		Ped* nina = m.ped(mr.x, mr.z + 3, NorthCast("nina", true));
+		m.speakers = { { "Nina", nina }, { "Dre", &m.player() } };
+		co_await m.say("Nina", "You came the whole way by sea? You're insane. Give me that.", 3);
+		co_await m.say("Nina", "...Timberline. The guns go up to the sawmill and come back down hidden in the log trucks.", 4);
+	};
+	story.push_back(std::move(ps));
+
+	MissionDef tb; tb.id = "timber"; tb.title = "Timber!"; tb.contact = "N"; tb.requiresIds = { "pacificstar" }; tb.reward = 9000;
+	tb.log = "Stopped all three Saints log trucks coming down the Timber Road from the sawmill before they reached the city.";
+	tb.start = [](const CityMap&) { const Town& T = TownByKey("timber"); return V3(T.x + 26, 0, T.z + 12); };
+	tb.run = [](MissionContext& m, Game& game) -> MissionTask {
+		const Town& T = TownByKey("timber");
+		const RoadSpot ns = NorthSpot(game, T.x + 26, T.z + 12, true);
+		Ped* nina = m.ped(ns.x + 1.2, ns.z + 1, NorthCastAt("nina", ns.y, true));
+		m.speakers = { { "Nina", nina }, { "Dre", &m.player() } };
+		co_await m.cutscene([&m, nina]() -> MissionTask {
+			m.face(nina, &m.player()); m.face(&m.player(), nina);
+			m.twoShot(&m.player(), nina, 1, 3.4);
+			co_await m.lines({
+				{ "Nina", "Three trucks leave the sawmill this afternoon. Logs on top, rifles underneath. Each one has an escort." },
+				{ "Nina", "If they get to the city, they're gone into a hundred garages. Stop them on the mountain road." },
+				{ "Nina", "There's a truck of our own round the back with something for the job. Try not to crash it." },
+			});
+		});
+		nina->setPosition(nina->pos.x, nina->pos.z - 300);
+		const RoadSpot cs = NorthSpot(game, T.x - 30, T.z + 10);
+		Vehicle* car = m.car("summit", cs.x, cs.z, cs.yaw, Paint(0x4a5a3a));
+		m.player().giveWeapon("rpg", 12); m.player().giveWeapon("smg", 200);
+		co_await m.getIn(car, "Get in the <span class=\"b\">4x4</span>.");
+		struct Truck { Vehicle* t; Ped* d; };
+		std::vector<Truck> trucks;
+		auto launch = [&m, &game, &trucks, &T]() {
+			const RoadSpot s = LaneTowards(game, T.x + 70, T.z + 12, NCITY.x, NCITY.z);
+			Vehicle* t = m.car("hauler", s.x, s.z, s.yaw, Paint(0x8a5a2b));
+			MissionPedOpts o; o.hasAppearance = true; o.appearance = NorthSaintLook(); o.brain = "script";
+			Ped* d = m.ped(s.x, s.z, o);
+			t->putIn(d, 0);
+			t->health = t->maxHealth = 1100;
+			RouteDriverOpts ro; ro.speed = 15;
+			t->ai = std::make_shared<RouteDriver>(game, t, V3(NCITY.x, 0, NCITY.z), ro);
+			m.blipEntity(t, 0xff3030, "car");
+			trucks.push_back({ t, d });
+			const RoadSpot e = LaneTowards(game, T.x + 40, T.z + 8, NCITY.x, NCITY.z);
+			StoryChaseCar(m, "brawler", e.x, e.z, e.yaw, "saints", 1, NorthSaintLook);
+		};
+		launch();
+		int next = 1; double launchT = 0;
+		m.tick([&next, &launchT, launch](double dt) { if (next < 3) { launchT += dt; if (launchT > 14) { launchT = 0; launch(); next++; } } });
+		auto stopped = [](const Truck& x) { return x.t->isWrecked() || x.t->exploded || x.d->dead || x.d->vehicle != x.t; };
+		m.failIf([&trucks, stopped]() { for (const Truck& x : trucks) if (!stopped(x) && Hypot(x.t->pos.x - NCITY.x, x.t->pos.z - NCITY.z) < 330) return true; return false; }, "A truck made it into San Aurelio.");
+		m.objective("Stop the three <span class=\"r\">log trucks</span> before they reach the city.");
+		co_await m.until([&game, &trucks, &next, stopped]() {
+			int n = 0; for (const Truck& x : trucks) if (stopped(x)) n++;
+			game.hud->setCounter("TRUCKS", std::to_string(n) + "/3");
+			return next >= 3 && trucks.size() == 3 && n == 3;
+		});
+		game.hud->setCounter("", "");
+		for (const Truck& x : trucks) if (x.t->ai) x.t->ai.reset();
+		co_await m.say("Nina", "That's the last of his guns. All he's got left is his lieutenants. And me.", 3.5);
+	};
+	story.push_back(std::move(tb));
+
+	MissionDef hg; hg.id = "highground"; hg.title = "High Ground"; hg.contact = "N"; hg.requiresIds = { "timber" }; hg.reward = 10000;
+	hg.log = "Picked off Castell's lieutenants from the valley side above Ridge Road, then ran the survivors down before they reached the city.";
+	hg.start = [](const CityMap&) { const Town& R = TownByKey("ridge"); return V3(R.x + 22, 0, R.z - 18); };
+	hg.run = [](MissionContext& m, Game& game) -> MissionTask {
+		const Town& Rg = TownByKey("ridge");
+		const RoadSpot ns = NorthSpot(game, Rg.x + 22, Rg.z - 18, true);
+		Ped* nina = m.ped(ns.x + 1.2, ns.z + 1, NorthCastAt("nina", ns.y, true));
+		m.speakers = { { "Nina", nina }, { "Dre", &m.player() } };
+		co_await m.cutscene([&m, nina]() -> MissionTask {
+			m.face(nina, &m.player()); m.face(&m.player(), nina);
+			m.twoShot(&m.player(), nina, -1, 3.4);
+			co_await m.lines({
+				{ "Nina", "My father's lieutenants are meeting on the valley road to decide what to do about you. Five of them, two cars." },
+				{ "Nina", "There's a spot up on the valley side that looks right down on it. Take this \xE2\x80\x94 and take your time." },
+			});
+		});
+		nina->setPosition(nina->pos.x, nina->pos.z - 300);
+		const std::string wid = FindWeapon("sniper") ? "sniper" : "rifle";
+		m.player().giveWeapon(wid, 40); m.player().switchTo(wid);
+		// the meeting: on Ridge Road down the valley from Cedar Ridge
+		const RoadSpot meet = NorthSpot(game, -10, -3420);
+		const RoadNet& net = game.map.roads;
+		const EdgeHit c = net.Closest(meet.x, meet.z, [](const REdge& e) { return e.name == "Ridge Road"; });
+		if (!c.valid()) throw MissionFail("Something went wrong.");
+		const EdgePoint tmp = net.At(net.edges[c.e], c.s);
+		const double nx = -tmp.tz, nz = tmp.tx;
+		const double side = game.map.TerrainHeight(meet.x + nx * 120, meet.z + nz * 120) > game.map.TerrainHeight(meet.x - nx * 120, meet.z - nz * 120) ? 1 : -1;
+		const double vx = meet.x + nx * 125 * side, vz = meet.z + nz * 125 * side;
+		co_await FadeTeleport(m, vx, vz, std::atan2(meet.x - vx, meet.z - vz));
+		m.car("trail", vx + 3, vz + 2, std::atan2(meet.x - vx, meet.z - vz));
+		std::vector<Vehicle*> cars;
+		for (int k : { -1, 1 }) { Vehicle* cc = m.car("kestrel", meet.x + tmp.tx * 10 * k, meet.z + tmp.tz * 10 * k, std::atan2(tmp.tx, tmp.tz), Paint(0x14213d)); cc->parked = true; cars.push_back(cc); }
+		SaintOpts so; so.health = 100;
+		const auto lts = Saints(m, Around(meet.x, meet.z, 5, 2.5, 5), { "pistol", "smg", "pistol", "rifle", "pistol" }, so);
+		for (Ped* l : lts) { l->hasGuardFace = true; l->guardFace = std::atan2(meet.x - l->pos.x, meet.z - l->pos.z); l->setState("guard"); }
+		m.objective("Take out Castell's <span class=\"r\">lieutenants</span>. Hold right mouse to aim down the scope.");
+		// once the shooting starts the survivors run for the cars and head for the city
+		bool fled = false;
+		m.tick([&m, &game, &fled, lts, cars](double) {
+			if (fled) return;
+			bool hit = false;
+			for (Ped* l : lts) if (l->dead || l->health < l->maxHealth) hit = true;
+			if (!hit) return;
+			fled = true;
+			auto freeSeat = [](Vehicle* v) { for (int i = 0; i < 4; i++) if (!v->occupants[i]) return i; return -1; };
+			for (Ped* l : lts) {
+				if (l->dead) continue;
+				Vehicle* car = nullptr;
+				for (Vehicle* cc : cars) { int n = 0; for (const auto& o : cc->occupants) if (o) n++; if (n < 3 && freeSeat(cc) >= 0) { car = cc; break; } }
+				if (!car) break;
+				car->parked = false;
+				car->putIn(l, freeSeat(car));
+			}
+			for (Vehicle* car : cars) {
+				Character* drv = car->occupants[0].get();
+				if (drv && !drv->dead) { RouteDriverOpts ro; ro.speed = 24; car->ai = std::make_shared<RouteDriver>(game, car, V3(NCITY.x, 0, NCITY.z), ro); m.blipEntity(car, 0xff3030, "car"); }
+			}
+			game.hud->subtitle("They're running for the cars! Don't let them reach the city!", "Nina", 3.5);
+			m.help("The <b>dirt bike</b> behind you is the quickest way down the hill.", 5);
+		});
+		m.failIf([cars]() {
+			for (Vehicle* car : cars) {
+				bool someone = false;
+				for (const auto& o : car->occupants) if (o && !o->dead && !o->isPlayer) someone = true;
+				if (someone && Hypot(car->pos.x - NCITY.x, car->pos.z - NCITY.z) < 380) return true;
+			}
+			return false;
+		}, "A lieutenant made it back to the city.");
+		co_await m.killAll(lts, "", "LIEUTENANTS");
+		co_await m.say("Nina", "That's all of them. Now he's alone. Harborside \xE2\x80\x94 tomorrow night.", 3.5);
+	};
+	story.push_back(std::move(hg));
+
+	MissionDef ss; ss.id = "saintsandsinners"; ss.title = "Saints and Sinners"; ss.contact = "N"; ss.requiresIds = { "highground" }; ss.reward = 30000;
+	ss.chapterEnd = { "SAN AURELIO", "Thanks for playing" };
+	ss.log = "Stormed the Harbor Saints' waterfront with Rico and Nina, chased Vincent Castell out to sea and sank him off Aurelio Beach. The coast is ours.";
+	ss.start = [](const CityMap& map) { const V3 h = LandmarkOr(map, "aurHarbor", Plaza(map)); return V3(h.x - 30, 0, h.z + 8); };
+	ss.run = [](MissionContext& m, Game& game) -> MissionTask {
+		const V3 Hh = LandmarkOr(game.map, "aurHarbor", Plaza(game.map));
+		game.env.setTime(22);
+		const RoadSpot st = NorthSpot(game, Hh.x - 30, Hh.z + 8, true);
+		Ped* nina = m.ped(st.x + 1.2, st.z + 1, NorthCastAt("nina", st.y));
+		MissionPedOpts ro = StoryCast("rico"); ro.hasY = true; ro.y = st.y;
+		Ped* rico = m.ped(st.x - 1.2, st.z + 1.4, ro);
+		for (Ped* c : { nina, rico }) c->health = c->maxHealth = 800;
+		m.speakers = { { "Nina", nina }, { "Rico", rico }, { "Dre", &m.player() } };
+		co_await m.cutscene([&m, nina, rico]() -> MissionTask {
+			m.face(nina, &m.player()); m.face(rico, &m.player()); m.face(&m.player(), nina);
+			m.twoShot(&m.player(), nina, 1, 3.8);
+			co_await m.lines({
+				{ "Nina", "He's at the marina with everyone he has left. He keeps a boat ready. He always has." },
+				{ "Rico", "Then we go through them fast, before he gets to it." },
+				{ "Dre", "Nina \xE2\x80\x94 he's your father." },
+				{ "Nina", "He stopped being that a long time ago. Let's go." },
+			});
+		});
+		m.player().giveWeapon("rifle", 300); m.player().giveWeapon("shotgun", 40); m.player().giveWeapon("grenade", 6); m.player().switchTo("rifle");
+		nina->giveWeapon("smg", 999); nina->equip("smg");
+		rico->giveWeapon("rifle", 999); rico->equip("rifle");
+		m.follower(nina, 0); m.follower(rico, 1);
+		Landmark mr;
+		auto mit = game.map.landmarks.find("aurMarina");
+		if (mit != game.map.landmarks.end()) mr = mit->second; else { mr.x = Hh.x + 280; mr.z = Hh.z + 60; }
+		std::vector<Ped*> foes;
+		CrewSupport(m, { nina, rico }, [&foes]() { return foes; });
+		auto waveAt = [&m, &foes](double x, double z, int n, const std::vector<std::string>& weapons) {
+			SaintOpts so; so.guard = false; so.health = 120;
+			const auto w = Saints(m, Around(x, z, n, 6, 18), weapons, so);
+			foes.insert(foes.end(), w.begin(), w.end());
+			return w;
+		};
+		co_await m.killAll(waveAt(Hh.x + 60, Hh.z + 10, 7, { "smg", "rifle", "shotgun", "pistol", "smg", "rifle", "rpg" }), "Fight down <span class=\"y\">Harbor Drive</span> towards the marina.", "SAINTS");
+		co_await m.killAll(waveAt(mr.x - 40, mr.z, 8, { "rifle", "smg", "shotgun", "rifle", "rpg", "smg", "rifle", "shotgun" }), "Clear the <span class=\"y\">marina</span>.", "SAINTS");
+		// Castell makes for the sea
+		const Pontoon pt = MarinaPontoon(mr);
+		const V3 cs = WaterSpot(game, pt.x1 + 30, pt.z - 30, 3);
+		std::vector<std::array<double, 2>> route;
+		const double legs[4][2] = { { pt.x1 + 180, pt.z - 300 }, { pt.x1 + 260, pt.z - 700 }, { pt.x1 + 200, pt.z - 1100 }, { pt.x1 + 320, pt.z - 400 } };
+		for (const auto& r : legs) route.push_back({ Min(r[0], 1580.0), r[1] });
+		const Appearance castell = NorthLook("castell");
+		const SaintBoat boss = MakeSaintBoat(m, "cruiser", cs.x, cs.z, route, 0.8, &castell);
+		boss.b->health = boss.b->maxHealth = 1400;
+		m.blipEntity(boss.drv, 0xff3030, "skull");
+		game.hud->subtitle("That's him \xE2\x80\x94 the white cruiser! He's getting away!", "Nina", 3);
+		const V3 my = WaterSpot(game, pt.x1 - 20, pt.z + 9, 1.6);
+		Vehicle* boat = m.car("speedboat", my.x, my.z, kPi / 2, Paint(0x7a1f2b));
+		m.blipEntity(boat, 0x4aa3ff, "boat");
+		m.objective("Take the <span class=\"b\">speedboat</span> and stop <span class=\"r\">Castell</span>.");
+		m.failIf([&m, boss]() { return !boss.drv->dead && Hypot(boss.b->pos.x - m.player().pos.x, boss.b->pos.z - m.player().pos.z) > 900; }, "Castell got away.");
+		co_await m.until([boss]() { return boss.drv->dead || boss.b->isWrecked() || boss.b->exploded; });
+		if (!boss.b->exploded && !boss.b->isWrecked()) boss.b->health = 0;
+		boss.b->ai.reset();
+		co_await m.wait(2);
+		co_await m.say("Nina", "...It's over. Come back in, Dre.", 3);
+		const V3 home = WaterSpot(game, (pt.x0 + pt.x1) / 2, pt.z + 10, 1.4);
+		GoToOpts go; go.vehicle = true; go.radius = 10; go.y = WATER_Y + 0.1; go.text = "Head back to the <span class=\"y\">marina</span>.";
+		co_await m.goTo(home.x, home.z, go);
+		m.gpsOff();
+		co_await m.lines({
+			{ "Rico", "Los Soles, Puerto Seco, and now San Aurelio. The whole coast, D." },
+			{ "Nina", "The Saints are finished. The port's open. What are you going to do with it all?" },
+			{ "Dre", "Same thing Tino would have. Look after our own." },
+		});
+	};
+	story.push_back(std::move(ss));
 }
 
 } // namespace atg

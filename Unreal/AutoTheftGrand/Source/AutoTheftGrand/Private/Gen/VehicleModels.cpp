@@ -761,6 +761,20 @@ Template CarTemplate(const VehicleDef& def) {
 	return T;
 }
 
+// GeoBuilder.addGeometry calls BufferGeometry.toNonIndexed(), so its merged output has one vertex per index.
+// Wheels are built with that path in the browser; expand the primitives here before putting them in a Part.
+static MeshBuf ExpandedForBuilder(const MeshBuf& g) {
+	MeshBuf out;
+	const size_t count = g.I.empty() ? g.Count() : g.I.size();
+	out.P.reserve(count * 3); out.N.reserve(count * 3); out.I.reserve(count);
+	for (size_t i = 0; i < count; i++) {
+		const uint32_t src = g.I.empty() ? (uint32_t)i : g.I[i];
+		const uint32_t dst = out.V(g.P[src * 3], g.P[src * 3 + 1], g.P[src * 3 + 2], g.N[src * 3], g.N[src * 3 + 1], g.N[src * 3 + 2]);
+		out.I.push_back(dst);
+	}
+	return out;
+}
+
 MeshBuf WheelGeometry(const VehicleDef& def) {
 	const double R = def.wheelR;
 	Part w;
@@ -773,10 +787,10 @@ MeshBuf WheelGeometry(const VehicleDef& def) {
 		for (int i = 0; i <= 6; i++) { const double a = (i / 6.0) * kPi / 2; pts.push_back({ R - 0.05 + std::cos(a) * 0.05, hwT - 0.05 + std::sin(a) * 0.05 }); }
 		pts.push_back({ rIn, hwT - 0.01 });
 		w.color(0.055, 0.055, 0.058);
-		w.geo(Geo::Lathe(pts, 28), M4(0, 0, 0, 0, 0, kPi / 2));
+		w.geo(ExpandedForBuilder(Geo::Lathe(pts, 28)), M4(0, 0, 0, 0, 0, kPi / 2));
 		w.color(0.02, 0.02, 0.02);
-		for (double gg : { -0.3, 0.0, 0.3 }) w.geo(Geo::Torus(R + 0.001, 0.008, 3, 28), M4(gg * tireW, 0, 0, 0, kPi / 2, 0));
-		if (def.body == "lowrider") { w.color(0.92, 0.92, 0.9); w.geo(Geo::Ring(R * 0.7, R * 0.86, 28), M4(tireW / 2 + 0.002, 0, 0, 0, kPi / 2, 0)); }
+		for (double gg : { -0.3, 0.0, 0.3 }) w.geo(ExpandedForBuilder(Geo::Torus(R + 0.001, 0.008, 3, 28)), M4(gg * tireW, 0, 0, 0, kPi / 2, 0));
+		if (def.body == "lowrider") { w.color(0.92, 0.92, 0.9); w.geo(ExpandedForBuilder(Geo::Ring(R * 0.7, R * 0.86, 28)), M4(tireW / 2 + 0.002, 0, 0, 0, kPi / 2, 0)); }
 	}
 	const std::string style = def.body == "lowrider" ? "wire" : def.body == "super" ? "mesh" : def.body == "coupe" ? "split" : (def.body == "truck" || def.body == "van") ? "steel" : def.military ? "steel" : "alloy";
 	const double rimCol[3] = { style == "wire" ? 0.9 : (style == "mesh" || style == "split") ? 0.22 : style == "steel" ? 0.35 : 0.62,
@@ -784,27 +798,27 @@ MeshBuf WheelGeometry(const VehicleDef& def) {
 		style == "wire" ? 0.9 : (style == "mesh" || style == "split") ? 0.24 : style == "steel" ? 0.38 : 0.64 };
 	auto rim = [&](double k) { w.color(rimCol[0] * k, rimCol[1] * k, rimCol[2] * k); };
 	w.color(0.32, 0.32, 0.33);
-	w.geo(Geo::Cylinder(R * 0.55, R * 0.55, 0.02, 18), M4(tireW * 0.1, 0, 0, 0, 0, kPi / 2));
-	if (style == "mesh" || style == "split") { w.color(0.8, 0.1, 0.08); w.geo(Geo::Box(0.06, 0.12, 0.08), M4(tireW * 0.18, R * 0.38, R * 0.12)); }
+	w.geo(ExpandedForBuilder(Geo::Cylinder(R * 0.55, R * 0.55, 0.02, 18)), M4(tireW * 0.1, 0, 0, 0, 0, kPi / 2));
+	if (style == "mesh" || style == "split") { w.color(0.8, 0.1, 0.08); w.geo(ExpandedForBuilder(Geo::Box(0.06, 0.12, 0.08)), M4(tireW * 0.18, R * 0.38, R * 0.12)); }
 	rim(1);
-	w.geo(Geo::Torus(R * 0.645, 0.018, 6, 24), M4(tireW / 2 - 0.005, 0, 0, 0, kPi / 2, 0));
-	w.geo(Geo::Cylinder(R * 0.64, R * 0.64, 0.02, 20, 1, true), M4(tireW / 2 - 0.02, 0, 0, 0, 0, kPi / 2));
+	w.geo(ExpandedForBuilder(Geo::Torus(R * 0.645, 0.018, 6, 24)), M4(tireW / 2 - 0.005, 0, 0, 0, kPi / 2, 0));
+	w.geo(ExpandedForBuilder(Geo::Cylinder(R * 0.64, R * 0.64, 0.02, 20, 1, true)), M4(tireW / 2 - 0.02, 0, 0, 0, 0, kPi / 2));
 	rim(0.35);
-	w.geo(Geo::Cylinder(R * 0.62, R * 0.62, 0.01, 20), M4(tireW / 2 - (style == "steel" ? 0.02 : 0.05), 0, 0, 0, 0, kPi / 2));
+	w.geo(ExpandedForBuilder(Geo::Cylinder(R * 0.62, R * 0.62, 0.01, 20)), M4(tireW / 2 - (style == "steel" ? 0.02 : 0.05), 0, 0, 0, 0, kPi / 2));
 	rim(1);
-	auto spoke = [&](double a, double sw, double len, double depth, double r0) { w.geo(Geo::Box(depth, len, sw), RotX(a) * M4(tireW / 2 - 0.02, r0 + len / 2, 0, 0, 0, 0.2)); };
-	if (style == "wire") { for (int k = 0; k < 36; k++) { const double a = k / 36.0 * kTau; w.geo(Geo::Box(0.006, R * 0.5, 0.006), RotX(a) * M4(tireW / 2 - 0.025 + (k % 2) * 0.02, R * 0.36, 0, 0.35 * (k % 2 ? 1 : -1), 0, 0)); } }
+	auto spoke = [&](double a, double sw, double len, double depth, double r0) { w.geo(ExpandedForBuilder(Geo::Box(depth, len, sw)), RotX(a) * M4(tireW / 2 - 0.02, r0 + len / 2, 0, 0, 0, 0.2)); };
+	if (style == "wire") { for (int k = 0; k < 36; k++) { const double a = k / 36.0 * kTau; w.geo(ExpandedForBuilder(Geo::Box(0.006, R * 0.5, 0.006)), RotX(a) * M4(tireW / 2 - 0.025 + (k % 2) * 0.02, R * 0.36, 0, 0.35 * (k % 2 ? 1 : -1), 0, 0)); } }
 	else if (style == "mesh") { for (int k = 0; k < 10; k++) spoke(k / 10.0 * kTau, 0.028, R * 0.5, 0.03, R * 0.1); }
 	else if (style == "split") { for (int k = 0; k < 5; k++) { const double a = k / 5.0 * kTau; spoke(a - 0.1, 0.025, R * 0.5, 0.04, R * 0.1); spoke(a + 0.1, 0.025, R * 0.5, 0.04, R * 0.1); } }
 	else if (style == "steel") {
-		w.geo(Geo::Cylinder(R * 0.5, R * 0.56, 0.04, 20), M4(tireW / 2 - 0.03, 0, 0, 0, 0, kPi / 2));
+		w.geo(ExpandedForBuilder(Geo::Cylinder(R * 0.5, R * 0.56, 0.04, 20)), M4(tireW / 2 - 0.03, 0, 0, 0, 0, kPi / 2));
 		w.color(0.12, 0.12, 0.13);
-		for (int k = 0; k < 8; k++) { const double a = k / 8.0 * kTau; w.geo(Geo::Cylinder(0.035, 0.035, 0.05, 8), M4(tireW / 2 - 0.01, std::cos(a) * R * 0.38, std::sin(a) * R * 0.38, 0, 0, kPi / 2)); }
+		for (int k = 0; k < 8; k++) { const double a = k / 8.0 * kTau; w.geo(ExpandedForBuilder(Geo::Cylinder(0.035, 0.035, 0.05, 8)), M4(tireW / 2 - 0.01, std::cos(a) * R * 0.38, std::sin(a) * R * 0.38, 0, 0, kPi / 2)); }
 		rim(1);
 	} else { const int n = def.body == "suv" || def.body == "pickup" ? 6 : 5; for (int k = 0; k < n; k++) spoke((double)k / n * kTau, 0.06, R * 0.5, 0.035, R * 0.1); }
-	w.geo(Geo::Cylinder(R * 0.17, R * 0.2, 0.05, 14), M4(tireW / 2 - 0.01, 0, 0, 0, 0, kPi / 2));
+	w.geo(ExpandedForBuilder(Geo::Cylinder(R * 0.17, R * 0.2, 0.05, 14)), M4(tireW / 2 - 0.01, 0, 0, 0, 0, kPi / 2));
 	rim(0.55);
-	for (int k = 0; k < 5; k++) { const double a = k / 5.0 * kTau + 0.3; w.geo(Geo::Cylinder(0.011, 0.011, 0.02, 6), M4(tireW / 2 + 0.016, std::cos(a) * R * 0.1, std::sin(a) * R * 0.1, 0, 0, kPi / 2)); }
+	for (int k = 0; k < 5; k++) { const double a = k / 5.0 * kTau + 0.3; w.geo(ExpandedForBuilder(Geo::Cylinder(0.011, 0.011, 0.02, 6)), M4(tireW / 2 + 0.016, std::cos(a) * R * 0.1, std::sin(a) * R * 0.1, 0, 0, kPi / 2)); }
 	return std::move(w.m);
 }
 

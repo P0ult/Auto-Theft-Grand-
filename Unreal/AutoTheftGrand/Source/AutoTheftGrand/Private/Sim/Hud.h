@@ -68,7 +68,7 @@ public:
 
 	// the shop menus (hud.js openShop / openStore, with padnav.js's highlight): one row per button, the last
 	// one leaving. ATGHUD draws them and turns clicks, keys and the pad into menuPress / menuMove / closeOverlay.
-	struct MenuRow { std::string icon, name, desc, button; bool enabled = true, primary = false; };
+	struct MenuRow { std::string icon, name, desc, button; bool enabled = true, primary = false; int64_t swatch = -1; };
 	struct Menu {
 		std::string kind;          // "" (closed), "gunshop" or "store"
 		std::string title, sub, note;
@@ -77,7 +77,8 @@ public:
 	} menu;
 	void openShop() override;
 	void openStore(const std::string& title, const std::string& sub, const std::vector<StoreItem>& items) override;
-	void closeOverlay();
+	void openPanel(const std::string& title, const std::string& sub, const std::vector<StoreItem>& items, const PanelOpts& opts = PanelOpts()) override;
+	void closeOverlay() override;
 	void menuPress(int row);
 	void menuMove(int dir); // (the highlight to the next button up, -1, or down, +1)
 
@@ -86,6 +87,7 @@ public:
 
 private:
 	std::vector<StoreItem> storeItems;
+	PanelOpts panel;
 	void menuRender();
 };
 

@@ -2,6 +2,8 @@
 // with traffic and people. The renderer and the native tests both call these, so they run the same game.
 #pragma once
 
+#include <string>
+
 namespace atg {
 
 class Game;
@@ -12,5 +14,8 @@ void InstallSystems(Game& game);
 void StartGame(Game& game);
 // main.js after the start: traffic at 70% and pedestrians at 60% of their maximum
 void PopulateWorld(Game& game);
+// main.js startGame's journey choice: "story" (a new game), "continue" (the save) or "free" (free roam);
+// anything else leaves the default safehouse start
+void StartJourney(Game& game, const std::string& mode);
 
 } // namespace atg

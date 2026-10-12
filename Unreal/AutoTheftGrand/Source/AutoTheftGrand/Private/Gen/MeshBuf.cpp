@@ -162,7 +162,12 @@ void MeshBuf::RotateFrom(size_t start, double cx, double cz, double yaw) {
 }
 
 void MeshBuf::Translate(double x, double y, double z) {
-	for (size_t i = 0; i < Count(); i++) { P[i * 3] += (float)x; P[i * 3 + 1] += (float)y; P[i * 3 + 2] += (float)z; }
+	// BufferAttribute.translate* reads float32 into JS doubles, adds the double offset, then stores float32.
+	for (size_t i = 0; i < Count(); i++) {
+		P[i * 3] = (float)((double)P[i * 3] + x);
+		P[i * 3 + 1] = (float)((double)P[i * 3 + 1] + y);
+		P[i * 3 + 2] = (float)((double)P[i * 3 + 2] + z);
+	}
 }
 
 void MeshBuf::Bounds(double mn[3], double mx[3]) const {

@@ -491,8 +491,8 @@ void Vehicle::step(double h) {
 	const double thr = exploded ? 0 : inp.throttle;
 	const double brk = inp.brake;
 	double driveF = 0;
-	if (thr > 0 && vLong > -0.8) { const double k = Clamp(vLong / (flat ? def.top * 0.45 : def.top), 0, 1); driveF = thr * def.force * (flat ? 0.6 : 1) * (1 - 0.92 * k * k); }
-	if (brk > 0 && vLong < 0.8 && vLong > -12) driveF = -brk * def.force * 0.55;
+	if (thr > 0 && vLong > -0.8) { const double k = Clamp(vLong / (flat ? top() * 0.45 : top()), 0, 1); driveF = thr * force() * (flat ? 0.6 : 1) * (1 - 0.92 * k * k); }
+	if (brk > 0 && vLong < 0.8 && vLong > -12) driveF = -brk * force() * 0.55;
 	double brakeF = 0;
 	if (brk > 0 && vLong > 0.8) brakeF = brk * def.brake;
 	if (thr > 0 && vLong < -0.8) brakeF = thr * def.brake * 0.8;
@@ -525,7 +525,7 @@ void Vehicle::step(double h) {
 	double Fx = FxF * wfx + FyF * wrx + FxR * fx + FyR * rx;
 	double Fz = FxF * wfz + FyF * wrz + FxR * fz + FyR * rz;
 	const double spd = Hypot(vx, vz);
-	const double cdrag = 0.08 * def.force / (def.top * def.top);
+	const double cdrag = 0.08 * force() / (top() * top());
 	Fx -= vx * spd * cdrag + vx * 18 * (m / 1500);
 	Fz -= vz * spd * cdrag + vz * 18 * (m / 1500);
 	if (std::fabs(vLong) < 3 && !inp.handbrake) {

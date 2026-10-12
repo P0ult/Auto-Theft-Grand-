@@ -10,6 +10,9 @@ namespace atg {
 class Game;
 struct Blip;
 
+// three.js Color.setHSL (h, s, l) as a hex colour (a respray's random paint)
+uint32_t HslHex(double h, double s, double l);
+
 struct MarkerOpts {
 	bool hasY = false; double y = 0;
 	double radius = 1.5;

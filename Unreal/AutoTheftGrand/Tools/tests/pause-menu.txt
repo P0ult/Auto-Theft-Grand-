@@ -1,0 +1,413 @@
+# Run with -ATGMenu -ATGManual. ATG.Input uses real PlayerController input events.
+wait 1
+ATG.Menu FreeRoam
+wait 1
+ATG.Input Gamepad_Special_Right 1
+wait 0.1
+ATG.Input Gamepad_Special_Right 0
+wait 0.2
+ATG.MenuCheck open 1
+ATG.MenuCheck tab Map
+shot pause_polished_map
+# LB wraps to Controls. It must scroll with the D-pad and not trap the player.
+ATG.Input Gamepad_LeftShoulder 1
+wait 0.1
+ATG.Input Gamepad_LeftShoulder 0
+wait 0.2
+ATG.MenuCheck tab Controls
+ATG.Input Gamepad_DPad_Down 1
+wait 2
+ATG.Input Gamepad_DPad_Down 0
+wait 0.2
+shot pause_polished_controls
+ATG.Input Gamepad_LeftShoulder 1
+wait 0.1
+ATG.Input Gamepad_LeftShoulder 0
+wait 0.2
+ATG.MenuCheck tab Settings
+ATG.Menu Nav 0 1
+wait 0.2
+ATG.MenuCheck selected "Graphics quality"
+ATG.Input Gamepad_DPad_Left 1
+wait 0.1
+ATG.Input Gamepad_DPad_Left 0
+wait 0.2
+ATG.MenuCheck quality medium
+ATG.MenuCheck selected "Graphics quality"
+ATG.Input Gamepad_DPad_Right 1
+wait 0.1
+ATG.Input Gamepad_DPad_Right 0
+wait 0.2
+ATG.MenuCheck quality high
+ATG.Menu Nav 0 1
+wait 0.2
+ATG.MenuCheck selected "Master volume"
+ATG.Menu Nav -1 0
+wait 0.2
+ATG.MenuCheck volume 0.75
+ATG.Menu Nav 1 0
+wait 0.2
+ATG.MenuCheck volume 0.8
+repeat 25 0.05 ATG.Menu Nav -1 0
+wait 0.2
+ATG.MenuCheck volume 0
+repeat 25 0.05 ATG.Menu Nav 1 0
+wait 0.2
+ATG.MenuCheck volume 1
+repeat 4 0.05 ATG.Menu Nav -1 0
+wait 0.2
+ATG.MenuCheck volume 0.8
+# Held left-stick down must move downward with bounded repeats.
+ATG.Input Gamepad_LeftY -1
+wait 0.1
+ATG.Input Gamepad_LeftY 0
+wait 0.2
+ATG.MenuCheck selected "Radio volume"
+ATG.Menu Nav -1 0
+wait 0.2
+ATG.MenuCheck music 0.55
+ATG.Menu Nav 1 0
+wait 0.2
+ATG.MenuCheck music 0.6
+ATG.Menu Nav 0 1
+wait 0.2
+ATG.MenuCheck selected "Mouse sensitivity"
+ATG.Menu Nav -1 0
+wait 0.2
+ATG.MenuCheck sensitivity 0.95
+ATG.Menu Nav 1 0
+wait 0.2
+ATG.MenuCheck sensitivity 1
+ATG.Menu Nav 0 1
+wait 0.2
+ATG.MenuCheck selected "Invert mouse Y"
+ATG.Input Gamepad_FaceButton_Bottom 1
+wait 0.1
+ATG.Input Gamepad_FaceButton_Bottom 0
+wait 0.2
+ATG.MenuCheck invert 1
+ATG.MenuCheck value ON
+ATG.MenuCheck selected "Invert mouse Y"
+shot pause_polished_settings_on
+ATG.Input Gamepad_FaceButton_Bottom 1
+wait 0.1
+ATG.Input Gamepad_FaceButton_Bottom 0
+wait 0.2
+ATG.MenuCheck invert 0
+ATG.MenuCheck value OFF
+ATG.Menu Nav 0 1
+wait 0.2
+ATG.MenuCheck selected "Street crime"
+ATG.Menu Nav -1 0
+wait 0.2
+ATG.MenuCheck crime off
+ATG.Menu Nav 1 0
+wait 0.2
+ATG.MenuCheck crime normal
+ATG.Menu Nav 0 1
+wait 0.2
+ATG.MenuCheck selected "Day/night speed"
+ATG.Menu Nav 1 0
+wait 0.2
+ATG.MenuCheck timeScale 2
+ATG.Menu Nav -1 0
+wait 0.2
+ATG.MenuCheck timeScale 1
+# Menu closes without reopening; B also resumes from any tab.
+ATG.Input Gamepad_Special_Right 1
+wait 0.1
+ATG.Input Gamepad_Special_Right 0
+wait 0.2
+ATG.MenuCheck open 0
+ATG.Input Gamepad_Special_Right 1
+wait 0.1
+ATG.Input Gamepad_Special_Right 0
+wait 0.2
+ATG.MenuCheck open 1
+ATG.Input Gamepad_FaceButton_Right 1
+wait 0.1
+ATG.Input Gamepad_FaceButton_Right 0
+wait 0.2
+ATG.MenuCheck open 0
+ATG.Menu Pause
+ATG.Menu Tab 1
+ATG.Menu Tab 1
+ATG.Menu Tab 1
+wait 0.5
+ATG.MenuCheck tab Admin
+ATG.Menu Nav 0 1
+wait 0.2
+ATG.Menu Page Admin
+wait 0.2
+ATG.Menu Nav 0 1
+wait 0.2
+ATG.MenuCheck selected "God mode"
+ATG.Menu Activate
+wait 0.2
+ATG.MenuCheck cheat god 1
+ATG.MenuCheck value ON
+ATG.Menu Activate
+wait 0.2
+ATG.MenuCheck cheat god 0
+ATG.MenuCheck value OFF
+ATG.Menu Nav 1 0
+wait 0.2
+ATG.Menu Page Admin
+wait 0.2
+ATG.Menu Nav 0 1
+wait 0.2
+ATG.Menu Nav 1 0
+wait 0.2
+ATG.MenuCheck selected "Bulletproof vehicle"
+ATG.Menu Activate
+wait 0.2
+ATG.MenuCheck cheat vehGod 1
+ATG.MenuCheck value ON
+ATG.Menu Activate
+wait 0.2
+ATG.MenuCheck cheat vehGod 0
+ATG.MenuCheck value OFF
+ATG.Menu Nav 1 0
+wait 0.2
+ATG.Menu Page Admin
+wait 0.2
+ATG.Menu Nav 0 1
+wait 0.2
+ATG.Menu Nav 1 0
+wait 0.2
+ATG.Menu Nav 1 0
+wait 0.2
+ATG.MenuCheck selected "Never wanted"
+ATG.Menu Activate
+wait 0.2
+ATG.MenuCheck cheat neverWanted 1
+ATG.MenuCheck value ON
+ATG.Menu Activate
+wait 0.2
+ATG.MenuCheck cheat neverWanted 0
+ATG.MenuCheck value OFF
+ATG.Menu Nav 1 0
+wait 0.2
+ATG.Menu Page Admin
+wait 0.2
+ATG.Menu Nav 0 1
+wait 0.2
+ATG.Menu Nav 0 1
+wait 0.2
+ATG.MenuCheck selected "Super jump"
+ATG.Menu Activate
+wait 0.2
+ATG.MenuCheck cheat superJump 1
+ATG.MenuCheck value ON
+ATG.Menu Activate
+wait 0.2
+ATG.MenuCheck cheat superJump 0
+ATG.MenuCheck value OFF
+ATG.Menu Nav 1 0
+wait 0.2
+ATG.Menu Page Admin
+wait 0.2
+ATG.Menu Nav 0 1
+wait 0.2
+ATG.Menu Nav 0 1
+wait 0.2
+ATG.Menu Nav 1 0
+wait 0.2
+ATG.MenuCheck selected "Super run"
+ATG.Menu Activate
+wait 0.2
+ATG.MenuCheck cheat superRun 1
+ATG.MenuCheck value ON
+ATG.Menu Activate
+wait 0.2
+ATG.MenuCheck cheat superRun 0
+ATG.MenuCheck value OFF
+ATG.Menu Nav 1 0
+wait 0.2
+ATG.Menu Page Admin
+wait 0.2
+ATG.Menu Nav 0 1
+wait 0.2
+ATG.Menu Nav 0 1
+wait 0.2
+ATG.Menu Nav 1 0
+wait 0.2
+ATG.Menu Nav 1 0
+wait 0.2
+ATG.MenuCheck selected "Infinite sprint"
+ATG.Menu Activate
+wait 0.2
+ATG.MenuCheck cheat infSprint 1
+ATG.MenuCheck value ON
+ATG.Menu Activate
+wait 0.2
+ATG.MenuCheck cheat infSprint 0
+ATG.MenuCheck value OFF
+ATG.Menu Nav 1 0
+wait 0.2
+ATG.Menu Page Admin
+wait 0.2
+ATG.Menu Nav 0 1
+wait 0.2
+ATG.Menu Nav 0 1
+wait 0.2
+ATG.Menu Nav 0 1
+wait 0.2
+ATG.MenuCheck selected "Low gravity"
+ATG.Menu Activate
+wait 0.2
+ATG.MenuCheck cheat lowGravity 1
+ATG.MenuCheck value ON
+ATG.Menu Activate
+wait 0.2
+ATG.MenuCheck cheat lowGravity 0
+ATG.MenuCheck value OFF
+ATG.Menu Nav 1 0
+wait 0.2
+ATG.Menu Page Admin
+wait 0.2
+ATG.Menu Nav 0 1
+wait 0.2
+ATG.Menu Nav 0 1
+wait 0.2
+ATG.Menu Nav 0 1
+wait 0.2
+ATG.Menu Nav 1 0
+wait 0.2
+ATG.MenuCheck selected "Explosive bullets"
+ATG.Menu Activate
+wait 0.2
+ATG.MenuCheck cheat explosive 1
+ATG.MenuCheck value ON
+ATG.Menu Activate
+wait 0.2
+ATG.MenuCheck cheat explosive 0
+ATG.MenuCheck value OFF
+ATG.Menu Nav 1 0
+wait 0.2
+ATG.Menu Page Admin
+wait 0.2
+ATG.Menu Nav 0 1
+wait 0.2
+ATG.Menu Nav 0 1
+wait 0.2
+ATG.Menu Nav 0 1
+wait 0.2
+ATG.Menu Nav 1 0
+wait 0.2
+ATG.Menu Nav 1 0
+wait 0.2
+ATG.MenuCheck selected "One-hit kills"
+ATG.Menu Activate
+wait 0.2
+ATG.MenuCheck cheat oneHit 1
+ATG.MenuCheck value ON
+ATG.Menu Activate
+wait 0.2
+ATG.MenuCheck cheat oneHit 0
+ATG.MenuCheck value OFF
+ATG.Menu Nav 1 0
+wait 0.2
+ATG.Menu Page Admin
+wait 0.2
+ATG.Menu Nav 0 1
+wait 0.2
+ATG.Menu Nav 0 1
+wait 0.2
+ATG.Menu Nav 0 1
+wait 0.2
+ATG.Menu Nav 0 1
+wait 0.2
+ATG.MenuCheck selected "Freeze time"
+ATG.Menu Activate
+wait 0.2
+ATG.MenuCheck cheat freezeTime 1
+ATG.MenuCheck value ON
+ATG.Menu Activate
+wait 0.2
+ATG.MenuCheck cheat freezeTime 0
+ATG.MenuCheck value OFF
+ATG.Menu Nav 1 0
+wait 0.2
+ATG.Menu Page Admin
+wait 0.2
+ATG.Menu Nav 0 1
+wait 0.2
+ATG.Menu Nav 0 1
+wait 0.2
+ATG.Menu Nav 0 1
+wait 0.2
+ATG.Menu Nav 0 1
+wait 0.2
+ATG.Menu Nav 1 0
+wait 0.2
+ATG.MenuCheck selected "Slow motion"
+ATG.Menu Activate
+wait 0.2
+ATG.MenuCheck cheat slowmo 1
+ATG.MenuCheck value ON
+ATG.Menu Activate
+wait 0.2
+ATG.MenuCheck cheat slowmo 0
+ATG.MenuCheck value OFF
+ATG.Menu Nav 1 0
+wait 0.2
+ATG.Menu Page Admin
+wait 0.2
+ATG.Menu Nav 0 1
+wait 0.2
+ATG.Menu Nav 0 1
+wait 0.2
+ATG.Menu Nav 0 1
+wait 0.2
+ATG.Menu Nav 0 1
+wait 0.2
+ATG.Menu Nav 1 0
+wait 0.2
+ATG.Menu Nav 1 0
+wait 0.2
+ATG.MenuCheck selected "Riot"
+ATG.Menu Activate
+wait 0.2
+ATG.MenuCheck cheat riot 1
+ATG.MenuCheck value ON
+ATG.Menu Activate
+wait 0.2
+ATG.MenuCheck cheat riot 0
+ATG.MenuCheck value OFF
+ATG.Menu Nav 1 0
+wait 0.2
+shot pause_polished_admin_off
+ATG.Menu Page Vehicles
+wait 0.5
+ATG.MenuCheck tab Vehicles
+ATG.Menu Nav 0 1
+wait 0.2
+ATG.MenuCheck selected "Put me in the driver's seat"
+ATG.Menu Activate
+wait 0.2
+ATG.MenuCheck value OFF
+ATG.Menu Activate
+wait 0.2
+ATG.MenuCheck value ON
+ATG.Menu Nav 1 0
+wait 0.2
+ATG.MenuCheck selected "Planes & helicopters start in the air"
+ATG.Menu Activate
+wait 0.2
+ATG.MenuCheck value OFF
+ATG.Menu Activate
+wait 0.2
+ATG.MenuCheck value ON
+shot pause_polished_vehicles
+ATG.Menu Back
+wait 0.2
+ATG.MenuCheck open 0
+ATG.Menu Pause
+wait 0.2
+ATG.Input Escape 1
+wait 0.1
+ATG.Input Escape 0
+wait 0.2
+ATG.MenuCheck open 0
+quit

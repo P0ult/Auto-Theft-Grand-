@@ -1,3 +1,6 @@
+// Starts the game: spawns the world (which generates everything and creates the simulation), then every
+// frame feeds the simulation the player's input, advances it, and keeps an actor drawing each of its
+// vehicles and people.
 #include "Game/ATGGameMode.h"
 #include "AutoTheftGrand.h"
 #include "Game/ATGAudio.h"
@@ -14,7 +17,10 @@
 #include "Game/ATGPlayerController.h"
 #include "Game/ATGTest.h"
 #include "Game/ATGWorld.h"
+#include "ATGMenuSystem.h"
+#include "ATGGameInstance.h"
 #include "Sim/Game.h"
+#include "Sim/Audio.h"
 #include "Sim/Missions.h"
 #include "Sim/Setup.h"
 
@@ -23,6 +29,7 @@
 #include "Engine/World.h"
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
+#include "Misc/Paths.h"
 
 AATGGameMode::AATGGameMode() {
 	PrimaryActorTick.bCanEverTick = true;
@@ -40,8 +47,15 @@ void AATGGameMode::StartPlay() {
 		World = GetWorld()->SpawnActor<AATGWorld>(AATGWorld::StaticClass(), FTransform::Identity, P);
 	}
 	Super::StartPlay();
-	ATGTest::Script().Init();
 	bManual = FParse::Param(FCommandLine::Get(), TEXT("ATGManual"));
+	bMenuTest = FParse::Param(FCommandLine::Get(), TEXT("ATGMenu"));
+	FString ScriptPath;
+	bAutomatedScript = FParse::Value(FCommandLine::Get(), TEXT("ATGScript="), ScriptPath) && !ScriptPath.IsEmpty();
+	if (bAutomatedScript) {
+		ATGTest::Script().Load(ScriptPath);
+	} else {
+		ATGTest::Script().Init();
+	}
 	// the player's headlight (one spot light, reused: game.js)
 	Headlight = NewObject<USpotLightComponent>(World);
 	Headlight->SetupAttachment(World->GetRootComponent());
@@ -54,33 +68,248 @@ void AATGGameMode::StartPlay() {
 	Headlight->SetCastShadows(false);
 	Headlight->SetLightColor(FLinearColor(1.f, 0.95f, 0.87f));
 	Headlight->RegisterComponent();
+
+	// The menu is shown after the game has loaded, so the worker-built world can keep drawing its loading screen.
+	if (!bAutomatedScript || bMenuTest) TryInitializeMenuSystem();
 }
 
-void AATGGameMode::StartGame() {
-	atg::Game* G = World->Game();
+void AATGGameMode::TryInitializeMenuSystem()
+{
+	UGameInstance* RawGI = GetGameInstance();
+	UE_LOG(LogATG, Log, TEXT("TryInitializeMenuSystem: GetGameInstance returned %s"), RawGI ? *RawGI->GetName() : TEXT("nullptr"));
+
+	UATGGameInstance* GI = Cast<UATGGameInstance>(RawGI);
+	if (!GI && RawGI)
+	{
+		// GameInstance exists but is wrong type - replace it
+		UE_LOG(LogATG, Warning, TEXT("GameInstance is base class, replacing with UATGGameInstance"));
+		RawGI->ConditionalBeginDestroy();
+		GI = NewObject<UATGGameInstance>(GetGameInstance()->GetOuter());
+		GetWorld()->SetGameInstance(GI);
+		RawGI = GI;
+	}
+	else if (!GI)
+	{
+		UE_LOG(LogATG, Log, TEXT("GameInstance not ready, will retry next tick"));
+		return;
+	}
+
+	UE_LOG(LogATG, Log, TEXT("GameInstance found: %s"), *GI->GetName());
+	MenuSystem = NewObject<UATGMenuSystem>(this);
+	if (AATGPlayerController* PC = Cast<AATGPlayerController>(GetWorld()->GetFirstPlayerController()))
+	{
+		MenuSystem->Initialize(PC, GI);
+		MenuSystem->OnMainMenuAction.AddUObject(this, &AATGGameMode::OnMainMenuAction);
+		MenuSystem->OnPauseMenuAction.AddUObject(this, &AATGGameMode::OnPauseMenuAction);
+		MenuSystem->ShowMainMenu();
+		bInMenu = true;
+		// (the title screen: the city flyover runs, the player does not take input)
+		if (atg::Game* G = World ? World->Game() : nullptr) {
+			G->menuOpen = true;
+			G->input.enabled = false;
+			G->input.keys.clear(); G->input.pressed.clear(); G->input.released.clear();
+			// main.js boot() before showTitle: dusk over the city and slow clock for the flyover
+			G->env.setTime(18.35);
+			G->env.timeScale = 0.25;
+		}
+		UE_LOG(LogATG, Log, TEXT("Main menu shown"));
+	}
+	else
+	{
+		UE_LOG(LogATG, Error, TEXT("Failed to get PlayerController for menu system"));
+	}
+}
+
+void AATGGameMode::OnMainMenuAction(const FString& Action)
+{
+	if (!MenuSystem) return;
+	if (Action == "Continue")
+	{
+		PendingJourneyMode = "continue";
+		bInMenu = false;
+		MenuSystem->HideMainMenu();
+	}
+	else if (Action == "NewGame")
+	{
+		PendingJourneyMode = "story";
+		if (UATGGameInstance* GI = Cast<UATGGameInstance>(GetGameInstance())) GI->ClearSave();
+		bInMenu = false;
+		MenuSystem->HideMainMenu();
+	}
+	else if (Action == "FreeRoam")
+	{
+		PendingJourneyMode = "free";
+		bInMenu = false;
+		MenuSystem->HideMainMenu();
+	}
+	else if (Action == "Multiplayer")
+	{
+		PendingJourneyMode = "free";
+		bInMenu = false;
+		MenuSystem->HideMainMenu();
+	}
+	else if (Action == "Settings")
+	{
+		MenuSystem->ShowPauseMenu(TEXT("Settings"));
+	}
+	else if (Action == "Controls")
+	{
+		MenuSystem->ShowPauseMenu(TEXT("Controls"));
+	}
+}
+
+void AATGGameMode::OnPauseMenuAction(const FString& Action)
+{
+	if (!MenuSystem) return;
+	if (Action == "NewGame" || Action == "Continue" || Action == "FreeRoam" || Action == "Multiplayer")
+	{
+		PendingJourneyMode = Action == "Continue" ? TEXT("continue") : Action == "FreeRoam" || Action == "Multiplayer" ? TEXT("free") : TEXT("story");
+		if (PendingJourneyMode == TEXT("story"))
+			if (UATGGameInstance* GI = Cast<UATGGameInstance>(GetGameInstance())) GI->ClearSave();
+		bInMenu = false;
+		MenuSystem->HidePauseMenu();
+	}
+	else if (Action == "Resume")
+	{
+		MenuSystem->HidePauseMenu();
+	}
+	else if (Action == "Save")
+	{
+		if (UATGGameInstance* GI = Cast<UATGGameInstance>(GetGameInstance())) GI->SaveGame();
+	}
+	else if (Action == "Quit")
+{
+		PendingJourneyMode.Empty();
+		bStarted = false;
+		bInMenu = true;
+		// a fresh city behind the title screen, exactly as reloading the page gives (freeroam.js, story and all)
+		ResetSession();
+		if (MenuSystem) MenuSystem->ShowMainMenu();
+	}
+}
+
+void AATGGameMode::TearDownViews() {
+	for (AATGCar* C : Cars) if (C) C->Destroy();
+	Cars.Reset();
+	for (AATGPerson* P : People) if (P) P->Destroy();
+	People.Reset();
+	if (Effects) { Effects->Destroy(); Effects = nullptr; }
+	if (PoliceView) { PoliceView->Destroy(); PoliceView = nullptr; }
+	if (PickupsView) { PickupsView->Destroy(); PickupsView = nullptr; }
+	if (AnimalsView) { AnimalsView->Destroy(); AnimalsView = nullptr; }
+	if (MissionView) { MissionView->Destroy(); MissionView = nullptr; }
+	if (Audio) { Audio->Destroy(); Audio = nullptr; }
+}
+
+void AATGGameMode::ResetSession() {
+	TearDownViews();
+	if (World) World->RestartSimulation();
+	bWorldUsed = false;
+	// (the title screen runs the city flyover, not the player: game.js leaves input.enabled false until startGame)
+	if (atg::Game* G = World ? World->Game() : nullptr) {
+		G->input.enabled = false;
+		G->input.keys.clear(); G->input.pressed.clear(); G->input.released.clear();
+		G->menuOpen = true;
+		// main.js boot() before showTitle: dusk over the city and a slow clock for the flyover
+		G->env.setTime(18.35);
+		G->env.timeScale = 0.25;
+	}
+}
+
+void AATGGameMode::ShowPauseMenu(FName Tab)
+{
+	if (MenuSystem && !bInMenu)
+	{
+		MenuSystem->ShowPauseMenu(Tab);
+	}
+}
+
+void AATGGameMode::HidePauseMenu()
+{
+	if (MenuSystem)
+	{
+		MenuSystem->HidePauseMenu();
+	}
+}
+
+void AATGGameMode::StartGame(const FString& JourneyMode) {
+	// A second session in the same simulation would keep the last one's free roam kit, cash, wanted level,
+	// spawned cars and story state (the browser game reloads the page instead), so start a clean one.
+	if (bWorldUsed) ResetSession();
+	bWorldUsed = true;
+	atg::Game* G = World ? World->Game() : nullptr;
+	if (!G) return;
+	G->menuOpen = false;
+	G->paused = false;
 	bStarted = true;
 	double X, Y, Z, Yaw;
 	World->PlayerStart(X, Y, Z, Yaw);
 	atg::StartGame(*G);
 	G->respawnPlayer(X, Z, Yaw);
 	atg::PopulateWorld(*G);
+	if (UATGGameInstance* GI = Cast<UATGGameInstance>(GetGameInstance()))
+	{
+		GI->InitializeSaveSystem(G, FPaths::ProjectSavedDir() / TEXT("AutoTheftGrandSave.json"));
+		GI->SetFreeRoamActive(G->freeRoam);
+		if (G->audioSys) G->audioSys->setVolume(GI->GetMasterVolume());
+		if (G->audioSys) G->audioSys->setMusic(GI->GetMusicVolume());
+		G->settings.quality = TCHAR_TO_UTF8(*GI->GetQuality());
+		G->settings.volume = GI->GetMasterVolume(); G->settings.music = GI->GetMusicVolume();
+		G->settings.sensitivity = GI->GetSensitivity(); G->input.sensitivity = G->settings.sensitivity;
+		G->settings.invertY = GI->GetInvertY(); G->input.invertY = G->settings.invertY;
+		G->settings.npcCrime = TCHAR_TO_UTF8(*GI->GetNPCrimeLevel());
+	}
 	if (G->hud) G->hud->help("Welcome back to Los Soles.", 4);
 	// the sound
 	FActorSpawnParameters SP; SP.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 	Audio = GetWorld()->SpawnActor<AATGAudio>(AATGAudio::StaticClass(), FTransform::Identity, SP);
 	if (Audio) Audio->Start(G);
-	if (FParse::Param(FCommandLine::Get(), TEXT("ATGStory")) && G->missions) {
-		G->gangDensity = { { "kings", 0.35 }, { "vipers", 0.4 }, { "cuervos", 0.3 } };
-		G->missions->start("welcome");
-		UE_LOG(LogATG, Log, TEXT("Story started: Welcome Home"));
-	}
+	// the journey: the story (-ATGStory), the save (-ATGContinue) or free roam (-ATGFreeRoam)
+	const TCHAR* Cmd = FCommandLine::Get();
+	const char* Mode = "";
+	if (FParse::Param(Cmd, TEXT("ATGStory"))) { Mode = "story"; }
+	else if (FParse::Param(Cmd, TEXT("ATGContinue"))) { Mode = "continue"; }
+	else if (FParse::Param(Cmd, TEXT("ATGFreeRoam"))) { Mode = "free"; }
+	else if (!JourneyMode.IsEmpty()) { Mode = TCHAR_TO_UTF8(*JourneyMode); }
+	atg::StartJourney(*G, Mode);
+	if (UATGGameInstance* GI = Cast<UATGGameInstance>(GetGameInstance())) GI->SetFreeRoamActive(G->freeRoam);
+	if (Mode[0]) { UE_LOG(LogATG, Log, TEXT("Journey: %s"), UTF8_TO_TCHAR(Mode)); }
 	else { UE_LOG(LogATG, Log, TEXT("Player at the safehouse (%.0f, %.0f)"), X, Z); }
 }
 
 void AATGGameMode::Tick(float Dt) {
 	Super::Tick(Dt);
-	if (!World || !World->Game()) return;
-	if (!bStarted) StartGame();
+	if (!World) return;
+
+	// Wait for the simulation Game to be ready
+	if (!World->Game())
+	{
+		return;
+	}
+
+	// Automated test scripts defer world simulation until generation and all scene construction finish.
+	if (bAutomatedScript && !bMenuTest) {
+		if (!World->IsReady()) return;
+		if (!bStarted) {
+			bInMenu = false;
+			StartGame(FString());
+		}
+	} else {
+		if (!World->IsReady()) return;
+		if (!MenuSystem) TryInitializeMenuSystem();
+		if (bInMenu) {
+			// The title screen is the browser game's 'menu' state: the simulation keeps running, which drives the
+			// city flyover camera (gameplay.js _flyover) and the traffic behind the menu.
+			if (!bManual) Frame(FMath::Min((double)Dt, 1.0 / 20));
+			else SyncViews(0);
+			ATGTest::Script().Tick(GetWorld(), Dt);
+			return;
+		}
+		if (!PendingJourneyMode.IsEmpty()) {
+			StartGame(PendingJourneyMode);
+			PendingJourneyMode.Empty();
+		}
+	}
 	if (!bManual) Frame(FMath::Min((double)Dt, 1.0 / 20));
 	else SyncViews(0);
 	ATGTest::Script().Tick(GetWorld(), Dt);

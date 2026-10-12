@@ -9,6 +9,7 @@
 #include "Sim/Effects.h"
 #include "Sim/Weapons.h"
 #include "Sim/Game.h"
+#include "Sim/Gameplay.h"
 #include "Sim/Peds.h"
 #include "Sim/Heists.h"
 #include "Sim/Hud.h"
@@ -17,12 +18,15 @@
 #include "Sim/Police.h"
 #include "Sim/Roadblocks.h"
 #include "Sim/Rail.h"
+#include "Sim/ShipRaid.h"
 #include "Sim/Traffic.h"
 #include "Sim/Wildlife.h"
 #include "Sim/Pets.h"
 #include "Sim/Shops.h"
 #include "Sim/Missions.h"
 #include "Sim/Story.h"
+#include "Sim/FreeRoam.h"
+#include "ATGMenuSystem.h"
 
 #include "Engine/Engine.h"
 #include "Engine/World.h"
@@ -31,12 +35,15 @@
 #include "Misc/FileHelper.h"
 #include "Misc/Parse.h"
 #include "Misc/Paths.h"
+#include "HAL/FileManager.h"
 #include "UnrealClient.h"
 
 FATGTestScript& ATGTest::Script() { static FATGTestScript S; return S; }
 
 void ATGTest::Shot(const FString& Name) {
-	const FString Path = FPaths::ConvertRelativePathToFull(FPaths::ScreenShotDir() / TEXT("ATG") / (Name + TEXT(".png")));
+	const FString Directory = FPaths::ScreenShotDir() / TEXT("ATG");
+	IFileManager::Get().MakeDirectory(*Directory, true);
+	const FString Path = FPaths::ConvertRelativePathToFull(Directory / (Name + TEXT(".png")));
 	FScreenshotRequest::RequestScreenshot(Path, true, false);
 	UE_LOG(LogATG, Display, TEXT("ATG shot %s"), *Path);
 }
@@ -52,6 +59,7 @@ bool FATGTestScript::Load(const FString& Path) {
 	Lines.Reset();
 	for (FString& L : Raw) { L.TrimStartAndEndInline(); if (!L.IsEmpty() && !L.StartsWith(TEXT("#"))) Lines.Add(L); }
 	Line = 0; Wait = 0; RepeatLeft = 0; RepeatCmd.Empty();
+	bLoaded = true;
 	UE_LOG(LogATG, Display, TEXT("ATG script %s: %d commands"), *Path, Lines.Num());
 	return true;
 }
@@ -233,6 +241,7 @@ ATG_CMD(CmdStoryAdvance, "ATG.StoryAdvance", "ATG.StoryAdvance: test assistance 
 		if (!P.vehicle) { auto* V = G->vehicles.spawn("meridian", T->pos.x, T->pos.z - 40, 0); G->vehicles.seatNow(&P, V); }
 		P.vehicle->pos = T->pos - T->fwd() * 40; P.vehicle->vel = atg::V3(); P.vehicle->yaw = T->yaw;
 	}
+	if (M->def.id == "pacificstar" && G->shipRaid && G->shipRaid->spawned && !G->shipRaid->safeDone) { const auto& S = G->shipRaid->ship.safe; if (P.vehicle) P.vehicle->takeOut(&P); P.setPosition(S.x, S.y, S.z - 0.6); return; }
 	if (M->def.id == "solline" && P.vehicle && P.vehicle->def.kind == "train") {
 		auto* T = dynamic_cast<atg::Train*>(P.vehicle); const auto& S = G->rail->stations[G->rail->station("union")]; T->s = S.s + T->len / 2; T->v = 0; T->place();
 	}
@@ -290,7 +299,7 @@ ATG_CMD(CmdMissionTest, "ATG.MissionTest", "ATG.MissionTest [goal | finish | abo
 	}
 	E.start("engine_test");
 })
-ATG_CMD(CmdMenu, "ATG.Menu", "ATG.Menu [row | down | up | close]: press a shop menu's button, move its highlight or leave; then log the menu", {
+ATG_CMD(CmdMenu, "ATG.ShopMenu", "ATG.ShopMenu [row | down | up | close]: press a shop menu's button, move its highlight or leave; then log the menu", {
 	atg::Game* G = Sim(W);
 	atg::HudModel* M = G ? G->hudModel : nullptr;
 	if (!M) return;
@@ -304,13 +313,86 @@ ATG_CMD(CmdMenu, "ATG.Menu", "ATG.Menu [row | down | up | close]: press a shop m
 	UE_LOG(LogATG, Display, TEXT("ATG menu: %s, focus %d, money %.0f, note '%s'"), UTF8_TO_TCHAR(M->menu.title.c_str()), M->menu.focus, G->player->money, UTF8_TO_TCHAR(M->menu.note.c_str()));
 	for (int32 I = 0; I < (int32)M->menu.rows.size(); I++) UE_LOG(LogATG, Display, TEXT("ATG menu:   %d %s [%s]"), I, UTF8_TO_TCHAR(M->menu.rows[I].name.c_str()), UTF8_TO_TCHAR(M->menu.rows[I].button.c_str()));
 })
-ATG_CMD(CmdState, "ATG.State", "ATG.State: log the player's position, vehicle and speed", {
+ATG_CMD(CmdState, "ATG.State", "ATG.State: log the player's position, vehicle, speed and the journey (free roam, cash, weapons)", {
 	atg::Game* G = Sim(W);
 	if (!G) { UE_LOG(LogATG, Display, TEXT("ATG state: no game")); return; }
 	atg::Player& P = *G->player;
 	if (atg::Vehicle* V = P.vehicle)
 		UE_LOG(LogATG, Display, TEXT("ATG state: t %.2f driving %s at (%.2f, %.2f, %.2f) yaw %.3f speed %.2f m/s health %.0f"), G->time, UTF8_TO_TCHAR(V->type.c_str()), V->pos.x, V->pos.y, V->pos.z, V->yaw, V->speed(), V->health)
 	else UE_LOG(LogATG, Display, TEXT("ATG state: t %.2f on foot at (%.2f, %.2f, %.2f) yaw %.3f health %.0f vehicles %d"), G->time, P.pos.x, P.pos.y, P.pos.z, P.yaw, P.health, (int32)G->vehicles.list.size());
+	UE_LOG(LogATG, Display, TEXT("ATG state: journey freeRoam %d freeroamActive %d cash %.0f weapons %d %d people %d blips %d gameplay '%s' paused %d menuOpen %d input %d"),
+		G->freeRoam, G->freeroamActive(), P.money, (int32)P.weapons.size(), (int32)G->vehicles.list.size(), (int32)G->liveCharacters().size(), (int32)G->blips.size(),
+		UTF8_TO_TCHAR(G->gameplay ? G->gameplay->state.c_str() : ""), G->paused, G->menuOpen, G->input.enabled);
+})
+// The menus as a script sees them: the title screen's buttons and the pause menu, driven through the real
+// handlers (the same ones the mouse and the pad use).
+ATG_CMD(CmdMenuAction, "ATG.Menu", "ATG.Menu NewGame|Continue|FreeRoam|Multiplayer|Settings|Controls | Pause|Resume|Save|Quit | Nav dx dy | Activate | Back | Tab n", {
+	AATGGameMode* GM = W ? Cast<AATGGameMode>(W->GetAuthGameMode()) : nullptr;
+	if (!GM || !Args.Num()) return;
+	const FString A = Args[0];
+	if (A.IsNumeric() || A == TEXT("down") || A == TEXT("up") || A == TEXT("close")) {
+		if (GEngine) GEngine->Exec(W, *(TEXT("ATG.ShopMenu ") + FString::Join(Args, TEXT(" "))));
+		return;
+	}
+	if (A == TEXT("Nav")) { GM->MenuNavigate(Args.IsValidIndex(1) ? FCString::Atoi(*Args[1]) : 0, Args.IsValidIndex(2) ? FCString::Atoi(*Args[2]) : 0); return; }
+	if (A == TEXT("Activate")) { GM->MenuActivate(); return; }
+	if (A == TEXT("Back")) { GM->MenuBack(); return; }
+	if (A == TEXT("Tab")) { GM->MenuCycleTab(Args.IsValidIndex(1) ? FCString::Atoi(*Args[1]) : 1); return; }
+	if (A == TEXT("Page") && Args.Num() > 1) { if (UATGMenuSystem* Menu = GM->GetMenuSystem()) Menu->SwitchPauseTab(FName(*Args[1])); return; }
+	if (A == TEXT("Pause")) { GM->ShowPauseMenu(); return; }
+	if (A == TEXT("Resume") || A == TEXT("Save") || A == TEXT("Quit")) { GM->OnPauseMenuAction(A); return; }
+	GM->OnMainMenuAction(A);
+})
+ATG_CMD(CmdMenuInfo, "ATG.MenuState", "ATG.MenuState: log which menu is up, its tab and the row the controller is on", {
+	AATGGameMode* GM = W ? Cast<AATGGameMode>(W->GetAuthGameMode()) : nullptr;
+	UATGMenuSystem* M = GM ? GM->GetMenuSystem() : nullptr;
+	const FATGMenuSystem::EATGMenuState State = M ? M->GetMenuState() : FATGMenuSystem::EATGMenuState::None;
+	const TCHAR* Name = State == FATGMenuSystem::EATGMenuState::MainMenu ? TEXT("title") : State == FATGMenuSystem::EATGMenuState::PauseMenu ? TEXT("pause") : TEXT("none");
+	UE_LOG(LogATG, Display, TEXT("ATG menu: %s tab '%s' selected '%s'"), Name, *(M ? M->GetActivePauseTab().ToString() : FString(TEXT(""))), *(M ? M->SelectionLabel() : FString()));
+})
+// Inject real Unreal key events rather than bypassing PlayerController's menu-input routing.
+ATG_CMD(CmdInput, "ATG.Input", "ATG.Input UnrealKeyName value: digital 1/0 or analog axis value", {
+	AATGPlayerController* PC = PlayerPC(W);
+	if (!PC || Args.Num() < 2) return;
+	const FKey Key(*Args[0]);
+	if (!Key.IsValid()) { UE_LOG(LogATG, Error, TEXT("ATG input: invalid key %s"), *Args[0]); return; }
+	const float Value = Arg(Args, 1);
+	PC->InputKey(FInputKeyEventArgs::CreateSimulated(Key, Key.IsAnalog() ? IE_Axis : Value != 0 ? IE_Pressed : IE_Released, Value));
+})
+ATG_CMD(CmdMenuCheck, "ATG.MenuCheck", "ATG.MenuCheck selected|tab|open|volume|music|sensitivity|invert|quality|crime|timeScale|cheat expected: assert actual menu state", {
+	AATGGameMode* GM = W ? Cast<AATGGameMode>(W->GetAuthGameMode()) : nullptr;
+	UATGMenuSystem* M = GM ? GM->GetMenuSystem() : nullptr;
+	atg::Game* G = Sim(W);
+	if (!M || !G || Args.Num() < 2) { UE_LOG(LogATG, Error, TEXT("ATG MENU CHECK FAIL: missing menu/game/arguments")); return; }
+	const FString Key = Args[0];
+	FString Expected = Args[1], Actual;
+	bool bNumeric = false;
+	double Number = 0;
+	if (Key == TEXT("selected")) Actual = M->SelectionLabel();
+	else if (Key == TEXT("value")) Actual = M->SelectionValue();
+	else if (Key == TEXT("tab")) Actual = M->GetActivePauseTab().ToString();
+	else if (Key == TEXT("open")) { bNumeric = true; Number = M->IsPauseMenuOpen(); }
+	else if (Key == TEXT("volume")) { bNumeric = true; Number = G->settings.volume; }
+	else if (Key == TEXT("music")) { bNumeric = true; Number = G->settings.music; }
+	else if (Key == TEXT("sensitivity")) { bNumeric = true; Number = G->settings.sensitivity; }
+	else if (Key == TEXT("invert")) { bNumeric = true; Number = G->settings.invertY; }
+	else if (Key == TEXT("quality")) Actual = UTF8_TO_TCHAR(G->settings.quality.c_str());
+	else if (Key == TEXT("crime")) Actual = UTF8_TO_TCHAR(G->settings.npcCrime.c_str());
+	else if (Key == TEXT("timeScale")) { bNumeric = true; Number = G->env.timeScale; }
+	else if (Key == TEXT("cheat") && Args.Num() >= 3) {
+		static const TPair<const TCHAR*, bool atg::Cheats::*> Cheats[] = {
+			{ TEXT("god"), &atg::Cheats::god }, { TEXT("vehGod"), &atg::Cheats::vehGod }, { TEXT("neverWanted"), &atg::Cheats::neverWanted },
+			{ TEXT("superJump"), &atg::Cheats::superJump }, { TEXT("superRun"), &atg::Cheats::superRun }, { TEXT("infSprint"), &atg::Cheats::infSprint },
+			{ TEXT("lowGravity"), &atg::Cheats::lowGravity }, { TEXT("explosive"), &atg::Cheats::explosive }, { TEXT("oneHit"), &atg::Cheats::oneHit },
+			{ TEXT("freezeTime"), &atg::Cheats::freezeTime }, { TEXT("slowmo"), &atg::Cheats::slowmo }, { TEXT("riot"), &atg::Cheats::riot }
+		};
+		for (const auto& Cheat : Cheats) if (Args[1] == Cheat.Key) { bNumeric = true; Number = G->cheats.*(Cheat.Value); }
+		Expected = Args[2];
+	}
+	if (bNumeric) Actual = FString::Printf(TEXT("%.3f"), Number);
+	const bool bPass = bNumeric ? FMath::Abs(Number - FCString::Atod(*Expected)) < 0.001 : Actual == Expected;
+	if (bPass) { UE_LOG(LogATG, Display, TEXT("ATG MENU CHECK PASS: %s = %s"), *Key, *Actual); }
+	else { UE_LOG(LogATG, Error, TEXT("ATG MENU CHECK FAIL: %s expected '%s', actual '%s'"), *Key, *Expected, *Actual); }
 })
 ATG_CMD(CmdStation, "ATG.Station", "ATG.Station dry|fern|union: stand on that station's platform, facing the track", {
 	atg::Game* G = Sim(W);

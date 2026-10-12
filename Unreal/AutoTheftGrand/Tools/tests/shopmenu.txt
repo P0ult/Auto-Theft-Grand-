@@ -13,23 +13,23 @@ shot shopmenu_clerk
 ATG.CamAt
 ATG.Teleport -50 -63.5 3.14159
 wait 0.5
-ATG.Menu
+ATG.ShopMenu
 shot shopmenu_guns
-ATG.Menu 2
-ATG.Menu down
-ATG.Menu down
+ATG.ShopMenu 2
+ATG.ShopMenu down
+ATG.ShopMenu down
 wait 0.3
 shot shopmenu_bought
-ATG.Menu close
+ATG.ShopMenu close
 wait 0.5
 ATG.Teleport -582 138.2 0
 wait 2
 ATG.Teleport -590.66 138.24 1.5708
 wait 0.5
-ATG.Menu 1
+ATG.ShopMenu 1
 wait 0.3
 shot shopmenu_bar
-ATG.Menu close
+ATG.ShopMenu close
 wait 0.5
 ATG.State
 quit

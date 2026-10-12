@@ -86,6 +86,14 @@ public:
 	bool ownedByPlayer = false, skidding = false; // (gameplay.js: stats, skid marks)
 	bool proxy = false; // (a train carriage's stand-in for the contact code)
 	bool traffic = false, policeUnit = false, armyUnit = false, remote = false, npcRemote = false, flat = false, stable = false, heistVan = false, roadblock = false;
+	// Customs upgrades (modshop.js v.mods) and the tuned handling ModShop.apply gives the car. The browser game
+	// copies the def; here the def is shared, so the tuning is kept as multipliers (1: stock).
+	struct Mods { int engine = 0, armor = 0, nitro = 0; } mods;
+	double forceMul = 1, topMul = 1, bulletMod = 1;
+	double force() const { return def.force * forceMul; }
+	double top() const { return def.top * topMul; }
+	// taxis (taxi.js): who whistled for this cab
+	Ref<Character> hailedBy;
 
 	// ---- what the renderer reads
 	double doorOpen = 0;

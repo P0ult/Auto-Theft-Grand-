@@ -24,6 +24,7 @@ class USkeletalMesh;
 class USkeleton;
 class UTexture2D;
 class UTexture;
+class UMaterialInstanceDynamic;
 class UTextureRenderTarget2D;
 struct FATGWorldData;
 namespace atg { class CityMap; class Game; struct MeshBuf; struct VehicleDef; struct TrainModel; struct Appearance; }
@@ -61,6 +62,11 @@ public:
 
 	// ---- the simulation (the whole game; valid once ready)
 	atg::Game* Game() const;
+	// Throw the simulation away and build it again, as the browser game does by reloading the page for a new
+	// game: the player, the story, the wanted level and every spawned thing start over. The generated world
+	// and its meshes stay. The renderer must destroy the actors it drew from the old simulation first, since
+	// they point into it. False when the world isn't ready yet.
+	bool RestartSimulation();
 
 	// ---- the clock comes from the simulation (Hours mirrors it)
 	float Hours = 8.5f;
@@ -151,6 +157,7 @@ private:
 	TArray<FVector> LampPositions; // game metres (x, y, z of the lamp head)
 	// the one light that follows the shop nearest the camera (city.js interiorLight)
 	UPROPERTY(Transient) TObjectPtr<UPointLightComponent> InteriorLight;
+	UPROPERTY(Transient) TObjectPtr<UMaterialInstanceDynamic> ShipLampMat;
 	double LampTimer = 0;
 	void UpdateSky(float Dt);
 	void UpdateLamps(float Dt);

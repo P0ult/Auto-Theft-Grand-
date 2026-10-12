@@ -47,7 +47,7 @@ pad, and plays its sounds.
 | entities/animals.js, game/wildlife.js | `Gen/AnimalModels`, `Sim/Animal`, `Sim/Wildlife`, `ATGAnimals` | The same breed models and procedural rigs; district mixes, group sizes, quality caps, valid-ground spawning, grazing, wandering, fleeing, bird flight and landing, walked dogs, cleanup, bullets, melee, blasts and roadkill. `simtest wildlife` checks behaviour; `animalcompare.mjs --check` compares 17 breeds' walk, run/flight and sit poses to the browser. |
 | game/pets.js | `Sim/Pets`, `Sim/Shops`, `ATGAnimals`, `ATGHUD` | Adoption and names, triple health, following and sitting, stay/come and aimed attack commands, defensive dog bites, NPC reactions to animal damage, car boarding and alighting, death and cleanup, kennel animals, adoption prices and treats. The HUD shows the pet's name, status and low-health colour. The compact network state and remote posing are ported and tested; actual replication and saved pets await multiplayer and save/load. |
 | game/missions.js, game/gps.js | `Sim/Missions`, `Sim/Hud`, `ATGHUD`, `ATGPerson` | C++20 coroutines preserve the async scripts' waits and nested cutscenes. The context manages dialogue, objectives, timers, counters, entities, target arrows, blips, checkpoints, GPS, drive-bys and failure predicates. The engine manages prerequisites, contacts, vehicle restrictions, rewards, chapter messages, death/arrest failures and cleanup. RouteDriver and RaceDriver use the browser's rules. Native and Unreal tests cover the lifecycle, including shutdown with a suspended script. |
-| game/story.js | `Sim/Story`, `Sim/StoryChapterTwo/Three/Four/Five/Six`, `Sim/StoryNorth` (story_north.js), `ATGGameMode` (`-ATGStory`), `ATGMissionView` | Chapters I–VII (31 scripts), from Welcome Home through Box Office. Same cast, dialogue, cutscenes, objectives, encounters, restrictions, rewards and logs. This includes the cab pickup, held Sol Line train and Fern Creek ambush, low-flight rings, compound buzz, cartel trucks and El Seco escape. The rings use the same torus geometry and radius x 1.15 threshold and clean up on completion or cancellation. Credits roll for 40 s and close at 42 s (or on input). `simtest story` completes each script and checks failures; `storycompare.mjs` checks metadata; `Tools/tests/story*.txt` verify Unreal. Chapter VII's San Aurelio missions keep the browser's quirks (the Saints' boats never get a gunner: the browser checks a seat list no boat has). Chapter VIII (four missions) is next; Pacific Star needs the ship raid. |
+| game/story.js | `Sim/Story`, `Sim/StoryChapterTwo/Three/Four/Five/Six`, `Sim/StoryNorth` (story_north.js), `ATGGameMode` (`-ATGStory`), `ATGMissionView` | Chapters I–VIII (35 scripts), from Welcome Home through Saints and Sinners. Same cast, dialogue, cutscenes, objectives, encounters, restrictions, rewards and logs. This includes the cab pickup, held Sol Line train and Fern Creek ambush, low-flight rings, compound buzz, cartel trucks and El Seco escape. The rings use the same torus geometry and radius x 1.15 threshold and clean up on completion or cancellation. Credits roll for 40 s and close at 42 s (or on input). `simtest story` completes each script and checks failures; `storycompare.mjs` checks metadata; `Tools/tests/story*.txt` verify Unreal. Chapter VII's San Aurelio missions keep the browser's quirks (the Saints' boats never get a gunner: the browser checks a seat list no boat has). Chapter VIII is ported in `StoryNorth.cpp`: Pacific Star, Timber!, High Ground and Saints and Sinners, including the ship raid. The native suite and `Tools/tests/story8.txt` cover all four Chapter VIII missions; the Unreal script completed with 33 total story missions recorded. |
 | game/military.js | `Sim/Military` | All of it: the parked aircraft, tanks and trucks at Fern Creek Airfield, the hospital roof and Fort Carver streamed in within 1.1 km and respawned a while after they're taken or wrecked, their map icons, the garrison on its 15 posts and patrols, the restricted zone (the warning, eight seconds' grace, then the alert, three stars and soldiers opening fire), the lockdown lifted when the stars are gone. |
 | game/army.js | `Sim/Army` | All of it: at five stars Barracks trucks and Ranger jeeps that run you down and unload troops, the Warhawk gunship's autopilot (circling at 60 m, its minigun bursts and rockets), the Mammoth tank that holds back and shells you, holding fire near their own, the radio, the radar blips, pulling out below five stars and the clean-up. |
 | game/npccrime.js | `Sim/NpcCrime`, `ATGHUD` (stars over suspects, speech bubbles) | All of it: jaywalkers, reckless drivers, hit-and-runs, road rage, muggers and car thieves staged near you (more at night and in the rough districts), witnesses and phoned-in reports, stars on the culprit, dispatch, the responding unit (pull-overs, tickets, chases, tackles, the ride in the back) and the radar dots. |
@@ -64,11 +64,15 @@ pad, and plays its sounds.
 
 ## Phases
 
-**Status.** Phase 1 builds and runs on UE 5.8.3 (Visual Studio 2026). The game logic has moved into the
-simulation layer (above): walking, getting in and out, driving, crashes and parked cars run there and are
-drawn by Unreal. Phases 2, 3, 3b and 4 are done: the living city, the action, the GTA V layer and every
-vehicle. From phase 6, the sound, radio, walk-in shops, wildlife and single-player pets are done. Phase 5 is
-under way: the mission engine and Chapters I–VII are ported and tested; Chapter VIII and other features are next.
+**Status.** The UE 5.8 editor target builds with the installed Visual Studio toolchain. The generator and
+simulation have native test runners and parity comparisons for the core geometry, models and gameplay paths.
+The `Tools/tests/smoke.txt` Unreal run now completes: it generates and builds the world, starts the game,
+walks, enters and drives a Zenith, changes to night, writes three screenshots, and exits with code 0. The
+automated runner now waits for world construction before starting gameplay; this also avoids a startup render
+thread crash caused by beginning the simulation while generated scene components were still being added.
+Phases 2, 3, 3b and 4 are implemented. Phase 5 includes the mission engine and Chapters I–VIII.
+The native suite passes, and the Unreal Chapter VIII script completed all four new missions (33 total story
+missions recorded). Several optional single-player features and phase 6 items remain.
 
 **Phase 1: the world and driving (done).**
 - World generation.
@@ -108,11 +112,17 @@ under way: the mission engine and Chapters I–VII are ported and tested; Chapte
 - Boats and police boats. Done.
 
 **Phase 5: story and features.**
-- The mission engine (missions.js). Done. Chapters I–VII (31/35 missions) are done. Chapter VIII is next.
-- The ship raid.
-- Taxis, races, vigilante, Customs garages, property.
-- Free roam and admin tools.
-- Save and load.
+- The mission engine (missions.js), including all 35 missions in Chapters I–VIII. Native story tests and
+  the successful Unreal `Tools/tests/story8.txt` run cover Chapter VIII's four missions.
+- The ship raid is implemented with Pacific Star; it has scripted mission coverage.
+- Taxis, races, vigilante, Customs garages and property have simulation implementations, but still need
+  complete player-facing integration and dedicated Unreal verification.
+- Free roam and admin tools have simulation implementations. The pause-menu regression verifies Xbox
+  input routing, settings in both directions, all twelve Admin toggles and both spawn-option toggles.
+  The pause screen uses explicit ON/OFF badges and retains selection after changes. Remaining free-roam
+  gameplay paths still need dedicated Unreal coverage.
+- Save/load has a simulation implementation and game-menu wiring; persistence across application restarts
+  still needs an end-to-end test.
 
 **Phase 6: the finish.**
 - Walk-in interiors with their furniture and shopkeepers. Done.

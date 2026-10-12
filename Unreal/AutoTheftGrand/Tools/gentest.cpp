@@ -13,11 +13,12 @@ static const char* KindName(ENode k) {
 	switch (k) { case ENode::X: return "x"; case ENode::RB: return "rb"; case ENode::End: return "end"; case ENode::Via: return "via"; case ENode::Split: return "split"; case ENode::Merge: return "merge"; }
 	return "?";
 }
-// JavaScript's toFixed(3) (which prints -0 as 0)
+// JavaScript's toFixed(3) rounds exact halfway values away from zero (and prints -0 as 0).
 static std::string F(double v) {
+	if (!std::isfinite(v)) return std::isnan(v) ? "NaN" : (v < 0 ? "-Infinity" : "Infinity");
+	const long long scaled = (long long)std::floor(std::fabs(v) * 1000.0 + 0.5);
 	char buf[64];
-	snprintf(buf, sizeof buf, "%.3f", v);
-	if (std::string(buf) == "-0.000") return "0.000";
+	std::snprintf(buf, sizeof buf, "%s%lld.%03lld", v < 0 && scaled ? "-" : "", scaled / 1000, scaled % 1000);
 	return buf;
 }
 
@@ -48,6 +49,6 @@ int main() {
 	for (const Building& b : m.buildings)
 		printf("B %s %s %s %s %s %s %d %s %s %s %s %s\n", F(b.x0).c_str(), F(b.z0).c_str(), F(b.x1).c_str(), F(b.z1).c_str(), F(b.y0).c_str(), F(b.y1).c_str(), b.style, F(b.rot).c_str(), b.roof.c_str(), b.district.c_str(), b.kind.c_str(), b.name.c_str());
 	for (const Prop& p : m.props) printf("P %s %s %s %s\n", p.type.c_str(), F(p.x).c_str(), F(p.z).c_str(), F(p.rot).c_str());
-	for (const auto& kv : m.landmarks) printf("L %s %s %s\n", kv.first.c_str(), F(kv.second.x).c_str(), F(kv.second.z).c_str());
+	for (const auto& kv : m.landmarks) if (std::isfinite(kv.second.x) && std::isfinite(kv.second.z)) printf("L %s %s %s\n", kv.first.c_str(), F(kv.second.x).c_str(), F(kv.second.z).c_str());
 	return 0;
 }

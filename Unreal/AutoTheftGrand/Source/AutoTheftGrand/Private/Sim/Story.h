@@ -14,6 +14,7 @@ void AddChapterFour(std::vector<MissionDef>& story);
 void AddChapterFive(std::vector<MissionDef>& story);
 void AddChapterSix(std::vector<MissionDef>& story);
 void AddChapterSeven(std::vector<MissionDef>& story); // (StoryNorth.cpp: story_north.js)
+void AddChapterEight(std::vector<MissionDef>& story);
 MissionTask StoryCountdown(MissionContext& m);
 struct StoryRoadSpot { double x, z, yaw; };
 StoryRoadSpot StoryRoadNear(Game& game, double x, double z, int lane = 1);

@@ -71,6 +71,7 @@ public:
 	double loot = 0, crimeClock = NaN();
 	bool hasNpcAim = false; double npcAimAccuracy = 0, npcAimDamageMul = 0; // (a cop's aim before a shoot-out)
 	bool criminal = false;                // (vigilante targets: killing them is no crime)
+	bool taxiFare = false;                // (taxi.js: waiting for a cab: not ambient)
 	// police (police.js): the car a cop came in, the spot a roadblock cop holds, when they next shout
 	Ref<Vehicle> homeCar;
 	// soldiers (military.js, army.js): a garrison post's patrol between two points; response: sent by the army

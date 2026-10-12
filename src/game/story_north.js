@@ -381,12 +381,14 @@ export function northMissions(H) {
         R.lootedAt = -1e9;
         R._spawn();
         m.player.giveWeapon('rifle', 240); m.player.giveWeapon('shotgun', 40); m.player.giveWeapon('grenade', 5);
-        m.failIf(() => !R.spawned, 'You left the ship.');
+        // (only until the safe is open: the crew go home once you're 420 m out, on the run up the coast)
+        const stopShip = m.failIf(() => !R.spawned, 'You left the ship.');
         const bridge = R.S.safe;
         const bb = { x: bridge.x, z: bridge.z, color: 0x6cff6c, icon: 'money' };
         game.blips.add(bb); m.blips.push(bb);
         m.objective('Board the <span class="y">Pacific Star</span> and crack the <span class="g">captain\'s safe</span> on the bridge.');
         await m.until(() => R.safeDone);
+        stopShip();
         game.blips.delete(bb);
         m.hud.subtitle('Got the manifest? Then move! Coast guard\'s been called.', 'Rico', 3.5);
         const bs = waterSpot(game, CITY.maxX + 58, 140, 3);

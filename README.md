@@ -31,6 +31,9 @@ A C++ port to Unreal Engine 5.8 is under way in [`Unreal/AutoTheftGrand`](Unreal
 generates the same world from the same seed. The living city, combat, police, vehicles, shops and audio are
 ported. Wildlife spawns by district, wanders, grazes and flees, including birds taking flight and people
 walking dogs. Pet Palace sells dogs and cats that follow you, ride in cars and obey K; dogs defend you.
+The Unreal pause menu supports Xbox D-pad/left-stick navigation, A to select or toggle, B/Menu to resume,
+LB/RB to change tabs and left/right to adjust settings. Toggles show ON/OFF and keep the selected row.
+See the [Unreal controls](Unreal/AutoTheftGrand/README.md#pause-menu).
 The rest is being ported in phases ([plan](Unreal/AutoTheftGrand/PORTING.md)).
 The mission engine and the thirty-one missions in Chapters I–VII are ported, including their dialogue, cutscenes, objectives,
 timers, GPS, credits, flying checkpoints and rewards. Launch Unreal with `-ATGStory` to start Welcome Home. The other four missions and
@@ -113,7 +116,7 @@ names, and on-screen hints switch to controller buttons while you play with one.
 | D-pad ↑ / → / ← / ↓ | Phone / hail a cab / ride as passenger / map | Menu | Pause |
 
 Aircraft and the tank: RT / LT throttle (planes) or climb / descend (helicopters), RB guns, LB missiles or
-rockets, B wheel brakes. In menus the D-pad or left stick moves, A selects, B backs out and LB / RB switch tabs.
+rockets, B wheel brakes. In menus the D-pad or left stick moves, A selects, B closes the pause menu or leaves a shop, and LB / RB switch tabs.
 
 ## Free roam
 

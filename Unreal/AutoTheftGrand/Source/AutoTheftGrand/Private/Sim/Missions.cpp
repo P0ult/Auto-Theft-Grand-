@@ -96,7 +96,7 @@ void RaceDriver::update(double dt) {
 		if (oz > 0 && oz < 14 && std::fabs(ox) < 2.4) steer += ox > 0 ? -0.6 : 0.6;
 	}
 	v.input.steer = Clamp(steer, -1, 1);
-	const double turn = std::fabs(ang), want = (turn > 0.9 ? 12 : turn > 0.5 ? 20 : v.def.top * 0.95) * (0.8 + skill * 0.25), sp = v.speed();
+	const double turn = std::fabs(ang), want = (turn > 0.9 ? 12 : turn > 0.5 ? 20 : v.top() * 0.95) * (0.8 + skill * 0.25), sp = v.speed();
 	if (rev > 0) { rev -= dt; v.input.throttle = 0; v.input.brake = 1; v.input.steer = -v.input.steer; return; }
 	if (std::fabs(sp) < 1.2) { stuck += dt; if (stuck > 1.6) { stuck = 0; rev = 1; } } else stuck = 0;
 	v.input.throttle = sp < want ? 1 : 0; v.input.brake = sp > want + 4 ? 0.6 : 0;

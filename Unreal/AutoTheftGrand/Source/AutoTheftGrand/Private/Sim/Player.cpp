@@ -36,8 +36,9 @@ void Player::control(double dt, Input& input, CameraRig& rig) {
 	aiming = (wantAim || aimHold > 0) && !swimming && !game.weaponWheelOpen();
 	crouching = input.down("crouch") && !swimming;
 	const bool wantSprint = input.down("sprint") && len > 0.1 && !aiming && !crouching;
-	if (wantSprint && stamina > 0.05) { sprinting = true; stamina = Max(0, stamina - dt * 0.08); }
+	if (wantSprint && (infiniteSprint || stamina > 0.05)) { sprinting = true; if (!infiniteSprint) stamina = Max(0, stamina - dt * 0.08); }
 	else { sprinting = false; stamina = Min(1, stamina + dt * 0.15); }
+	if (infiniteSprint && wantSprint) stamina = 1;
 	double speed = sprinting ? 7.2 : 4.3;
 	if (chute) speed = 9;
 	if (aiming) speed = 2.6;

@@ -27,6 +27,9 @@ public:
 	double volume, musicVolume;
 	bool radioOn = true;
 
+	// Callback for playing samples via Unreal's audio system (set by Unreal side)
+	std::function<bool(const std::string&, double)> onPlaySample;
+
 	// start the context and its graph (audio.js init, on the first user gesture there)
 	void init();
 	// stereo samples for the device (interleaved L R)

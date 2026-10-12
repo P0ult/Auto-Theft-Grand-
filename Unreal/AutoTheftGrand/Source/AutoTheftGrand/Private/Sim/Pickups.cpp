@@ -6,7 +6,6 @@
 
 namespace atg {
 
-namespace {
 // three.js Color.setHSL (h, s, l in sRGB) -> a hex colour
 uint32_t HslHex(double h, double s, double l) {
 	h = h - std::floor(h); s = Clamp(s, 0, 1); l = Clamp(l, 0, 1);
@@ -28,6 +27,7 @@ uint32_t HslHex(double h, double s, double l) {
 	return (c(r) << 16) | (c(g) << 8) | c(b);
 }
 
+namespace {
 uint32_t GlowColor(const std::string& kind) {
 	if (kind == "money") return 0x44ff44;
 	if (kind == "health") return 0xff4444;

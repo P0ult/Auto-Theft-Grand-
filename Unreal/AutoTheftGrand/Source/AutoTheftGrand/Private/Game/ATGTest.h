@@ -20,12 +20,14 @@ public:
 	// load the script named on the command line, if any
 	void Init();
 	bool Load(const FString& Path);
+	bool IsLoaded() const { return bLoaded; }
 	// called every frame once the world is ready
 	void Tick(UWorld* World, float Dt);
 	bool IsRunning() const { return Line < Lines.Num(); }
 
 private:
 	TArray<FString> Lines;
+	bool bLoaded = false;
 	int32 Line = 0;
 	double Wait = 0;
 	int32 ShotFrames = 0;

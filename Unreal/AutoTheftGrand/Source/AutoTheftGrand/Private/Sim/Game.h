@@ -21,7 +21,14 @@ namespace atg {
 
 class PedManager;
 class Traffic;
-class RailSystem;
+class RailSystem;	class FreeRoam;	class FreeRoamAdmin;
+
+class RaceSystem;
+class Vigilante;
+class ModShop;
+class Properties;
+class TaxiSystem;
+class SaveSystem;
 class Gameplay;
 class HudModel;
 
@@ -82,6 +89,7 @@ public:
 	bool menuOpen = false; // (a full-screen menu: no weapon wheel)
 	Cheats cheats, cheatsOn;
 	bool freeRoam = false, missionActive = false;
+	bool adminPowersActive = false; // Free-roam admin switches are applied by FreeRoam, not the menu.
 	bool freeroamActive() const { return freeRoam && !missionActive; }
 	bool phoneOpen = false, photoMode = false; // (the phone is out; Snapmatic: the HUD hides)
 	class Phone* phone = nullptr;
@@ -90,7 +98,7 @@ public:
 	// the post-process uniforms the gameplay rules drive (WASTED / BUSTED): desaturation, the death tint, its
 	// night boost and the white flash
 	struct PostFx { double desat = 0, death = 0, deathBoost = 0, flash = 0; } post;
-	struct Stats { double kills = 0, copKills = 0, headshots = 0, carsStolen = 0, carsDestroyed = 0, runOver = 0, wasted = 0, busted = 0, maxWanted = 0, bestDrift = 0, driven = 0, walked = 0, playTime = 0, missions = 0, sprays = 0, tricks = 0; } stats;
+	struct Stats { double kills = 0, copKills = 0, headshots = 0, carsStolen = 0, carsDestroyed = 0, runOver = 0, wasted = 0, busted = 0, maxWanted = 0, bestDrift = 0, driven = 0, walked = 0, playTime = 0, missions = 0, sprays = 0, tricks = 0, shipRaids = 0, vigilanteBest = 0, taxiRides = 0, racesWon = 0; std::map<std::string, double> raceBest; int properties = 0; } stats;
 
 	Environment env;
 	CameraRig rig;
@@ -116,6 +124,14 @@ public:
 	PedManager* peds = nullptr;
 	Traffic* traffic = nullptr;
 	RailSystem* rail = nullptr;
+	FreeRoam* freeroam = nullptr;
+	FreeRoamAdmin* admin = nullptr;
+	RaceSystem* races = nullptr;
+	Vigilante* vigilante = nullptr;
+	ModShop* modShop = nullptr;
+	Properties* properties = nullptr;
+	TaxiSystem* taxi = nullptr;
+	SaveSystem* saveSys = nullptr;
 	Gameplay* gameplay = nullptr;
 	// the HUD's state (hud.js); hud points at it. Updated after each frame with the real frame time.
 	std::unique_ptr<IHud> ownedHud;
@@ -131,6 +147,7 @@ public:
 	class Special* special = nullptr;
 	class Pickups* pickupsSys = nullptr; // (the pickups and markers, for the systems that place them)
 	class ShopSystem* shops = nullptr;
+	class ShipRaid* shipRaid = nullptr;
 	class Police* policeSys = nullptr; // (the police itself, for the systems that spawn units through it)
 	class Military* military = nullptr; // (Fort Carver: whether the base is on alert)
 	class Audio* audioSys = nullptr;     // (the sound: the Unreal side starts it and pulls its samples)

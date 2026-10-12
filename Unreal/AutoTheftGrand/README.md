@@ -67,8 +67,11 @@ automatically after 42 real seconds. Chapter VI adds Fare Game, Sol Line Express
 a cab pickup and escape, the held train and Fern Creek ambush, six low-flight checkpoint rings, and the
 Warhawk raid on the cartel trucks and El Seco. Chapter VII goes north to San Aurelio: North Star, Board
 Meeting, Low Tide, Sanctuary and Box Office (the Gull Bay ambush, Kiko's skateboard drops against a clock that
-clean tricks stretch, the smuggling boat at dusk, three waves at the cathedral and the drive to Timberline, and
-the arena strongroom). The other four missions (Chapter VIII) are still to come;
+clean tricks stretch, the smuggling boat at dusk, three waves at the cathedral and the drive to Timberline,
+and the arena strongroom). Chapter VIII adds Pacific Star, Timber!, High Ground and Saints and Sinners,
+including the ship raid, log-truck convoy and Castell finale. Native story tests cover the missions, and
+`Tools/tests/story8.txt` exercises each in Unreal. See [PORTING.md](PORTING.md) for phase status.
+
 [PORTING.md](PORTING.md) has the plan and the progress.
 
 ## Build and run
@@ -100,9 +103,19 @@ To start the story from PowerShell, add `-ATGStory` to the game launch:
 & "C:\Program Files\Epic Games\UE_5.8\Engine\Binaries\Win64\UnrealEditor.exe" "C:\ATG\Unreal\AutoTheftGrand\AutoTheftGrand.uproject" -game -windowed -resx=1280 -resy=720 -ATGStory -log
 ```
 
-The game opens with Welcome Home. After each mission, yellow contact letters show the next ones. Chapter VI
-ends after Box Office; Chapter VIII has not been ported yet. Without `-ATGStory`, the game starts at the safehouse
-as before. Save/load and the title screen are still pending.
+The game opens with Welcome Home. After each mission, yellow contact letters show the next ones. Chapters I–VIII
+are implemented: native story tests complete all 35 missions, and `Tools/tests/story6.txt`, `story7.txt` and
+`story8.txt` play the later chapters in Unreal.
+Without `-ATGStory`, the game starts at the safehouse; the main menu selects free roam, a new story or continue.
+Save/load is implemented in the simulation and wired to the menu, but still needs an end-to-end persistence check.
+
+### Intel Mac package
+
+An Intel-only macOS Shipping package must be built on a Mac with Unreal Engine 5.8 and Xcode installed. From
+Terminal on that Mac, run `Tools/package-mac-intel.sh`; set `UE_ROOT` if the engine is installed outside
+`/Users/Shared/Epic Games/UE_5.8`. The archived `.app` and packaged game files go under `Build/MacIntel/`.
+This is an x86_64 build for Intel Macs, not a universal build for Apple Silicon. Test it on an Intel Mac before
+distributing it. The Windows checkout/build host cannot produce the macOS executable.
 
 ### Graphics
 
@@ -139,7 +152,7 @@ far:
 | I / D-pad ↑ | Phone (arrows / D-pad, Enter / A, Backspace / B) | I | Phone |
 | M / D-pad ↓ | Map | V / View | Camera distance |
 | | | N / D-pad → | Next radio station |
-| Esc / P / Menu | Pause | B / RS click | Look behind |
+| Esc / P / Menu | Pause or resume (B resumes from any pause tab; A selects) | B / RS click | Look behind |
 | | | X / B (hold) | Cinematic camera |
 
 | Planes & jets | | Helicopters | | Tank | |
@@ -157,6 +170,15 @@ S shove-it; F step off.
 Boats drive like cars (W / S, A / D); the police boat's bow gun fires with the left mouse button / RB.
 In a shop, step onto the marker at the counter to open its menu: click a button, or move the highlight with
 ↑ ↓ / W S / the D-pad and buy with Enter / Space / A; Esc, Backspace or B leaves.
+
+### Pause menu
+
+The pause screen uses a dark panel, a gold selection marker and explicit ON/OFF badges. The Xbox D-pad or
+left stick moves between controls; LB/RB changes tabs. A selects or toggles the highlighted row. B, Menu,
+Esc or P resumes. Long read-only pages scroll with the D-pad or left stick. Settings change in both
+directions with left/right. Left-click increases a setting; right-click decreases it. Mouse and controller
+selection share the same highlight. Changing a toggle keeps that row selected and preserves the scroll.
+Vehicle paint keeps its selection marker. Save is disabled in free roam and during missions.
 
 ## How it is put together
 
@@ -233,11 +255,12 @@ The simulation is tested without Unreal. `Tools/native.sh` builds a tool with MS
 cd Tools
 ./native.sh simtest.exe simtest.cpp && ./simtest.exe          # walking, driving, crashes, parked cars,
                                                                # traffic and people, trains, boarding,
-                                                               # WASTED, effects, combat, police, pickups,
+                                                               # Admin powers, WASTED, effects, combat, police, pickups,
                                                                # roadblocks, street crime, the wheel, special,
                                                                # armoured vans, the phone, bikes,
                                                                # aircraft and the tank, the army, skateboards,
                                                                # boats
+./simtest.exe admin                                            # all 12 Admin cheat toggles and wanted / time / weather actions
 DEBUG=1 ./native.sh simtestd.exe simtest.cpp                   # with symbols: a crash prints a stack trace
 ./native.sh audiotest.exe audiotest.cpp && ./audiotest.exe wav # every sound: peak and loudness per 50 ms
                                                                # (and WAV files in wav/); audiocmp.mjs prints
@@ -281,8 +304,26 @@ hospital sequence. Scripts can use `repeat count interval command` to repeat obj
 checks without interrupting the simulation.
 `Tools/tests/story4.txt` checks Chapter IV's truck delivery, timed stunt run, gang crews and Salazar encounter.
 `Tools/tests/story5.txt` checks the files, rooftop transition, finale, credits and return to the world.
-`Tools/tests/story6.txt` checks Chapter VI and the airborne rings; `Tools/tests/story7.txt` Chapter VII. Native tests also check the rings'
+`Tools/tests/story6.txt` checks Chapter VI and the airborne rings; `Tools/tests/story7.txt` Chapter VII;
+`Tools/tests/story8.txt` exercises Pacific Star, Timber!, High Ground and Saints and Sinners. Native tests also check the rings'
 radius x 1.15 hit threshold and cleanup after completion and cancellation.
+
+### Pause-menu regression
+
+```sh
+Tools/build.sh
+Tools/run.sh Tools/tests/pause-menu.txt -ATGMenu -ATGManual
+```
+
+This script injects Unreal controller events with `ATG.Input`, then checks menu selection, setting values
+and visible toggle badges with `ATG.MenuCheck`. It covers Menu/B resume, LB tab wrap, D-pad/left-stick
+navigation, both setting directions, all twelve Admin toggles and both vehicle-spawn toggles.
+The final regression passed 105 checks at 1280×720 and 1920×1080 using injected Unreal controller events,
+not a physical pad. The first 1080p launch crashed on an Unreal background/render worker before the menu
+checks; an unchanged retry passed. This intermittent render crash is still unresolved.
+Inspect the log for `ATG MENU CHECK FAIL` as well as the process exit code. Screenshots are under
+`Saved/Screenshots/WindowsEditor/ATG/pause_polished_*.png`. `ATG.ShopMenu` controls shop overlays;
+`ATG.Menu` controls the title and pause screens.
 
 ### Checking the generator without Unreal
 

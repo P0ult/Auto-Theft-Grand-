@@ -393,7 +393,10 @@ void Audio::loopStopLocked(int id) {
 // ------------------------------------------------------------------ recorded samples and the muffle
 // (the browser game plays the user's own recording of the WASTED stinger; this build has no recordings, so
 // the callers fall back to the synthesised one)
-bool Audio::playSample(const std::string&, double) { return false; }
+bool Audio::playSample(const std::string& name, double vol) {
+	if (onPlaySample) return onPlaySample(name, vol);
+	return false;
+}
 void Audio::stopSample(const std::string&, double) {}
 
 void Audio::muffle(bool on) {
@@ -568,7 +571,7 @@ void Audio::update(double dt) {
 	else if (air) air->out->gain.setTargetAtTime(0, t, 0.3);
 	if (pv && !pv->isWrecked() && !flying && !pv->def.pedal && !pv->def.board) {
 		const double sp = std::fabs(pv->speed());
-		const double top = pv->def.top;
+		const double top = pv->top();
 		// a fake gearbox
 		const double ratio = sp / top;
 		const double gears[6] = { 0, 0.18, 0.34, 0.52, 0.72, 1.01 };

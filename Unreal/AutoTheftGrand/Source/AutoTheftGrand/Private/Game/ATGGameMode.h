@@ -5,6 +5,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/GameModeBase.h"
+#include "ATGMenuSystem.h"
 #include "ATGGameMode.generated.h"
 
 class AATGCar;
@@ -25,7 +26,22 @@ public:
 	bool bManual = false;
 	void StepFrames(int32 Frames, double Dt);
 
+	// Menu system
+	void OnMainMenuAction(const FString& Action);
+	void OnPauseMenuAction(const FString& Action);
+	void ShowPauseMenu(FName Tab = NAME_None);
+	void HidePauseMenu();
+	bool IsMenuOpen() const { return MenuSystem && MenuSystem->IsMenuOpen(); }
+	bool IsPauseMenuOpen() const { return MenuSystem && MenuSystem->IsPauseMenuOpen(); }
+	void MenuNavigate(int32 X, int32 Y) { if (MenuSystem) MenuSystem->MoveSelection(X, Y); }
+	void MenuActivate() { if (MenuSystem) MenuSystem->ActivateSelection(); }
+	void MenuBack() { if (MenuSystem) MenuSystem->Back(); }
+	void MenuCycleTab(int32 Direction) { if (MenuSystem) MenuSystem->CyclePauseTab(Direction); }
+	void MenuAdjust(int32 Direction) { if (MenuSystem) MenuSystem->AdjustSelection(Direction); }
+	UATGMenuSystem* GetMenuSystem() const { return MenuSystem; }
+
 private:
+	void TryInitializeMenuSystem();
 	UPROPERTY(Transient) TObjectPtr<AATGWorld> World = nullptr;
 	UPROPERTY(Transient) TArray<TObjectPtr<AATGCar>> Cars;
 	UPROPERTY(Transient) TArray<TObjectPtr<AATGPerson>> People;
@@ -37,7 +53,21 @@ private:
 	UPROPERTY(Transient) TObjectPtr<class AATGAnimals> AnimalsView = nullptr;
 	UPROPERTY(Transient) TObjectPtr<class AATGMissionView> MissionView = nullptr;
 	bool bStarted = false;
-	void StartGame();
+	bool bInMenu = true;
+	bool bAutomatedScript = false;
+	// (-ATGMenu with a test script: keep the title screen and the menus, don't start a journey by itself)
+	bool bMenuTest = false;
+	FString PendingJourneyMode;
+	UPROPERTY() TObjectPtr<class UATGMenuSystem> MenuSystem;
+	// (a session has run in the current simulation: a new game starts a fresh one, as the browser game does by
+	// reloading the page)
+	bool bWorldUsed = false;
+	void StartGame(const FString& JourneyMode);
+	// destroy everything drawn from the simulation (the cars, the people and the view actors that hold its
+	// pointers), so the simulation can be rebuilt underneath them
+	void TearDownViews();
+	// tear the views down and build the simulation again: a clean world, as reloading the page gives
+	void ResetSession();
 	void Frame(double Dt);
 	void SyncViews(float Dt);
 };

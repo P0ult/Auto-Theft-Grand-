@@ -1,4 +1,9 @@
 #include "Setup.h"
+#include "FreeRoam.h"
+#include "ModShop.h"
+#include "Properties.h"
+#include "Races.h"
+#include "SaveSystem.h"
 #include "Special.h"
 #include "Army.h"
 #include "Audio.h"
@@ -19,10 +24,13 @@
 #include "Police.h"
 #include "Rail.h"
 #include "Roadblocks.h"
+#include "ShipRaid.h"
 #include "Shops.h"
 #include "Skateparks.h"
 #include "Story.h"
+#include "TaxiSystem.h"
 #include "Traffic.h"
+#include "Vigilante.h"
 #include "WeaponWheel.h"
 #include "Wildlife.h"
 
@@ -55,12 +63,22 @@ void InstallSystems(Game& g) {
 	g.pets = g.addSystem("pets", std::make_unique<PetSystem>(g));
 	g.addSystem("skateparks", std::make_unique<Skateparks>(g));
 	g.addSystem("boats", std::make_unique<BoatSystem>(g));
-	// (shipRaid: later)
+	g.shipRaid = g.addSystem("shipRaid", std::make_unique<ShipRaid>(g));
 	g.missions = g.addSystem("missions", std::make_unique<Missions>(g));
 	g.missions->story = BuildStory();
 	g.audioSys = g.addSystem("audio", std::make_unique<Audio>(g));
 	g.audio = g.audioSys;
 	g.gameplay = g.addSystem("gameplay", std::make_unique<Gameplay>(g));
+	// main.js: freeroam, admin, taxi, modshop, races, vigilante, properties (the admin tools and taxis come later)
+	g.freeroam = g.addSystem("freeroam", std::make_unique<FreeRoam>(g));
+	g.taxi = g.addSystem("taxi", std::make_unique<TaxiSystem>(g));
+	g.taxiSystem = g.taxi;
+	g.modShop = g.addSystem("modshop", std::make_unique<ModShop>(g));
+	g.races = g.addSystem("races", std::make_unique<RaceSystem>(g));
+	g.vigilante = g.addSystem("vigilante", std::make_unique<Vigilante>(g));
+	g.properties = g.addSystem("properties", std::make_unique<Properties>(g));
+	g.saveSys = g.addSystem("save", std::make_unique<SaveSystem>(g)); // (game.save: not a system in main.js; it has no frame work)
+	g.missions->autosave = [&g]() { if (g.saveSys) g.saveSys->save(true); };
 	g.pickupsSys->refreshPackages();
 }
 
@@ -75,6 +93,37 @@ void StartGame(Game& g) {
 void PopulateWorld(Game& g) {
 	if (g.traffic) g.traffic->populate((int)std::floor(g.traffic->maxCars * 0.7));
 	if (g.peds) g.peds->populate((int)std::floor(g.peds->maxPeds * 0.6));
+}
+
+void StartJourney(Game& g, const std::string& mode) {
+	Player& p = *g.player;
+	const auto it = g.map.landmarks.find("home");
+	if (it == g.map.landmarks.end()) return;
+	const Landmark& home = it->second;
+	if (mode == "continue" && g.saveSys && g.saveSys->load()) {
+		p.setPosition(home.x, home.z);
+		p.setYaw(0);
+		g.rig.yaw = kPi;
+		if (g.missions) g.missions->refreshContacts();
+		if (g.hud) g.hud->help("Welcome back to Los Soles.", 4);
+		return;
+	}
+	if (mode == "free") {
+		p.setPosition(home.x, home.z);
+		for (const auto& wa : FreeRoamKit()) p.giveWeapon(wa.first, wa.second);
+		p.equip("pistol");
+		g.freeRoam = true;
+		g.env.setTime(17.5);
+		if (g.missions) { g.missions->completed.clear(); for (const MissionDef& m : g.missions->story) g.missions->completed.insert(m.id); }
+		if (g.freeroam) g.freeroam->update(0);
+		if (g.hud) g.hud->help("Free roam: every weapon, unlimited cash and ammo. Press <b>T</b> to teleport anywhere. Cause some chaos!", 8);
+		return;
+	}
+	if (mode == "story" && g.missions) {
+		p.money = 250; // (main.js startGame: a new game starts with $250)
+		g.gangDensity = { { "kings", 0.35 }, { "vipers", 0.4 }, { "cuervos", 0.3 } };
+		g.missions->start("welcome");
+	}
 }
 
 } // namespace atg
