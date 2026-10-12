@@ -88,11 +88,19 @@ UStaticMesh* ATGMesh::BuildStaticMesh(UObject* Outer, const TCHAR* Name, const T
 		MD.ReserveNewTriangles(NT);
 		MD.ReserveNewPolygons(NT);
 		MD.ReserveNewEdges(NT * 2);
+		// one polygon group per material: parts that share a material share a group (two groups naming the same
+		// slot drew the second one black: a tree's leaves after its trunk)
+		TMap<UMaterialInterface*, FPolygonGroupID> GroupOf;
 		for (const FATGPart& P : Lods[l]) {
 			if (!P.Mesh || P.Mesh->Empty()) continue;
 			const atg::MeshBuf& B = *P.Mesh;
-			const FPolygonGroupID G = MD.CreatePolygonGroup();
-			Slots[G] = SlotName(Mats.IndexOfByKey(P.Material));
+			FPolygonGroupID G;
+			if (const FPolygonGroupID* Found = GroupOf.Find(P.Material)) G = *Found;
+			else {
+				G = MD.CreatePolygonGroup();
+				Slots[G] = SlotName(Mats.IndexOfByKey(P.Material));
+				GroupOf.Add(P.Material, G);
+			}
 			TArray<FVertexInstanceID> VI;
 			VI.SetNumUninitialized(B.Count());
 			for (size_t i = 0; i < B.Count(); i++) {
