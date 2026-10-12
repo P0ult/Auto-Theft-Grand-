@@ -1,0 +1,35 @@
+# The side jobs in Unreal: the Sol Sprint's flag and its offer, the race under way (countdown, checkpoint,
+# position), a Customs garage's menu, a business for sale, a hailed cab and a vigilante call.
+wait 1
+ATG.God 1
+ATG.Time 15
+ATG.NoBust 1
+ATG.Money 20000
+ATG.Job race 0
+wait 1
+shot jobs_race_offer
+ATG.ShopMenu 0
+wait 5
+shot jobs_race
+ATG.Kill
+wait 10
+ATG.God 1
+ATG.Money 20000
+ATG.Job garage 0
+wait 1
+shot jobs_garage
+ATG.ShopMenu close
+wait 0.5
+ATG.Job property 1
+wait 1
+shot jobs_property
+ATG.ShopMenu close
+wait 0.5
+ATG.Job taxi
+wait 12
+shot jobs_taxi
+ATG.Job vigilante
+wait 3
+shot jobs_vigilante
+ATG.State
+quit

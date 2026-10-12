@@ -26,6 +26,11 @@
 #include "Sim/Missions.h"
 #include "Sim/Story.h"
 #include "Sim/FreeRoam.h"
+#include "Sim/ModShop.h"
+#include "Sim/Properties.h"
+#include "Sim/Races.h"
+#include "Sim/TaxiSystem.h"
+#include "Sim/Vigilante.h"
 #include "ATGMenuSystem.h"
 
 #include "Engine/Engine.h"
@@ -312,6 +317,31 @@ ATG_CMD(CmdMenu, "ATG.ShopMenu", "ATG.ShopMenu [row | down | up | close]: press 
 	if (M->menu.kind.empty()) { UE_LOG(LogATG, Display, TEXT("ATG menu: closed, money %.0f"), G->player->money); return; }
 	UE_LOG(LogATG, Display, TEXT("ATG menu: %s, focus %d, money %.0f, note '%s'"), UTF8_TO_TCHAR(M->menu.title.c_str()), M->menu.focus, G->player->money, UTF8_TO_TCHAR(M->menu.note.c_str()));
 	for (int32 I = 0; I < (int32)M->menu.rows.size(); I++) UE_LOG(LogATG, Display, TEXT("ATG menu:   %d %s [%s]"), I, UTF8_TO_TCHAR(M->menu.rows[I].name.c_str()), UTF8_TO_TCHAR(M->menu.rows[I].button.c_str()));
+})
+ATG_CMD(CmdJob, "ATG.Job", "ATG.Job race N | garage N | property N | vigilante | taxi: put the player at a side job (in a car for a race or a garage)", {
+	atg::Game* G = Sim(W);
+	if (!G || Args.IsEmpty()) return;
+	atg::Player& P = *G->player;
+	const FString What = Args[0];
+	const int32 N = (int32)Arg(Args, 1, 0);
+	auto Drive = [&](double X, double Z, double Yaw) {
+		if (!P.vehicle) { atg::Vehicle* V = G->vehicles.spawn("zenith", X, Z, Yaw); G->vehicles.seatNow(&P, V); }
+		atg::Vehicle* V = P.vehicle;
+		V->pos.set(X, G->map.GroundHeight(X, Z), Z); V->yaw = Yaw; V->vel.set(0, 0, 0); V->r = 0;
+	};
+	if (What == TEXT("race") && G->races && N < (int32)G->races->races.size()) { const atg::Race& R = G->races->races[N]; Drive(R.sx, R.sz, R.syaw); }
+	else if (What == TEXT("garage") && G->modShop && N < (int32)G->modShop->garages.size()) { const auto& Ga = G->modShop->garages[N]; Drive(Ga.x, Ga.z, 0); }
+	else if (What == TEXT("property") && G->properties && N < (int32)G->properties->list.size()) {
+		if (P.vehicle) P.vehicle->takeOut(&P);
+		const atg::Property& Pr = G->properties->list[N];
+		P.setPosition(Pr.x, Pr.z);
+	}
+	else if (What == TEXT("vigilante") && G->vigilante) {
+		if (!P.vehicle || P.vehicle->type != "police") { if (P.vehicle) P.vehicle->takeOut(&P); atg::Vehicle* V = G->vehicles.spawn("police", P.pos.x + 3, P.pos.z, P.yaw); G->vehicles.seatNow(&P, V); }
+		G->vigilante->start();
+	}
+	else if (What == TEXT("taxi") && G->taxi) G->taxi->hailCab();
+	UE_LOG(LogATG, Display, TEXT("ATG job %s %d: at (%.1f, %.1f), menu '%s'"), *What, N, P.pos.x, P.pos.z, G->hudModel ? UTF8_TO_TCHAR(G->hudModel->menu.title.c_str()) : TEXT(""));
 })
 ATG_CMD(CmdState, "ATG.State", "ATG.State: log the player's position, vehicle, speed and the journey (free roam, cash, weapons)", {
 	atg::Game* G = Sim(W);

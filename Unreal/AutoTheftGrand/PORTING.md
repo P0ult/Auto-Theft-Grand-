@@ -115,8 +115,8 @@ missions recorded). Several optional single-player features and phase 6 items re
 - The mission engine (missions.js), including all 35 missions in Chapters I–VIII. Native story tests and
   the successful Unreal `Tools/tests/story8.txt` run cover Chapter VIII's four missions.
 - The ship raid is implemented with Pacific Star; it has scripted mission coverage.
-- Taxis, races, vigilante, Customs garages and property have simulation implementations, but still need
-  complete player-facing integration and dedicated Unreal verification.
+- Taxis, races, vigilante, Customs garages and property. Done: `simtest jobs` plays a race, a vigilante call,
+  an upgrade, a business and its till, a cab ride and a save; `Tools/tests/jobs.txt` shows each in Unreal.
 - Free roam and admin tools have simulation implementations. The pause-menu regression verifies Xbox
   input routing, settings in both directions, all twelve Admin toggles and both spawn-option toggles.
   The pause screen uses explicit ON/OFF badges and retains selection after changes. Remaining free-roam

@@ -226,8 +226,9 @@ void AATGHUD::DrawMessages(atg::Game* G, float Dt) {
 	}
 	// the bar (drift, mission progress)
 	if (M->bar.on) {
-		const float Bw = 200 * Ui, Bh = 15 * Ui, Bx = Canvas->ClipX - 40 * Ui - Bw, By = 130 * Ui;
-		Text(UTF8_TO_TCHAR(M->bar.label.c_str()), Bx - 10 * Ui, By - 3 * Ui, Small, 1.2f * Ui, FLinearColor(1, 1, 1, A), 1.f);
+		// (.hud-progress: 200 px wide, 330 px down the right edge, the label right-aligned over the bar)
+		const float Bw = 200 * Ui, Bh = 14 * Ui, Bx = Canvas->ClipX - 28 * Ui - Bw, By = 356 * Ui;
+		Text(UTF8_TO_TCHAR(M->bar.label.c_str()), Canvas->ClipX - 28 * Ui, 330 * Ui, Small, 1.4f * Ui, FLinearColor(1, 1, 1, A), 1.f);
 		DrawRect(FLinearColor(0, 0, 0, 0.75f * A), Bx, By, Bw, Bh);
 		const FLinearColor C = CssHex(M->bar.color, FLinearColor(0.9f, 0.22f, 0.27f));
 		DrawRect(FLinearColor(C.R, C.G, C.B, A), Bx, By, Bw * (float)M->bar.v, Bh);

@@ -632,7 +632,8 @@ void AATGHUD::DrawShopMenu(atg::Game* G) {
 	const float W = Canvas->ClipX, H = Canvas->ClipY;
 	DrawRect(FLinearColor(0, 0, 0, 0.55f), 0, 0, W, H);
 	FATGPainter c(Canvas);
-	auto Str = [](const std::string& S) { return FString(UTF8_TO_TCHAR(S.c_str())); };
+	// (the rows keep the browser's markup, <b>Shift</b>: drawn as plain text)
+	auto Str = [](const std::string& S) { FString R; bool bTag = false; for (const TCHAR Ch : FString(UTF8_TO_TCHAR(S.c_str()))) { if (Ch == TEXT('<')) bTag = true; else if (Ch == TEXT('>') && bTag) bTag = false; else if (!bTag) R.AppendChar(Ch); } return R; };
 	const float Pw = 620, PadX = 30, PadY = 26, Cw = Pw - PadX * 2;
 	const int32 N = (int32)Mn.rows.size() - 1; // (the last row is the leave button)
 	auto RowH = [&](int32 I) { return Mn.rows[I].icon.empty() ? 51.f : 68.f; };

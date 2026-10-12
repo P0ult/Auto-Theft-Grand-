@@ -261,6 +261,7 @@ cd Tools
                                                                # aircraft and the tank, the army, skateboards,
                                                                # boats
 ./simtest.exe admin                                            # all 12 Admin cheat toggles and wanted / time / weather actions
+./simtest.exe jobs                                             # a race, vigilante, Customs, a business, a cab and the save
 DEBUG=1 ./native.sh simtestd.exe simtest.cpp                   # with symbols: a crash prints a stack trace
 ./native.sh audiotest.exe audiotest.cpp && ./audiotest.exe wav # every sound: peak and loudness per 50 ms
                                                                # (and WAV files in wav/); audiocmp.mjs prints
@@ -305,7 +306,8 @@ checks without interrupting the simulation.
 `Tools/tests/story4.txt` checks Chapter IV's truck delivery, timed stunt run, gang crews and Salazar encounter.
 `Tools/tests/story5.txt` checks the files, rooftop transition, finale, credits and return to the world.
 `Tools/tests/story6.txt` checks Chapter VI and the airborne rings; `Tools/tests/story7.txt` Chapter VII;
-`Tools/tests/story8.txt` exercises Pacific Star, Timber!, High Ground and Saints and Sinners. Native tests also check the rings'
+`Tools/tests/jobs.txt` stops at a race flag (and runs the race), a Customs garage, a business for sale, a hailed
+cab and a vigilante call (`ATG.Job` puts the player there). `Tools/tests/story8.txt` exercises Pacific Star, Timber!, High Ground and Saints and Sinners. Native tests also check the rings'
 radius x 1.15 hit threshold and cleanup after completion and cancellation.
 
 ### Pause-menu regression
