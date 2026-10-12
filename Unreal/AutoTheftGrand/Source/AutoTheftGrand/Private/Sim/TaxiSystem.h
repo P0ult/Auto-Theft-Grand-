@@ -80,11 +80,12 @@ public:
 	// the phone's Downtown Cab Co.
 	void hailCab();
 
-private:
 	std::unique_ptr<Hail> hail;
 	std::unique_ptr<Ride> ride;
 	std::pair<Ref<Vehicle>, double> held; // (a car waiting for you to climb in as a passenger)
 	std::unique_ptr<Job> job;
+
+private:
 	bool jobHinted = false;
 	std::string tpGroup;
 	std::string jobGroup;

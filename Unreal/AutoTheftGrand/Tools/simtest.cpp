@@ -23,6 +23,12 @@
 #include "Sim/Rail.h"
 #include "Sim/Roadblocks.h"
 #include "Sim/Setup.h"
+#include "Sim/TaxiSystem.h"
+#include "Sim/SaveSystem.h"
+#include "Sim/Properties.h"
+#include "Sim/ModShop.h"
+#include "Sim/Vigilante.h"
+#include "Sim/Races.h"
 #include "Sim/ShipRaid.h"
 #include "Sim/Shops.h"
 #include "Sim/Skateboard.h"
@@ -843,6 +849,124 @@ static void TestShipRaid(World& w) {
 	g->respawnPlayer(R.ship.gangwayFoot.x, R.ship.gangwayFoot.z, 0);
 	Run(*g, 1);
 	Check(!R.spawned, "and don't come back until it's restocked");
+}
+
+// the side jobs: a street race from the flag to the line, a vigilante call, the Customs garage, buying a
+// business and its till, a cab ride with the trip skipped, and the save keeping it all
+static void TestJobs(World& w) {
+	printf("jobs\n");
+	auto g = w.game(true);
+	Player& p = *g->player;
+	HudModel& hud = *g->hudModel;
+	p.invincible = true;
+	g->missionNoBust = true;
+	auto press = [&](const std::string& code) { g->input.KeyDown(code); g->frame(1.0 / 30); g->input.KeyUp(code); g->frame(1.0 / 30); };
+	// ---- a street race
+	RaceSystem& R = *g->races;
+	printf("  %zu races:", R.races.size());
+	for (const Race& r : R.races) printf(" %s (%.1f km, %zu checkpoints)", r.def.id.c_str(), r.len / 1000, r.cps.size());
+	printf("\n");
+	Check(R.races.size() == 4, "four street races planned on the roads");
+	Race& sprint = R.races[0];
+	Vehicle* car = g->vehicles.spawn("zenith", sprint.sx + 20, sprint.sz, sprint.syaw);
+	g->vehicles.seatNow(&p, car);
+	p.money = 1000;
+	car->pos = V3(sprint.sx, car->pos.y, sprint.sz); car->vel = V3();
+	Run(*g, 0.3);
+	printf("  at the flag: menu '%s', %zu rows\n", hud.menu.title.c_str(), hud.menu.rows.size());
+	Check(!hud.menu.kind.empty() && hud.menu.title.find("SOL SPRINT") != std::string::npos, "the flag offers the race");
+	hud.menuPress(0);
+	Run(*g, 0.1);
+	Check(R.active && R.active->rivals.size() == 3 && p.money == 750, "entry paid, three rivals on the grid");
+	Run(*g, 4);
+	Check(R.active && R.active->go, "the countdown ends with GO");
+	for (int k = 0; k < 200 && R.active; k++) {
+		const V3 cp = sprint.cps[R.active->idx];
+		car->pos = V3(cp.x, car->pos.y, cp.z); car->vel = V3();
+		Run(*g, 0.1);
+	}
+	printf("  finished: '%s' (%s), money %.0f, races won %.0f\n", hud.big.text.c_str(), hud.big.sub.c_str(), p.money, g->stats.racesWon);
+	Check(!R.active && hud.big.text == "RACE WON!" && p.money == 750 + 2000 && g->stats.racesWon == 1, "first over the line takes the pot");
+	// ---- vigilante in a police car
+	g->vehicles.exit(&p); Run(*g, 2);
+	ToStreet(w, *g);
+	Vehicle* cop = g->vehicles.spawn("police", p.pos.x + 3, p.pos.z, 0);
+	g->vehicles.seatNow(&p, cop);
+	press("KeyJ");
+	Vigilante& V = *g->vigilante;
+	printf("  vigilante: active %d, level %d, suspects %zu\n", (int)V.active, V.level, V.suspects.size());
+	Check(V.active && V.level == 1 && !V.suspects.empty(), "J in a police car: a call comes in");
+	const double vm = p.money;
+	for (auto& s : V.suspects) if (Ped* q = s.ped.get()) { DamageInfo d; d.source = &p; q->takeDamage(9999, d); }
+	Run(*g, 1);
+	printf("  cleared: level %d, earned %.0f, money %.0f -> %.0f\n", V.level, V.earned, vm, p.money);
+	Check(V.earned > 0 && p.money > vm, "taking the suspects down pays");
+	press("KeyJ");
+	Check(!V.active, "J again: off duty");
+	// ---- the Customs garage
+	ModShop& M = *g->modShop;
+	printf("  %zu garages\n", M.garages.size());
+	Check(!M.garages.empty(), "Customs garages on the map");
+	p.money = 50000;
+	cop->pos = V3(M.garages[0].x, cop->pos.y, M.garages[0].z); cop->vel = V3();
+	Run(*g, 0.3);
+	printf("  garage menu '%s', %zu rows\n", hud.menu.title.c_str(), hud.menu.rows.size());
+	for (auto& r : hud.menu.rows) printf("    %s [%s]\n", r.name.c_str(), r.button.c_str());
+	Check(!hud.menu.kind.empty(), "driving in opens the garage menu");
+	const double top0 = cop->def.top;
+	hud.menuPress(0);
+	printf("  after the first upgrade: money %.0f\n", p.money);
+	Check(p.money < 50000, "an upgrade is paid for");
+	hud.closeOverlay();
+	(void)top0;
+	// ---- property: buy a business, the till fills by the hour
+	Properties& P = *g->properties;
+	printf("  %zu properties\n", P.list.size());
+	Check(!P.list.empty(), "properties for sale");
+	int biz = -1;
+	for (int i = 0; i < (int)P.list.size(); i++) if (P.list[i].income > 0) { biz = i; break; }
+	g->vehicles.exit(&p); Run(*g, 2);
+	p.money = P.list[biz].price + 10;
+	P.open(biz);
+	printf("  for sale: '%s' %d, menu '%s' %zu rows\n", P.list[biz].name.c_str(), P.list[biz].price, hud.menu.title.c_str(), hud.menu.rows.size());
+	hud.menuPress(0);
+	hud.closeOverlay();
+	Check(P.owned.count(P.list[biz].id) && p.money == 10, "bought");
+	g->env.setTime(g->env.hours + 3);
+	Run(*g, 1);
+	printf("  till after three hours: %.0f\n", P.owned[P.list[biz].id]);
+	Check(P.owned[P.list[biz].id] > 0, "the till fills up");
+	// ---- a cab: whistle, ride, skip the trip
+	TaxiSystem& T = *g->taxi;
+	ToStreet(w, *g);
+	p.money = 500;
+	press("KeyH");
+	printf("  hail: cab %d\n", (int)(T.hail && T.hail->cab));
+	Check(T.hail && T.hail->cab, "H on foot: a cab is on its way");
+	Vehicle* cab = T.hail ? T.hail->cab.get() : nullptr;
+	for (int i = 0; i < 600 && cab && Hypot(cab->pos.x - p.pos.x, cab->pos.z - p.pos.z) > 14; i++) g->frame(1.0 / 30);
+	Run(*g, 2);
+	printf("  the cab pulled up %.1f m away\n", cab ? Hypot(cab->pos.x - p.pos.x, cab->pos.z - p.pos.z) : -1.0);
+	Check(cab && Hypot(cab->pos.x - p.pos.x, cab->pos.z - p.pos.z) < 16, "it drives to you");
+	if (cab) { g->vehicles.seatNow(&p, cab, 2); Run(*g, 0.3); }
+	printf("  in the back: ride %d, menu '%s' %zu rows\n", (int)(T.ride != nullptr), hud.menu.title.c_str(), hud.menu.rows.size());
+	Check(T.ride && !hud.menu.kind.empty(), "in the back: pick a destination");
+	for (int k = 0; k < 3 && !hud.menu.kind.empty(); k++) { const int row = k ? 1 : 0; printf("    pick '%s'\n", hud.menu.rows[row].name.c_str()); hud.menuPress(row); }
+	Run(*g, 1);
+	printf("  ride state '%s' to '%s'\n", T.ride ? T.ride->state.c_str() : "", T.ride ? T.ride->destName.c_str() : "");
+	const double before = p.money, rides = g->stats.taxiRides;
+	press("Space");
+	Run(*g, 4);
+	printf("  skipped: money %.0f -> %.0f, rides %.0f, ride %d\n", before, p.money, g->stats.taxiRides, (int)(T.ride != nullptr));
+	Check(p.money < before && g->stats.taxiRides == rides + 1, "Space skips the trip for the fare");
+	// ---- the save keeps it
+	SaveSystem& S = *g->saveSys;
+	p.money = 4321;
+	S.save();
+	auto g2 = w.game(true);
+	Check(g2->saveSys->decode(S.memory), "the save decodes");
+	printf("  loaded: money %.0f, properties %zu, races won %.0f\n", g2->player->money, g2->properties->owned.size(), g2->stats.racesWon);
+	Check(g2->player->money == 4321 && g2->properties->owned.count(P.list[biz].id) && g2->stats.racesWon == 1, "cash, property and stats come back");
 }
 
 // roadblocks: at four stars a driving suspect meets a line of cruisers ahead with cops in cover and a spike
@@ -1922,6 +2046,7 @@ int main(int argc, char** argv) {
 	if (want("boats")) TestBoats(w);
 	if (want("shops")) TestShops(w);
 	if (want("shipraid")) TestShipRaid(w);
+	if (want("jobs")) TestJobs(w);
 	if (want("wildlife")) TestWildlife(w);
 	if (want("pets")) TestPets(w);
 	if (want("missions")) TestMissions(w);
