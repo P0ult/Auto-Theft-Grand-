@@ -146,12 +146,21 @@ void AATGPlayerController::PlayerTick(float Dt) {
 			// If menu is open, let the menu system handle ESC (via button clicks)
 		}
 	}
-	if (WasInputKeyJustPressed(EKeys::M) || WasInputKeyJustPressed(EKeys::Gamepad_DPad_Down)) bMapOpen = !bMapOpen;
+	// the map: the pause menu on its Map tab (hud.js: input.hit('map') && !this.menuOpen -> openPause('map')); without
+	// the menus (scripted runs) the plain full-screen map
+	AATGGameMode* MapGM = Cast<AATGGameMode>(GetWorld()->GetAuthGameMode());
+	const bool bMenus = MapGM && MapGM->GetMenuSystem();
+	if (WasInputKeyJustPressed(EKeys::M) || WasInputKeyJustPressed(EKeys::Gamepad_DPad_Down)) {
+		if (bMenus) { if (!MapGM->IsMenuOpen()) { MapGM->ShowPauseMenu(TEXT("Map")); MouseDx = MouseDy = Wheel = 0; return; } }
+		else bMapOpen = !bMapOpen;
+	}
 	// the phone's Map app (hud.openPause('map'))
 	if (G->hudModel && !G->hudModel->pauseRequest.empty()) {
 		const bool bTeleport = G->hudModel->pauseRequest == "teleport" && G->freeroam && G->freeroam->active();
+		const FString Tab = G->hudModel->pauseRequest == "teleport" ? TEXT("Teleport") : TEXT("Map");
 		G->hudModel->pauseRequest.clear();
-		if (bTeleport) G->freeroam->openTeleport(); else bMapOpen = true;
+		if (bMenus) MapGM->ShowPauseMenu(FName(*Tab));
+		else if (bTeleport) G->freeroam->openTeleport(); else bMapOpen = true;
 	}
 }
 

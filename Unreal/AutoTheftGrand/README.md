@@ -151,7 +151,7 @@ far:
 | Tab / LB (hold) | Weapon wheel (the game slows; point with the mouse or right stick, let go to pick) | Tab (hold) | Weapon wheel |
 | Caps Lock / Z / LS + RS click | Special ability: slow motion (the yellow bar under the map) | Caps Lock / Z | Special ability: slow motion with extra grip |
 | I / D-pad ↑ | Phone (arrows / D-pad, Enter / A, Backspace / B) | I | Phone |
-| M / D-pad ↓ | Map | V / View | Camera distance |
+| M / D-pad ↓ | Map (the pause menu's Map tab) | V / View | Camera distance |
 | | | N / D-pad → | Next radio station |
 | Esc / P / Menu | Pause or resume (B resumes from any pause tab; A selects) | B / RS click | Look behind |
 | | | X / B (hold) | Cinematic camera |
@@ -172,14 +172,29 @@ Boats drive like cars (W / S, A / D); the police boat's bow gun fires with the l
 In a shop, step onto the marker at the counter to open its menu: click a button, or move the highlight with
 ↑ ↓ / W S / the D-pad and buy with Enter / Space / A; Esc, Backspace or B leaves.
 
-### Pause menu
+### Title screen and pause menu
 
-The pause screen uses a dark panel, a gold selection marker and explicit ON/OFF badges. The Xbox D-pad or
-left stick moves between controls; LB/RB changes tabs. A selects or toggles the highlighted row. B, Menu,
-Esc or P resumes. Long read-only pages scroll with the D-pad or left stick. Settings change in both
-directions with left/right. Left-click increases a setting; right-click decreases it. Mouse and controller
-selection share the same highlight. Changing a toggle keeps that row selected and preserves the scroll.
-Vehicle paint keeps its selection marker. Save is disabled in free roam and during missions.
+Both follow the browser game's look (`css/style.css`): the title over the city flyover with no HUD behind it,
+and the pause panel with its tabs. Continue is offered when `Saved/AutoTheftGrandSave.json` exists, and is
+selected first then.
+
+The Xbox D-pad or left stick moves between controls; LB/RB changes tabs. A selects or toggles the highlighted
+row. B, Menu, Esc or P resumes. Long read-only pages scroll with the D-pad or left stick. Settings change in
+both directions with left/right. Left-click increases a setting; right-click decreases it. Mouse and
+controller selection share the same highlight.
+
+The Map tab (also M) is the browser's map: drag to pan, the wheel zooms, right-click or double-click sets a
+waypoint (again on the same spot clears it). The GPS routes to the waypoint, cabs take you there, and free
+roam's Teleport tab lists it. Save game says why it can't save in free roam or during a mission.
+
+Settings has the browser's rows: graphics quality, volumes, mouse sensitivity and invert, ray-traced
+reflections (Lumen reflections), ambient occlusion (screen-space and Lumen short-range AO), an FPS readout,
+street crime and the day/night speed. The browser's HUD style choice is missing (only the modern HUD exists).
+
+The text uses the browser's font stacks: Bebas Neue, Anton, Permanent Marker and Rubik if their files are in
+`Content/Fonts/` (`BebasNeue-Regular.ttf`, `Anton-Regular.ttf`, `PermanentMarker-Regular.ttf`,
+`Rubik-Regular.ttf`, `Rubik-Bold.ttf`), else the CSS fallbacks Windows has (Impact, Arial Black, Brush Script MT,
+Segoe UI), else Roboto.
 
 ## How it is put together
 
@@ -199,6 +214,8 @@ Source/AutoTheftGrand/Private/Game/   the Unreal side: draws the simulation and 
                     fog, clock and street lamps; fine terrain with collision streamed round the player
   ATGMaterials      the browser game's GLSL ported to HLSL custom nodes, built as material assets in C++
   ATGMeshUtil       generator buffers -> procedural mesh sections and runtime static meshes
+  ATGMapView        the pause menu's map (hud.js _tab_map), painted into a render target
+  ATGFonts          the browser game's four font stacks, loaded from files at runtime
   ATGMeshComponent  the procedural mesh component everything uses: the engine's drawing, but its scene proxy
                     frees GPU buffers on the render thread (the engine's frees its ray tracing geometry on the
                     background task that deletes proxies, which crashed now and then)
@@ -312,6 +329,8 @@ checks without interrupting the simulation.
 `Tools/tests/story6.txt` checks Chapter VI and the airborne rings; `Tools/tests/story7.txt` Chapter VII;
 `Tools/tests/signs.txt` shows the Gun Barn's sign and a rooftop billboard by day and by night.
 `Tools/tests/landmarks.txt` shows the pier, the Ferris wheel, the Vistawood sign and the cranes by day and by night.
+`Tools/tests/menu-tabs.txt` (with `-ATGMenu`) opens the map with M, sets a waypoint on it (`ATG.MapWaypoint`) and
+shoots every pause tab and the title screen.
 `Tools/tests/rain.txt` shows a street dry, in the rain and at night with the puddles reflecting the shop signs.
 `Tools/tests/jobs.txt` stops at a race flag (and runs the race), a Customs garage, a business for sale, a hailed
 cab and a vigilante call (`ATG.Job` puts the player there). `Tools/tests/story8.txt` exercises Pacific Star, Timber!, High Ground and Saints and Sinners. Native tests also check the rings'

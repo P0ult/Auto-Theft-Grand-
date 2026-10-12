@@ -1,4 +1,5 @@
 #include "Game/ATGPainter.h"
+#include "Game/ATGFonts.h"
 
 #include "CanvasItem.h"
 #include "Engine/Canvas.h"
@@ -149,11 +150,22 @@ void FATGPainter::Text(const FString& S, float X, float Y, UFont* Font, float Si
 	Canvas->DrawItem(Item);
 }
 
+// Face "Hud", "Title", "Script" or "Text" (optionally "Text Bold") picks one of the browser game's font stacks;
+// anything else is a typeface of the engine's Roboto
+static FSlateFontInfo PainterFont(const TCHAR* Face, float Px) {
+	const FString F(Face);
+	if (F == TEXT("Hud")) return ATGFonts::Get(EATGFont::Hud, Px);
+	if (F == TEXT("Title")) return ATGFonts::Get(EATGFont::Title, Px);
+	if (F == TEXT("Script")) return ATGFonts::Get(EATGFont::Script, Px);
+	if (F.StartsWith(TEXT("Text"))) return ATGFonts::Get(EATGFont::Text, Px, F.EndsWith(TEXT("Bold")));
+	return FSlateFontInfo(GEngine->GetLargeFont(), FMath::Max(1.f, Px * 0.75f), FName(Face));
+}
+
 float FATGPainter::FontText(const FString& S, float X, float Y, float Px, const TCHAR* Face, float AlignX, float Condense) {
 	if (S.IsEmpty() || !GEngine || !FEngineFontServices::IsInitialized()) return 0;
 	const float K = ScaleOf();
 	// (Slate sizes are points at 96 dpi)
-	const FSlateFontInfo Info(GEngine->GetLargeFont(), FMath::Max(1.f, Px * K * 0.75f), FName(Face));
+	const FSlateFontInfo Info = PainterFont(Face, Px * K);
 	const TSharedPtr<FSlateFontMeasure> Measure = FEngineFontServices::Get().GetFontMeasure();
 	if (!Measure.IsValid()) return 0;
 	const FVector2D Size = Measure->Measure(S, Info);
@@ -168,7 +180,7 @@ float FATGPainter::FontText(const FString& S, float X, float Y, float Px, const 
 float FATGPainter::FontWidth(const FString& S, float Px, const TCHAR* Face, float Condense) const {
 	if (S.IsEmpty() || !GEngine || !FEngineFontServices::IsInitialized()) return 0;
 	const float K = ScaleOf();
-	const FSlateFontInfo Info(GEngine->GetLargeFont(), FMath::Max(1.f, Px * K * 0.75f), FName(Face));
+	const FSlateFontInfo Info = PainterFont(Face, Px * K);
 	const TSharedPtr<FSlateFontMeasure> Measure = FEngineFontServices::Get().GetFontMeasure();
 	return Measure.IsValid() && K > 0 ? (float)Measure->Measure(S, Info).X * Condense / K : 0.f;
 }

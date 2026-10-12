@@ -32,6 +32,8 @@ public:
 	void ShowPauseMenu(FName Tab = NAME_None);
 	void HidePauseMenu();
 	bool IsMenuOpen() const { return MenuSystem && MenuSystem->IsMenuOpen(); }
+	// the title screen (and the menus opened from it): main.js puts body.menu on, which hides the HUD
+	bool IsOnTitle() const { return MenuSystem && bInMenu; }
 	bool IsPauseMenuOpen() const { return MenuSystem && MenuSystem->IsPauseMenuOpen(); }
 	void MenuNavigate(int32 X, int32 Y) { if (MenuSystem) MenuSystem->MoveSelection(X, Y); }
 	void MenuActivate() { if (MenuSystem) MenuSystem->ActivateSelection(); }

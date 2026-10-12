@@ -856,6 +856,45 @@ static void TestShipRaid(World& w) {
 
 // the side jobs: a street race from the flag to the line, a vigilante call, the Customs garage, buying a
 // business and its till, a cab ride with the trip skipped, and the save keeping it all
+// the map waypoint (hud.js setWaypoint, _updateRoute): a purple blip, a road route, the same spot again clears it,
+// reaching it clears it, the free roam teleport list offers it, and a cab heads straight for it
+static void TestWaypoint(World& w) {
+	printf("waypoint\n");
+	auto g = w.game(true);
+	Player& p = *g->player;
+	HudModel& hud = *g->hudModel;
+	ToStreet(w, *g);
+	auto wpBlips = [&]() { int n = 0; for (const auto& b : g->blips) if (b->icon == "waypoint" && b->color == 0xd96cff) n++; return n; };
+	const double wx = p.pos.x + 300, wz = p.pos.z;
+	hud.setWaypoint(wx, wz);
+	g->frame(1.0 / 30);
+	printf("  waypoint blips %d, route %zu points\n", wpBlips(), hud.route.size());
+	Check(hud.waypoint() && wpBlips() == 1, "a waypoint puts a purple blip on the map");
+	Check(hud.route.size() >= 2, "and the GPS routes to it");
+	bool listed = false;
+	for (const FreeDestination& d : g->freeroam->destinations()) if (d.name == "Map waypoint" && d.x == wx && d.z == wz) listed = true;
+	Check(listed, "the teleport list offers the map waypoint");
+	hud.setWaypoint(wx, wz);
+	Check(!hud.waypoint() && wpBlips() == 0 && hud.route.empty(), "the same spot again clears it");
+	hud.setWaypoint(p.pos.x + 5, p.pos.z);
+	Run(*g, 1.2);
+	Check(!hud.waypoint() && wpBlips() == 0, "reaching it clears it");
+	// a cab takes you to it without asking (a hailed cab, with its driver)
+	TaxiSystem& T = *g->taxi;
+	hud.setWaypoint(wx, wz);
+	p.money = 500;
+	T.hailCab();
+	Vehicle* cab = T.hail ? T.hail->cab.get() : nullptr;
+	if (cab) { g->vehicles.seatNow(&p, cab, 1); T.beginRide(cab); }
+	printf("  ride: state %s, dest '%s' (%.0f, %.0f)\n", T.ride ? T.ride->state.c_str() : "-", T.ride ? T.ride->destName.c_str() : "", T.ride ? T.ride->tx : 0.0, T.ride ? T.ride->tz : 0.0);
+	Check(T.ride && T.ride->state == "ride" && T.ride->destName == "your waypoint", "a cab heads for the waypoint");
+	const double ox = T.ride ? T.ride->tx : 0;
+	hud.setWaypoint(wx - 600, wz);
+	g->frame(1.0 / 30);
+	printf("  new waypoint: dest (%.0f, %.0f)\n", T.ride ? T.ride->tx : 0.0, T.ride ? T.ride->tz : 0.0);
+	Check(T.ride && T.ride->tx != ox, "and changes course for a new one");
+}
+
 static void TestJobs(World& w) {
 	printf("jobs\n");
 	auto g = w.game(true);
@@ -2053,6 +2092,7 @@ int main(int argc, char** argv) {
 	if (want("shops")) TestShops(w);
 	if (want("shipraid")) TestShipRaid(w);
 	if (want("jobs")) TestJobs(w);
+	if (want("waypoint")) TestWaypoint(w);
 	if (want("wildlife")) TestWildlife(w);
 	if (want("pets")) TestPets(w);
 	if (want("missions")) TestMissions(w);

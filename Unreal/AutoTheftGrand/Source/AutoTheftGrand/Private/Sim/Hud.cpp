@@ -226,6 +226,27 @@ void HudModel::fade(double dur, std::function<void()> mid) {
 	});
 }
 
+// hud.js setWaypoint: a purple waypoint blip; setting the same spot again clears it
+void HudModel::setWaypoint(double x, double z) {
+	if (wp && wp->x == x && wp->z == z) { wp.reset(); if (wpBlip) game.removeBlip(wpBlip); wpBlip.reset(); route.clear(); return; }
+	if (wpBlip) game.removeBlip(wpBlip);
+	wp = V2{ x, z };
+	Blip b; b.x = x; b.z = z; b.color = 0xd96cff; b.icon = "waypoint";
+	wpBlip = game.addBlip(b);
+	routeTimer = 0;
+}
+
+// hud.js _updateRoute: the road route to the GPS target, else to the waypoint (reaching the waypoint clears it)
+void HudModel::updateRoute() {
+	const std::optional<V2> tgt = gpsTarget ? gpsTarget : wp;
+	if (!tgt) { route.clear(); return; }
+	Player& p = *game.player;
+	const V3 pp = p.vehicle ? p.vehicle->pos : p.pos;
+	if (Hypot(tgt->x - pp.x, tgt->z - pp.z) < 15) { if (!gpsTarget && wp) setWaypoint(wp->x, wp->z); route.clear(); return; }
+	const auto r = game.map.roads.FindRoute(pp.x, pp.z, tgt->x, tgt->z);
+	route = game.map.roads.RoutePolyline(r ? &*r : nullptr, pp.x, pp.z, tgt->x, tgt->z);
+}
+
 void HudModel::fadeTo(double v, double dur) { fadeState = { fadeState.value(), v, dur, 0 }; }
 
 void HudModel::update(double dt) {
@@ -236,12 +257,7 @@ void HudModel::update(double dt) {
 		if (creditsT >= 42 || (!firstFrame && (game.input.keyHit("MouseLeft") || game.input.hit("skip") || game.input.gpHit(GP::B)))) dismissCredits();
 	}
 	routeTimer -= dt;
-	if (gpsTarget && routeTimer <= 0) {
-		routeTimer = 1;
-		const V3 pp = p.vehicle ? p.vehicle->pos : p.pos;
-		if (Hypot(gpsTarget->x - pp.x, gpsTarget->z - pp.z) < 15) route.clear();
-		else { const auto r = game.map.roads.FindRoute(pp.x, pp.z, gpsTarget->x, gpsTarget->z); route = game.map.roads.RoutePolyline(r ? &*r : nullptr, pp.x, pp.z, gpsTarget->x, gpsTarget->z); }
-	}
+	if (routeTimer <= 0) { routeTimer = 1; updateRoute(); }
 	// zone and vehicle names
 	const V3 zp = p.vehicle ? p.vehicle->pos : p.pos;
 	const std::string z = game.map.ZoneName(zp.x, zp.z);

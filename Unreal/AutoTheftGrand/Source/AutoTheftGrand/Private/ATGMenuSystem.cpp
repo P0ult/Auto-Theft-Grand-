@@ -11,6 +11,10 @@
 #include "Game/ATGPlayerController.h"
 #include "Game/ATGWorld.h"
 #include "ATGSaveSystem.h"
+#include "Game/ATGFonts.h"
+#include "Game/ATGMapView.h"
+#include "Sim/Hud.h"
+#include "HAL/IConsoleManager.h"
 #include "AutoTheftGrand.h"
 #include "Gen/VehicleDefs.h"
 #include "Sim/Aircraft.h"
@@ -40,6 +44,8 @@
 #include "Engine/UserInterfaceSettings.h"
 #include "Widgets/Layout/SDPIScaler.h"
 #include "Framework/Application/SlateApplication.h"
+#include "Fonts/FontMeasure.h"
+#include "Rendering/SlateRenderer.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Layout/SBox.h"
@@ -54,25 +60,44 @@
 namespace {
 
 // ---- css/style.css :root and the menu rules -----------------------------------------------
-const FLinearColor Gold(0.93f, 0.69f, 0.30f, 1.f);
-const FLinearColor GoldLight(1.f, 0.82f, 0.48f, 1.f);
-const FLinearColor GoldDeep(0.55f, 0.34f, 0.10f, 1.f);
-const FLinearColor MoneyGreen(0.34f, 0.78f, 0.49f, 1.f);
-const FLinearColor TextDim(0.72f, 0.75f, 0.80f, 1.f);
-const FLinearColor Muted(0.58f, 0.63f, 0.70f, 1.f);
-const FLinearColor RowText(0.92f, 0.94f, 0.97f, 1.f);
-const FLinearColor Hairline(0.70f, 0.76f, 0.84f, 0.20f);
-const FLinearColor PanelFill(0.018f, 0.026f, 0.042f, 0.96f);
-const FLinearColor RowFill(0.11f, 0.14f, 0.19f, 0.74f);
-const FLinearColor RowHot(0.23f, 0.28f, 0.35f, 0.94f);
-const FLinearColor TitleRowFill(0.035f, 0.045f, 0.065f, 0.50f);
-const FLinearColor TitleRowHot(0.12f, 0.15f, 0.19f, 0.82f);
+FLinearColor Srgb(uint8 R, uint8 G, uint8 B, float A = 1.f) { FLinearColor C(FColor(R, G, B)); C.A = A; return C; }
+const FLinearColor Gold = Srgb(0xe8, 0xb6, 0x4c);            // --gold
+const FLinearColor GoldLight = Srgb(0xff, 0xd2, 0x7a);       // (.btn.primary:hover)
+const FLinearColor MoneyGreen = Srgb(0x3b, 0xa3, 0x4a);      // --money
+const FLinearColor TextDim = Srgb(0xbb, 0xbb, 0xbb);         // .tab
+const FLinearColor Muted = Srgb(0x99, 0x99, 0x99);           // .muted
+const FLinearColor RowText = Srgb(0xee, 0xee, 0xee);         // .tp-btn
+const FLinearColor BodyText = Srgb(0xdd, 0xdd, 0xdd);        // .menu-panel p
+const FLinearColor Hairline = FLinearColor(1.f, 1.f, 1.f, 0.10f);
+const FLinearColor PanelFill = Srgb(8, 10, 14, 0.86f);       // --panel
+const FLinearColor RowFill = FLinearColor(1.f, 1.f, 1.f, 0.05f);   // .tp-btn
+const FLinearColor RowHot = Srgb(0xe8, 0xb6, 0x4c, 0.18f);   // .tp-btn:hover
+const FLinearColor BtnFill = FLinearColor(1.f, 1.f, 1.f, 0.08f);   // .btn
+const FLinearColor BtnHot = Srgb(0xe8, 0xb6, 0x4c, 0.25f);   // .btn:hover
+const FLinearColor TitleRowFill = FLinearColor(0.f, 0.f, 0.f, 0.45f); // .title-menu button
+const FLinearColor TitleRowHot = FLinearColor(0.f, 0.f, 0.f, 0.75f);
+
+// the four font stacks at CSS pixel sizes; letter-spacing in pixels too
+FSlateFontInfo Spaced(FSlateFontInfo F, float Px, float SpacingPx) { F.LetterSpacing = Px > 0 ? (int32)FMath::RoundToInt(SpacingPx / Px * 1000.f) : 0; return F; }
+FSlateFontInfo TextFont(float Px, bool bBold = false) { return ATGFonts::Get(EATGFont::Text, Px, bBold); }
+FSlateFontInfo HudFont(float Px, float SpacingPx = 0.f) { return Spaced(ATGFonts::Get(EATGFont::Hud, Px), Px, SpacingPx); }
+FSlateFontInfo TitleFont(float Px, float SpacingPx = 0.f) { return Spaced(ATGFonts::Get(EATGFont::Title, Px), Px, SpacingPx); }
+FSlateFontInfo ScriptFont(float Px) { return ATGFonts::Get(EATGFont::Script, Px); }
+// CSS line-height in ems as Slate padding: the line box shrinks (or grows) by the same amount above and below the
+// glyphs (half-leading), where Slate's own line height would only trim below them
+FMargin CssLineHeight(const FSlateFontInfo& Font, float Px, float Em) {
+	if (!FSlateApplication::IsInitialized()) return FMargin(0.f);
+	const TSharedRef<FSlateFontMeasure> M = FSlateApplication::Get().GetRenderer()->GetFontMeasureService();
+	const float Natural = (float)M->GetMaxCharacterHeight(Font);
+	const float Half = Natural > 0 ? (Em * Px - Natural) / 2 : 0.f;
+	return FMargin(0.f, Half, 0.f, Half);
+}
 
 const FSlateBrush* White() { return FCoreStyle::Get().GetBrush("WhiteBrush"); }
 
 // `.menu-panel` (a translucent panel with a hairline border and 6 px corners)
 const FSlateBrush* PanelBrush() {
-	static const FSlateRoundedBoxBrush B(PanelFill, FVector4(8, 8, 8, 8), FLinearColor(0.72f, 0.79f, 0.88f, 0.24f), 1.f);
+	static const FSlateRoundedBoxBrush B(PanelFill, FVector4(6, 6, 6, 6), FLinearColor(1.f, 1.f, 1.f, 0.08f), 1.f);
 	return &B;
 }
 // the button backgrounds are tinted per state through ButtonColorAndOpacity, so the style itself is plain white
@@ -84,6 +109,19 @@ const FButtonStyle& FlatButton() {
 		.SetNormalPadding(FMargin(0.f))
 		.SetPressedPadding(FMargin(0.f));
 	return S;
+}
+
+// `.btn`'s 1 px border with 3 px corners (the row tints it: white 18 %, or gold when selected)
+const FSlateBrush* ButtonOutline() {
+	static const FSlateRoundedBoxBrush B(FLinearColor(0.f, 0.f, 0.f, 0.f), FVector4(3, 3, 3, 3), FLinearColor::White, 1.f);
+	return &B;
+}
+// the map legend's dots (`.map-legend i`: 10 px, round, a black border)
+const FSlateBrush* Dot(const FLinearColor& C) {
+	static TMap<uint32, TSharedPtr<FSlateRoundedBoxBrush>> Cache;
+	const uint32 Key = C.ToFColor(true).ToPackedARGB();
+	if (TSharedPtr<FSlateRoundedBoxBrush>* Found = Cache.Find(Key)) return Found->Get();
+	return Cache.Add(Key, MakeShared<FSlateRoundedBoxBrush>(C, 5.f, FLinearColor::Black, 1.f)).Get();
 }
 
 FVector2D ViewportSize() {
@@ -111,13 +149,32 @@ TSharedRef<SWidget> Hairline_(float Thickness = 1.f) {
 
 // the small caption the browser shows above a list (`.muted`)
 TSharedRef<SWidget> Muted_(const FText& Text) {
-	return SNew(STextBlock).Text(Text).Font(FCoreStyle::GetDefaultFontStyle("Regular", 13)).ColorAndOpacity(FSlateColor(Muted)).AutoWrapText(true);
+	return SNew(STextBlock).Text(Text).Font(TextFont(13)).ColorAndOpacity(FSlateColor(Muted)).AutoWrapText(true);
 }
 
 // the gold key label a controls row is keyed by (`.controls td:first-child`)
 TSharedRef<SWidget> KeyLabel(const FText& Text) {
-	return SNew(STextBlock).Text(Text).Font(FCoreStyle::GetDefaultFontStyle("Bold", 18)).ColorAndOpacity(FSlateColor(Gold));
+	return SNew(STextBlock).Text(Text).Font(HudFont(20, 1)).ColorAndOpacity(FSlateColor(Gold));
 }
+
+class SATGGradient : public SLeafWidget {
+public:
+	SLATE_BEGIN_ARGS(SATGGradient) {}
+		SLATE_ARGUMENT(FLinearColor, Top)
+		SLATE_ARGUMENT(FLinearColor, Bottom)
+	SLATE_END_ARGS()
+	void Construct(const FArguments& A) { Top = A._Top; Bottom = A._Bottom; }
+	virtual FVector2D ComputeDesiredSize(float) const override { return FVector2D(8, 8); }
+	virtual int32 OnPaint(const FPaintArgs&, const FGeometry& G, const FSlateRect&, FSlateWindowElementList& Out, int32 Layer, const FWidgetStyle&, bool) const override {
+		TArray<FSlateGradientStop> Stops;
+		Stops.Add(FSlateGradientStop(FVector2D(0, 0), Top));
+		Stops.Add(FSlateGradientStop(FVector2D(0, G.GetLocalSize().Y), Bottom));
+		FSlateDrawElement::MakeGradient(Out, Layer, G.ToPaintGeometry(), Stops, Orient_Horizontal);
+		return Layer + 1;
+	}
+private:
+	FLinearColor Top, Bottom;
+};
 
 } // namespace
 
@@ -135,11 +192,11 @@ void SATGMenuRow::Construct(const FArguments& A) {
 	bTitle = A._Title;
 	bList = A._List;
 	RowPadding = A._Padding;
-	FontSize = bTitle ? 30.f : 16.f;
-	if (RowPadding == FMargin(0.f)) RowPadding = bTab ? FMargin(14.f, 8.f) : bTitle ? FMargin(18.f, 8.f) : FMargin(12.f, 9.f);
+	// (CSS pixels: .title-menu button 32, .tab clamp(19px, 1.8vw, 24px), .tp-btn 14, .btn 15)
+	FontSize = bTitle ? 32.f : bTab ? FMath::Clamp((float)ViewportSize().X * 0.018f, 19.f, 24.f) : bList ? 14.f : 15.f;
+	if (RowPadding == FMargin(0.f)) RowPadding = bTab ? FMargin(FMath::Clamp((float)ViewportSize().X * 0.011f, 8.f, 16.f), 8.f) : bTitle ? FMargin(18.f, 6.f) : bList ? FMargin(10.f, 7.f) : FMargin(18.f, 10.f);
 
-	ChildSlot[
-		SAssignNew(InnerButton, SButton)
+	TSharedRef<SButton> B = SAssignNew(InnerButton, SButton)
 		.ButtonStyle(&FlatButton())
 		.ContentPadding(FMargin(0.f))
 		.ClickMethod(EButtonClickMethod::MouseDown)
@@ -147,59 +204,73 @@ void SATGMenuRow::Construct(const FArguments& A) {
 		.OnClicked(FOnClicked::CreateSP(this, &SATGMenuRow::HandleClicked))
 		.OnHovered(FSimpleDelegate::CreateSP(this, &SATGMenuRow::HandleHovered))
 		.ButtonColorAndOpacity(TAttribute<FSlateColor>::CreateSP(this, &SATGMenuRow::Background))
-		[BuildContent()]
-	];
+		[BuildContent()];
+	if (!bTitle && !bTab && !bList) {
+		// `.btn`: a 1 px border, white at 18 %, gold when selected (the primary button's matches its fill)
+		ChildSlot[SNew(SBorder).BorderImage(ButtonOutline()).Padding(FMargin(1.f))
+			.BorderBackgroundColor_Lambda([this]() {
+				const bool bHot = Highlight.IsValid() && *Highlight;
+				return FSlateColor(bPrimary || bHot ? Gold : FLinearColor(1.f, 1.f, 1.f, 0.18f));
+			})[B]];
+	} else ChildSlot[B];
 }
 
+bool SATGMenuRow::IsHot() const { return Highlight.IsValid() && *Highlight && (!InnerButton.IsValid() || InnerButton->IsEnabled()); }
+float SATGMenuRow::Fade() const { return InnerButton.IsValid() && !InnerButton->IsEnabled() ? (bTitle ? 0.35f : 0.4f) : 1.f; }
+
 FSlateColor SATGMenuRow::Background() const {
-	const bool bHot = Highlight.IsValid() && *Highlight;
-	if (bPrimary) return bHot ? FSlateColor(GoldLight) : FSlateColor(Gold);
-	if (bTitle) return bHot ? FSlateColor(TitleRowHot) : FSlateColor(TitleRowFill);
-	if (bTab) return FSlateColor(FLinearColor(0.f, 0.f, 0.f, 0.f));
-	return bHot ? FSlateColor(RowHot) : FSlateColor(RowFill);
+	const bool bHot = IsHot();
+	FLinearColor C = bPrimary ? (bHot ? GoldLight : Gold) : bTitle ? (bHot ? TitleRowHot : TitleRowFill)
+		: bTab ? FLinearColor(0.f, 0.f, 0.f, 0.f) : bList ? (bHot ? RowHot : RowFill) : (bHot ? BtnHot : BtnFill);
+	C.A *= Fade();
+	return FSlateColor(C);
 }
 
 FSlateColor SATGMenuRow::TextColor() const {
-	const bool bHot = Highlight.IsValid() && *Highlight;
+	const bool bHot = IsHot();
 	const bool bOn = Active.IsValid() && *Active;
-	if (bPrimary) return FSlateColor(FLinearColor(0.09f, 0.07f, 0.04f, 1.f));
-	if (bHot) return FSlateColor(GoldLight);
-	if (bOn) return FSlateColor(FLinearColor::White);
-	if (bTab) return FSlateColor(TextDim);
-	return FSlateColor(RowText);
+	FLinearColor C = bPrimary ? Srgb(0x1a, 0x12, 0x05) : bTitle ? (bHot ? Gold : FLinearColor::White)
+		: bTab ? (bHot || bOn ? FLinearColor::White : TextDim) : bList ? (bHot ? FLinearColor::White : RowText) : FLinearColor::White;
+	C.A *= Fade();
+	return FSlateColor(C);
 }
 
 FSlateColor SATGMenuRow::StripColor() const {
-	const bool bHot = Highlight.IsValid() && *Highlight;
 	const bool bOn = Active.IsValid() && *Active;
-	return (bHot || bOn) ? FSlateColor(Gold) : FSlateColor(FLinearColor(0.f, 0.f, 0.f, 0.f));
+	return (IsHot() || (bTab && bOn)) ? FSlateColor(Gold) : FSlateColor(FLinearColor(0.f, 0.f, 0.f, 0.f));
 }
 
 TSharedRef<SWidget> SATGMenuRow::BuildContent() {
 	TAttribute<FSlateColor> Text = TAttribute<FSlateColor>::CreateSP(this, &SATGMenuRow::TextColor);
 	TAttribute<FSlateColor> Strip = TAttribute<FSlateColor>::CreateSP(this, &SATGMenuRow::StripColor);
 	const bool bSwatch = Swatch.A > 0.f;
+	// the display font is all capitals (Bebas Neue); its stand-ins are not
+	TAttribute<FText> Shown = (bTitle || bTab) ? TAttribute<FText>::CreateLambda([L = Label]() { return FText::FromString(L.Get().ToString().ToUpper()); }) : Label;
+	const FSlateFontInfo Font = bTitle ? HudFont(FontSize, 3.f) : bTab ? HudFont(FontSize, 1.5f) : TextFont(FontSize, true);
 
 	TSharedRef<SHorizontalBox> Body = SNew(SHorizontalBox);
 	if (bSwatch)
 		Body->AddSlot().AutoWidth().VAlign(VAlign_Center).Padding(FMargin(4.f, 0.f, 6.f, 0.f))[
 			SNew(SBox).WidthOverride(26.f).HeightOverride(22.f)[SNew(SImage).Image(White()).ColorAndOpacity(Swatch)]];
+	if (bTitle) // (the selected title button's text steps right: padding-left 18 -> 26)
+		Body->AddSlot().AutoWidth()[SNew(SBox).WidthOverride_Lambda([this]() { return FOptionalSize(IsHot() ? 8.f : 0.f); })];
 	Body->AddSlot().FillWidth(1.f).VAlign(VAlign_Center).Padding(RowPadding)[
-		SNew(STextBlock).Text(Label).Font(FCoreStyle::GetDefaultFontStyle("Bold", FontSize)).ColorAndOpacity(Text).AutoWrapText(!bTab)];
+		SNew(STextBlock).Text(Shown).Font(Font).ColorAndOpacity(Text).AutoWrapText(!bTab && !bTitle)];
 	if (!Note.IsEmpty())
-		Body->AddSlot().AutoWidth().HAlign(HAlign_Right).VAlign(VAlign_Center).Padding(FMargin(12.f, 0.f, 14.f, 0.f))[
-			SNew(SBorder).BorderImage(PanelBrush()).Padding(FMargin(9.f, 5.f))[
-				SNew(STextBlock).Text(Note).Font(FCoreStyle::GetDefaultFontStyle("Bold", 12))
-				.ColorAndOpacity(FSlateColor(Note.ToString() == TEXT("OFF") ? TextDim : Note.ToString() == TEXT("ON") ? MoneyGreen : GoldLight))]];
+		Body->AddSlot().AutoWidth().HAlign(HAlign_Right).VAlign(VAlign_Center).Padding(FMargin(12.f, 0.f, 10.f, 0.f))[
+			SNew(SBorder).BorderImage(PanelBrush()).Padding(FMargin(9.f, 4.f))[
+				SNew(STextBlock).Text(Note).Font(TextFont(13, true))
+				.ColorAndOpacity(FSlateColor(Note.ToString() == TEXT("OFF") ? TextDim : Note.ToString() == TEXT("ON") ? MoneyGreen : Gold))]];
 
 	if (bTab) {
 		return SNew(SVerticalBox)
 			+ SVerticalBox::Slot().FillHeight(1.f).VAlign(VAlign_Center)[Body]
-			+ SVerticalBox::Slot().AutoHeight().Padding(8.f, 0.f)[SNew(SBox).HeightOverride(3.f)[SNew(SImage).Image(White()).ColorAndOpacity(Strip)]];
+			+ SVerticalBox::Slot().AutoHeight()[SNew(SBox).HeightOverride(3.f)[SNew(SImage).Image(White()).ColorAndOpacity(Strip)]];
 	}
-	// `.title-menu button` / `.btn` / `.tp-btn`: a 4 px left border, transparent until the row is selected
+	if (!bTitle && !bList) return Body; // (.btn: no left border)
+	// `.title-menu button` (4 px) / `.tp-btn` (3 px): a left border, transparent until the row is selected
 	return SNew(SHorizontalBox)
-		+ SHorizontalBox::Slot().AutoWidth().Padding(0.f, 5.f)[SNew(SBox).WidthOverride(3.f)[SNew(SImage).Image(White()).ColorAndOpacity(Strip)]]
+		+ SHorizontalBox::Slot().AutoWidth()[SNew(SBox).WidthOverride(bTitle ? 4.f : 3.f)[SNew(SImage).Image(White()).ColorAndOpacity(Strip)]]
 		+ SHorizontalBox::Slot().FillWidth(1.f)[Body];
 }
 
@@ -363,6 +434,14 @@ FString FATGMenuSystem::SelectionValue() const {
 	return Pause ? Pause->SelectionValue() : FString();
 }
 
+bool FATGMenuSystem::SetMapWaypoint(float Fx, float Fy) {
+	SATGPauseMenu* Pause = PauseWidget();
+	if (!Pause || Pause->ActiveTab != FName(TEXT("Map")) || !Pause->MapView.IsValid()) return false;
+	const FVector2D Size = Pause->MapView->ComputeDesiredSize(1.f);
+	Pause->MapView->SetWaypointAt(FVector2D(Size.X * Fx, Size.Y * Fy));
+	return true;
+}
+
 bool FATGMenuSystem::IsMenuOpen() const { return MenuState != EATGMenuState::None; }
 FATGMenuSystem::EATGMenuState FATGMenuSystem::GetMenuState() const { return MenuState; }
 FName FATGMenuSystem::GetActivePauseTab() const { const SATGPauseMenu* Pause = PauseWidget(); return Pause ? Pause->ActiveTab : NAME_None; }
@@ -425,6 +504,8 @@ void SATGMainMenu::Construct(const FArguments& InArgs) {
 
 void SATGMainMenu::Tick(const FGeometry&, const double InCurrentTime, const float) {
 	if (bNewGameArmed && InCurrentTime - NewGameArmedAt > 3.5) bNewGameArmed = false; // (main.js disarms after 3.5 s)
+	// (the window changed size: the clamp()s change with it)
+	if (!ViewportSize().Equals(BuiltFor, 1.0)) Rebuild();
 }
 
 void SATGMainMenu::RegisterNavigationButton(TSharedRef<SButton> B, FOnClicked A, const FString& L) {
@@ -441,23 +522,25 @@ TSharedPtr<SATGMenuRow> SATGMainMenu::AddRow(TSharedPtr<SVerticalBox> Column, TA
 		.Label(Label)
 		.OnClicked(Action)
 		.Highlight(Flag)
-		.Title(true)			.Padding(FMargin(22.f, 12.f));
+		.Title(true);
 	Row->Button()->SetEnabled(bEnabled);
 	const int32 Index = NavigationButtons.Num();
 	RegisterNavigationButton(Row->Button().ToSharedRef(), Action, ActionName);
 	NavigationHighlight[Index] = Flag;
-	if (Column.IsValid()) Column->AddSlot().AutoHeight().Padding(FMargin(0.f, 0.f, 0.f, 6.f))[Row];
+	if (Column.IsValid()) Column->AddSlot().AutoHeight().Padding(FMargin(0.f, 0.f, 0.f, 6.f))[Row]; // (gap: 6px)
 	TWeakPtr<SButton> Weak = Row->Button();
 	Row->SetOnHovered(FSimpleDelegate::CreateLambda([this, Weak]() { if (Weak.IsValid()) FocusRow(Weak.Pin()); }));
 	return Row;
 }
 
+// main.js showTitle with css/style.css .title-screen.transparent / .title-logo / .title-menu / .title-foot, at the
+// viewport's own pixels (the CSS clamp()s are worked out from its width; the menu is rebuilt when it changes size)
 TSharedRef<SWidget> SATGMainMenu::BuildMenu() {
 	const FVector2D V = ViewportSize();
-	const float L1 = FMath::Clamp((float)(V.X * 0.075), 46.f, 120.f);
-	const float L2 = FMath::Clamp((float)(V.X * 0.095), 54.f, 160.f);
-	const float L3 = FMath::Clamp((float)(V.X * 0.026), 22.f, 40.f);
-	const float MenuWidth = FMath::Clamp((float)(V.X * 0.26), 300.f, 420.f);
+	BuiltFor = V;
+	const float L1 = FMath::Clamp((float)V.X * 0.09f, 48.f, 140.f);
+	const float L2 = FMath::Clamp((float)V.X * 0.12f, 56.f, 190.f);
+	const float L3 = FMath::Clamp((float)V.X * 0.03f, 22.f, 40.f);
 
 	TSharedRef<SVerticalBox> Column = SNew(SVerticalBox);
 	AddRow(Column, LOCTEXT("Continue", "Continue"), FOnClicked::CreateSP(this, &SATGMainMenu::OnContinueClicked), TEXT("Continue"), bHasSave);
@@ -469,32 +552,42 @@ TSharedRef<SWidget> SATGMainMenu::BuildMenu() {
 	AddRow(Column, LOCTEXT("Settings", "Settings"), FOnClicked::CreateSP(this, &SATGMainMenu::OnSettingsClicked), TEXT("Settings"), true);
 	AddRow(Column, LOCTEXT("Controls", "Controls"), FOnClicked::CreateSP(this, &SATGMainMenu::OnControlsClicked), TEXT("Controls"), true);
 
-	TSharedRef<SVerticalBox> TitleBlock = SNew(SVerticalBox)
-		+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 0.f, 0.f, 5.f)[
-			SNew(STextBlock).Text(LOCTEXT("TitleEyebrow", "AN OPEN WORLD CRIME STORY")).Font(FCoreStyle::GetDefaultFontStyle("Bold", 12))
-			.ColorAndOpacity(FSlateColor(TextDim)).Justification(ETextJustify::Center)]
-		+ SVerticalBox::Slot().AutoHeight()[
-			SNew(STextBlock).Text(LOCTEXT("Title1", "AUTO THEFT")).Font(FCoreStyle::GetDefaultFontStyle("Bold", (int32)L1))
-			.ColorAndOpacity(FSlateColor(FLinearColor::White)).Justification(ETextJustify::Center)]
-		+ SVerticalBox::Slot().AutoHeight().Padding(0.f, -L2 * 0.12f, 0.f, 0.f)[
-			SNew(STextBlock).Text(LOCTEXT("Title2", "GRAND")).Font(FCoreStyle::GetDefaultFontStyle("Bold", (int32)L2))
-			.ColorAndOpacity(FSlateColor(Gold)).Justification(ETextJustify::Center)]
-		+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 6.f, 0.f, 0.f)[
-			SNew(STextBlock).Text(LOCTEXT("Title3", "LOS SOLES  /  SAN AURELIO")).Font(FCoreStyle::GetDefaultFontStyle("Bold", (int32)L3))
-			.ColorAndOpacity(FSlateColor(FLinearColor(1.f, 0.839f, 0.627f))).Justification(ETextJustify::Center)]
-		+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 15.f, 0.f, 0.f)[Hairline_()];
+	// .title-logo: AUTO THEFT in white, GRAND in gold with a black stroke, Los Soles in the script; text-shadow
+	// and drop-shadow 6 px down and right
+	FSlateFontInfo F1 = TitleFont(L1, 4.f); F1.OutlineSettings = FFontOutlineSettings(2, FLinearColor::Black);
+	FSlateFontInfo F2 = TitleFont(L2, 6.f); F2.OutlineSettings = FFontOutlineSettings(3, FLinearColor::Black);
+	TSharedRef<SVerticalBox> Logo = SNew(SVerticalBox)
+		+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center).Padding(CssLineHeight(F1, L1, 0.9f))[
+			SNew(STextBlock).Text(LOCTEXT("Title1", "AUTO THEFT")).Font(F1)
+			.ColorAndOpacity(FSlateColor(FLinearColor::White)).ShadowOffset(FVector2D(6, 6)).ShadowColorAndOpacity(FLinearColor::Black)]
+		+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center).Padding(CssLineHeight(F2, L2, 0.85f))[
+			SNew(STextBlock).Text(LOCTEXT("Title2", "GRAND")).Font(F2)
+			.ColorAndOpacity(FSlateColor(Gold)).ShadowOffset(FVector2D(6, 6)).ShadowColorAndOpacity(FLinearColor::Black)]
+		+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center).Padding(0.f, 8.f, 0.f, 0.f)[
+			SNew(STextBlock).Text(LOCTEXT("Title3", "Los Soles")).Font(ScriptFont(L3))
+			.ColorAndOpacity(FSlateColor(Srgb(0xff, 0xd6, 0xa0))).ShadowOffset(FVector2D(2, 2)).ShadowColorAndOpacity(FLinearColor::Black)];
 
-	return SNew(SOverlay)
-		// Darken the flyover uniformly while leaving the title typography and navigation floating over the scene.
-		+ SOverlay::Slot().HAlign(HAlign_Fill).VAlign(VAlign_Fill)[SNew(SImage).Image(White()).ColorAndOpacity(FLinearColor(0.015f, 0.025f, 0.05f, 0.56f))]
-		+ SOverlay::Slot().HAlign(HAlign_Center).VAlign(VAlign_Center)[
+	const float Dpi = GetDefault<UUserInterfaceSettings>()->GetDPIScaleBasedOnSize(FIntPoint((int32)V.X, (int32)V.Y));
+	return SNew(SDPIScaler).DPIScale(1.f / FMath::Max(Dpi, 0.1f))[
+		SNew(SOverlay)
+		+ SOverlay::Slot()[SNew(SATGGradient).Top(Srgb(10, 6, 20, 0.25f)).Bottom(Srgb(10, 6, 20, 0.7f))]
+		// (the logo's margin-top: -10vh lifts the whole block)
+		+ SOverlay::Slot().HAlign(HAlign_Center).VAlign(VAlign_Center).Padding(FMargin(0.f, 0.f, 0.f, (float)V.Y * 0.10f))[
 			SNew(SVerticalBox)
-			+ SVerticalBox::Slot().AutoHeight().Padding(FMargin(30.f, 26.f, 30.f, 26.f))[TitleBlock]
-			+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center)[SNew(SBox).WidthOverride(MenuWidth)[Column]]]
-		+ SOverlay::Slot().HAlign(HAlign_Center).VAlign(VAlign_Bottom).Padding(FMargin(24.f, 0.f, 24.f, 14.f))[
+			+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center)[Logo]
+			+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center).Padding(0.f, 30.f, 0.f, 0.f)[SNew(SBox).MinDesiredWidth(280.f)[Column]]]
+		+ SOverlay::Slot().HAlign(HAlign_Center).VAlign(VAlign_Bottom).Padding(FMargin(20.f, 0.f, 20.f, 14.f))[
 			SNew(STextBlock)
-			.Text(LOCTEXT("Footer", "WASD / D-PAD TO NAVIGATE     ·     ENTER / A TO SELECT"))
-			.Font(FCoreStyle::GetDefaultFontStyle("Bold", 11)).ColorAndOpacity(FSlateColor(FLinearColor(1.f, 1.f, 1.f, 0.82f))).Justification(ETextJustify::Center)];
+			.Text(LOCTEXT("Footer", "WASD + Mouse · Xbox, PlayStation & Logitech controllers supported · An original parody inspired by open-world crime classics"))
+			.Font(TextFont(12)).ColorAndOpacity(FSlateColor(FLinearColor(1.f, 1.f, 1.f, 0.55f))).Justification(ETextJustify::Center).AutoWrapText(true)]];
+}
+
+void SATGMainMenu::Rebuild() {
+	const int32 Keep = NavigationIndex;
+	NavigationButtons.Reset(); NavigationActions.Reset(); NavigationLabels.Reset(); NavigationHighlight.Reset();
+	NavigationIndex = INDEX_NONE;
+	ChildSlot[BuildMenu()];
+	SetFocusIndex(Keep == INDEX_NONE ? (bHasSave ? 0 : 1) : Keep);
 }
 
 bool SATGMainMenu::IsContinueEnabled() const { return bHasSave; }
@@ -648,9 +741,8 @@ FString SATGPauseMenu::SelectedAction() const {
 // the footer, and a body of at least 320 px.
 TSharedRef<SWidget> SATGPauseMenu::MakePanel(TSharedRef<SWidget> Content) {
 	const FVector2D V = ViewportSize();
-	const float Width = FMath::Min(1180.f, V.X * 0.96f);
-	const float Height = FMath::Max(240.f, FMath::Min(900.f, V.Y * 0.90f));
-	return SNew(SBox).WidthOverride(Width).HeightOverride(Height)
+	// (width: min(1180px, 96vw); max-height: 94vh, the body scrolls past that)
+	return SNew(SBox).WidthOverride(FMath::Min(1180.f, (float)V.X * 0.96f)).MaxDesiredHeight((float)V.Y * 0.94f)
 		[SNew(SBorder).BorderImage(PanelBrush()).Padding(FMargin(22.f, 18.f))[Content]];
 }
 
@@ -675,21 +767,21 @@ TSharedRef<SWidget> SATGPauseMenu::BuildPauseMenu() {
 		TabActiveFlags.Add(On);
 		TWeakPtr<SButton> Weak = Row->Button();
 		Row->SetOnHovered(FSimpleDelegate::CreateLambda([this, Weak]() { if (Weak.IsValid()) FocusRow(Weak.Pin()); }));
-		TabRow->AddSlot().FillWidth(1.f).Padding(FMargin(2.f, 0.f))[Row];
+		TabRow->AddSlot().AutoWidth().Padding(FMargin(2.f, 0.f))[Row];
 	}
 
-	// .logo-small: AUTO THEFT in white with GRAND in gold
+	// .logo-small: AUTO THEFT in white with GRAND in gold (the title font, 30 px, 2 px apart)
 	TSharedRef<SHorizontalBox> Logo = SNew(SHorizontalBox)
 		+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)[
-			SNew(STextBlock).Text(LOCTEXT("LogoSmall", "AUTO THEFT "))		.Font(FCoreStyle::GetDefaultFontStyle("Bold", 26)).ColorAndOpacity(FSlateColor(FLinearColor::White))]
+			SNew(STextBlock).Text(LOCTEXT("LogoSmall", "AUTO THEFT ")).Font(TitleFont(30, 2)).ColorAndOpacity(FSlateColor(FLinearColor::White))]
 		+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)[
-			SNew(STextBlock).Text(LOCTEXT("LogoGrand", "GRAND")).Font(FCoreStyle::GetDefaultFontStyle("Bold", 26)).ColorAndOpacity(FSlateColor(Gold))];
+			SNew(STextBlock).Text(LOCTEXT("LogoGrand", "GRAND")).Font(TitleFont(30, 2)).ColorAndOpacity(FSlateColor(Gold))];
 
-	// `.pause-foot`: Resume (primary), Save game and Quit to title
+	// `.pause-foot`: Resume (Esc) (primary), Save game and Quit to title, left aligned
 	auto FooterRow = [this](TAttribute<FText> Text, FString Action, bool bPrimary) {
 		TSharedPtr<bool> Flag = MakeShared<bool>(false);
 		TSharedRef<SATGMenuRow> Row = SNew(SATGMenuRow)
-			.Label(Text).Primary(bPrimary).Highlight(Flag).Padding(FMargin(20.f, 9.f))
+			.Label(Text).Primary(bPrimary).Highlight(Flag)
 			.OnClicked(FOnClicked::CreateSP(this, &SATGPauseMenu::OnActionButtonClicked, Action));
 		FooterNavigationButtons.Add(Row->Button().ToSharedRef());
 		FooterNavigationActions.Add(FOnClicked::CreateSP(this, &SATGPauseMenu::OnActionButtonClicked, Action));
@@ -700,57 +792,41 @@ TSharedRef<SWidget> SATGPauseMenu::BuildPauseMenu() {
 		Row->SetOnHovered(FSimpleDelegate::CreateLambda([this, Weak]() { if (Weak.IsValid()) FocusRow(Weak.Pin()); }));
 		return Row;
 	};
-	TSharedRef<SATGMenuRow> Resume = FooterRow(LOCTEXT("Resume", "Resume"), TEXT("Resume"), true);
+	TSharedRef<SATGMenuRow> Resume = FooterRow(LOCTEXT("Resume", "Resume (Esc)"), TEXT("Resume"), true);
 	TSharedRef<SATGMenuRow> Save = FooterRow(TAttribute<FText>::CreateLambda([this]() { return SaveText; }), TEXT("Save"), false);
 	TSharedRef<SATGMenuRow> Quit = FooterRow(LOCTEXT("Quit", "Quit to title"), TEXT("Quit"), false);
 	ResumeButton = Resume->Button(); SaveButton = Save->Button(); QuitButton = Quit->Button();
-	atg::Game* G = GetSimulation();
-	const bool bCanSave = G && !G->freeRoam && !(G->missions && G->missions->active);
-	SaveButton->SetEnabled(bCanSave);
-	if (!bCanSave) SaveText = LOCTEXT("SaveUnavailable", "Save unavailable");
-	if (!bCanSave) SaveButton->SetToolTipText(G && G->freeRoam ? LOCTEXT("FreeSaveReason", "Free roam sessions are not saved.") : LOCTEXT("MissionSaveReason", "Finish the current mission before saving."));
 
 	TSharedRef<SHorizontalBox> Foot = SNew(SHorizontalBox)
-		+ SHorizontalBox::Slot().FillWidth(1.f).Padding(FMargin(0.f, 0.f, 8.f, 0.f))[Resume]
-		+ SHorizontalBox::Slot().FillWidth(1.f).Padding(FMargin(4.f, 0.f))[Save]
-		+ SHorizontalBox::Slot().FillWidth(1.f).Padding(FMargin(8.f, 0.f, 0.f, 0.f))[Quit];
+		+ SHorizontalBox::Slot().AutoWidth().Padding(FMargin(0.f, 6.f, 6.f, 0.f))[Resume]
+		+ SHorizontalBox::Slot().AutoWidth().Padding(FMargin(0.f, 6.f, 6.f, 0.f))[Save]
+		+ SHorizontalBox::Slot().AutoWidth().Padding(FMargin(0.f, 6.f, 6.f, 0.f))[Quit]
+		+ SHorizontalBox::Slot().FillWidth(1.f)[SNullWidget::NullWidget];
 
 	SAssignNew(TabContentSwitcher, SWidgetSwitcher);
 	TabBody = SAssignNew(TabScroll, SScrollBox)
 		.Orientation(EOrientation::Orient_Vertical)
-		.ScrollBarAlwaysVisible(true)
 		+ SScrollBox::Slot()[TabContentSwitcher.ToSharedRef()];
 
+	// `.pause-head` (the logo, the tabs on the right, a hairline under them), `.pause-body` (at least 320 px, 14 px
+	// above and below), `.pause-foot` (a hairline over it)
 	TSharedRef<SVerticalBox> Panel = SNew(SVerticalBox)
-		+ SVerticalBox::Slot().AutoHeight().Padding(FMargin(0.f, 0.f, 0.f, 8.f))[
+		+ SVerticalBox::Slot().AutoHeight()[
 			SNew(SHorizontalBox)
-			+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(FMargin(0.f, 0.f, 28.f, 0.f))[Logo]
-			+ SHorizontalBox::Slot().FillWidth(1.f).VAlign(VAlign_Center).HAlign(HAlign_Right)[
-				SNew(SVerticalBox)
-				+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Right)[
-					SNew(STextBlock).Text(FText::FromString(bIsFreeRoam ? TEXT("FREE ROAM  /  PAUSED") : TEXT("STORY  /  PAUSED")))
-					.Font(FCoreStyle::GetDefaultFontStyle("Bold", 15)).ColorAndOpacity(FSlateColor(Gold))]
-				+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 2.f, 0.f, 0.f).HAlign(HAlign_Right)[
-					SNew(STextBlock).Text(LOCTEXT("PauseHint", "LOS SOLES  /  SAN AURELIO"))
-					.Font(FCoreStyle::GetDefaultFontStyle("Bold", 10)).ColorAndOpacity(FSlateColor(TextDim))]]]
-		+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 8.f, 0.f, 0.f)[SNew(SBox).HeightOverride(52.f)[TabRow]]
-		+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 4.f)[Hairline_()]
-		+ SVerticalBox::Slot().FillHeight(1.f).Padding(0.f, 14.f)[TabBody.ToSharedRef()]
-		+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 4.f)[SNew(SBox).HeightOverride(62.f)[
-			SNew(SVerticalBox)
-			+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 0.f, 0.f, 8.f)[Hairline_()]
-			+ SVerticalBox::Slot().FillHeight(1.f)[Foot]]]
-		+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 10.f, 0.f, 0.f)[
-			SNew(STextBlock).Text(LOCTEXT("PauseNavigation", "D-PAD / LS  Navigate     A / ENTER  Select     B / MENU / ESC  Back     LB / RB  Tabs     LEFT / RIGHT  Adjust"))
-			.Font(FCoreStyle::GetDefaultFontStyle("Bold", 11)).ColorAndOpacity(FSlateColor(TextDim)).Justification(ETextJustify::Center)];
+			+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(FMargin(0.f, 0.f, 20.f, 0.f))[Logo]
+			+ SHorizontalBox::Slot().FillWidth(1.f).VAlign(VAlign_Center).HAlign(HAlign_Right)[TabRow]]
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 10.f, 0.f, 0.f)[Hairline_()]
+		+ SVerticalBox::Slot().FillHeight(1.f).Padding(0.f, 14.f)[SNew(SBox).MinDesiredHeight(320.f)[TabBody.ToSharedRef()]]
+		+ SVerticalBox::Slot().AutoHeight()[Hairline_()]
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 2.f, 0.f, 0.f)[Foot];
 
-	// The viewport already applies Unreal's UI DPI curve. This menu measures in viewport pixels,
-	// so cancel that curve to keep text readable and the panel inside the 720p safe area.
+	// The viewport already applies Unreal's UI DPI curve. This menu measures in viewport pixels (CSS pixels),
+	// so cancel that curve.
 	const FVector2D V = ViewportSize();
 	const float Scale = GetDefault<UUserInterfaceSettings>()->GetDPIScaleBasedOnSize(FIntPoint(V.X, V.Y));
 	return SNew(SDPIScaler).DPIScale(1.f / FMath::Max(Scale, 0.1f))[
 		SNew(SOverlay)
-		+ SOverlay::Slot().HAlign(HAlign_Fill).VAlign(VAlign_Fill)[SNew(SImage).Image(White()).ColorAndOpacity(FLinearColor(0.005f, 0.010f, 0.022f, 0.70f))]
+		+ SOverlay::Slot().HAlign(HAlign_Fill).VAlign(VAlign_Fill)[SNew(SImage).Image(White()).ColorAndOpacity(FLinearColor(0.f, 0.f, 0.f, 0.72f))]
 		+ SOverlay::Slot().HAlign(HAlign_Center).VAlign(VAlign_Center)[MakePanel(Panel)]];
 }
 
@@ -811,10 +887,10 @@ void SATGPauseMenu::InitializeTabs(bool bInFreeRoam) { bIsFreeRoam = bInFreeRoam
 
 void SATGPauseMenu::AddHeader(TSharedPtr<SVerticalBox> Column, const FText& Text, const FText& Sub) {
 	Column->AddSlot().AutoHeight().Padding(0.f, 0.f, 0.f, 2.f)[
-		SNew(STextBlock).Text(Text).Font(FCoreStyle::GetDefaultFontStyle("Bold", 24)).ColorAndOpacity(FSlateColor(FLinearColor::White))];
+		SNew(STextBlock).Text(FText::FromString(Text.ToString().ToUpper())).Font(HudFont(26)).ColorAndOpacity(FSlateColor(FLinearColor::White))];
 	if (!Sub.IsEmpty())
 		Column->AddSlot().AutoHeight().Padding(0.f, 0.f, 0.f, 10.f)[
-			SNew(STextBlock).Text(Sub).Font(FCoreStyle::GetDefaultFontStyle("Regular", 14)).ColorAndOpacity(FSlateColor(FLinearColor(0.7f, 0.75f, 0.8f))).AutoWrapText(true)];
+			SNew(STextBlock).Text(Sub).Font(TextFont(13)).ColorAndOpacity(FSlateColor(Srgb(0xaa, 0xaa, 0xaa))).AutoWrapText(true)];
 }
 
 void SATGPauseMenu::AddMuted(TSharedPtr<SVerticalBox> Column, const FText& Text) {
@@ -828,12 +904,13 @@ TSharedRef<SWidget> SATGPauseMenu::MakeTable(const TArray<TPair<FString, FString
 		Box->AddSlot().AutoHeight()[
 			SNew(SHorizontalBox)
 			+ SHorizontalBox::Slot().FillWidth(1.f).VAlign(VAlign_Center).Padding(FMargin(0.f, 5.f))[
-				SNew(STextBlock).Text(FText::FromString(R.Key)).Font(FCoreStyle::GetDefaultFontStyle("Regular", 15)).ColorAndOpacity(FSlateColor(RowText))]
-			+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(FMargin(12.f, 5.f))[
-				SNew(STextBlock).Text(FText::FromString(R.Value)).Font(FCoreStyle::GetDefaultFontStyle("Bold", 20)).ColorAndOpacity(FSlateColor(Gold))]];
-		Box->AddSlot().AutoHeight()[Hairline_(1.f)];
+				SNew(STextBlock).Text(FText::FromString(R.Key)).Font(TextFont(16)).ColorAndOpacity(FSlateColor(RowText))]
+			+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(FMargin(12.f, 7.f))[
+				SNew(STextBlock).Text(FText::FromString(R.Value)).Font(HudFont(22, 1)).ColorAndOpacity(FSlateColor(Gold))]];
+		Box->AddSlot().AutoHeight()[SNew(SBox).HeightOverride(1.f)[SNew(SImage).Image(White()).ColorAndOpacity(FLinearColor(1.f, 1.f, 1.f, 0.08f))]];
 	}
-	return Box;
+	// (`.stats table`: width min(640px, 100%))
+	return SNew(SBox).MaxDesiredWidth(640.f)[Box];
 }
 
 // `.controls`: a heading, then key / action rows, in columns
@@ -842,13 +919,13 @@ TSharedRef<SWidget> SATGPauseMenu::MakeColumns(const TArray<FATGMenuGroup>& Grou
 	for (const FATGMenuGroup& G : Groups) {
 		TSharedRef<SVerticalBox> Col = SNew(SVerticalBox);
 		Col->AddSlot().AutoHeight().Padding(0.f, 4.f, 0.f, 6.f)[
-			SNew(STextBlock).Text(FText::FromString(G.Name)).Font(FCoreStyle::GetDefaultFontStyle("Bold", 22)).ColorAndOpacity(FSlateColor(FLinearColor::White))];
+			SNew(STextBlock).Text(FText::FromString(G.Name.ToUpper())).Font(HudFont(26)).ColorAndOpacity(FSlateColor(FLinearColor::White))];
 		for (const FATGMenuRowDef& R : G.Rows) {
 			Col->AddSlot().AutoHeight()[
 				SNew(SHorizontalBox)
 				+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(FMargin(0.f, 3.f, 16.f, 3.f))[KeyLabel(FText::FromString(R.Label))]
 				+ SHorizontalBox::Slot().FillWidth(1.f).VAlign(VAlign_Center).Padding(FMargin(0.f, 3.f))[
-					SNew(STextBlock).Text(FText::FromString(R.Action)).Font(FCoreStyle::GetDefaultFontStyle("Regular", 14)).ColorAndOpacity(FSlateColor(RowText)).AutoWrapText(true)]];
+					SNew(STextBlock).Text(FText::FromString(R.Action)).Font(TextFont(15)).ColorAndOpacity(FSlateColor(RowText)).AutoWrapText(true)]];
 		}
 		Wrap->AddSlot()[SNew(SBox).MinDesiredWidth(250.f)[Col]];
 	}
@@ -861,7 +938,7 @@ TSharedRef<SWidget> SATGPauseMenu::MakeGroupGrid(const TArray<FATGMenuGroup>& Gr
 	for (const FATGMenuGroup& G : Groups) {
 		TSharedRef<SVerticalBox> Col = SNew(SVerticalBox);
 		Col->AddSlot().AutoHeight().Padding(0.f, 0.f, 0.f, 4.f)[
-			SNew(STextBlock).Text(FText::FromString(G.Name)).Font(FCoreStyle::GetDefaultFontStyle("Bold", 22)).ColorAndOpacity(FSlateColor(Gold))];
+			SNew(STextBlock).Text(FText::FromString(G.Name.ToUpper())).Font(HudFont(24, 1)).ColorAndOpacity(FSlateColor(Gold))];
 		for (const FATGMenuRowDef& R : G.Rows)
 			AddRow(Col, MakeRow(FText::FromString(R.Label), R.Action, false, FText::FromString(R.Note), true), 1.f);
 		Wrap->AddSlot()[SNew(SBox).WidthOverride(330.f)[Col]];
@@ -870,62 +947,37 @@ TSharedRef<SWidget> SATGPauseMenu::MakeGroupGrid(const TArray<FATGMenuGroup>& Gr
 }
 
 TSharedRef<SWidget> SATGPauseMenu::CreateMapTab() {
-	atg::Game* G = GetSimulation();
 	TSharedRef<SVerticalBox> Out = SNew(SVerticalBox);
+	// the canvas: min(innerWidth - 80, 1100) x min(innerHeight - 220, 700), a 2 px border with 4 px corners
 	const FVector2D V = ViewportSize();
-	const float MapAspect = 7200.f / 6800.f; // WORLD bounds: retain the generated map's geographic proportions.
-	const float MaxMapWidth = FMath::Min(1040.f, V.X * 0.88f);
-	const float MaxMapHeight = FMath::Min(560.f, V.Y * 0.40f);
-	const float MW = FMath::Min(MaxMapWidth, MaxMapHeight * MapAspect);
-	const float MH = MW / MapAspect;
-
-	Out->AddSlot().AutoHeight().Padding(0.f, 0.f, 0.f, 8.f)[
-		SNew(STextBlock)
-		.Text(G ? FText::FromString(FString::Printf(TEXT("%s · $%.0f · %d/%d missions"),
-			UTF8_TO_TCHAR(G->env.timeString().c_str()), G->player->money, G->missions ? (int32)G->missions->completed.size() : 0, G->missions ? (int32)G->missions->story.size() : 0))
-			: LOCTEXT("Loading", "Loading the world..."))
-		.Font(FCoreStyle::GetDefaultFontStyle("Bold", 18)).ColorAndOpacity(FSlateColor(GoldLight))];
-
-	if (G && PlayerController) {
-		if (AATGWorld* W = AATGWorld::Get(PlayerController)) {
-			const FBox2D Rect = W->MapWorldRect;
-			const FVector2D Size = Rect.GetSize();
-			TSharedRef<SConstraintCanvas> Layers = SNew(SConstraintCanvas);
-			if (W->MapWorldTex) {
-				// Match the texture's pixel aspect ratio; treating this wide world map as square stretches the geography.
-				static const FSlateImageBrush* MapBrush = nullptr;
-				static const UTexture2D* MapTex = nullptr;
-				if (MapTex != W->MapWorldTex) {
-					delete MapBrush;
-					const float TextureWidth = (float)W->MapWorldTex->GetSizeX();
-					const float TextureHeight = (float)W->MapWorldTex->GetSizeY();
-					MapBrush = new FSlateImageBrush(W->MapWorldTex, FVector2D(TextureWidth, TextureHeight));
-					MapTex = W->MapWorldTex;
-				}
-				Layers->AddSlot()
-					.Anchors(FAnchors(0.f, 0.f))
-					.Offset(FMargin(0.f, 0.f, MW, MH))
-					[SNew(SImage).Image(MapBrush)];
-			}
-			auto Placed = [&](double X, double Z) { return FVector2D(Size.X > 0 ? (float)((X - Rect.Min.X) / Size.X) * MW : 0.f, Size.Y > 0 ? (float)((Z - Rect.Min.Y) / Size.Y) * MH : 0.f); };
-			for (const auto& Bl : G->blips) {
-				const uint32 Color = Bl->color ? Bl->color : 0xffd23f;
-				const FVector2D P = Placed(Bl->x, Bl->z);
-				Layers->AddSlot().Anchors(FAnchors(0.f, 0.f)).Offset(FMargin(P.X - 5.f, P.Y - 5.f, 10.f, 10.f))[
-					SNew(SImage).Image(White()).ColorAndOpacity(HexColor(Color))];
-			}
-			const atg::V3 P0 = G->player->vehicle ? G->player->vehicle->pos : G->player->pos;
-			const FVector2D P = Placed(P0.x, P0.z);
-			Layers->AddSlot().Anchors(FAnchors(0.f, 0.f)).Offset(FMargin(P.X - 8.f, P.Y - 8.f, 16.f, 16.f))[
-				SNew(SImage).Image(White()).ColorAndOpacity(FLinearColor(0.85f, 0.15f, 0.15f))];
-			Out->AddSlot().AutoHeight().HAlign(HAlign_Center)[SNew(SBox).WidthOverride(MW).HeightOverride(MH)[Layers]];
-		}
+	// (the panel's head and foot are a little taller here than the browser's: 40 px more room keeps the legend in view)
+	const float W = FMath::Max(200.f, FMath::Min((float)V.X - 80.f, 1100.f)), H = FMath::Max(150.f, FMath::Min((float)V.Y - 260.f, 700.f));
+	static const FSlateRoundedBoxBrush Frame(FLinearColor(0.f, 0.f, 0.f, 0.f), 4.f, FLinearColor(1.f, 1.f, 1.f, 0.12f), 2.f);
+	Out->AddSlot().AutoHeight().HAlign(HAlign_Center)[
+		SNew(SOverlay)
+		+ SOverlay::Slot()[SAssignNew(MapView, SATGMapView).PlayerController(PlayerController).Width(W).Height(H)]
+		+ SOverlay::Slot()[SNew(SBorder).BorderImage(&Frame).Visibility(EVisibility::HitTestInvisible)]];
+	// `.map-legend`: 13 px, #ccc, centred, the keys in bold, then the coloured dots
+	auto Seg = [](const TCHAR* S, bool bBold) {
+		return SNew(STextBlock).Text(FText::FromString(S)).Font(TextFont(13, bBold)).ColorAndOpacity(FSlateColor(Srgb(0xcc, 0xcc, 0xcc)));
+	};
+	Out->AddSlot().AutoHeight().HAlign(HAlign_Center).Padding(0.f, 8.f, 0.f, 0.f)[
+		SNew(SHorizontalBox)
+		+ SHorizontalBox::Slot().AutoWidth()[Seg(TEXT("Right-click / double-click"), true)]
+		+ SHorizontalBox::Slot().AutoWidth()[Seg(TEXT(" to set a waypoint · "), false)]
+		+ SHorizontalBox::Slot().AutoWidth()[Seg(TEXT("Wheel"), true)]
+		+ SHorizontalBox::Slot().AutoWidth()[Seg(TEXT(" to zoom · "), false)]
+		+ SHorizontalBox::Slot().AutoWidth()[Seg(TEXT("Drag"), true)]
+		+ SHorizontalBox::Slot().AutoWidth()[Seg(TEXT(" to pan"), false)]];
+	TSharedRef<SHorizontalBox> Keys = SNew(SHorizontalBox);
+	struct FKey { const TCHAR* Name; uint32 Hex; };
+	static const FKey KeyList[] = { { TEXT("Mission"), 0xffd23f }, { TEXT("Gun Barn"), 0xff5a36 }, { TEXT("Spray Shack"), 0x6df0ff },
+		{ TEXT("Safehouse"), 0x6cff6c }, { TEXT("Food"), 0xffd166 }, { TEXT("Waypoint"), 0xd96cff } };
+	for (const FKey& K : KeyList) {
+		Keys->AddSlot().AutoWidth().VAlign(VAlign_Center).Padding(FMargin(12.f, 0.f, 4.f, 0.f))[SNew(SBox).WidthOverride(10.f).HeightOverride(10.f)[SNew(SImage).Image(Dot(HexColor(K.Hex)))]];
+		Keys->AddSlot().AutoWidth().VAlign(VAlign_Center)[Seg(K.Name, false)];
 	}
-	// the legend under the map (hud.js _tab_map)
-	Out->AddSlot().AutoHeight().Padding(0.f, 10.f, 0.f, 0.f)[
-		SNew(STextBlock)
-		.Text(LOCTEXT("MapLegend", "Mission · Gun Barn · Spray Shack · Safehouse · Food · Waypoint. In free roam, the Teleport tab (T) fast travels; set a waypoint on the radar in the browser game."))
-		.Font(FCoreStyle::GetDefaultFontStyle("Regular", 13)).ColorAndOpacity(FSlateColor(TextDim)).AutoWrapText(true)];
+	Out->AddSlot().AutoHeight().HAlign(HAlign_Center).Padding(0.f, 2.f, 0.f, 0.f)[Keys];
 	return Out;
 }
 
@@ -1088,7 +1140,7 @@ TSharedRef<SWidget> SATGPauseMenu::CreateAdminTab() {
 TSharedRef<SWidget> SATGPauseMenu::CreateOnlineTab() {
 	TSharedRef<SVerticalBox> Out = SNew(SVerticalBox);
 	AddHeader(Out, LOCTEXT("OnlineTitle", "Online"), FText::GetEmpty());
-	AddMuted(Out, LOCTEXT("OnlineText", "Multiplayer is not in the Unreal port yet. In the browser game this tab holds the room code, the player list and the chat."));
+	AddMuted(Out, LOCTEXT("OnlineText", "Multiplayer is not in the Unreal port yet. This tab will hold the room code, the player list and the chat."));
 	return Out;
 }
 
@@ -1106,7 +1158,7 @@ TSharedRef<SWidget> SATGPauseMenu::CreateBriefTab() {
 		Algo::Reverse(Log);
 		for (const FString& Line : Log)
 			Out->AddSlot().AutoHeight().Padding(0.f, 3.f)[
-				SNew(STextBlock).Text(FText::FromString(TEXT("• ") + Line)).Font(FCoreStyle::GetDefaultFontStyle("Regular", 15)).ColorAndOpacity(FSlateColor(RowText)).AutoWrapText(true)];
+				SNew(STextBlock).Text(FText::FromString(TEXT("• ") + Line)).Font(TextFont(15)).ColorAndOpacity(FSlateColor(BodyText)).AutoWrapText(true)];
 	}
 	return Out;
 }
@@ -1145,17 +1197,26 @@ TSharedRef<SWidget> SATGPauseMenu::CreateSettingsTab() {
 	atg::Game* G = GetSimulation();
 	TSharedRef<SVerticalBox> Out = SNew(SVerticalBox);
 	if (!G) return Out;
-	AddMuted(Out, LOCTEXT("SetHint", "Left / right adjusts the selected value. A or left-click increases; right-click decreases. Toggles show their current ON / OFF state. Changes apply immediately."));
+	const UATGGameInstance* GI = PlayerController ? Cast<UATGGameInstance>(PlayerController->GetGameInstance()) : nullptr;
+	auto Cap = [](const std::string& S) { FString F(UTF8_TO_TCHAR(S.c_str())); if (!F.IsEmpty()) F[0] = FChar::ToUpper(F[0]); return F; };
+	const double Ts = G->env.timeScale;
+	const FString Speed = Ts == 1 ? TEXT("1 min / sec (default)") : Ts == 2 ? TEXT("2 min / sec") : Ts == 0.5 ? TEXT("Slow (0.5)") : Ts == 0 ? TEXT("Freeze time") : FString::Printf(TEXT("%.1f min / sec"), Ts);
+	auto OnOff = [](bool b) { return b ? FString(TEXT("ON")) : FString(TEXT("OFF")); };
 	TArray<FATGMenuRowDef> Defs;
-	Defs.Add(FATGMenuRowDef(FString(TEXT("Graphics quality")), FString(TEXT("Quality")), FString(UTF8_TO_TCHAR(G->settings.quality.c_str()))));
+	Defs.Add(FATGMenuRowDef(FString(TEXT("Graphics quality")), FString(TEXT("Quality")), Cap(G->settings.quality)));
 	Defs.Add(FATGMenuRowDef(FString(TEXT("Master volume")), FString(TEXT("Volume:0")), FString::Printf(TEXT("%d%%"), FMath::RoundToInt(G->settings.volume * 100))));
 	Defs.Add(FATGMenuRowDef(FString(TEXT("Radio volume")), FString(TEXT("Volume:1")), FString::Printf(TEXT("%d%%"), FMath::RoundToInt(G->settings.music * 100))));
 	Defs.Add(FATGMenuRowDef(FString(TEXT("Mouse sensitivity")), FString(TEXT("Sensitivity")), FString::Printf(TEXT("%.2f"), G->settings.sensitivity)));
-	Defs.Add(FATGMenuRowDef(FString(TEXT("Invert mouse Y")), FString(TEXT("InvertY")), G->settings.invertY ? FString(TEXT("ON")) : FString(TEXT("OFF"))));
-	Defs.Add(FATGMenuRowDef(FString(TEXT("Street crime")), FString(TEXT("Crime")), FString(UTF8_TO_TCHAR(G->settings.npcCrime.c_str()))));
-	Defs.Add(FATGMenuRowDef(FString(TEXT("Day/night speed")), FString(TEXT("TimeScale")), FString::Printf(TEXT("%.1f min/sec"), G->env.timeScale)));
-	AddHeader(Out, LOCTEXT("SettingsHeading", "Settings"), FText::GetEmpty());
-	AddRows(Out, Defs);
+	Defs.Add(FATGMenuRowDef(FString(TEXT("Invert mouse Y")), FString(TEXT("InvertY")), OnOff(G->settings.invertY)));
+	Defs.Add(FATGMenuRowDef(FString(TEXT("Ray-traced reflections (wet streets, glass, water)")), FString(TEXT("Reflections")), OnOff(!GI || GI->IsReflectionsEnabled())));
+	Defs.Add(FATGMenuRowDef(FString(TEXT("Ambient occlusion (contact shadows)")), FString(TEXT("AO")), OnOff(!GI || GI->IsAOEnabled())));
+	Defs.Add(FATGMenuRowDef(FString(TEXT("Show FPS")), FString(TEXT("ShowFPS")), OnOff(GI && GI->IsShowFPS())));
+	Defs.Add(FATGMenuRowDef(FString(TEXT("Street crime (NPCs jaywalk, speed, mug, steal cars; police respond)")), FString(TEXT("Crime")), Cap(G->settings.npcCrime)));
+	Defs.Add(FATGMenuRowDef(FString(TEXT("Day/night speed")), FString(TEXT("TimeScale")), Speed));
+	// (`.settings`: a column of rows, at most 520 px wide, 10 px apart)
+	TSharedRef<SVerticalBox> Col = SNew(SVerticalBox);
+	for (const FATGMenuRowDef& D : Defs) AddRow(Col, MakeRow(FText::FromString(D.Label), D.Action, false, FText::FromString(D.Note), true), 5.f);
+	Out->AddSlot().AutoHeight()[SNew(SBox).MaxDesiredWidth(620.f)[Col]];
 	return Out;
 }
 
@@ -1204,7 +1265,9 @@ FReply SATGPauseMenu::OnTabButtonClicked(FName Name) {
 FReply SATGPauseMenu::OnResumeClicked() { if (OnAction.IsBound()) OnAction.Execute(TEXT("Resume")); return FReply::Handled(); }
 FReply SATGPauseMenu::OnSaveClicked() {
 	atg::Game* G = GetSimulation();
-	if (!G || G->freeRoam || (G->missions && G->missions->active)) return FReply::Handled();
+	if (!G) return FReply::Handled();
+	if (G->missions && G->missions->active) { SaveText = LOCTEXT("NoSaveMission", "Can't save during a mission"); return FReply::Handled(); }
+	if (G->freeRoam) { SaveText = LOCTEXT("NoSaveFree", "Free roam isn't saved"); return FReply::Handled(); }
 	UATGGameInstance* GI = PlayerController ? Cast<UATGGameInstance>(PlayerController->GetGameInstance()) : nullptr;
 	SaveText = GI && GI->SaveGame() ? LOCTEXT("Saved", "Saved \u2713") : LOCTEXT("SaveFailed", "Save failed · try again");
 	return FReply::Handled();
@@ -1326,7 +1389,8 @@ FString SATGPauseMenu::SelectionValue() const {
 // leaves it to the tab buttons' own arrows.
 bool SATGPauseMenu::IsSetting(const FString& Action) {
 	return Action == TEXT("Quality") || Action == TEXT("Volume:0") || Action == TEXT("Volume:1")
-		|| Action == TEXT("Sensitivity") || Action == TEXT("InvertY") || Action == TEXT("Crime") || Action == TEXT("TimeScale");
+		|| Action == TEXT("Sensitivity") || Action == TEXT("InvertY") || Action == TEXT("Crime") || Action == TEXT("TimeScale")
+		|| Action == TEXT("Reflections") || Action == TEXT("AO") || Action == TEXT("ShowFPS");
 }
 
 void SATGPauseMenu::OnControllerAdjust(int32 Direction) {
@@ -1367,7 +1431,14 @@ FReply SATGPauseMenu::ApplySetting(FString Action, int32 Direction) {
 		for (int32 K = 0; K < 3; K++) if (G->settings.npcCrime == Choices[K]) I = K;
 		G->settings.npcCrime = Choices[(I + Step + 3) % 3];
 		if (GI) GI->SetNPCrimeLevel(FName(UTF8_TO_TCHAR(G->settings.npcCrime.c_str())));
+	} else if (Action == TEXT("Reflections")) {
+		if (GI) GI->SetReflectionsEnabled(!GI->IsReflectionsEnabled());
+	} else if (Action == TEXT("AO")) {
+		if (GI) GI->SetAOEnabled(!GI->IsAOEnabled());
+	} else if (Action == TEXT("ShowFPS")) {
+		if (GI) GI->SetShowFPS(!GI->IsShowFPS());
 	} else if (Action == TEXT("TimeScale")) {
+		// (the browser's list: 1 min / sec (default), 2 min / sec, Slow (0.5), Freeze time)
 		static const double Choices[] = { 0, 0.5, 1, 2 };
 		int32 I = Step > 0 ? -1 : 4;
 		for (int32 K = 0; K < 4; K++) {
@@ -1442,6 +1513,7 @@ void UATGMenuSystem::Back() { if (MenuSystemImpl.IsValid()) MenuSystemImpl->Back
 void UATGMenuSystem::CyclePauseTab(int32 D) { if (MenuSystemImpl.IsValid()) MenuSystemImpl->CyclePauseTab(D); }
 void UATGMenuSystem::AdjustSelection(int32 D) { if (MenuSystemImpl.IsValid()) MenuSystemImpl->AdjustSelection(D); }
 FString UATGMenuSystem::SelectionLabel() const { return MenuSystemImpl.IsValid() ? MenuSystemImpl->SelectionLabel() : FString(); }
+bool UATGMenuSystem::SetMapWaypoint(float Fx, float Fy) { return MenuSystemImpl.IsValid() && MenuSystemImpl->SetMapWaypoint(Fx, Fy); }
 FString UATGMenuSystem::SelectionValue() const { return MenuSystemImpl.IsValid() ? MenuSystemImpl->SelectionValue() : FString(); }
 FATGMenuSystem::EATGMenuState UATGMenuSystem::GetMenuState() const { return MenuSystemImpl.IsValid() ? MenuSystemImpl->GetMenuState() : FATGMenuSystem::EATGMenuState::None; }
 bool UATGMenuSystem::IsMenuOpen() const { return MenuSystemImpl.IsValid() && MenuSystemImpl->IsMenuOpen(); }

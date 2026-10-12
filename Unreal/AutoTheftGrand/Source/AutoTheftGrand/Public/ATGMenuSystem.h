@@ -52,6 +52,8 @@ public:
 	void AdjustSelection(int32 Direction);
 	FString SelectionLabel() const;
 	FString SelectionValue() const;
+	// a waypoint at a point of the open Map tab (fractions of its width and height); false when it isn't open
+	bool SetMapWaypoint(float Fx, float Fy);
 	bool IsPauseMenuOpen() const;
 	bool IsReturningToMainMenu() const { return bPauseReturnsToMainMenu; }
 	void ClearReturnToMainMenu() { bPauseReturnsToMainMenu = false; }
@@ -168,6 +170,8 @@ private:
 	FSlateColor Background() const;
 	FSlateColor TextColor() const;
 	FSlateColor StripColor() const;
+	bool IsHot() const;   // (selected and enabled)
+	float Fade() const;   // (a disabled row: opacity 0.35 / 0.4)
 	FReply HandleClicked();
 	void HandleHovered();
 	TSharedRef<SWidget> BuildContent();
@@ -191,6 +195,8 @@ private:
 	bool bHasSave = false;
 
 	TSharedRef<SWidget> BuildMenu();
+	void Rebuild();
+	FVector2D BuiltFor = FVector2D::ZeroVector; // (the viewport size the layout was worked out for)
 	FReply OnContinueClicked();
 	FReply OnNewGameClicked();
 	FReply OnFreeRoamClicked();
@@ -340,6 +346,7 @@ private:
 	TSharedPtr<SButton> SaveButton;
 	TSharedPtr<SButton> QuitButton;
 	TSharedPtr<class STextBlock> SaveLabel;
+	TSharedPtr<class SATGMapView> MapView;
 };
 
 
@@ -366,6 +373,7 @@ public:
 	void AdjustSelection(int32 Direction);
 	FString SelectionLabel() const;
 	FString SelectionValue() const;
+	bool SetMapWaypoint(float Fx, float Fy);
 	FATGMenuSystem::EATGMenuState GetMenuState() const;
 	bool IsPauseMenuOpen() const;
 	bool IsMenuOpen() const;

@@ -3,6 +3,8 @@
 #include "Game/ATGWorld.h"
 #include "Game/ATGCoords.h"
 #include "Game/ATGPainter.h"
+#include "Game/ATGGameMode.h"
+#include "ATGGameInstance.h"
 #include "Sim/Ragdoll.h"
 #include "Sim/Game.h"
 #include "Sim/Hud.h"
@@ -89,6 +91,17 @@ void AATGHUD::DrawHUD() {
 	atg::Game* G = W ? W->Game() : nullptr;
 	if (!G || !PC) { DrawLoading(W); return; }
 	if (G->hudModel && atg::Finite(G->hudModel->creditsT)) { DrawCredits(G); return; }
+	// (body.menu .hud { display: none }: no HUD behind the title screen)
+	if (const AATGGameMode* GM = GetWorld() ? Cast<AATGGameMode>(GetWorld()->GetAuthGameMode()) : nullptr; GM && GM->IsOnTitle()) return;
+	// the FPS readout (hud.js .hud-fps: 12 px monospace, green, top left, the rate over half a second)
+	if (const UATGGameInstance* GI = Cast<UATGGameInstance>(GetGameInstance()); GI && GI->IsShowFPS()) {
+		FpsAcc += Dt; FpsN++;
+		if (FpsAcc > 0.5f) { FpsText = FString::Printf(TEXT("%d FPS"), FMath::RoundToInt(FpsN / FpsAcc)); FpsAcc = 0; FpsN = 0; }
+		FATGPainter c(Canvas);
+		c.Scale(Canvas->ClipY / 720.f, Canvas->ClipY / 720.f);
+		c.Fill = FLinearColor::Black; c.FontText(FpsText, 9, 17, 12, TEXT("Regular"));
+		c.Fill = FLinearColor(0.f, 1.f, 0.f); c.FontText(FpsText, 8, 16, 12, TEXT("Regular"));
+	}
 
 	UFont* Big = GEngine->GetLargeFont();
 	UFont* Small = GEngine->GetSmallFont();
@@ -136,7 +149,8 @@ void AATGHUD::DrawHUD() {
 	DrawMessages(G, Dt);
 	DrawOverlays(G, Dt);
 	if (G->hudModel && !G->hudModel->menu.kind.empty()) DrawShopMenu(G);
-	else if (G->paused) {
+	else if (G->paused && !(GetWorld() && Cast<AATGGameMode>(GetWorld()->GetAuthGameMode()) && Cast<AATGGameMode>(GetWorld()->GetAuthGameMode())->IsMenuOpen())) {
+		// (the plain pause screen of a run without the menus; the pause menu draws its own)
 		MenuRects.Reset();
 		DrawRect(FLinearColor(0, 0, 0, 0.55f), 0, 0, Canvas->ClipX, Canvas->ClipY);
 		Text(TEXT("PAUSED"), Canvas->ClipX / 2, Canvas->ClipY * 0.42f, Big, 3.f * Ui, Gold, 0.5f);

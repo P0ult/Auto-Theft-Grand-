@@ -55,6 +55,7 @@ public:
 		V3 last;
 		double t = 0;
 		bool stopRequest = false, skipping = false, picked = false, picking = false;
+		std::optional<V2> wp; // (the waypoint the ride is heading for, if it came from one)
 	};
 	struct Fare {
 		Ref<Ped> ped; Marker* marker = nullptr;
@@ -79,6 +80,8 @@ public:
 
 	// the phone's Downtown Cab Co.
 	void hailCab();
+	// the player is in the back of a held cab: the waypoint, else the destination picker
+	void beginRide(Vehicle* cab);
 
 	std::unique_ptr<Hail> hail;
 	std::unique_ptr<Ride> ride;
@@ -99,9 +102,8 @@ private:
 	void releaseCab(Vehicle* cab);
 	void enterAsPassenger();
 	void updateHeld(double dt);
-	void beginRide(Vehicle* cab);
 	void openPicker();
-	void setDest(const std::string& name, double x, double z);
+	void setDest(const std::string& name, double x, double z, bool fromWaypoint = false);
 	void updateRide(double dt, bool ok);
 	void skip();
 	void arrive();

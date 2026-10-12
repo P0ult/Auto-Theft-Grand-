@@ -87,6 +87,7 @@ void AATGGameMode::TryInitializeMenuSystem()
 		RawGI->ConditionalBeginDestroy();
 		GI = NewObject<UATGGameInstance>(GetGameInstance()->GetOuter());
 		GetWorld()->SetGameInstance(GI);
+		GI->Init(); // (the save path and settings: without it the title thinks there is no save)
 		RawGI = GI;
 	}
 	else if (!GI)

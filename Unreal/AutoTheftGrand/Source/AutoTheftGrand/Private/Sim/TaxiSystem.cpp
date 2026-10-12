@@ -236,7 +236,8 @@ void TaxiSystem::beginRide(Vehicle* cab) {
 	ride->state = "choose";
 	ride->destName.clear();
 	ride->last = cab->pos;
-	openPicker();
+	if (const auto w = game.hud ? game.hud->waypoint() : std::nullopt) setDest("your waypoint", w->x, w->z, true);
+	else openPicker();
 }
 
 void TaxiSystem::openPicker() {
@@ -286,9 +287,10 @@ std::vector<StoreItem> TaxiSystem::pickerRows() {
 	return out;
 }
 
-void TaxiSystem::setDest(const std::string& name, double x, double z) {
+void TaxiSystem::setDest(const std::string& name, double x, double z, bool fromWaypoint) {
 	Ride* r = ride.get();
 	if (!r) return;
+	r->wp = fromWaypoint ? std::optional<V2>(V2{ x, z }) : std::nullopt;
 	RoadSpot s;
 	if (!FindRoadSpot(game, x, z, false, s)) s = { x, z, game.map.GroundHeight(x, z), 0 };
 	r->destName = name;
@@ -327,6 +329,8 @@ void TaxiSystem::updateRide(double dt, bool ok) {
 	r.last = cab->pos;
 	if (dd < 60) r.dist += dd;
 	r.fare = TAXI_FLAG + TAXI_PER_KM * r.dist / 1000;
+	// a new waypoint mid-ride: change course
+	if (const auto w = game.hud ? game.hud->waypoint() : std::nullopt) if (r.wp && (w->x != r.wp->x || w->z != r.wp->z) && !r.skipping) setDest("your waypoint", w->x, w->z, true);
 	if (ok && game.input.hit("skipTrip") && !r.skipping && !r.stopRequest) skip();
 	if (r.stopRequest) {
 		if (cab->speedAbs() < 1) { charge(r.fare, "Fare"); r.state = "leaving"; game.vehicles.exit(&p); }

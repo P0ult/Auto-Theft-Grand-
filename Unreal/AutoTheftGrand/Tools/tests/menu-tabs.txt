@@ -1,0 +1,40 @@
+# The pause menu's tabs in free roam (run with -ATGMenu): M opens the Map tab, a right-click on the map sets a
+# waypoint, then a shot of every tab, and the title screen again after Quit.
+wait 4
+shot tabs_title
+ATG.Menu FreeRoam
+wait 2
+ATG.Input M 1
+wait 0.1
+ATG.Input M 0
+wait 0.5
+ATG.MenuCheck open 1
+ATG.MenuCheck tab Map
+ATG.MapWaypoint 0.75 0.5
+wait 0.5
+shot tabs_map
+ATG.Menu Tab 1
+wait 0.3
+shot tabs_teleport
+ATG.Menu Tab 1
+wait 0.3
+shot tabs_vehicles
+ATG.Menu Tab 1
+wait 0.3
+shot tabs_admin
+ATG.Menu Tab 1
+wait 0.3
+shot tabs_online
+ATG.Menu Tab 1
+wait 0.3
+shot tabs_stats
+ATG.Menu Tab 1
+wait 0.3
+shot tabs_settings
+ATG.Menu Tab 1
+wait 0.3
+shot tabs_controls
+ATG.Menu Quit
+wait 3
+shot tabs_title_again
+quit

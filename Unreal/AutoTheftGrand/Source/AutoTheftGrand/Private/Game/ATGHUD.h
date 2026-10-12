@@ -22,6 +22,8 @@ public:
 private:
 	double RadarRange = 110;
 	double LastTime = 0;
+	// the FPS readout
+	float FpsAcc = 0; int32 FpsN = 0; FString FpsText;
 	float Ui = 1;
 
 	void Text(const FString& S, float X, float Y, UFont* Font, float Scale, const FLinearColor& Color, float AlignX = 0.f);

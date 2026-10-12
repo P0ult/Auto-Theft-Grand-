@@ -2,6 +2,7 @@
 // the wanted stars, cash and weapon top right, the zone and vehicle names bottom right. Drawn with
 // FATGPainter so the canvas code ports line for line.
 #include "Game/ATGHUD.h"
+#include "Game/ATGHudDraw.h"
 #include "Game/ATGPainter.h"
 #include "Game/ATGWorld.h"
 #include "Sim/Game.h"
@@ -146,6 +147,12 @@ TArray<P2> ClipPoly(const TArray<P2>& Subject, const TArray<P2>& Clip) {
 	return Out;
 }
 }
+
+void ATGHudDraw::PlayerArrow(FATGPainter& C, float X, float Y, float Yaw, float Scale, bool bRadar) {
+	// (the map turns it by PI - yaw, the radar by -relYaw)
+	::PlayerArrow(C, X, Y, bRadar ? Yaw : Yaw - PI, Scale);
+}
+void ATGHudDraw::Blip(FATGPainter& C, float X, float Y, const atg::Blip& B, float Scale) { ::Blip(C, X, Y, B, Scale); }
 
 // ------------------------------------------------------------------ the minimap (hud.js _drawRadar, modern)
 void AATGHUD::DrawMinimap(atg::Game* G, AATGWorld* W, float Dt, float Left, float Top) {

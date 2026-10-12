@@ -9,6 +9,7 @@
 #include "Sim/Audio.h"
 #include "Sim/Peds.h"
 #include "Sim/Traffic.h"
+#include "HAL/IConsoleManager.h"
 
 UATGGameInstance::UATGGameInstance() {}
 void UATGGameInstance::Init()
@@ -86,8 +87,14 @@ void UATGGameInstance::SetInvertY(bool bInvert)
 	if (AATGGameMode* GM = GetWorld() ? Cast<AATGGameMode>(UGameplayStatics::GetGameMode(GetWorld())) : nullptr)
 		if (AATGWorld* World = AATGWorld::Get(GM)) if (atg::Game* G = World->Game()) { G->settings.invertY = bInvert; G->input.invertY = bInvert; }
 }
-void UATGGameInstance::SetReflectionsEnabled(bool bEnabled) { bReflectionsEnabled = bEnabled; }
-void UATGGameInstance::SetAOEnabled(bool bEnabled) { bAOEnabled = bEnabled; }
+void UATGGameInstance::SetReflectionsEnabled(bool bEnabled) { bReflectionsEnabled = bEnabled; ApplyRenderToggles(); }
+void UATGGameInstance::SetAOEnabled(bool bEnabled) { bAOEnabled = bEnabled; ApplyRenderToggles(); }
+void UATGGameInstance::ApplyRenderToggles() const {
+	auto Set = [](const TCHAR* Name, int32 V) { if (IConsoleVariable* C = IConsoleManager::Get().FindConsoleVariable(Name)) C->Set(V, ECVF_SetByGameSetting); };
+	Set(TEXT("r.Lumen.Reflections.Allow"), bReflectionsEnabled ? 1 : 0);
+	Set(TEXT("r.AmbientOcclusionLevels"), bAOEnabled ? -1 : 0);
+	Set(TEXT("r.Lumen.ScreenProbeGather.ShortRangeAO"), bAOEnabled ? 1 : 0);
+}
 void UATGGameInstance::SetShowFPS(bool bShow) { bShowFPS = bShow; }
 void UATGGameInstance::SetNPCrimeLevel(FName Level)
 {

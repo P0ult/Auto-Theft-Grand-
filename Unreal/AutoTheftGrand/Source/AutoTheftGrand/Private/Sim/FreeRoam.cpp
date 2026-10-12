@@ -182,7 +182,7 @@ std::vector<FreeDestination> FreeRoam::destinations() const {
 	};
 	auto foot = [](double yaw = NaN()) { FreeDestination o; o.foot = true; o.yaw = yaw; return o; };
 	auto footExact = [](double yaw = NaN()) { FreeDestination o; o.foot = true; o.exactVeh = true; o.yaw = yaw; return o; };
-	// (the map waypoint comes with the pause map's waypoints)
+	if (game.hud) if (const auto w = game.hud->waypoint()) add("Quick", "Map waypoint", w->x, w->z, foot());
 	if (auto* h = lm("home")) add("Quick", "Safehouse", h->x, h->z, foot(kPi));
 
 	const std::string city = "Los Soles";

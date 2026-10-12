@@ -140,6 +140,9 @@ public:
 	virtual void letterbox(bool) {}
 	virtual void routeTo(std::optional<V2>) {}
 	virtual void showCredits() {}
+	// the map waypoint (hud.js setWaypoint: the same spot again clears it)
+	virtual std::optional<V2> waypoint() const { return std::nullopt; }
+	virtual void setWaypoint(double, double) {}
 };
 
 // weapons and damage (src/game/combat.js)

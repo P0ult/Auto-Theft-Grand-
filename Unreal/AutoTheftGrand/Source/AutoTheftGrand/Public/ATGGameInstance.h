@@ -68,6 +68,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "ATG Settings")
 	void SetShowFPS(bool bShow);
 
+	bool IsReflectionsEnabled() const { return bReflectionsEnabled; }
+	bool IsAOEnabled() const { return bAOEnabled; }
+	bool IsShowFPS() const { return bShowFPS; }
+	// the two render toggles as console variables (Lumen reflections; screen-space and Lumen short-range AO)
+	void ApplyRenderToggles() const;
+
 	UFUNCTION(BlueprintCallable, Category = "ATG Settings")
 	void SetNPCrimeLevel(FName Level);
 

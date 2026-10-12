@@ -95,9 +95,43 @@ ATG.Input Gamepad_FaceButton_Bottom 0
 wait 0.2
 ATG.MenuCheck invert 0
 ATG.MenuCheck value OFF
+# The render toggles and the FPS readout: A flips each, and the row shows it.
 ATG.Menu Nav 0 1
 wait 0.2
-ATG.MenuCheck selected "Street crime"
+ATG.MenuCheck selected "Ray-traced reflections (wet streets, glass, water)"
+ATG.MenuCheck value ON
+ATG.Input Gamepad_FaceButton_Bottom 1
+wait 0.1
+ATG.Input Gamepad_FaceButton_Bottom 0
+wait 0.2
+ATG.MenuCheck value OFF
+ATG.Input Gamepad_FaceButton_Bottom 1
+wait 0.1
+ATG.Input Gamepad_FaceButton_Bottom 0
+wait 0.2
+ATG.MenuCheck value ON
+ATG.Menu Nav 0 1
+wait 0.2
+ATG.MenuCheck selected "Ambient occlusion (contact shadows)"
+ATG.MenuCheck value ON
+ATG.Menu Nav 0 1
+wait 0.2
+ATG.MenuCheck selected "Show FPS"
+ATG.MenuCheck value OFF
+ATG.Input Gamepad_FaceButton_Bottom 1
+wait 0.1
+ATG.Input Gamepad_FaceButton_Bottom 0
+wait 0.5
+ATG.MenuCheck value ON
+shot pause_polished_settings_fps
+ATG.Input Gamepad_FaceButton_Bottom 1
+wait 0.1
+ATG.Input Gamepad_FaceButton_Bottom 0
+wait 0.2
+ATG.MenuCheck value OFF
+ATG.Menu Nav 0 1
+wait 0.2
+ATG.MenuCheck selected "Street crime (NPCs jaywalk, speed, mug, steal cars; police respond)"
 ATG.Menu Nav -1 0
 wait 0.2
 ATG.MenuCheck crime off

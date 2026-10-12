@@ -389,6 +389,14 @@ ATG_CMD(CmdInput, "ATG.Input", "ATG.Input UnrealKeyName value: digital 1/0 or an
 	const float Value = Arg(Args, 1);
 	PC->InputKey(FInputKeyEventArgs::CreateSimulated(Key, Key.IsAnalog() ? IE_Axis : Value != 0 ? IE_Pressed : IE_Released, Value));
 })
+ATG_CMD(CmdMapWaypoint, "ATG.MapWaypoint", "ATG.MapWaypoint fx fy: right-click the open pause map at that fraction of its size (sets or clears a waypoint), then log it", {
+	AATGGameMode* GM = W ? Cast<AATGGameMode>(W->GetAuthGameMode()) : nullptr;
+	UATGMenuSystem* M = GM ? GM->GetMenuSystem() : nullptr;
+	atg::Game* G = Sim(W);
+	if (!M || !G || !M->SetMapWaypoint((float)Arg(Args, 0, 0.5), (float)Arg(Args, 1, 0.5))) { UE_LOG(LogATG, Error, TEXT("ATG MAP WAYPOINT FAIL: the Map tab is not open")); return; }
+	const auto Wp = G->hud ? G->hud->waypoint() : std::nullopt;
+	UE_LOG(LogATG, Display, TEXT("ATG map waypoint: %s, route %d points"), Wp ? *FString::Printf(TEXT("(%.0f, %.0f)"), Wp->x, Wp->z) : TEXT("none"), G->hudModel ? (int32)G->hudModel->route.size() : 0);
+})
 ATG_CMD(CmdMenuCheck, "ATG.MenuCheck", "ATG.MenuCheck selected|tab|open|volume|music|sensitivity|invert|quality|crime|timeScale|cheat expected: assert actual menu state", {
 	AATGGameMode* GM = W ? Cast<AATGGameMode>(W->GetAuthGameMode()) : nullptr;
 	UATGMenuSystem* M = GM ? GM->GetMenuSystem() : nullptr;

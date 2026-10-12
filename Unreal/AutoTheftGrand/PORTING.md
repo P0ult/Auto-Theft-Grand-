@@ -58,7 +58,7 @@ pad, and plays its sounds.
 | game/combat.js | `Sim/Combat`, `ATGEffects` (projectiles) | Hitscan with spread and pellets (aimed from the camera, fired from the muzzle), hits on people, vehicles and the world, melee with its combos and the bat denting cars, explosions sized to the vehicle, rockets, homing missiles, tank shells, grenades, molotovs and their burning pools, people on fire, shooting down the police helicopter (and locking on to it). The animals join the ray with the wildlife. |
 | game/effects.js | `Sim/Effects`, `ATGEffects`, `ATGMaterials` (FxAlpha, FxAdd) | The three particle pools, decals, skid marks, tracers, flash lights, explosions with their fire, flying wreckage, smoke columns and secondary blasts, prop and panel debris, broken props restored far away. The canvas textures (smoke, soft dot, the decal atlas) are drawn per pixel in the materials. Boat wakes and rain come with boats and the weather. |
 | ui/hud.js (messages and overlays) | `Sim/Hud` (`HudModel`), `ATGHUD` | Help, big messages, subtitles, objectives, the bar, money pops, dispatch, the fade, the damage flash, the shard: the state and timers in the simulation, drawn by `ATGHUD`. |
-| ui/hud.js (the modern layout) | `ATGHudModern.cpp`, `ATGPainter` | The minimap (`_drawRadar`: the map turned with the camera, the city layer clipped in, police flashes and search cones, blips and their icons, north, the player arrow, the GPS route), the health, armour and special bars, the stars, cash, weapon icon and ammo, the zone and vehicle names, the speedometer (`_drawSpeedo`: dial, red zone, gear, damage bar, the altimeter for aircraft). Still to come: map waypoints, the classic round radar, the browser game's fonts. |
+| ui/hud.js (the modern layout) | `ATGHudModern.cpp`, `ATGPainter` | The minimap (`_drawRadar`: the map turned with the camera, the city layer clipped in, police flashes and search cones, blips and their icons, north, the player arrow, the GPS route), the health, armour and special bars, the stars, cash, weapon icon and ammo, the zone and vehicle names, the speedometer (`_drawSpeedo`: dial, red zone, gear, damage bar, the altimeter for aircraft). The map waypoint (`Sim/Hud` setWaypoint, the pause map, cabs and the Teleport tab use it) and the browser's fonts (`ATGFonts`, with the CSS fallbacks). Still to come: the classic round radar. |
 | main.js (the systems) | `Sim/Setup` | Registers the systems in main.js order and populates the streets. |
 | ui/mapimage.js, hud.js | `Gen/MapImage.cpp`, `ATGHUD` | The map is drawn by a small software rasteriser. The HUD is a first cut. |
 
@@ -147,8 +147,11 @@ missions recorded). Several optional single-player features and phase 6 items re
 - The people's material takes each part's roughness from humanoidMaterial, but not yet its fine fabric,
   hair and denim patterns, or the metalness of buckles and badges.
 - Online, the trains follow the host's timetable; that comes with multiplayer (phase 6).
-- The HUD uses the engine's default font, scaled up; the browser game's fonts (Anton for the shard) come
-  with the phase 3b HUD.
+- The menus and the pause map use the browser's font stacks (`ATGFonts`), but the HUD (cash, zone names, the
+  WASTED shard) still draws with the engine's fonts. The Google fonts themselves are not in the repository: put
+  them in `Content/Fonts/`, or the Windows fallbacks of the CSS stacks are used.
+- The title's GRAND is solid gold; the browser's gold gradient fill is not drawn yet.
+- Settings lacks the HUD style choice (the classic round radar is not ported).
 - The WASTED look approximates postfx.js with Unreal's post-process (saturation, gain, vignette); the radial
   blur of the death effect is not there yet.
 - Headlight beams on the road are not drawn yet.

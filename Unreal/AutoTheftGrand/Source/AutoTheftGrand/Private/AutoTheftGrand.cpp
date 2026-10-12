@@ -1,6 +1,7 @@
 #include "AutoTheftGrand.h"
 #include "Game/ATGMaterials.h"
 #include "Game/ATGMeshComponent.h"
+#include "Game/ATGFonts.h"
 #include "Misc/CoreDelegates.h"
 #include "Modules/ModuleManager.h"
 
@@ -19,6 +20,7 @@ public:
 	virtual void ShutdownModule() override {
 		// the meshes' last GPU buffers (the render thread has stopped; the ray tracing geometry manager still runs)
 		ATGMeshGraveyard::Flush();
+		ATGFonts::Shutdown();
 	}
 };
 

@@ -9,6 +9,7 @@
 namespace atg {
 
 class Game;
+struct Blip;
 
 class HudModel : public IHud {
 public:
@@ -42,6 +43,12 @@ public:
 	void setCounter(const std::string& label, const std::string& value) override { counterLabel = label; counterValue = value; }
 	void letterbox(bool on) override { letterboxed = on; }
 	void routeTo(std::optional<V2> target) override { gpsTarget = target; routeTimer = 0; if (!target) route.clear(); }
+	// the map waypoint and its purple blip; the route leads to the GPS target, else to the waypoint
+	std::optional<V2> wp;
+	std::shared_ptr<Blip> wpBlip;
+	std::optional<V2> waypoint() const override { return wp; }
+	void setWaypoint(double x, double z) override;
+	void updateRoute();
 	double creditsT = NaN();
 	void showCredits() override { creditsT = 0; }
 	void dismissCredits();
