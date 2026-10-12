@@ -1,0 +1,9 @@
+# Save across a restart, part 2 (run with -ATGMenu after save1.txt): Continue loads the save.
+wait 3
+ATG.MenuState
+ATG.Menu Continue
+wait 4
+ATG.Missions
+ATG.State
+shot save_continue
+quit

@@ -1,0 +1,13 @@
+# Save across a restart, part 1 (run with -ATGMenu): a new game, Welcome Home passed (the autosave writes
+# Saved/AutoTheftGrandSave.json). Part 2 (save2.txt) continues it.
+wait 3
+ATG.Menu NewGame
+wait 1
+ATG.God 1
+wait 30
+repeat 30 2 ATG.StoryAdvance
+wait 30
+repeat 10 2 ATG.StoryAdvance
+wait 10
+ATG.Missions
+quit

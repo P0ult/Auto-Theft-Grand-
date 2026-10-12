@@ -107,7 +107,8 @@ The game opens with Welcome Home. After each mission, yellow contact letters sho
 are implemented: native story tests complete all 35 missions, and `Tools/tests/story6.txt`, `story7.txt` and
 `story8.txt` play the later chapters in Unreal.
 Without `-ATGStory`, the game starts at the safehouse; the main menu selects free roam, a new story or continue.
-Save/load is implemented in the simulation and wired to the menu, but still needs an end-to-end persistence check.
+Save/load writes `Saved/AutoTheftGrandSave.json` (the browser game's format) after each mission; Continue on the
+title screen loads it. `Tools/tests/save1.txt` then `save2.txt` (both with `-ATGMenu`) check it across a restart.
 
 ### Intel Mac package
 
@@ -321,8 +322,8 @@ This script injects Unreal controller events with `ATG.Input`, then checks menu 
 and visible toggle badges with `ATG.MenuCheck`. It covers Menu/B resume, LB tab wrap, D-pad/left-stick
 navigation, both setting directions, all twelve Admin toggles and both vehicle-spawn toggles.
 The final regression passed 105 checks at 1280×720 and 1920×1080 using injected Unreal controller events,
-not a physical pad. The first 1080p launch crashed on an Unreal background/render worker before the menu
-checks; an unchanged retry passed. This intermittent render crash is still unresolved.
+not a physical pad. An intermittent crash on a render worker while the world was being built (about one start in four) came from
+extra Lumen and ray-tracing settings in `Config/DefaultEngine.ini`; with them removed, 14 starts in a row ran clean.
 Inspect the log for `ATG MENU CHECK FAIL` as well as the process exit code. Screenshots are under
 `Saved/Screenshots/WindowsEditor/ATG/pause_polished_*.png`. `ATG.ShopMenu` controls shop overlays;
 `ATG.Menu` controls the title and pause screens.

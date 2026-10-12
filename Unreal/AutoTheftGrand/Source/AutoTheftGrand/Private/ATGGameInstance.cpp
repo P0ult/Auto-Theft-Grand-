@@ -15,7 +15,7 @@ void UATGGameInstance::Init()
 {
 	Super::Init();
 	if (!SaveSystem) SaveSystem = NewObject<UATGSaveSystem>(this);
-	SaveSystem->SetSavePath(FPaths::ProjectSavedDir() / TEXT("AutoTheftGrandSave.json"));
+	SaveSystem->SetSavePath(FPaths::ConvertRelativePathToFull(FPaths::ProjectSavedDir() / TEXT("AutoTheftGrandSave.json")));
 }
 void UATGGameInstance::Shutdown() { Super::Shutdown(); }
 

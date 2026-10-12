@@ -30,6 +30,7 @@
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
 #include "Misc/Paths.h"
+#include "Sim/SaveSystem.h"
 
 AATGGameMode::AATGGameMode() {
 	PrimaryActorTick.bCanEverTick = true;
@@ -249,7 +250,7 @@ void AATGGameMode::StartGame(const FString& JourneyMode) {
 	atg::PopulateWorld(*G);
 	if (UATGGameInstance* GI = Cast<UATGGameInstance>(GetGameInstance()))
 	{
-		GI->InitializeSaveSystem(G, FPaths::ProjectSavedDir() / TEXT("AutoTheftGrandSave.json"));
+		GI->InitializeSaveSystem(G, FPaths::ConvertRelativePathToFull(FPaths::ProjectSavedDir() / TEXT("AutoTheftGrandSave.json")));
 		GI->SetFreeRoamActive(G->freeRoam);
 		if (G->audioSys) G->audioSys->setVolume(GI->GetMasterVolume());
 		if (G->audioSys) G->audioSys->setMusic(GI->GetMusicVolume());
@@ -331,6 +332,10 @@ void AATGGameMode::Frame(double Dt) {
 
 void AATGGameMode::SyncViews(float Dt) {
 	atg::Game* G = World->Game();
+	// the save file, for every simulation (a mission's autosave writes straight to it; a new simulation after
+	// Quit to title starts without a path). Absolute: the simulation writes with the C++ library, which
+	// resolves relative paths against the process's working directory
+	if (G && G->saveSys && G->saveSys->path.empty()) G->saveSys->path = TCHAR_TO_UTF8(*FPaths::ConvertRelativePathToFull(FPaths::ProjectSavedDir() / TEXT("AutoTheftGrandSave.json")));
 	UWorld* W = GetWorld();
 	// vehicles
 	for (int32 I = Cars.Num() - 1; I >= 0; I--) {

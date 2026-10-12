@@ -121,8 +121,8 @@ missions recorded). Several optional single-player features and phase 6 items re
   input routing, settings in both directions, all twelve Admin toggles and both spawn-option toggles.
   The pause screen uses explicit ON/OFF badges and retains selection after changes. Remaining free-roam
   gameplay paths still need dedicated Unreal coverage.
-- Save/load has a simulation implementation and game-menu wiring; persistence across application restarts
-  still needs an end-to-end test.
+- Save and load. Done: a mission's autosave writes `Saved/AutoTheftGrandSave.json`, and Continue restores it after
+  a restart (`Tools/tests/save1.txt`, `save2.txt`).
 
 **Phase 6: the finish.**
 - Walk-in interiors with their furniture and shopkeepers. Done.
