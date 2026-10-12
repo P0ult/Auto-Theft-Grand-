@@ -133,8 +133,8 @@ missions recorded). Several optional single-player features and phase 6 items re
   beacons blink.
 - Rain and puddles. Done: the streaks round the camera (effects.js Rain), wet ground with puddles on level
   surfaces (materials.js WET_GLSL) on the terrain, roads, streets, lots and flat roofs, and the weather in the sky
-  (cloud and rain dim the sun, the fog thickens and greys, lightning, lamps on earlier). The ripples in puddles are
-  not drawn yet.
+  (cloud and rain dim the sun, the fog thickens and greys, lightning, lamps on earlier), and raindrop ripples in the
+  puddles on the terrain, roads, streets and lots (materials.js atgRipples / WET_NORMAL).
 - Chain-link fences, billboards and the shops' name signs. Done: `Gen/CitySigns` places the 71 rooftop billboards
   (with their collision) and 74 signs as city.js does (`Tools/dumpsigns.mjs` against `signstest.cpp`: identical);
   `ATGPictures` paints the ad atlas and the signs, which glow at night; the fences get their see-through panels.

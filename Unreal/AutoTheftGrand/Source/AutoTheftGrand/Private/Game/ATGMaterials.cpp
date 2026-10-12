@@ -32,7 +32,7 @@
 
 namespace {
 // bump when the generated materials change: new assets are made under new names
-constexpr int32 GMatVersion = 9;
+constexpr int32 GMatVersion = 10;
 const TCHAR* GMatNames[] = { TEXT("Terrain"), TEXT("Road"), TEXT("Street"), TEXT("Ground"), TEXT("Building"), TEXT("VertexLit"), TEXT("Frond"), TEXT("Water"), TEXT("Standard"), TEXT("Glass"), TEXT("FxAlpha"), TEXT("FxAdd"), TEXT("Unlit"), TEXT("Picture"), TEXT("Rain"), TEXT("Wood"), TEXT("Cutout") };
 
 FString AssetName(const TCHAR* Base) { return FString::Printf(TEXT("M_ATG_%s_%d"), Base, GMatVersion); }
@@ -67,13 +67,40 @@ struct ATGN {
 		float thr = lerp(0.76, 0.5, wet);
 		return smoothstep(thr, thr + 0.035, n) * flat_;
 	}
-	void wetGround(inout float3 col, inout float rough, float porous, float2 xz, float flatN, float wet) {
-		if (wet < 0.005) return;
+	// (returns the puddle, for the ripples)
+	float wetGround(inout float3 col, inout float rough, float porous, float2 xz, float flatN, float wet) {
+		if (wet < 0.005) return 0.0;
 		float pud = puddle(xz, flatN, wet) * (1.0 - porous * 0.6);
 		col *= 1.0 - wet * (0.22 + 0.2 * porous);
 		col = lerp(col, col * 0.42 + float3(0.006, 0.008, 0.01), pud);
 		rough = lerp(rough, lerp(0.3, 0.6, porous), wet * 0.75);
 		rough = lerp(rough, 0.03, pud);
+		return pud;
+	}
+	// atgRipples: raindrops landing in puddles, rings spreading from random points (a slope in xz)
+	float2 ripples(float2 xz, float rain, float t) {
+		if (rain < 0.02) return float2(0.0, 0.0);
+		float2 g = float2(0.0, 0.0);
+		for (int k = 0; k < 3; k++) {
+			float2 p = xz * 2.3 + float2(float(k) * 0.43, float(k) * 0.77);
+			float2 cell = floor(p);
+			float h = h21(cell + float(k) * 17.0);
+			if (h > rain * 0.85 + 0.15) continue; // fewer drops in light rain
+			float2 c = cell + 0.3 + 0.4 * float2(h, h21(cell.yx + 3.7 + float(k)));
+			float ph = frac(t * 0.9 + h * 13.0);
+			float2 dv = p - c;
+			float d = length(dv);
+			float x = (d - ph * 0.3) * 40.0;
+			float ring = sin(x) * (1.0 - smoothstep(0.0, 3.1416, abs(x)));
+			g += dv / max(d, 1e-3) * ring * (1.0 - ph) * (1.0 - ph);
+		}
+		return g * 0.4 * saturate(rain * 1.5);
+	}
+	// WET_NORMAL: in a puddle the normal follows the ripples (world space, Unreal's axes: game y is Z)
+	float3 wetNormal(float2 xz, float pud, float3 nrm, float rain, float t) {
+		if (pud < 0.01) return nrm;
+		float2 rp = ripples(xz, rain, t);
+		return normalize(lerp(nrm, normalize(float3(-rp.x, -rp.y, 1.0)), pud));
 	}
 )HLSL");
 static const TCHAR* NoiseEnd = TEXT(R"HLSL(
@@ -617,6 +644,13 @@ wn = normalize(lerp(wn, float3(0.0, 1.0, 0.0), foam * 0.8 + smoothstep(200.0, 90
 )HLSL");
 
 FString Wrap(const TCHAR* Extra, const TCHAR* Body) { return FString(NoiseBegin) + Extra + NoiseEnd + Body; }
+// the ground materials (terrain, roads, streets, lots) also write the puddles' rippled normal (WET_NORMAL) to an
+// extra output, RippleN; their ground position is `wp`
+FString WithRipples(FString Code) {
+	Code = Code.Replace(TEXT("ATGN N;\n"), TEXT("ATGN N;\nRippleN = NRM;\nfloat pudR = 0.0;\n"));
+	Code = Code.Replace(TEXT("N.wetGround("), TEXT("pudR = N.wetGround("));
+	return Code.Replace(TEXT("return float4(col, rough);"), TEXT("RippleN = N.wetNormal(wp, pudR, NRM, Rain, SimT);\nreturn float4(col, rough);"));
+}
 FString Out(const FString& Code, const TCHAR* Ret) { return Code.Replace(TEXT("%OUT%"), Ret); }
 
 FString StreetCode() {
@@ -800,29 +834,40 @@ UMaterial* MakeMaterial(EATGMat Which, UMaterialParameterCollection* C) {
 		B.Out()->Roughness.Connect(0, B.Mask(E, false, false, false, true));
 	};
 	auto UVs = [&](TArray<TPair<FString, UMaterialExpression*>>& Ins) { for (int32 i = 0; i < 4; i++) Ins.Add({ FString::Printf(TEXT("uv%d"), i), B.UV(i) }); };
+	// a ground material: its colour and roughness, and the rippled normal in world space from the extra output
+	auto Ground = [&](const FString& Code, TArray<TPair<FString, UMaterialExpression*>> Ins, const TCHAR* Desc) {
+		Ins.Add({ TEXT("Rain"), B.Mpc(C, TEXT("Rain")) }); Ins.Add({ TEXT("SimT"), B.Mpc(C, TEXT("SimTime")) });
+		UMaterialExpressionCustom* E = B.Custom(WithRipples(Code), CMOT_Float4, Ins, Desc);
+		FCustomOutput Rn; Rn.OutputName = FName(TEXT("RippleN")); Rn.OutputType = CMOT_Float3;
+		E->AdditionalOutputs.Add(Rn);
+		E->RebuildOutputs();
+		Split(E);
+		M->bTangentSpaceNormal = false;
+		B.Out()->Normal.Connect(1, E);
+	};
 	switch (Which) {
 	case EATGMat::Terrain: {
 		TArray<TPair<FString, UMaterialExpression*>> Ins; UVs(Ins);
 		Ins.Add({ TEXT("LP"), B.LocalPos() }); Ins.Add({ TEXT("NRM"), B.Normal() }); Ins.Add({ TEXT("Wet"), B.Mpc(C, TEXT("Wet")) });
-		Split(B.Custom(Wrap(TerrainFields, TerrainBody), CMOT_Float4, Ins, TEXT("ATG terrain")));
+		Ground(Wrap(TerrainFields, TerrainBody), Ins, TEXT("ATG terrain"));
 		break;
 	}
 	case EATGMat::Road: {
 		TArray<TPair<FString, UMaterialExpression*>> Ins; UVs(Ins);
 		Ins.Add({ TEXT("LP"), B.LocalPos() }); Ins.Add({ TEXT("PD"), B.Depth() }); Ins.Add({ TEXT("NRM"), B.Normal() }); Ins.Add({ TEXT("Wet"), B.Mpc(C, TEXT("Wet")) });
-		Split(B.Custom(Wrap(TEXT(""), RoadBody), CMOT_Float4, Ins, TEXT("ATG road network")));
+		Ground(Wrap(TEXT(""), RoadBody), Ins, TEXT("ATG road network"));
 		break;
 	}
 	case EATGMat::Street: {
 		TArray<TPair<FString, UMaterialExpression*>> Ins;
 		Ins.Add({ TEXT("LP"), B.LocalPos() }); Ins.Add({ TEXT("PD"), B.Depth() }); Ins.Add({ TEXT("NRM"), B.Normal() }); Ins.Add({ TEXT("Wet"), B.Mpc(C, TEXT("Wet")) });
-		Split(B.Custom(StreetCode(), CMOT_Float4, Ins, TEXT("ATG city streets")));
+		Ground(StreetCode(), Ins, TEXT("ATG city streets"));
 		break;
 	}
 	case EATGMat::Ground: {
 		TArray<TPair<FString, UMaterialExpression*>> Ins; UVs(Ins);
 		Ins.Add({ TEXT("LP"), B.LocalPos() }); Ins.Add({ TEXT("NRM"), B.Normal() }); Ins.Add({ TEXT("Wet"), B.Mpc(C, TEXT("Wet")) });
-		Split(B.Custom(Wrap(TEXT(""), GroundBody), CMOT_Float4, Ins, TEXT("ATG ground")));
+		Ground(Wrap(TEXT(""), GroundBody), Ins, TEXT("ATG ground"));
 		break;
 	}
 	case EATGMat::Building: {
