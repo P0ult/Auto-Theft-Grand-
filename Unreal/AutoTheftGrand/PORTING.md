@@ -126,7 +126,11 @@ missions recorded). Several optional single-player features and phase 6 items re
 
 **Phase 6: the finish.**
 - Walk-in interiors with their furniture and shopkeepers. Done.
-- Landmarks: the pier's rides, the Ferris wheel.
+- Landmarks. Done: `Gen/Landmarks` builds the Santa Luz pier (planked deck, posts, rails, booths, lamps), the
+  Ferris wheel, the Vistawood sign, the dock cranes and the aviation beacons on tall roofs and cranes, with their
+  collision, as landmarks.js does (`Tools/dumplandmarks.mjs` against `landmarkstest.cpp`: identical). The wheel
+  turns with its gondolas hanging level, the neon and pier lamps light up at night, the letters glow, and the
+  beacons blink.
 - Rain and puddles. Done: the streaks round the camera (effects.js Rain), wet ground with puddles on level
   surfaces (materials.js WET_GLSL) on the terrain, roads, streets, lots and flat roofs, and the weather in the sky
   (cloud and rain dim the sun, the fog thickens and greys, lightning, lamps on earlier). The ripples in puddles are
@@ -140,7 +144,6 @@ missions recorded). Several optional single-player features and phase 6 items re
 
 ## Known gaps
 
-- The Santa Luz pier is a plain deck; the landmarks' own colliders come with them (phase 6).
 - The people's material takes each part's roughness from humanoidMaterial, but not yet its fine fabric,
   hair and denim patterns, or the metalness of buckles and badges.
 - Online, the trains follow the host's timetable; that comes with multiplayer (phase 6).

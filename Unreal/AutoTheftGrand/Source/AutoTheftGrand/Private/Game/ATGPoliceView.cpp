@@ -1,4 +1,5 @@
 #include "Game/ATGPoliceView.h"
+#include "Game/ATGMeshComponent.h"
 #include "Game/ATGCoords.h"
 #include "Game/ATGMaterials.h"
 #include "Game/ATGMeshUtil.h"
@@ -39,7 +40,9 @@ AATGPoliceView::AATGPoliceView() {
 	Rotor = Part(TEXT("Rotor"));
 	TailRotor = Part(TEXT("TailRotor"));
 	// the searchlight's cone: rebuilt in world space each frame, toward the target
-	Cone = CreateDefaultSubobject<UProceduralMeshComponent>(TEXT("Cone"));
+	UATGMeshComponent* ConeMesh = CreateDefaultSubobject<UATGMeshComponent>(TEXT("Cone"));
+	ConeMesh->bRayTraced = false; // (rebuilt every frame)
+	Cone = ConeMesh;
 	Cone->SetupAttachment(Root);
 	Cone->SetUsingAbsoluteLocation(true); Cone->SetUsingAbsoluteRotation(true); Cone->SetUsingAbsoluteScale(true);
 	Cone->SetCollisionEnabled(ECollisionEnabled::NoCollision);

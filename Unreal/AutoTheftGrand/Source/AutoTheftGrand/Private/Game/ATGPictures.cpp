@@ -68,6 +68,7 @@ UTextureRenderTarget2D* ATGPictures::Paint(UObject* Outer, const FString& Name) 
 	else if (Name == TEXT("lotto")) { W = 256; H = 128; }
 	else if (Name == TEXT("ads")) { W = 1024; H = 1024; }
 	else if (Name.StartsWith(TEXT("sign:"))) { W = 1024; H = 192; }
+	else if (Name.StartsWith(TEXT("letter:"))) { W = 256; H = 256; }
 	else return nullptr;
 	UTextureRenderTarget2D* RT = UKismetRenderingLibrary::CreateRenderTarget2D(Outer, W, H, RTF_RGBA8_SRGB, FLinearColor::Black, false);
 	if (!RT) return nullptr;
@@ -144,6 +145,9 @@ UTextureRenderTarget2D* ATGPictures::Paint(UObject* Outer, const FString& Name) 
 		const float K = Wd > w - 40 && Wd > 0 ? (w - 40) / Wd : 1.f;
 		if (St.Glow) PicGlow(g, Text, w / 2, h / 2 + 6 + 130 * 0.35f, 130, 0.5f, PicImpact * K, St.Fg, 24);
 		Fill(St.Fg); PicMiddle(g, Text, w / 2, h / 2 + 6, 130, TEXT("Bold"), PicImpact, w - 40);
+	} else if (Name.StartsWith(TEXT("letter:"))) {
+		// textures.js letterTexture: a white letter on clear (here black: the red channel is the cut-out mask)
+		Fill(0xffffff); PicMiddle(g, Name.Mid(7), 128, 140, 250, TEXT("Bold"), 1.f, 240);
 	} else if (Name == TEXT("lotto")) {
 		Fill(0xffd60a); g.FillRect(0, 0, w, h);
 		Fill(0xc1121f); Txt(TEXT("LOTTO"), w / 2, 58, 44, TEXT("Bold"), 0.5f, PicImpact);

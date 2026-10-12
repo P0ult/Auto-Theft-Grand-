@@ -1,4 +1,5 @@
 #include "Game/ATGCar.h"
+#include "Game/ATGMeshComponent.h"
 #include "Game/ATGCoords.h"
 #include "Game/ATGMaterials.h"
 #include "Game/ATGMeshUtil.h"
@@ -480,7 +481,7 @@ void AATGCar::ApplyDents() {
 		UPrimitiveComponent* Old = Parts[I];
 		UProceduralMeshComponent* Pm = Cast<UProceduralMeshComponent>(Old);
 		if (!Pm) {
-			Pm = NewObject<UProceduralMeshComponent>(this);
+			Pm = NewObject<UATGMeshComponent>(this);
 			Pm->SetupAttachment(Old->GetAttachParent());
 			Pm->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 			Pm->RegisterComponent();

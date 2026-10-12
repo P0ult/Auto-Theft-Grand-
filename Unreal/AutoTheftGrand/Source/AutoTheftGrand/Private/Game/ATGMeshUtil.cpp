@@ -54,7 +54,9 @@ void ATGMesh::ToCollisionSection(UProceduralMeshComponent* C, int32 Section, con
 	TArray<int32> I; I.SetNumUninitialized(B.I.size());
 	for (size_t k = 0; k < B.I.size(); k++) I[k] = (int32)B.I[k];
 	C->CreateMeshSection(Section, V, I, TArray<FVector>(), TArray<FVector2D>(), TArray<FColor>(), TArray<FProcMeshTangent>(), true);
-	C->SetMeshSectionVisible(Section, false);
+	// (not SetMeshSectionVisible: it assumes the engine's own scene proxy, and ours is UATGMeshComponent's)
+	if (FProcMeshSection* S = C->GetProcMeshSection(Section)) S->bSectionVisible = false;
+	C->MarkRenderStateDirty();
 }
 
 UStaticMesh* ATGMesh::BuildStaticMesh(UObject* Outer, const TCHAR* Name, const TArray<TArray<FATGPart>>& Lods, EATGAxes Axes) {

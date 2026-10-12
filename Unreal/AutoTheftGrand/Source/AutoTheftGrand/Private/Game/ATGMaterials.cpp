@@ -32,8 +32,8 @@
 
 namespace {
 // bump when the generated materials change: new assets are made under new names
-constexpr int32 GMatVersion = 7;
-const TCHAR* GMatNames[] = { TEXT("Terrain"), TEXT("Road"), TEXT("Street"), TEXT("Ground"), TEXT("Building"), TEXT("VertexLit"), TEXT("Frond"), TEXT("Water"), TEXT("Standard"), TEXT("Glass"), TEXT("FxAlpha"), TEXT("FxAdd"), TEXT("Unlit"), TEXT("Picture"), TEXT("Rain") };
+constexpr int32 GMatVersion = 9;
+const TCHAR* GMatNames[] = { TEXT("Terrain"), TEXT("Road"), TEXT("Street"), TEXT("Ground"), TEXT("Building"), TEXT("VertexLit"), TEXT("Frond"), TEXT("Water"), TEXT("Standard"), TEXT("Glass"), TEXT("FxAlpha"), TEXT("FxAdd"), TEXT("Unlit"), TEXT("Picture"), TEXT("Rain"), TEXT("Wood"), TEXT("Cutout") };
 
 FString AssetName(const TCHAR* Base) { return FString::Printf(TEXT("M_ATG_%s_%d"), Base, GMatVersion); }
 FString MpcName() { return FString::Printf(TEXT("MPC_ATG_%d"), GMatVersion); }
@@ -576,7 +576,7 @@ if (sig > 0.5) {
 
 // ---- palm fronds: a leaflet mask drawn from the card's uvs (the browser game used a painted texture)
 static const TCHAR* FrondBody = TEXT(R"HLSL(
-float3 col = VertexColor.rgb;
+float3 col = float3(uv1.x, uv1.y, uv2.x); // (the vertex colour, as the meshes carry it)
 float u = uv0.x, v = uv0.y;
 float d = abs(u - 0.5) * 2.0;
 float width = 1.0 - v * 0.55;
@@ -966,6 +966,39 @@ return float4(c, a * 0.35);
 		B.Out()->WorldPositionOffset.Connect(0, P);
 		B.Out()->EmissiveColor.Connect(0, B.Mask(E, true, true, true, false));
 		B.Out()->Opacity.Connect(0, B.Mask(E, false, false, false, true));
+		break;
+	}
+	case EATGMat::Wood: {
+		// landmarks.js pierwood: planks 0.3 m wide along z, each its own shade, a dark gap between them; wet in the rain
+		TArray<TPair<FString, UMaterialExpression*>> Ins;
+		Ins.Add({ TEXT("LP"), B.LocalPos() }); Ins.Add({ TEXT("Wet"), B.Mpc(C, TEXT("Wet")) });
+		const FString Body = TEXT(R"HLSL(
+float3 W = LP / 100.0;
+float2 wp = W.xy;
+float plank = frac(wp.y / 0.3);
+float n = N.vn2(float2(floor(wp.y / 0.3) * 3.1, wp.x * 0.3));
+float3 c = float3(0.42, 0.31, 0.21) * (0.7 + 0.5 * n) * (1.0 - 0.35 * step(plank, 0.08));
+return float4(c * (1.0 - Wet * 0.3), 0.85);
+)HLSL");
+		Split(B.Custom(Wrap(TEXT(""), *Body), CMOT_Float4, Ins, TEXT("ATG pier planks")));
+		break;
+	}
+	case EATGMat::Cutout: {
+		M->BlendMode = BLEND_Masked;
+		M->TwoSided = true;
+		auto* Tex = B.New<UMaterialExpressionTextureSampleParameter2D>();
+		Tex->ParameterName = TEXT("Picture");
+		Tex->Texture = LoadObject<UTexture2D>(nullptr, TEXT("/Engine/EngineResources/DefaultTexture.DefaultTexture"));
+		Tex->SamplerType = SAMPLERTYPE_Color;
+		Tex->Coordinates.Connect(0, B.UV(0));
+		TArray<TPair<FString, UMaterialExpression*>> Ins;
+		Ins.Add({ TEXT("Tex"), Tex }); Ins.Add({ TEXT("Color"), B.VecParam(TEXT("Color"), FLinearColor::White) });
+		Ins.Add({ TEXT("Mode"), B.VecParam(TEXT("Mode"), FLinearColor(1, 0, 0.6f, 0)) }); Ins.Add({ TEXT("Boost"), B.Mpc(C, TEXT("EmissiveBoost")) });
+		UMaterialExpressionCustom* A = B.Custom(TEXT("return float4(Tex.rgb * Color.rgb * Mode.x, Mode.z);"), CMOT_Float4, Ins, TEXT("ATG cutout surface"));
+		UMaterialExpressionCustom* E = B.Custom(TEXT("return float4(Tex.rgb * Mode.y * Boost, Tex.r);"), CMOT_Float4, Ins, TEXT("ATG cutout light"));
+		Split(A);
+		B.Out()->EmissiveColor.Connect(0, B.Mask(E, true, true, true, false));
+		B.Out()->OpacityMask.Connect(0, B.Mask(E, false, false, false, true));
 		break;
 	}
 	case EATGMat::FxAlpha:

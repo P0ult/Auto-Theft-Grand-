@@ -199,6 +199,9 @@ Source/AutoTheftGrand/Private/Game/   the Unreal side: draws the simulation and 
                     fog, clock and street lamps; fine terrain with collision streamed round the player
   ATGMaterials      the browser game's GLSL ported to HLSL custom nodes, built as material assets in C++
   ATGMeshUtil       generator buffers -> procedural mesh sections and runtime static meshes
+  ATGMeshComponent  the procedural mesh component everything uses: the engine's drawing, but its scene proxy
+                    frees GPU buffers on the render thread (the engine's frees its ray tracing geometry on the
+                    background task that deletes proxies, which crashed now and then)
   ATGCar            draws a simulated vehicle: its parts on the sprung body, doors and lids on their hinges,
                     wheels, lights, dents, lost panels; trains with their carriages and wagons; bikes; and
                     (ATGCarAir.cpp) aircraft and the tank: props and rotors with their blur discs, the gear,
@@ -308,6 +311,7 @@ checks without interrupting the simulation.
 `Tools/tests/story5.txt` checks the files, rooftop transition, finale, credits and return to the world.
 `Tools/tests/story6.txt` checks Chapter VI and the airborne rings; `Tools/tests/story7.txt` Chapter VII;
 `Tools/tests/signs.txt` shows the Gun Barn's sign and a rooftop billboard by day and by night.
+`Tools/tests/landmarks.txt` shows the pier, the Ferris wheel, the Vistawood sign and the cranes by day and by night.
 `Tools/tests/rain.txt` shows a street dry, in the rain and at night with the puddles reflecting the shop signs.
 `Tools/tests/jobs.txt` stops at a race flag (and runs the race), a Customs garage, a business for sale, a hailed
 cab and a vigilante call (`ATG.Job` puts the player there). `Tools/tests/story8.txt` exercises Pacific Star, Timber!, High Ground and Saints and Sinners. Native tests also check the rings'

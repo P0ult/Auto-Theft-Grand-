@@ -29,7 +29,9 @@ class UMaterialParameterCollection;
 // "Picture"): Mode.x its lit colour, Mode.y how bright it shines on its own, Mode.z its roughness (0: 0.9) (posters
 // (1, 0), menu boards and shop signs (0, k), billboards (1, k))
 // Rain: effects.js Rain, streaks falling round the camera (uv0 = box x, z; uv1 = box y, seed; uv2 = end, side)
-enum class EATGMat : uint8 { Terrain, Road, Street, Ground, Building, VertexLit, Frond, Water, Standard, Glass, FxAlpha, FxAdd, Unlit, Picture, Rain, Count };
+// Wood: the pier's planks (landmarks.js pierwood, from the world position); Cutout: a picture with holes (its red
+// channel the mask), two-sided, lit (Color x the picture) and glowing (Mode.y): the Vistawood letters
+enum class EATGMat : uint8 { Terrain, Road, Street, Ground, Building, VertexLit, Frond, Water, Standard, Glass, FxAlpha, FxAdd, Unlit, Picture, Rain, Wood, Cutout, Count };
 
 namespace ATGMaterials {
 	// the material (falls back to the engine default if the generated one is missing)

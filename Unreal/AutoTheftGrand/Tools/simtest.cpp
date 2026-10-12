@@ -827,7 +827,10 @@ static void TestShipRaid(World& w) {
 	Run(*g, 6.5);
 	printf("  safe: done %d, payroll %.0f, message '%s %s'\n", (int)R.safeDone, R.lastSafe, g->hudModel->big.text.c_str(), g->hudModel->big.sub.c_str());
 	Check(R.safeDone && R.lastSafe >= 12000 && R.lastSafe <= 18000, "the safe cracks after six seconds");
-	for (auto& q : g->pickupsSys->list) if (q->kind == "money" && Dist2(q->pos.x, q->pos.z, R.ship.safe.x, R.ship.safe.z) < 9 && !q->removed) { p.setPosition(q->pos.x, q->pos.y, q->pos.z); g->frame(1.0 / 30); g->frame(1.0 / 30); }
+	// (frame() removes the picked-up money from the list: find the spots first)
+	std::vector<V3> cash;
+	for (auto& q : g->pickupsSys->list) if (q->kind == "money" && Dist2(q->pos.x, q->pos.z, R.ship.safe.x, R.ship.safe.z) < 9 && !q->removed) cash.push_back(q->pos);
+	for (const V3& c : cash) { p.setPosition(c.x, c.y, c.z); g->frame(1.0 / 30); g->frame(1.0 / 30); }
 	printf("  money %.0f -> %.0f\n", m0, p.money);
 	Check(p.money >= m0 + R.lastSafe, "and the payroll is picked up");
 	// the contraband
@@ -944,9 +947,12 @@ static void TestJobs(World& w) {
 	printf("  hail: cab %d\n", (int)(T.hail && T.hail->cab));
 	Check(T.hail && T.hail->cab, "H on foot: a cab is on its way");
 	Vehicle* cab = T.hail ? T.hail->cab.get() : nullptr;
-	for (int i = 0; i < 600 && cab && Hypot(cab->pos.x - p.pos.x, cab->pos.z - p.pos.z) > 14; i++) g->frame(1.0 / 30);
+	// (it can start 220 m away and waits at red lights)
+	const double cab0 = cab ? Hypot(cab->pos.x - p.pos.x, cab->pos.z - p.pos.z) : -1.0;
+	int waited = 0;
+	for (; waited < 1800 && cab && Hypot(cab->pos.x - p.pos.x, cab->pos.z - p.pos.z) > 14; waited++) g->frame(1.0 / 30);
 	Run(*g, 2);
-	printf("  the cab pulled up %.1f m away\n", cab ? Hypot(cab->pos.x - p.pos.x, cab->pos.z - p.pos.z) : -1.0);
+	printf("  the cab pulled up %.1f m away (from %.0f m, in %.1f s)\n", cab ? Hypot(cab->pos.x - p.pos.x, cab->pos.z - p.pos.z) : -1.0, cab0, waited / 30.0);
 	Check(cab && Hypot(cab->pos.x - p.pos.x, cab->pos.z - p.pos.z) < 16, "it drives to you");
 	if (cab) { g->vehicles.seatNow(&p, cab, 2); Run(*g, 0.3); }
 	printf("  in the back: ride %d, menu '%s' %zu rows\n", (int)(T.ride != nullptr), hud.menu.title.c_str(), hud.menu.rows.size());

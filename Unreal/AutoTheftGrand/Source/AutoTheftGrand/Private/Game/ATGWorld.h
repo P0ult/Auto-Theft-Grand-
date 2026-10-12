@@ -20,6 +20,7 @@ class UProceduralMeshComponent;
 class USkyAtmosphereComponent;
 class USkyLightComponent;
 class UStaticMesh;
+class UStaticMeshComponent;
 class USkeletalMesh;
 class USkeleton;
 class UTexture2D;
@@ -161,6 +162,15 @@ private:
 	UPROPERTY(Transient) TObjectPtr<UProceduralMeshComponent> RainComp;
 	UPROPERTY(Transient) TObjectPtr<UMaterialInstanceDynamic> BillboardMat;
 	UPROPERTY(Transient) TArray<TObjectPtr<UMaterialInstanceDynamic>> SignMats;
+	// the landmarks' moving and glowing parts
+	UPROPERTY(Transient) TObjectPtr<UProceduralMeshComponent> Wheel;
+	UPROPERTY(Transient) TArray<TObjectPtr<UStaticMeshComponent>> Gondolas;
+	UPROPERTY(Transient) TObjectPtr<UMaterialInstanceDynamic> LandmarkLampMat;
+	UPROPERTY(Transient) TObjectPtr<UMaterialInstanceDynamic> NeonMat;
+	UPROPERTY(Transient) TObjectPtr<UMaterialInstanceDynamic> BeaconMat;
+	UPROPERTY(Transient) TArray<TObjectPtr<UMaterialInstanceDynamic>> LetterMats;
+	FVector WheelHub = FVector::ZeroVector;
+	double WheelR = 20, WheelA = 0;
 	double LampTimer = 0;
 	void UpdateSky(float Dt);
 	void UpdateLamps(float Dt);

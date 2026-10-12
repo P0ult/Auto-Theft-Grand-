@@ -1,5 +1,6 @@
 #include "AutoTheftGrand.h"
 #include "Game/ATGMaterials.h"
+#include "Game/ATGMeshComponent.h"
 #include "Misc/CoreDelegates.h"
 #include "Modules/ModuleManager.h"
 
@@ -14,6 +15,10 @@ public:
 			if (GIsEditor && !IsRunningCommandlet()) ATGMaterials::EnsureAssets();
 		});
 #endif
+	}
+	virtual void ShutdownModule() override {
+		// the meshes' last GPU buffers (the render thread has stopped; the ray tracing geometry manager still runs)
+		ATGMeshGraveyard::Flush();
 	}
 };
 

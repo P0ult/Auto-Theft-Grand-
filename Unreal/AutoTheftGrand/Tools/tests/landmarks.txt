@@ -1,0 +1,45 @@
+# The landmarks: the Santa Luz pier and its Ferris wheel, the Vistawood sign and the dock cranes, by day and by night.
+wait 1
+ATG.God 1
+ATG.Time 15
+ATG.Teleport 106 690 0
+wait 3
+ATG.CamAt -14 5 -6 0 14 120
+wait 0.5
+shot landmarks_pier
+ATG.CamAt 30 10 150 0 20 230
+wait 0.5
+shot landmarks_wheel
+ATG.Teleport -60 -900 3.14159
+wait 3
+ATG.CamAt 0 8 10 0 20 -110
+wait 0.5
+shot landmarks_vistawood
+ATG.Teleport 895 125 0
+wait 3
+ATG.CamAt -25 12 -30 8 38 75
+wait 0.5
+shot landmarks_cranes
+ATG.Time 22
+wait 1
+shot landmarks_cranes_night
+wait 0.4
+shot landmarks_cranes_night2
+wait 0.4
+shot landmarks_cranes_night3
+wait 0.4
+shot landmarks_cranes_night4
+ATG.Teleport -60 -900 3.14159
+wait 2
+ATG.CamAt 0 8 10 0 20 -110
+wait 0.5
+shot landmarks_vistawood_night
+ATG.Teleport 106 690 0
+wait 2
+ATG.CamAt 30 10 150 0 20 230
+wait 4
+shot landmarks_wheel_night
+ATG.CamAt -14 5 -6 0 14 120
+wait 0.5
+shot landmarks_pier_night
+quit

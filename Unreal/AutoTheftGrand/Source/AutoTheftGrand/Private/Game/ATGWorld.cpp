@@ -1,4 +1,5 @@
 #include "Game/ATGWorld.h"
+#include "Game/ATGMeshComponent.h"
 #include "AutoTheftGrand.h"
 #include "Game/ATGCoords.h"
 #include "Game/ATGMaterials.h"
@@ -6,6 +7,7 @@
 #include "Game/ATGPictures.h"
 #include "Gen/BikeModels.h"
 #include "Gen/CitySigns.h"
+#include "Gen/Landmarks.h"
 #include "Gen/InteriorMesh.h"
 #include "Gen/MapImage.h"
 #include "Game/ATGHumanMesh.h"
@@ -46,7 +48,7 @@
 struct FATGWorldData {
 	atg::CityMap Map;
 	atg::RoadMeshes Roads;
-	atg::MeshBuf Street, Blocks, Lots, Pads, Pools, Pier, Lake, Container, Sleeper;
+	atg::MeshBuf Street, Blocks, Lots, Pads, Pools, Lake, Container, Sleeper;
 	std::map<std::pair<int, int>, atg::CityChunk> City;
 	std::map<std::string, atg::PropTemplate> PropDefs;
 	std::vector<atg::PropInstance> Props;
@@ -122,28 +124,6 @@ atg::MeshBuf BuildLake() {
 	return G;
 }
 
-// Santa Luz pier: a plain timber deck that follows the ground function (the pier's lamps, railings and the
-// Ferris wheel come with the landmarks)
-atg::MeshBuf BuildPier(const atg::CityMap& Map) {
-	using namespace atg;
-	MeshBuf G;
-	auto It = Map.landmarks.find("pier");
-	if (It == Map.landmarks.end()) return G;
-	const auto& V = It->second.vals;
-	const double X0 = V.at("x0"), X1 = V.at("x1"), Z0 = V.at("z0"), Z1 = V.at("z1"), Xm = (X0 + X1) / 2;
-	G.ColorHex(0x8a6a4a); G.Rough(0.85);
-	const int N = (int)std::ceil((Z1 - Z0) / 4);
-	for (int K = 0; K < N; K++) {
-		const double Za = Z0 + (Z1 - Z0) * K / N, Zb = Z0 + (Z1 - Z0) * (K + 1) / N;
-		const double Ya = Map.GroundHeight(Xm, Za + 0.01), Yb = Map.GroundHeight(Xm, Zb - 0.01);
-		const double Up[3] = { 0, 1, 0 }, L[3] = { -1, 0, 0 }, R[3] = { 1, 0, 0 };
-		{ const double A[3] = { X0, Ya, Za }, B[3] = { X0, Yb, Zb }, C[3] = { X1, Yb, Zb }, D[3] = { X1, Ya, Za }; G.Quad(A, B, C, D, Up); }
-		{ const double A[3] = { X0, -3, Za }, B[3] = { X0, -3, Zb }, C[3] = { X0, Yb, Zb }, D[3] = { X0, Ya, Za }; G.Quad(A, B, C, D, L); }
-		{ const double A[3] = { X1, -3, Zb }, B[3] = { X1, -3, Za }, C[3] = { X1, Ya, Za }, D[3] = { X1, Yb, Zb }; G.Quad(A, B, C, D, R); }
-	}
-	return G;
-}
-
 FATGWorldData* Generate(std::atomic<int32>& Stage) {
 	using namespace atg;
 	const double T0 = FPlatformTime::Seconds();
@@ -160,7 +140,6 @@ FATGWorldData* Generate(std::atomic<int32>& Stage) {
 	D->City = BuildBuildings(M);
 	D->Pools = BuildPools(M);
 	for (size_t I = 0; I < D->Pools.Count(); I++) { D->Pools.C[0][I * 2] = 2; D->Pools.C[0][I * 2 + 1] = 1; }
-	D->Pier = BuildPier(M);
 	Stage = 4;
 	D->PropDefs = BuildPropTemplates();
 	D->Props = PlaceProps(M);
@@ -346,7 +325,7 @@ bool AATGWorld::RestartSimulation() {
 
 // ------------------------------------------------------------------ building the components
 UProceduralMeshComponent* AATGWorld::NewMeshComponent(const TCHAR* Name, bool bCollision) {
-	UProceduralMeshComponent* C = NewObject<UProceduralMeshComponent>(this, MakeUniqueObjectName(this, UProceduralMeshComponent::StaticClass(), FName(Name)));
+	UProceduralMeshComponent* C = NewObject<UATGMeshComponent>(this, MakeUniqueObjectName(this, UATGMeshComponent::StaticClass(), FName(Name)));
 	C->SetupAttachment(Root);
 	C->SetMobility(EComponentMobility::Static);
 	(void)bCollision; // (nothing collides in Unreal: the simulation has its own collision world)
@@ -402,11 +381,6 @@ void AATGWorld::QueueBuild() {
 		ATGMesh::ToSection(G, 1, D->Lots, true);
 		ATGMesh::ToSection(G, 2, D->Pads, true);
 		for (int32 I = 0; I < 3; I++) G->SetMaterial(I, MGround);
-		if (!D->Pier.Empty()) {
-			UProceduralMeshComponent* P = NewMeshComponent(TEXT("Pier"), true);
-			ATGMesh::ToSection(P, 0, D->Pier, true);
-			P->SetMaterial(0, MLit);
-		}
 	});
 	// ---- the skateparks' ramps, ledges, walls and lights (skatepark.js: concrete and steel, vertex coloured), and
 	// the pontoons
@@ -555,6 +529,85 @@ void AATGWorld::QueueBuild() {
 			ATGMesh::ToSection(S, Sec, Q, false);
 			S->SetMaterial(Sec++, M);
 		}
+	});
+	// ---- the landmarks (landmarks.js): the Santa Luz pier and its Ferris wheel, the Vistawood sign, the dock cranes,
+	// and the aviation beacons on tall roofs and cranes (city.js)
+	Steps.Add([this, D, MLit]() {
+		const atg::Landmarks L = atg::BuildLandmarks(D->Map);
+		auto Std = [&](const FLinearColor& Col, double Rough, double Metal) {
+			UMaterialInstanceDynamic* M = UMaterialInstanceDynamic::Create(ATGMaterials::Get(EATGMat::Standard), this);
+			M->SetVectorParameterValue(TEXT("Color"), Col);
+			M->SetVectorParameterValue(TEXT("Surface"), FLinearColor((float)Rough, (float)Metal, 1.f, 0.f));
+			return M;
+		};
+		auto Spheres = [](const std::vector<atg::LmPoint>& At, double R, int W, int H) {
+			atg::MeshBuf G; G.Color(1, 1, 1);
+			const atg::MeshBuf S = atg::Geo::Sphere(R, W, H);
+			for (const atg::LmPoint& P : At) G.Add(S, atg::Mat4::Compose(P.x, P.y, P.z));
+			return G;
+		};
+		// the pier: the planked deck, the posts, rails and booths, the lamp poles and their globes
+		UProceduralMeshComponent* Pier = NewMeshComponent(TEXT("Pier"), false);
+		ATGMesh::ToSection(Pier, 0, L.pierDeck, false); Pier->SetMaterial(0, ATGMaterials::Get(EATGMat::Wood));
+		ATGMesh::ToSection(Pier, 1, L.pierPosts, false); Pier->SetMaterial(1, MLit);
+		ATGMesh::ToSection(Pier, 2, L.lampPoles, false); Pier->SetMaterial(2, MLit);
+		LandmarkLampMat = UMaterialInstanceDynamic::Create(ATGMaterials::Get(EATGMat::Unlit), this);
+		ATGMesh::ToSection(Pier, 3, Spheres(L.lamps, 0.28, 10, 8), false); Pier->SetMaterial(3, LandmarkLampMat);
+		// the Ferris wheel: the rim, spokes and neon turn about the hub; the gondolas hang level from the rim
+		UMaterialInstanceDynamic* Steel = Std(HexLinear(0xf2f2f2), 0.4, 0.6);
+		WheelHub = ATG::ToUE(L.hubX, L.hubY, L.hubZ);
+		WheelR = L.wheelR;
+		Wheel = NewMeshComponent(TEXT("FerrisWheel"), false);
+		Wheel->SetMobility(EComponentMobility::Movable);
+		Wheel->SetWorldLocation(WheelHub);
+		ATGMesh::ToSection(Wheel, 0, L.wheel, false); Wheel->SetMaterial(0, Steel);
+		NeonMat = UMaterialInstanceDynamic::Create(ATGMaterials::Get(EATGMat::Unlit), this);
+		ATGMesh::ToSection(Wheel, 1, L.neon, false); Wheel->SetMaterial(1, NeonMat);
+		UProceduralMeshComponent* Sup = NewMeshComponent(TEXT("FerrisSupport"), false);
+		ATGMesh::ToSection(Sup, 0, L.support, false); Sup->SetMaterial(0, Steel);
+		UStaticMesh* GondolaMesh = ATGMesh::BuildStaticMesh(this, TEXT("Gondola"), TArray<FATGPart>{ { &L.gondola, ATGMaterials::Get(EATGMat::Standard) } });
+		Meshes.Add(GondolaMesh);
+		for (int32 K = 0; K < 16; K++) {
+			UStaticMeshComponent* Gc = NewObject<UStaticMeshComponent>(this, MakeUniqueObjectName(this, UStaticMeshComponent::StaticClass(), TEXT("Gondola")));
+			Gc->SetupAttachment(Root);
+			Gc->SetMobility(EComponentMobility::Movable);
+			Gc->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+			Gc->SetStaticMesh(GondolaMesh);
+			Gc->SetMaterial(0, Std(FLinearColor((float)L.gondolaColor[K][0], (float)L.gondolaColor[K][1], (float)L.gondolaColor[K][2]), 0.5, 0.2));
+			Gc->RegisterComponent();
+			Gondolas.Add(Gc);
+		}
+		// the Vistawood sign: the letters (cut out of their pictures, tilted back 0.12) and the scaffolding
+		UProceduralMeshComponent* Sign = NewMeshComponent(TEXT("Vistawood"), false);
+		ATGMesh::ToSection(Sign, 0, L.scaffold, false); Sign->SetMaterial(0, MLit);
+		int32 Sec = 1;
+		const double Th = -0.12, Ct = std::cos(Th), St = std::sin(Th);
+		for (const atg::Landmarks::Letter& Lt : L.letters) {
+			auto Pt = [&](double U, double V, double* Out) { Out[0] = Lt.x + U; Out[1] = Lt.y + V * Ct; Out[2] = Lt.z + V * St; };
+			double A[3], B[3], C[3], E[3];
+			Pt(-6.5, -7.5, A); Pt(6.5, -7.5, B); Pt(6.5, 7.5, C); Pt(-6.5, 7.5, E);
+			const double N[3] = { 0, -St, Ct };
+			const double U0[2] = { 0, 1 }, U1[2] = { 1, 1 }, U2[2] = { 1, 0 }, U3[2] = { 0, 0 };
+			atg::MeshBuf Q; Q.Color(1, 1, 1);
+			Q.Quad(A, B, C, E, N, U0, U1, U2, U3);
+			UMaterialInstanceDynamic* M = UMaterialInstanceDynamic::Create(ATGMaterials::Get(EATGMat::Cutout), this);
+			if (UTexture* T = Picture(FString::Printf(TEXT("letter:%c"), (TCHAR)Lt.ch))) M->SetTextureParameterValue(TEXT("Picture"), T);
+			M->SetVectorParameterValue(TEXT("Color"), HexLinear(0xf4f4f0));
+			M->SetVectorParameterValue(TEXT("Mode"), FLinearColor(1.f, 0.f, 0.6f, 0.f));
+			ATGMesh::ToSection(Sign, Sec, Q, false);
+			Sign->SetMaterial(Sec++, M);
+			LetterMats.Add(M);
+		}
+		// the dock cranes
+		UProceduralMeshComponent* Cr = NewMeshComponent(TEXT("Cranes"), false);
+		ATGMesh::ToSection(Cr, 0, L.cranes, false); Cr->SetMaterial(0, Std(HexLinear(0xc0392b), 0.5, 0.4));
+		// the aviation beacons (blinking red): the roofs' first, then the cranes'
+		std::vector<atg::LmPoint> All = atg::BuildingBeacons(D->Map);
+		All.insert(All.end(), L.beacons.begin(), L.beacons.end());
+		BeaconMat = UMaterialInstanceDynamic::Create(ATGMaterials::Get(EATGMat::Unlit), this);
+		UProceduralMeshComponent* Bc = NewMeshComponent(TEXT("Beacons"), false);
+		Bc->SetCastShadow(false);
+		ATGMesh::ToSection(Bc, 0, Spheres(All, 0.35, 8, 6), false); Bc->SetMaterial(0, BeaconMat);
 	});
 	// ---- the rain (effects.js Rain): 6000 streaks, placed and animated by their material round the camera
 	Steps.Add([this]() {
@@ -1029,6 +1082,25 @@ void AATGWorld::UpdateLamps(float Dt) {
 	// the billboards light up at night (emissiveIntensity 0.05 + night * 1.6); the signs brighten (0.55 + night * 2.2)
 	if (BillboardMat) BillboardMat->SetVectorParameterValue(TEXT("Mode"), FLinearColor(1.f, 0.05f + Night * 1.6f, 0.5f, 0.f));
 	for (UMaterialInstanceDynamic* M : SignMats) if (M) M->SetVectorParameterValue(TEXT("Mode"), FLinearColor(0.f, 0.55f + Night * 2.2f, 0.f, 0.f));
+	// the landmarks: the pier lamps, the wheel turning (wheelA += dt * 0.05) with its gondolas and flickering neon,
+	// the Vistawood letters glowing at night, the beacons blinking (on for 0.25 s in every 1.6 s)
+	{
+		const double T = GetWorld() ? GetWorld()->GetRealTimeSeconds() : 0;
+		if (LandmarkLampMat) LandmarkLampMat->SetVectorParameterValue(TEXT("Color"), FLinearColor(0.4f + Night * 5, 0.35f + Night * 4, 0.25f + Night * 2.5f));
+		if (Wheel) {
+			WheelA += Dt * 0.05;
+			Wheel->SetWorldRotation(FRotator(FMath::RadiansToDegrees(WheelA), 0, 0));
+			for (int32 K = 0; K < Gondolas.Num(); K++) {
+				const double A = K / 16.0 * 2 * UE_DOUBLE_PI + WheelA;
+				Gondolas[K]->SetWorldLocation(WheelHub + FVector(std::cos(A) * WheelR * 100, 0, std::sin(A) * WheelR * 100));
+			}
+		}
+		const float K = 0.3f + Night * 3.5f;
+		if (NeonMat) NeonMat->SetVectorParameterValue(TEXT("Color"), FLinearColor(K * (0.8f + 0.2f * (float)std::sin(T * 3)), K, K * (0.8f + 0.2f * (float)std::cos(T * 2))));
+		for (UMaterialInstanceDynamic* M : LetterMats) if (M) M->SetVectorParameterValue(TEXT("Mode"), FLinearColor(1.f, Night * 0.9f, 0.6f, 0.f));
+		const float On = std::fmod(T, 1.6) < 0.25 ? 1.f : 0.05f;
+		if (BeaconMat) BeaconMat->SetVectorParameterValue(TEXT("Color"), FLinearColor(8 * On, 0.3f * On, 0.2f * On));
+	}
 	// the cargo ship's deck lamps (lampMat.color.setScalar(0.4 + night * 3))
 	if (ShipLampMat) { const float V = 0.4f + Night * 3.f; ShipLampMat->SetVectorParameterValue(TEXT("Color"), FLinearColor(V, V, V)); }
 	// the shops' light, in the one nearest the camera (within 45 m)

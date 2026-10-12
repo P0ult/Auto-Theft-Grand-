@@ -1,4 +1,5 @@
 #include "Game/ATGPickups.h"
+#include "Game/ATGMeshComponent.h"
 #include "Game/ATGCoords.h"
 #include "Game/ATGMaterials.h"
 #include "Game/ATGMeshUtil.h"
@@ -124,7 +125,9 @@ void AATGPickups::Sync(atg::Game* G) {
 		FATGMarkerView& V = Markers.FindOrAdd((uint64)(UPTRINT)Mk);
 		V.bSeen = true;
 		if (!V.Cyl) {
-			V.Cyl = NewObject<UProceduralMeshComponent>(this);
+			UATGMeshComponent* Cyl = NewObject<UATGMeshComponent>(this);
+			Cyl->bRayTraced = false;
+			V.Cyl = Cyl;
 			V.Cyl->SetupAttachment(Root);
 			V.Cyl->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 			V.Cyl->SetCastShadow(false);

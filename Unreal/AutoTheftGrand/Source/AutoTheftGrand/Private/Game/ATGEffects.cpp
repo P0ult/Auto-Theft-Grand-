@@ -1,4 +1,5 @@
 #include "Game/ATGEffects.h"
+#include "Game/ATGMeshComponent.h"
 #include "Game/ATGCoords.h"
 #include "Game/ATGMaterials.h"
 #include "Game/ATGWorld.h"
@@ -51,7 +52,9 @@ AATGEffects::AATGEffects() {
 	PrimaryActorTick.bCanEverTick = false;
 	Root = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
 	RootComponent = Root;
-	Mesh = CreateDefaultSubobject<UProceduralMeshComponent>(TEXT("Particles"));
+	UATGMeshComponent* Particles = CreateDefaultSubobject<UATGMeshComponent>(TEXT("Particles"));
+	Particles->bRayTraced = false; // (rebuilt every frame)
+	Mesh = Particles;
 	Mesh->SetupAttachment(Root);
 	Mesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	Mesh->SetCastShadow(false);
