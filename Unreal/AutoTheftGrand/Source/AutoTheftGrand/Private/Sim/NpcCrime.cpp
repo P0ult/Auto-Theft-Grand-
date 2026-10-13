@@ -1,6 +1,8 @@
 #include "NpcCrime.h"
 #include "Collision.h"
 #include "Game.h"
+#include "Net.h"
+#include "NpcSync.h"
 #include "Gameplay.h"
 #include "Peds.h"
 #include "Police.h"
@@ -1041,6 +1043,8 @@ void NpcCrime::onViolence(Character* att, Character* vic, bool kill) {
 // ------------------------------------------------------------------ for the HUD and the radar
 void NpcCrime::tagged(std::vector<NpcTag>& out) const {
 	for (const auto& rec : cases) { Ped* p = rec->ped.get(); if (rec->known && p && !p->removed && rec->phase != "closed") out.push_back({ p, rec->stars, rec->unit != nullptr }); }
+	// (other players' suspects, as stand-ins)
+	if (game.net && game.net->npc) for (const auto& q : game.net->npc->pedList) if (q->npcWanted > 0 && !q->removed) out.push_back({ q.get(), q->npcWanted, true });
 }
 
 } // namespace atg

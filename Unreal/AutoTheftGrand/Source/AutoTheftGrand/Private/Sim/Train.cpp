@@ -156,7 +156,25 @@ void Train::update(double dt) {
 	const double L = rail->length;
 	Character* drv = driver();
 	double accel = 0;
-	// (online, a train follows the host's timetable: that comes with multiplayer)
+	// online: follow the host's timetable (or whoever is at this train's controls)
+	if (hasNetTarget && !(drv && drv->isPlayer)) {
+		NetTarget& nt = netTarget;
+		double ds = nt.s - s;
+		if (std::fabs(ds) > 150) { s = nt.s; ds = 0; }
+		v = nt.v + Clamp(ds, -20, 20) * 1.2;
+		dirS = nt.dirS;
+		dwell = nt.dwell;
+		nt.s += nt.v * dt;
+		s = Clamp(s + v * dt, len + 2, L - 2);
+		place();
+		contacts(dt);
+		wheelRot += v * dt / 0.46;
+		const bool night = game.env.night > 0.3;
+		const bool on = night || std::fabs(v) > 0.5;
+		headOn = on; tailOn = night;
+		lightsOn = on && drv && drv->isPlayer;
+		return;
+	}
 	if (drv && drv->isPlayer) {
 		const VehInput& inp = input;
 		if (inp.throttle > 0) accel = 0.9 * inp.throttle * (v < -0.2 ? 2.2 : 1);

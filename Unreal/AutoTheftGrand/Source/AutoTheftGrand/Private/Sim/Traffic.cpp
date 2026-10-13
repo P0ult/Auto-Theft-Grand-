@@ -1,5 +1,7 @@
 #include "Traffic.h"
 #include "Game.h"
+#include "Net.h"
+#include "NpcSync.h"
 #include "Peds.h"
 #include "Rail.h"
 #include "RoadNet.h"
@@ -620,7 +622,11 @@ void Traffic::update(double dt) {
 	for (auto& c : cars) if (c.get() && !c->removed) alive.push_back(c);
 	cars = alive;
 	const bool airborne = pl.vehicle && pl.vehicle->def.aircraft && pl.vehicle->altitude() > 40;
-	if (spawnTimer <= 0 && (int)alive.size() < maxCars * density() && !game.disableAmbient && !airborne) { spawnTimer = 0.3; trySpawn(); }
+	// online: other players' traffic nearby counts towards ours (so crowds don't double where players meet)
+	NpcSync* npc = game.net && game.net->online() ? game.net->npc.get() : nullptr;
+	int nearCount = (int)alive.size();
+	if (npc) { nearCount = npc->proxyCarsNear(p.x, p.z, 300); for (const auto& c : alive) if (Dist2(c->pos.x, c->pos.z, p.x, p.z) < 300 * 300) nearCount++; }
+	if (spawnTimer <= 0 && nearCount < maxCars * density() && !game.disableAmbient && !airborne) { spawnTimer = 0.3; trySpawn(); }
 	for (auto& c : alive) {
 		Vehicle* v = c.get();
 		if (!v || v->removed) continue;
@@ -628,7 +634,7 @@ void Traffic::update(double dt) {
 		else if ((v->driver() && v->driver()->isPlayer) || !v->driver()) { v->ai.reset(); v->traffic = false; }
 		const double d2 = Dist2(v->pos.x, v->pos.z, p.x, p.z);
 		LaneDriver* ai = dynamic_cast<LaneDriver*>(v->ai.get());
-		if ((d2 > 320 * 320 || (v->isWrecked() && d2 > 100 * 100)) && !v->persistent && pl.vehicle != v) despawn(v);
+		if ((d2 > 320 * 320 || (v->isWrecked() && d2 > 100 * 100)) && !v->persistent && pl.vehicle != v && !(npc && npc->peersNear(v->pos.x, v->pos.z, v->isWrecked() ? 100 : 320))) despawn(v);
 		else if (ai && !v->persistent && ((ai->jam > 18 && d2 > 35 * 35) || ai->jam > 60) && !game.rig.inView(V3(v->pos.x, 1, v->pos.z))) despawn(v);
 	}
 }

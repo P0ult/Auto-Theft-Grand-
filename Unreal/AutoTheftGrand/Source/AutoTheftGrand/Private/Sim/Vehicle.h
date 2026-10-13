@@ -37,6 +37,7 @@ struct VehicleAI { virtual ~VehicleAI() = default; virtual void update(double dt
 
 class Vehicle : public std::enable_shared_from_this<Vehicle> {
 	friend class NetSystem; // (multiplayer poses other players' vehicles: net.js _netStep)
+	friend class NpcSync;   // (and their traffic: npcsync.js)
 public:
 	Vehicle(Game& game, const std::string& type, double x, double z, double yaw, const SpawnOpts& opts);
 	virtual ~Vehicle() = default;

@@ -71,6 +71,7 @@ public:
 	double onFire = 0;             // (seconds still burning: combat.js fires) // (inside a train or a plane's cabin: not drawn)
 	double protectUntil = 0;
 	bool remote = false, npcProxy = false;   // (multiplayer avatars)
+	int netId = 0;                           // (multiplayer: the id it's shared under, or its owner's id for a stand-in)
 	// in a vehicle: the body's root relative to the vehicle's body (position, Euler XYZ)
 	V3 rootLocalPos, rootLocalRot;
 	bool hasSeatPos = false; V3 seatPos;

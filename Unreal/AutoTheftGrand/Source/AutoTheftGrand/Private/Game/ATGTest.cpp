@@ -14,6 +14,7 @@
 #include "Sim/Heists.h"
 #include "Sim/Hud.h"
 #include "Sim/Net.h"
+#include "Sim/NpcSync.h"
 #include "Game/ATGNetTransport.h"
 #include "Sim/Player.h"
 #include "Sim/NpcCrime.h"
@@ -355,6 +356,11 @@ ATG_CMD(CmdNet, "ATG.Net", "ATG.Net join [code] | leave | say text... | state: m
 	else if (A == TEXT("leave")) N.disconnect();
 	else if (A == TEXT("say")) { FString T; for (int32 I = 1; I < Args.Num(); I++) T += (I > 1 ? TEXT(" ") : TEXT("")) + Args[I]; N.say(TCHAR_TO_UTF8(*T)); }
 	UE_LOG(LogATG, Display, TEXT("ATG net: %s%s, me %s '%s', %d peers"), UTF8_TO_TCHAR(N.status.c_str()), N.error.empty() ? TEXT("") : *(TEXT(" (") + FString(UTF8_TO_TCHAR(N.error.c_str())) + TEXT(")")), UTF8_TO_TCHAR(N.selfId().c_str()), UTF8_TO_TCHAR(N.name.c_str()), (int32)N.peers.size());
+	{
+		int32 Cars = 0;
+		for (const auto& V : G->vehicles.list) if (V->npcRemote && !V->removed) Cars++;
+		UE_LOG(LogATG, Display, TEXT("ATG net npc: %d stand-in pedestrians, %d stand-in cars"), N.npc ? (int32)N.npc->pedList.size() : 0, Cars);
+	}
 	for (const auto& R : N.roster()) UE_LOG(LogATG, Display, TEXT("ATG net peer: %s '%s' at (%.1f, %.1f), %.0f m, hp %.0f%s"), UTF8_TO_TCHAR(R.id.c_str()), UTF8_TO_TCHAR(R.name.c_str()), R.x, R.z, R.dist, R.hp, R.vehicle.empty() ? TEXT("") : *(TEXT(", in ") + FString(UTF8_TO_TCHAR(R.vehicle.c_str()))));
 	for (const auto& L : N.chat) UE_LOG(LogATG, Display, TEXT("ATG net chat: %s%s"), L.sys ? TEXT("") : *(FString(UTF8_TO_TCHAR(L.name.c_str())) + TEXT(": ")), UTF8_TO_TCHAR(L.text.c_str()));
 })

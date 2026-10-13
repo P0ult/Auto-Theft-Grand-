@@ -27,6 +27,8 @@ namespace atg {
 class Game;
 class Vehicle;
 class NetSystem;
+class NpcSync;
+struct NpcPeer;
 
 extern const uint32_t PLAYER_COLORS[8];
 
@@ -86,12 +88,13 @@ public:
 		bool guest = false;
 		std::string apKey;
 		std::shared_ptr<RemoteAvatar> avatar;
-		Vehicle* veh = nullptr, *oldVeh = nullptr; // (the stand-ins; the vehicle list owns them)
+		Ref<Vehicle> veh, oldVeh; // (the stand-ins; the vehicle list owns them)
 		std::deque<Sample> buf;
 		double lastEv = 0, last = 0;
 		double actN = 0;
 		uint32_t col = 0;
 		std::shared_ptr<struct Blip> blip;
+		std::shared_ptr<NpcPeer> npc; // (their shared pedestrians and traffic: NpcSync)
 	};
 	std::map<std::string, std::unique_ptr<Peer>> peers;
 
@@ -122,13 +125,16 @@ public:
 	// the other players' avatars (the game's character list includes them)
 	std::vector<Character*> avatars() const;
 	double nowMs = 0; // (performance.now(): advanced by tick)
+	std::shared_ptr<NpcSync> npc;  // (shared pedestrians, traffic and trains)
+	double joinedAt = 0;
 
 private:
 	std::unique_ptr<NetTransport> transport;
 	std::unique_ptr<NetTransport> retired; // (a transport that failed inside its own callback: freed next tick)
 	struct Out { double t; Json e; };
 	std::deque<Out> out;
-	double seq = 0, sendT = 0, joinedAt = 0, shotT = -1e9, actN = 0, clockT = 0;
+	friend class NpcSync;
+	double seq = 0, sendT = 0, shotT = -1e9, actN = 0, clockT = 0;
 	const void* lastAct = nullptr;
 	struct PendingHit { double dmg = 0; bool head = false, kd = false; Json imp; std::string w; };
 	std::map<std::string, PendingHit> pendingHits;
@@ -149,6 +155,7 @@ private:
 	void netStep(Vehicle* v, double dt);
 	void parkProxy(Peer& P, Vehicle* v);
 	void releaseProxy(Vehicle* v);
+	void proxyExplode(Vehicle* v);
 	void syncClock(double dt);
 	void sys(const std::string& html);
 	void pushChat(ChatLine m);

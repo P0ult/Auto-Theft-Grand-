@@ -200,11 +200,12 @@ with the pause menu on its Online tab: your name, your colour and the player dam
 Join the public world, Join room with a code or New room for a private one, Leave, the players here with Go to
 (free roam) and Waypoint, and the chat. In the game, / opens the chat box. The other players appear with their
 names and health over them, the cars they drive come along, shots, hits, explosions and kills reach everyone,
-and free roam follows the clock and weather of whoever has been in the room longest. A browser opening
+free roam follows the clock and weather of whoever has been in the room longest, and so do the trains.
+Pedestrians and traffic are shared too: each player's NPCs near the others appear in their worlds, damage to
+them goes back to their owner, and getting into someone else's traffic car makes it yours. A browser opening
 `http://localhost:8080` and joining the same room plays in the same world. Another server:
 `-ATGServer=ws://host:port/mp` on the command line. The admin tools and the phone's cheats are off while you're
-online, as in the browser. Shared pedestrians and traffic (npcsync.js) are not ported yet, so each player sees
-their own.
+online, as in the browser.
 
 The text uses the browser's font stacks: Bebas Neue, Anton, Permanent Marker and Rubik if their files are in
 `Content/Fonts/` (`BebasNeue-Regular.ttf`, `Anton-Regular.ttf`, `PermanentMarker-Regular.ttf`,

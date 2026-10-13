@@ -2,6 +2,8 @@
 #include "Animal.h"
 #include "Collision.h"
 #include "Game.h"
+#include "Net.h"
+#include "NpcSync.h"
 
 namespace atg {
 
@@ -508,7 +510,9 @@ void PedManager::update(double dt) {
 		if (p->persistent || p->brain == "cop" || p->vehicle) continue;
 		if (p->dead) bodies.push_back(p.get()); else ambientCount++;
 	}
-	const int target = (int)std::floor(maxPeds * density());
+	// online: other players' pedestrians nearby count towards ours (so crowds don't double where players meet)
+	NpcSync* npc = game.net && game.net->online() ? game.net->npc.get() : nullptr;
+	const int target = (int)std::floor(maxPeds * density()) - (npc ? npc->proxyPedsNear(pp.x, pp.z, 150) : 0);
 	if (spawnTimer <= 0 && ambientCount < target && !game.disableAmbient) {
 		spawnTimer = ambientCount < target * 0.6 ? 0.1 : 0.25;
 		spawnAmbient();
@@ -533,7 +537,7 @@ void PedManager::update(double dt) {
 		const double cx = p->ragdolling ? p->ragdoll->pos[0] : p->pos.x, cz = p->ragdolling ? p->ragdoll->pos[2] : p->pos.z;
 		const double d2 = Dist2(cx, cz, pp.x, pp.z);
 		if (!p->persistent && !p->vehicle) {
-			if (d2 > 150 * 150 || (p->dead && game.time - p->deathTime > 60 && d2 > 40 * 40)) { remove(p); continue; }
+			if ((d2 > 150 * 150 || (p->dead && game.time - p->deathTime > 60 && d2 > 40 * 40)) && !(npc && npc->peersNear(cx, cz, p->dead ? 40 : 150))) { remove(p); continue; }
 		}
 		if (p->vehicle) { p->visible = !p->hiddenInVehicle; p->update(dt); continue; }
 		const bool vis = game.rig.inView(V3(cx, (p->ragdolling ? p->ragdoll->pos[1] : p->pos.y) + 0.9, cz), 1.4);

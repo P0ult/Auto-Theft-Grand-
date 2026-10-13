@@ -59,7 +59,7 @@ pad, and plays its sounds.
 | game/effects.js | `Sim/Effects`, `ATGEffects`, `ATGMaterials` (FxAlpha, FxAdd) | The three particle pools, decals, skid marks, tracers, flash lights, explosions with their fire, flying wreckage, smoke columns and secondary blasts, prop and panel debris, broken props restored far away. The canvas textures (smoke, soft dot, the decal atlas) are drawn per pixel in the materials. Boat wakes and rain come with boats and the weather. |
 | ui/hud.js (messages and overlays) | `Sim/Hud` (`HudModel`), `ATGHUD` | Help, big messages, subtitles, objectives, the bar, money pops, dispatch, the fade, the damage flash, the shard: the state and timers in the simulation, drawn by `ATGHUD`. |
 | ui/hud.js (the modern layout) | `ATGHudModern.cpp`, `ATGPainter` | The minimap (`_drawRadar`: the map turned with the camera, the city layer clipped in, police flashes and search cones, blips and their icons, north, the player arrow, the GPS route), the health, armour and special bars, the stars, cash, weapon icon and ammo, the zone and vehicle names, the speedometer (`_drawSpeedo`: dial, red zone, gear, damage bar, the altimeter for aircraft). The map waypoint (`Sim/Hud` setWaypoint, the pause map, cabs and the Teleport tab use it) and the browser's fonts (`ATGFonts`, with the CSS fallbacks). Still to come: the classic round radar. |
-| net/net.js, avatar.js, netui.js, transports.js (WsTransport) | `Sim/Net`, `Sim/Json`, `ATGNetTransport` (the WebSocket), `ATGHudNet.cpp` (name tags, the chat feed, the ONLINE badge), `ATGMenuSystem` (the Online tab), `ATGPlayerController` (the chat box) | The browser's JSON state at 12 Hz (3 when paused), the 150 ms interpolation, remote avatars posed from it, the cars and aircraft they drive as kinematic stand-ins, the moments (shots, hits, vehicle hits, explosions, chat, kills), player damage on or off, the host's clock and weather, pets. It talks to `server.mjs`'s relay, so a browser and the Unreal game share a room (checked with a browser client in `Tools/tests/online-cross.txt`). Not yet: npcsync.js (shared pedestrians, traffic and trains), and the claude.ai room transport, which only exists inside the published page. |
+| net/net.js, avatar.js, netui.js, npcsync.js, transports.js (WsTransport) | `Sim/Net`, `Sim/NpcSync`, `Sim/Json`, `ATGNetTransport` (the WebSocket), `ATGHudNet.cpp` (name tags, the chat feed, the ONLINE badge), `ATGMenuSystem` (the Online tab), `ATGPlayerController` (the chat box) | The browser's JSON state at 12 Hz (3 when paused), the 150 ms interpolation, remote avatars posed from it, the cars and aircraft they drive as kinematic stand-ins, the moments (shots, hits, vehicle hits, explosions, chat, kills), player damage on or off, the host's clock and weather, pets. Shared NPCs (npcsync.js): the pedestrians and traffic near other players on the world channel at 6 Hz, drawn there as stand-ins whose damage goes back to their owner, stolen cars handed over, spawn budgets that count everyone's NPCs, and the trains on the host's timetable. It talks to `server.mjs`'s relay, so a browser and the Unreal game share a room (checked with a browser client: `Tools/tests/online-cross.txt`, `simtest net npcsync`). Not ported: the claude.ai room transport, which only exists inside the published page. |
 | main.js (the systems) | `Sim/Setup` | Registers the systems in main.js order and populates the streets. |
 | ui/mapimage.js, hud.js | `Gen/MapImage.cpp`, `ATGHUD` | The map is drawn by a small software rasteriser. The HUD is a first cut. |
 
@@ -141,15 +141,14 @@ missions recorded). Several optional single-player features and phase 6 items re
   `ATGPictures` paints the ad atlas and the signs, which glow at night; the fences get their see-through panels.
 - Audio and the radio stations. Done.
 - Wildlife and pets. Done.
-- Multiplayer. Done as the browser does it (net.js, not Unreal's replication, so the two can share a room):
-  the state, avatars, vehicle stand-ins, moments, player damage, chat, the host's clock and weather, the Online
-  tab and the chat box. Shared pedestrians, traffic and trains (npcsync.js) are next.
+- Multiplayer. Done as the browser does it (net.js and npcsync.js, not Unreal's replication, so the two can
+  share a room): the state, avatars, vehicle stand-ins, moments, player damage, chat, the host's clock, weather
+  and trains, shared pedestrians and traffic, the Online tab and the chat box.
 
 ## Known gaps
 
 - The people's material takes each part's roughness from humanoidMaterial, but not yet its fine fabric,
   hair and denim patterns, or the metalness of buckles and badges.
-- Online, each player sees their own pedestrians, traffic and trains: npcsync.js is not ported yet.
 - The menus, the pause map and most of the HUD (cash, ammo, zone and vehicle names, the radio, help, subtitles,
   the big messages and the WASTED shard) use the browser's font stacks (`ATGFonts`); the speedometer, the phone
   and the radar's letters still use the engine's fonts, and the mission title is not tilted. The Google fonts

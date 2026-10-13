@@ -40,6 +40,9 @@ public:
 	double dwell = 12;
 	double limitLo = -kInf, limitHi = kInf; // signals: how far the nose / tail may go (set by the rail system)
 	bool hold = false;
+	// online: the host's timetable (or the player at this train's controls) to follow (npcsync.js netTarget)
+	struct NetTarget { double s = 0, v = 0, dirS = -1, dwell = 0; } netTarget;
+	bool hasNetTarget = false;
 	double pitch = 0;
 	double hornT = 0;
 	bool headOn = false, tailOn = false; // (the renderer swaps the lamp materials)

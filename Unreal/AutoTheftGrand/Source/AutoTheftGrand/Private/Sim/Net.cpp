@@ -5,6 +5,10 @@
 #include "Game.h"
 #include "Hud.h"
 #include "Missions.h"
+#include "NpcSync.h"
+#include "Peds.h"
+#include "Rail.h"
+#include "Train.h"
 #include "Pets.h"
 #include "Player.h"
 #include "Ragdoll.h"
@@ -207,7 +211,13 @@ void RemoteAvatar::setDown(bool down, bool isDead) {
 NetSystem::NetSystem(Game& g) : game(g) {
 	name = "Player" + std::to_string(100 + (int)(Rand() * 900));
 	color = (int)(Rand() * 8) % 8;
-	game.characterSources.push_back([this](std::vector<Character*>& out) { for (Character* a : avatars()) out.push_back(a); });
+	npc = std::make_shared<NpcSync>(*this);
+	game.characterSources.push_back([this](std::vector<Character*>& out) {
+		for (Character* a : avatars()) out.push_back(a);
+		for (const auto& q : npc->pedList) if (!q->removed) out.push_back(q.get());
+	});
+	// (game.js: getting into another player's traffic makes it ours)
+	game.takeRemoteCar = [this](Vehicle* v) { npc->takeCar(v); };
 }
 
 NetSystem::~NetSystem() { if (transport) transport->leave(); }
@@ -231,7 +241,7 @@ void NetSystem::connect(std::unique_ptr<NetTransport> t, const std::string& c) {
 	status = "connecting"; error.clear();
 	NetTransport* raw = t.get();
 	raw->onPeer = [this](const std::string& id, const Json& st, bool guest) { onPeer(id, st, guest); };
-	raw->onWorld = [](const std::string&, const Json&) { /* (shared pedestrians and traffic: npcsync.js, not ported yet) */ };
+	raw->onWorld = [this](const std::string& id, const Json& n) { auto it = peers.find(id); npc->onWorld(it != peers.end() ? it->second.get() : nullptr, &n); };
 	raw->onLeft = [this](const std::string& id) { removePeer(id, true); };
 	raw->onStatus = [this](bool ok) { linkUp = ok; };
 	transport = std::move(t);
@@ -259,6 +269,7 @@ void NetSystem::disconnect(bool quiet) {
 	if (was && !quiet) sys("You left multiplayer.");
 	status = "offline";
 	game.env.weatherLocked = false;
+	if (game.rail) for (Vehicle* t : { game.rail->train.get(), game.rail->freight.get() }) if (Train* tr = dynamic_cast<Train*>(t)) tr->hasNetTarget = false;
 }
 
 // ---- outgoing
@@ -305,7 +316,7 @@ void NetSystem::sendVehicleHit(Vehicle* v, double dmg, Character* source) {
 	if (!online() || !v || v->remoteOwner.empty()) return;
 	Player& p = *game.player;
 	if (source != &p && !(source && source->vehicle && source->vehicle == p.vehicle) && !(source && p.vehicle && p.vehicle->driver() == source)) return;
-	if (v->npcRemote) return; // (shared traffic: npcsync.js, not ported yet)
+	if (v->npcRemote) { npc->sendCarHit(v, dmg); return; }
 	auto it = peers.find(v->remoteOwner);
 	if (it == peers.end() || !JTruthy(it->second->st.get("pvp"))) return;
 	Json e = Json::Array();
@@ -441,7 +452,8 @@ void NetSystem::removePeer(const std::string& id, bool announce) {
 	RemoteAvatar* av = P->avatar.get();
 	if (av && av->vehicle) av->vehicle->takeOut(av);
 	if (av) av->remove();
-	if (P->veh && !P->veh->removed) releaseProxy(P->veh);
+	if (P->veh && !P->veh->removed) releaseProxy(P->veh.get());
+	npc->clearPeer(*P);
 	if (P->blip) game.removeBlip(P->blip);
 	if (announce) sys("<b style=\"color:" + Hex(P->col) + "\">" + Esc(P->name) + "</b> left.");
 }
@@ -482,7 +494,7 @@ void NetSystem::moments(Peer& P, const Json* ev) {
 			Vehicle* v = g.player->vehicle;
 			if (v && g.player->seat == 0 && v->remoteOwner.empty()) v->damage(Clamp(Num(3), 0, 2000), P.avatar.get());
 		} else if (k == "nh" || k == "nv" || k == "tk") {
-			// (shared pedestrians and traffic: npcsync.js, not ported yet)
+			npc->onMoment(P, e);
 		} else if (k == "ch") {
 			const std::string text = CleanText(Str(2), 140);
 			if (!text.empty()) { ChatLine m; m.name = P.name; m.col = P.col; m.text = Esc(text); pushChat(std::move(m)); }
@@ -523,6 +535,8 @@ void NetSystem::tick(double dt) {
 	std::vector<Peer*> list;
 	for (auto& kv : peers) list.push_back(kv.second.get());
 	for (Peer* P : list) pose(*P, nowMs, dt);
+	npc->send(dt);
+	npc->update(dt);
 	syncClock(dt);
 }
 
@@ -564,7 +578,7 @@ void NetSystem::pose(Peer& P, double now, double dt) {
 	const bool hasVs = vs && vs->isObj();
 	if (hasVs && !JTruthy(vs->get("tr"))) poseVehicle(P, *vs, a.get("vh"), b.get("vh"), kk, s.ext, dt);
 	else if (av->vehicle) av->vehicle->takeOut(av);
-	if (!hasVs && P.veh) { parkProxy(P, P.veh); P.oldVeh = P.veh; P.veh = nullptr; }
+	if (!hasVs && P.veh) { parkProxy(P, P.veh.get()); P.oldVeh = P.veh; P.veh = nullptr; }
 	if (av->vehicle && av->vehicle->removed) { av->vehicle = nullptr; av->seat = -1; }
 	const Json* A = st.get("a");
 	auto An = [&](size_t i) { return A && A->isArr() && i < A->a.size() ? JNum(&A->a[i]) : 0.0; };
@@ -604,7 +618,7 @@ void NetSystem::poseVehicle(Peer& P, const Json& vs, const Json* va, const Json*
 		const std::string me = selfId();
 		Vehicle* host = nullptr;
 		if (ref->s == me && !me.empty()) host = g.player->vehicle;
-		else if (auto it = peers.find(ref->s); it != peers.end()) host = it->second->veh;
+		else if (auto it = peers.find(ref->s); it != peers.end()) host = it->second->veh.get();
 		const int seat = (int)Clamp(JNumAt(vs, "s", 1), 1, 3);
 		const int seats = host && host->model ? (int)host->model->seats.size() : 2;
 		if (!host || seat >= seats) { if (av->vehicle) av->vehicle->takeOut(av); return; }
@@ -617,20 +631,25 @@ void NetSystem::poseVehicle(Peer& P, const Json& vs, const Json* va, const Json*
 	const std::string type = JStrAt(vs, "t");
 	V3 vp;
 	if (!FindVehicle(type) || !Vec3(vs.get("p"), vp)) return;
-	Vehicle* v = P.veh;
+	Vehicle* v = P.veh.get();
 	if (!v || v->removed || v->type != type || (v->exploded && !JTruthy(vs.get("x")))) {
 		if (v && !v->removed) parkProxy(P, v);
-		// the car they got into is usually one we already show: the one they left here. Take that over rather
-		// than spawning a second copy.
+		// the car they got into is usually one we already show: the one they left here, or one of their parked or
+		// traffic cars we draw as a stand-in. Take that over rather than spawning a second copy.
 		auto nearOk = [&](Vehicle* o) {
 			if (!o || o->removed || o->type != type || Hypot(o->pos.x - vp.x, o->pos.z - vp.z) >= 9) return false;
 			for (const auto& c : o->occupants) if (c && (c->isPlayer || (c->remote && !c->npcProxy))) return false;
 			return true;
 		};
-		Vehicle* cand = nearOk(P.oldVeh) ? P.oldVeh : nullptr;
+		Vehicle* cand = nearOk(P.oldVeh.get()) ? P.oldVeh.get() : nullptr;
+		if (!cand && P.npc) for (const auto& [id, ref] : P.npc->cars) if (nearOk(ref.get())) { cand = ref.get(); break; }
 		if (cand) {
 			v = cand;
-			for (const auto& o : v->occupants) if (o && o->npcProxy) v->takeOut(o.get());
+			// (their NPC record for it now means "being driven")
+			if (P.npc) for (auto it = P.npc->cars.begin(); it != P.npc->cars.end();) { if (it->second.get() == v) { v->netId = it->first; it = P.npc->cars.erase(it); } else ++it; }
+			std::shared_ptr<Character> occ[4];
+			for (int i = 0; i < 4; i++) occ[i] = v->occupants[i];
+			for (const auto& o : occ) if (o && o->npcProxy) { v->takeOut(o.get()); npc->dropPed(o.get()); }
 			v->npcRemote = false; v->parkedOf.clear();
 		} else {
 			SpawnOpts o;
@@ -673,16 +692,18 @@ void NetSystem::poseVehicle(Peer& P, const Json& vs, const Json* va, const Json*
 	const Json* tq = B.get("tq");
 	T.hasTq = tq && tq->isArr() && tq->a.size() == 4 && tq->a[0].finite() && tq->a[1].finite() && tq->a[2].finite() && tq->a[3].finite();
 	if (T.hasTq) T.tq = Quat(tq->a[0].n, tq->a[1].n, tq->a[2].n, tq->a[3].n);
-	if (JTruthy(vs.get("x")) && !v->exploded) {
-		// (their client deals the damage: here it's only the look)
-		Combat* c = dynamic_cast<Combat*>(g.combat);
-		const bool old = c ? c->visualOnly : false;
-		if (c) c->visualOnly = true;
-		v->lastDamager = nullptr;
-		v->explode();
-		if (c) c->visualOnly = old;
-	}
+	if (JTruthy(vs.get("x")) && !v->exploded) proxyExplode(v);
 	netStep(v, dt);
+}
+
+// (their client deals the damage: here it's only the look)
+void NetSystem::proxyExplode(Vehicle* v) {
+	Combat* c = dynamic_cast<Combat*>(game.combat);
+	const bool old = c ? c->visualOnly : false;
+	if (c) c->visualOnly = true;
+	v->lastDamager = nullptr;
+	v->explode();
+	if (c) c->visualOnly = old;
 }
 
 // kinematic update for a stand-in vehicle (the vehicle manager skips remote vehicles' physics)
@@ -719,7 +740,7 @@ void NetSystem::netStep(Vehicle* v, double dt) {
 
 // they got out: keep showing the car where they left it
 void NetSystem::parkProxy(Peer& P, Vehicle* v) {
-	for (int i = 0; i < 4; i++) { auto o = v->occupants[i]; if (o && o->remote) v->takeOut(o.get()); }
+	for (int i = 0; i < 4; i++) { auto o = v->occupants[i]; if (o && o->remote) { v->takeOut(o.get()); if (o->npcProxy) npc->dropPed(o.get()); } }
 	v->netT.reset(); v->vel = V3();
 	if (AirVehicle* air = dynamic_cast<AirVehicle*>(v)) { air->grounded = true; air->power = 0; }
 	v->parkedOf = P.id; v->parkedT = nowMs;

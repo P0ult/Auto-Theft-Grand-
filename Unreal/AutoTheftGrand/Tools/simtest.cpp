@@ -15,6 +15,8 @@
 #include "Sim/Missions.h"
 #include "Sim/Net.h"
 #include "Sim/NpcCrime.h"
+#include "Sim/NpcSync.h"
+#include "Sim/Train.h"
 #include "Sim/Hud.h"
 #include "Sim/Peds.h"
 #include "Sim/Pets.h"
@@ -903,6 +905,7 @@ struct LoopTransport : NetTransport {
 	LoopTransport(LoopRoom& r, std::string i) : room(r), id(std::move(i)) {}
 	void join(const std::string&, std::function<void(bool, const std::string&)> done) override;
 	void send(const Json& st) override;
+	void sendWorld(const Json& n) override;
 	void leave() override;
 	bool connected() const override { return in; }
 	std::string selfId() const override { return id; }
@@ -917,6 +920,10 @@ void LoopTransport::send(const Json& st) {
 	// (through the text, as the relay carries it)
 	last = Json::parse(st.dump());
 	for (LoopTransport* m : room.members) if (m != this && m->onPeer) m->onPeer(id, last, false);
+}
+void LoopTransport::sendWorld(const Json& n) {
+	const Json copy = Json::parse(n.dump());
+	for (LoopTransport* m : room.members) if (m != this && m->onWorld) m->onWorld(id, copy);
 }
 void LoopTransport::leave() {
 	in = false;
@@ -988,7 +995,7 @@ static void TestNet(World& w) {
 	car->vel = V3(0, 0, 8);
 	both(1);
 	auto itB = gb->net->peers.find("pA");
-	Vehicle* proxy = itB != gb->net->peers.end() ? itB->second->veh : nullptr;
+	Vehicle* proxy = itB != gb->net->peers.end() ? itB->second->veh.get() : nullptr;
 	printf("  her car (%s) at (%.1f, %.1f); Bob's stand-in %s at (%.1f, %.1f), driver %s\n", car->type.c_str(), car->pos.x, car->pos.z, proxy ? proxy->type.c_str() : "-", proxy ? proxy->pos.x : 0, proxy ? proxy->pos.z : 0, proxy && proxy->driver() == aOnB ? "her avatar" : "?");
 	Check(proxy && proxy->remote && proxy->remoteOwner == "pA" && proxy->type == "zenith", "Bob shows her car as a stand-in");
 	Check(proxy && Hypot(proxy->pos.x - car->pos.x, proxy->pos.z - car->pos.z) < 3 && proxy->driver() == aOnB, "where it is, with her at the wheel");
@@ -1003,6 +1010,92 @@ static void TestNet(World& w) {
 	both(0.3);
 	printf("  after she left: Bob's peers %zu, her avatar removed %d, stand-in released %d, last line '%s'\n", gb->net->peers.size(), aOnB->removed ? 1 : 0, proxy && !proxy->remote ? 1 : 0, gb->net->chat.back().text.c_str());
 	Check(gb->net->peers.empty() && aOnB->removed && proxy && !proxy->remote, "when she leaves, her avatar goes and her car stays as an ordinary car");
+	gb->net->disconnect(true);
+}
+
+// ---- shared pedestrians, traffic and trains between two games (npcsync.js)
+static void TestNpcSync(World& w) {
+	printf("npcsync\n");
+	// the compact look survives the trip
+	Appearance a = RandomAppearance(1, 0x8a5536);
+	a.hat = 0x223344; a.hasUniform = true; a.uniformShirt = 0x112233; a.uniformPants = 0x445566; a.uniformHat = -1;
+	Appearance b;
+	const Json packed = PackLook(a);
+	const bool ok = UnpackLook(&packed, b);
+	Check(ok && b.female == a.female && b.skin == a.skin && b.hairStyle == a.hairStyle && b.shirtType == a.shirtType && b.hat == a.hat
+		&& b.hasUniform && b.uniformShirt == a.uniformShirt && b.uniformHat == -1 && std::fabs(b.build - a.build) < 0.006, "a look packs and unpacks as npcsync.js does");
+	auto ga = w.game(true), gb = w.game(true);
+	ToStreet(w, *ga); ToStreet(w, *gb, 40);
+	ga->freeRoam = gb->freeRoam = true; // (the trains follow the host in free roam)
+	Run(*ga, 4); Run(*gb, 1);
+	LoopRoom room;
+	ga->net->connect(std::make_unique<LoopTransport>(room, "pA"), "test");
+	gb->net->connect(std::make_unique<LoopTransport>(room, "pB"), "test");
+	auto both = [&](double secs) { const int n = (int)std::round(secs * 30); for (int i = 0; i < n; i++) { ga->frame(1.0 / 30); gb->frame(1.0 / 30); } };
+	both(3);
+	NpcSync& nb = *gb->net->npc;
+	int cars = 0;
+	for (const auto& v : gb->vehicles.list) if (v->npcRemote && v->remoteOwner == "pA" && !v->removed) cars++;
+	printf("  Bob draws %zu of Alice's pedestrians and %d of her cars\n", nb.pedList.size(), cars);
+	Check(!nb.pedList.empty() && cars > 0, "each draws the other's pedestrians and traffic nearby");
+	// a stand-in stands where its owner's pedestrian is
+	NpcProxy* q = nullptr;
+	for (const auto& p : nb.pedList) if (!p->vehicle && !p->dead && !p->removed) { q = p.get(); break; }
+	Ped* orig = nullptr;
+	if (q) for (const auto& p : ga->peds->list) if (p->netId == q->netId && !p->remote) orig = p.get();
+	printf("  stand-in %d at (%.1f, %.1f); Alice's pedestrian at (%.1f, %.1f)\n", q ? q->netId : 0, q ? q->pos.x : 0, q ? q->pos.z : 0, orig ? orig->pos.x : 0, orig ? orig->pos.z : 0);
+	Check(q && orig && Hypot(q->pos.x - orig->pos.x, q->pos.z - orig->pos.z) < 2.5, "a stand-in pedestrian is where Alice's pedestrian is");
+	bool listed = false;
+	for (Character* c : gb->allCharacters()) if (c == q) listed = true;
+	Check(listed, "and counts as a character on Bob's side");
+	// Bob shoots it: Alice's pedestrian takes the damage
+	if (q && orig) {
+		orig->invincible = false;
+		const double h0 = orig->health;
+		DamageInfo info; info.type = "bullet"; info.weapon = "pistol"; info.part = "torso"; info.source = gb->player.get();
+		q->takeDamage(500, info);
+		both(0.5);
+		printf("  Alice's pedestrian: health %.0f -> %.0f, dead %d; the stand-in dead %d\n", h0, orig->health, orig->dead, q->removed ? -1 : (int)q->dead);
+		Check(orig->dead, "Bob's shot at a stand-in kills Alice's pedestrian");
+	}
+	// Bob takes one of her cars: it becomes his and goes from her world
+	Vehicle* sv = nullptr;
+	for (const auto& v : gb->vehicles.list) if (v->npcRemote && v->remoteOwner == "pA" && !v->removed && !v->isWrecked() && !v->def.aircraft && !v->def.train) { sv = v.get(); break; }
+	if (sv) {
+		const int id = sv->netId;
+		std::shared_ptr<Vehicle> vaHold; // (kept alive: a removed car is freed a little later)
+		for (const auto& v : ga->vehicles.list) if (v->netId == id && !v->remote) vaHold = v;
+		Vehicle* va = vaHold.get();
+		const double hp0 = va ? va->health : 0;
+		sv->damage(300, gb->player.get());
+		both(0.4);
+		printf("  her car #%d: health %.0f -> %.0f after Bob's hit\n", id, hp0, va && !va->removed ? va->health : -1.0);
+		Check(va && va->health < hp0, "damage to a stand-in car reaches its owner");
+		// (the F key: game.js tryEnterExit takes the car over, then the player climbs in)
+		sv->vel = V3();
+		gb->player->setPosition(sv->pos.x + std::cos(sv->yaw) * 1.8, sv->pos.z - std::sin(sv->yaw) * 1.8);
+		gb->tryEnterExit();
+		both(3);
+		const bool in = gb->player->vehicle == sv || sv->driver() == gb->player.get();
+		printf("  Bob got in %d: his now %d (remote %d); Alice's copy removed %d\n", in, !sv->remote && !sv->npcRemote, sv->remote, va ? va->removed : -1);
+		Check(in && !sv->remote && !sv->npcRemote && va && va->removed, "taking a stand-in car makes it Bob's, and Alice's copy goes");
+	} else Check(false, "a stand-in car to take");
+	// the trains: Alice joined first, so Bob's follow her timetable
+	Train* ta = ga->rail ? dynamic_cast<Train*>(ga->rail->train.get()) : nullptr;
+	Train* tb = gb->rail ? dynamic_cast<Train*>(gb->rail->train.get()) : nullptr;
+	if (ta && tb) {
+		tb->s = std::fmod(ta->s + 900, tb->rail->length - tb->len - 10) + tb->len + 5; // (far from hers)
+		both(2);
+		printf("  Alice's train at s %.1f, Bob's at %.1f (following %d), Alice's following %d\n", ta->s, tb->s, tb->hasNetTarget, ta->hasNetTarget);
+		Check(tb->hasNetTarget && std::fabs(tb->s - ta->s) < 5 && !ta->hasNetTarget, "the trains follow the host's timetable");
+	} else Check(false, "both games have a train");
+	// she leaves: her stand-ins go
+	ga->net->disconnect();
+	both(2);
+	int left = 0;
+	for (const auto& v : gb->vehicles.list) if (v->npcRemote && !v->removed) left++;
+	printf("  after she left: %zu stand-in pedestrians, %d stand-in cars\n", nb.pedList.size(), left);
+	Check(nb.pedList.empty() && left == 0, "when she leaves, her pedestrians and traffic go with her");
 	gb->net->disconnect(true);
 }
 
@@ -2205,6 +2298,7 @@ int main(int argc, char** argv) {
 	if (want("jobs")) TestJobs(w);
 	if (want("waypoint")) TestWaypoint(w);
 	if (want("net")) TestNet(w);
+	if (want("npcsync")) TestNpcSync(w);
 	if (want("wildlife")) TestWildlife(w);
 	if (want("pets")) TestPets(w);
 	if (want("missions")) TestMissions(w);
