@@ -155,6 +155,7 @@ far:
 | | | N / D-pad → | Next radio station |
 | Esc / P / Menu | Pause or resume (B resumes from any pause tab; A selects) | B / RS click | Look behind |
 | / | Chat (multiplayer: Enter sends, Esc cancels) | / | Chat |
+| T | Teleport (free roam) | ` (backtick) | Admin console (free roam) |
 | | | X / B (hold) | Cinematic camera |
 
 | Planes & jets | | Helicopters | | Tank | |
@@ -187,6 +188,13 @@ controller selection share the same highlight.
 The Map tab (also M) is the browser's map: drag to pan, the wheel zooms, right-click or double-click sets a
 waypoint (again on the same spot clears it). The GPS routes to the waypoint, cabs take you there, and free
 roam's Teleport tab lists it. Save game says why it can't save in free roam or during a mission.
+
+Free roam's Admin tab has the twelve cheat switches, the actions (heal, all weapons, repair, flip, clear the area,
+blow up nearby cars, a bodyguard, enemies, skydive), the wanted level, the time, the weather and the street
+density, each answering in the line at the top. The Vehicles tab summons any vehicle as the browser's spawner does
+(boats in the nearest open water, planes in the air, at most five kept). The backtick opens the admin console:
+`help`, `car zenith`, `tp beach`, `weather rain`, `traffic heavy`, `pet husky Rex` and the rest of admin.js's
+commands; the arrows recall earlier lines. Online only the vehicle spawner works.
 
 Settings has the browser's rows (kept between runs in `Saved/Config/<platform>/Game.ini`): graphics quality, volumes, mouse sensitivity and invert, ray-traced
 reflections (Lumen reflections), ambient occlusion (screen-space and Lumen short-range AO), an FPS readout,
@@ -299,6 +307,7 @@ cd Tools
                                                                # aircraft and the tank, the army, skateboards,
                                                                # boats
 ./simtest.exe admin                                            # all 12 Admin cheat toggles and wanted / time / weather actions
+./simtest.exe admintools                                       # the console's commands, the spawner's rules, skydive, Pegasus
 ./simtest.exe jobs                                             # a race, vigilante, Customs, a business, a cab and the save
 DEBUG=1 ./native.sh simtestd.exe simtest.cpp                   # with symbols: a crash prints a stack trace
 ./native.sh audiotest.exe audiotest.cpp && ./audiotest.exe wav # every sound: peak and loudness per 50 ms
@@ -348,6 +357,8 @@ checks without interrupting the simulation.
 `Tools/tests/landmarks.txt` shows the pier, the Ferris wheel, the Vistawood sign and the cranes by day and by night.
 `Tools/tests/menu-tabs.txt` (with `-ATGMenu`) opens the map with M, sets a waypoint on it (`ATG.MapWaypoint`) and
 shoots every pause tab and the title screen.
+`Tools/tests/admin.txt` (with `-ATGMenu`) types `help` and `car zenith` into the console, runs Admin tab actions and
+summons a plane from the Vehicles tab (`ATG.Console` runs a console line directly).
 `Tools/tests/online.txt` (with `-ATGMenu`, while `node server.mjs` runs) picks Multiplayer, types a name and room
 code into the Online tab (`ATG.Menu Type`), joins, chats from the tab and from the in-game box (`ATG.Type`,
 `ATG.SlateKey Enter`) and leaves. `Tools/tests/online-cross.txt` does the same with a browser in the room

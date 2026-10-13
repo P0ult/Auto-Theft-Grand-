@@ -1120,6 +1120,69 @@ static void TestSkyLight(World& w) {
 	Check(worst < 0.002, "smoke and decals are lit by the browser's sky colours");
 }
 
+// ---- admin.js's console, the vehicle spawner's rules, and the phone calls that use them
+static void TestAdminTools(World& w) {
+	printf("admintools\n");
+	auto g = w.game(true);
+	StartJourney(*g, "free");
+	FreeRoam& adm = *g->freeroam;
+	Player& p = *g->player;
+	ToStreet(w, *g);
+	Run(*g, 0.5);
+	const std::string help = adm.run("help");
+	printf("  help: %.60s...\n", help.c_str());
+	Check(help.find("car <name>") != std::string::npos && help.find("<br>") != std::string::npos, "help lists the commands");
+	const std::string car = adm.run("car zenith");
+	printf("  car zenith -> '%s', driving %s\n", car.c_str(), p.vehicle ? p.vehicle->type.c_str() : "-");
+	Check(car == "Zenith." && p.vehicle && p.vehicle->type == "zenith", "car <name> puts you in one");
+	Check(adm.run("car Banana").find("Vehicles: meridian") == 0, "an unknown car lists the spawner's vehicles");
+	p.health = 10;
+	Check(adm.run("heal") == "Health and armour full." && p.health == p.maxHealth && p.armor == 100, "heal fills health and armour");
+	Check(adm.run("wanted 3") == "Wanted level 3." && g->policeSys->level == 3, "wanted sets the stars");
+	Check(adm.run("wanted") == "Wanted level cleared." && g->policeSys->level == 0, "wanted with no number clears them");
+	Check(adm.run("weather rain") == "Weather: rain." && g->env.weatherLocked, "weather sets and holds it");
+	Check(adm.run("weather snow") == "Weather: clear, cloudy, rain, storm, fog.", "an unknown weather lists the choices");
+	Check(adm.run("god") == "God mode: on" && g->cheats.god && adm.run("god off") == "God mode: off", "toggles answer with their label");
+	Check(adm.run("traffic off") == "Traffic: off." && adm.traffic == "off", "traffic density");
+	Run(*g, 0.2);
+	Check(g->traffic->maxCars == 0, "traffic off empties the roads");
+	adm.run("traffic normal");
+	Check(adm.run("frobnicate") == "Unknown command \"frobnicate\". Type <b>help</b>.", "unknown commands say so");
+	Check(adm.run("colour ff0000") == "Paint: #ff0000." && p.vehicle && p.vehicle->color == 0xff0000, "colour repaints your car and the spawner");
+	adm.run("colour default");
+	// aircraft: planes arrive flying, helicopters on the ground in the open
+	const std::string jet = adm.run("car raptor");
+	printf("  car raptor -> '%s' at %.0f m\n", jet.c_str(), p.vehicle ? p.vehicle->pos.y : -1.0);
+	Check(jet == "Raptor (airborne)." && p.vehicle && p.vehicle->pos.y > 200, "a plane is summoned in the air");
+	// the summoned list keeps five
+	for (const char* id : { "pico", "buffalo", "kestrel", "brawler", "tempest", "bouncer" }) adm.summon(id, false);
+	Check(adm.summoned.size() <= 5, "the spawner keeps a handful");
+	// skydive
+	if (p.vehicle) g->vehicles.exit(&p);
+	Run(*g, 1);
+	const double gy = g->map.GroundHeight(p.pos.x, p.pos.z);
+	const std::string sd = adm.run("skydive");
+	printf("  skydive -> '%s', %.0f m above the ground\n", sd.c_str(), p.pos.y - gy);
+	Check(p.pos.y - gy > 300, "skydive drops you from high up");
+	// the phone: Pegasus brings a Skylark in free roam, SKYFALL skydives
+	g->respawnPlayer(p.pos.x, p.pos.z, 0);
+	Run(*g, 0.5);
+	const size_t before = g->vehicles.list.size();
+	// (the phone's Contacts: open it, Enter on the first app, then Pegasus's row)
+	g->phone->show();
+	Run(*g, 0.4);
+	g->input.KeyDown("Enter"); g->frame(1.0 / 30); g->input.KeyUp("Enter"); g->frame(1.0 / 30);
+	bool called = false;
+	for (auto& it : g->phone->items) if (it.name == "Pegasus Concierge" && it.go) { it.go(); called = true; break; }
+	Check(called, "free roam's phone lists Pegasus");
+	Run(*g, 2.5);
+	int skylarks = 0;
+	for (const auto& v : g->vehicles.list) if (v->type == "skylark" && !v->removed) skylarks++;
+	Check(skylarks >= 1 && g->vehicles.list.size() > before, "Pegasus delivers a Skylark");
+	g->phone->cheat("SKYFALL");
+	Check(p.pos.y - g->map.GroundHeight(p.pos.x, p.pos.z) > 300, "the SKYFALL cheat skydives");
+}
+
 static void TestJobs(World& w) {
 	printf("jobs\n");
 	auto g = w.game(true);
@@ -2289,9 +2352,16 @@ int main(int argc, char** argv) {
 	if (argc > 1 && !std::strcmp(argv[1], "aircmp")) { AirCompare(w, argc > 2 ? argv[2] : "plane"); return 0; }
 	if (argc > 1 && !std::strcmp(argv[1], "animalcmp")) { AnimalCompare(w); return 0; }
 	if (argc > 1 && !std::strcmp(argv[1], "storymeta")) { StoryMeta(w); return 0; }
-	auto want = [&](const char* n) { if (argc < 2) return true; for (int i = 1; i < argc; i++) if (!std::strcmp(argv[i], n)) return true; return false; };
+	// (each test starts from the same random state, so it runs the same alone or after the others)
+	auto want = [&](const char* n) {
+		bool on = argc < 2;
+		for (int i = 1; i < argc && !on; i++) if (!std::strcmp(argv[i], n)) on = true;
+		if (on) SeedRand(0);
+		return on;
+	};
 	if (want("walk")) TestWalk(w);
 	if (want("admin")) TestAdmin(w);
+	if (want("admintools")) TestAdminTools(w);
 	if (want("drive")) TestDrive(w);
 	if (want("crash")) TestCrash(w);
 	if (want("parked")) TestParked(w);

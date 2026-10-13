@@ -260,7 +260,7 @@ ATG.Menu Nav 0 1
 wait 0.2
 ATG.Menu Nav 1 0
 wait 0.2
-ATG.MenuCheck selected "Super run"
+ATG.MenuCheck selected "Super speed"
 ATG.Menu Activate
 wait 0.2
 ATG.MenuCheck cheat superRun 1
@@ -281,7 +281,7 @@ ATG.Menu Nav 1 0
 wait 0.2
 ATG.Menu Nav 1 0
 wait 0.2
-ATG.MenuCheck selected "Infinite sprint"
+ATG.MenuCheck selected "Endless sprint"
 ATG.Menu Activate
 wait 0.2
 ATG.MenuCheck cheat infSprint 1
@@ -300,7 +300,7 @@ ATG.Menu Nav 0 1
 wait 0.2
 ATG.Menu Nav 0 1
 wait 0.2
-ATG.MenuCheck selected "Low gravity"
+ATG.MenuCheck selected "Moon gravity"
 ATG.Menu Activate
 wait 0.2
 ATG.MenuCheck cheat lowGravity 1

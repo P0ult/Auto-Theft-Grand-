@@ -3,6 +3,9 @@
 #include "Collision.h"
 #include "Game.h"
 #include "Gameplay.h"
+#include "Aircraft.h"
+#include "FreeRoam.h"
+#include "TaxiSystem.h"
 #include "Peds.h"
 #include "Police.h"
 #include "RoadNet.h"
@@ -193,8 +196,7 @@ void Phone::build() {
 		if (free) for (const char* w : { "clear", "cloudy", "rain", "storm", "fog" }) {
 			std::string name = w; name[0] = (char)std::toupper(name[0]);
 			const std::string ws = w;
-			// (admin.js setWeather: with the admin tools; until then the clock's own)
-			items.push_back({ name, env.weather == w ? "now" : "", "", 0, [this, ws]() { game.env.setWeather(ws, true); build(); } });
+			items.push_back({ name, env.weather == w ? "now" : "", "", 0, [this, ws]() { if (game.freeroam) game.freeroam->weather(ws); build(); } });
 		}
 		else items.push_back({ "Forecast: " + env.weather, "Change the weather in free roam, or with the MAKEITRAIN cheat", "", 0, []() {} });
 	} else if (screen == "stats") {
@@ -240,9 +242,9 @@ bool Phone::pay(double amount) {
 
 void Phone::cab() {
 	if (game.player->vehicle) { if (game.hud) game.hud->subtitle("You're already driving, pal. Call us when you're on foot.", "Downtown Cab Co.", 4); return; }
-	// (the taxi system comes with the taxis; until then the dispatcher doesn't pick up)
-	if (!game.taxiSystem) return;
+	if (!game.taxi) return;
 	if (game.hud) game.hud->subtitle("Downtown Cab Co., where to? We'll send someone right over.", "Dispatcher", 3.5);
+	game.taxi->hailCab();
 }
 
 double Phone::lesterPrice() const { const int l = game.police ? game.police->wantedLevel() : 0; return 500 * (l ? l : 1); }
@@ -344,7 +346,9 @@ void Phone::merryweather() {
 }
 
 void Phone::pegasus() {
-	// (admin.js summon: with the admin tools, in free roam)
+	if (!game.freeroam) return;
+	const std::string msg = game.freeroam->summon("skylark", false);
+	if (game.hud) game.hud->subtitle(msg.find("Skylark") != std::string::npos ? "Your Skylark has been delivered, sir. Enjoy your flight." : msg, "Pegasus", 4);
 }
 
 // ------------------------------------------------------------------ cheats
@@ -363,6 +367,7 @@ void Phone::cheat(const std::string& code) {
 	};
 	auto spawnNear = [&](const std::string& type) {
 		if (game.missionActive) { if (game.hud) game.hud->help("Not during a mission.", 3); return false; }
+		if (game.freeroam && game.freeroam->canSpawn()) return !game.freeroam->summon(type, false).empty();
 		const VehicleDef* d = FindVehicle(type);
 		if (!d) return false;
 		const double a = p.yaw;
@@ -370,7 +375,7 @@ void Phone::cheat(const std::string& code) {
 		SpawnOpts so; so.persistent = true;
 		if (d->kind == "heli") { so.hasY = true; so.y = Max(game.map.GroundHeight(x, z), 0) + 60; }
 		Vehicle* v = game.vehicles.spawn(type, x, z, p.yaw, so);
-		if (v && d->kind == "heli") v->airborne = true; // (spool = 1, grounded = false: with the aircraft)
+		if (v && d->kind == "heli") { v->airborne = true; if (AirVehicle* air = dynamic_cast<AirVehicle*>(v)) { air->spool = 1; air->grounded = false; } }
 		return true;
 	};
 	hide();
@@ -380,7 +385,7 @@ void Phone::cheat(const std::string& code) {
 	else if (code == "TOOLUP") { for (const auto& w : Weapons()) p.giveWeapon(w.first, (w.second.clip ? w.second.clip : 1) * 8); say("Weapons"); }
 	else if (code == "LAWYERUP") { if (game.policeSys) game.policeSys->clear(); say("Wanted level cleared"); }
 	else if (code == "FUGITIVE") { if (Police* pol = game.policeSys) { pol->setLevel((int)Min(5, pol->level + 1)); say("Wanted level " + std::to_string(pol->level)); } }
-	else if (code == "SKYFALL") { say("Skydive"); } // (admin.js skydive: with the admin tools)
+	else if (code == "SKYFALL") { if (game.freeroam) game.freeroam->skydive(); say("Skydive"); }
 	else if (code == "BUZZOFF") { if (spawnNear("warhawk")) say("Warhawk gunship"); }
 	else if (code == "COMET") { if (spawnNear("zenith")) say("Zenith"); }
 	else if (code == "OFFROAD") { if (spawnNear("trail")) say("Trailblazer"); }

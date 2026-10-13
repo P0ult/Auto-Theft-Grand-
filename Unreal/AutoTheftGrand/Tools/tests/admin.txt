@@ -1,0 +1,33 @@
+# Free roam's admin tools (run with -ATGMenu): the console (`) runs help, a car and the weather; the Admin tab's
+# actions answer in the line at the top; the Vehicles tab summons a plane in the air.
+wait 4
+ATG.Menu FreeRoam
+wait 2
+ATG.Input Tilde 1
+wait 0.1
+ATG.Input Tilde 0
+wait 0.3
+ATG.Type help
+ATG.SlateKey Enter
+ATG.Type car zenith
+ATG.SlateKey Enter
+wait 0.5
+shot admin_console
+ATG.SlateKey Escape
+wait 0.3
+ATG.State
+ATG.Console weather rain
+ATG.Console wanted 2
+ATG.Menu Pause
+wait 0.5
+ATG.Menu Page Admin
+ATG.Menu Do Act:heal
+ATG.Menu Do Density:traffic:heavy
+wait 0.3
+shot admin_tab
+ATG.Menu Page Vehicles
+ATG.Menu Do Spawn:skipper
+wait 1
+ATG.State
+shot admin_plane
+quit

@@ -377,6 +377,14 @@ ATG_CMD(CmdHudStyle, "ATG.HudStyle", "ATG.HudStyle modern|classic: the HUD's lay
 	G->settings.hudStyle = Args[0] == TEXT("classic") ? "classic" : "modern";
 	UE_LOG(LogATG, Display, TEXT("ATG hud style %s"), UTF8_TO_TCHAR(G->settings.hudStyle.c_str()));
 })
+ATG_CMD(CmdConsole, "ATG.Console", "ATG.Console open|close | command...: the admin console (free roam): open it, or run a line and log the answer", {
+	AATGPlayerController* PC = PlayerPC(W);
+	if (!PC || !Args.Num()) return;
+	if (Args[0] == TEXT("open")) { PC->OpenConsole(); return; }
+	if (Args[0] == TEXT("close")) { PC->CloseConsole(); return; }
+	const FString R = PC->RunConsole(FString::Join(Args, TEXT(" ")));
+	UE_LOG(LogATG, Display, TEXT("ATG console: %s"), *R);
+})
 ATG_CMD(CmdBig, "ATG.Big", "ATG.Big style text...: show a big message (title, passed, failed, wasted, busted, hint, chapter)", {
 	atg::Game* G = Sim(W);
 	if (!G || !G->hud || Args.Num() < 2) return;

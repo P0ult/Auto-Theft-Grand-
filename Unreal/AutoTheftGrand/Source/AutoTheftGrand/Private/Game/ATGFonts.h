@@ -4,6 +4,7 @@
 //   Script 'Permanent Marker', 'Brush Script MT'  (Los Soles, zone names, chapter titles)
 //   Text   'Rubik', 'Segoe UI', Roboto            (body text)
 //   Arial  Arial                                   (the radar's blip letters and $)
+//   Mono   ui-monospace, Consolas                  (the admin console)
 // Each stack takes the first font it finds: Content/Fonts/<file> (the Google fonts, under the SIL Open Font
 // License, if they have been put there), then Windows' own fonts, then the engine's Roboto. Sizes are CSS pixels
 // at the current DPI scale: pass Px and the Slate size is Px * 0.75 (Slate sizes are points at 96 dpi).
@@ -12,7 +13,7 @@
 #include "CoreMinimal.h"
 #include "Fonts/SlateFontInfo.h"
 
-enum class EATGFont : uint8 { Hud, Title, Script, Text, Arial };
+enum class EATGFont : uint8 { Hud, Title, Script, Text, Arial, Mono };
 
 namespace ATGFonts {
 // Bold (and Bold + Italic) pick the text stack's faces (Rubik / Segoe UI / Roboto); the display fonts have one weight.

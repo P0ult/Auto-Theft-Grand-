@@ -298,6 +298,8 @@ private:
 	bool bSpawnInto = true;
 	bool bSpawnAir = true;
 	int64 SpawnColor = -1;
+	FString VehMsg;   // (.vs-msg: why the spawner said no)
+	FString AdminMsg; // (.adm-msg: what the last admin action said)
 	// (the selected row stays put when a tab is rebuilt after an action)
 	void SetFocusIndex(int32 Index);
 	void FocusRow(TSharedPtr<SButton> RowButton);

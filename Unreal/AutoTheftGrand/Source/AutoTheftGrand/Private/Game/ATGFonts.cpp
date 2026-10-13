@@ -17,7 +17,7 @@ struct FATGFontStack {
 	bool bResolved = false;
 };
 
-FATGFontStack GStacks[5];
+FATGFontStack GStacks[6];
 
 FString FindFont(std::initializer_list<const TCHAR*> Files) {
 	const FString Project = FPaths::ConvertRelativePathToFull(FPaths::ProjectContentDir() / TEXT("Fonts"));
@@ -50,6 +50,10 @@ FATGFontStack& Resolve(EATGFont Which) {
 		S.Regular = FindFont({ TEXT("arial.ttf") });
 		S.Bold = FindFont({ TEXT("arialbd.ttf") });
 		break;
+	case EATGFont::Mono:
+		S.Regular = FindFont({ TEXT("consola.ttf"), TEXT("cour.ttf") });
+		S.Bold = FindFont({ TEXT("consolab.ttf"), TEXT("courbd.ttf") });
+		break;
 	}
 	if (!S.Regular.IsEmpty()) {
 		S.Font = NewObject<UFont>(GetTransientPackage(), NAME_None, RF_Transient);
@@ -76,7 +80,7 @@ FATGFontStack& Resolve(EATGFont Which) {
 FSlateFontInfo ATGFonts::Get(EATGFont Which, float Px, bool bBold, bool bItalic) {
 	const float Pt = FMath::Max(1.f, Px * 0.75f);
 	const FATGFontStack& S = Resolve(Which);
-	if (!S.Font) return FCoreStyle::GetDefaultFontStyle(bBold && bItalic ? "BoldItalic" : bBold || (Which != EATGFont::Text && Which != EATGFont::Arial) ? "Bold" : "Regular", Pt);
+	if (!S.Font) return FCoreStyle::GetDefaultFontStyle(bBold && bItalic ? "BoldItalic" : bBold || (Which != EATGFont::Text && Which != EATGFont::Arial && Which != EATGFont::Mono) ? "Bold" : "Regular", Pt);
 	const FName Face = bBold && bItalic && !S.BoldItalic.IsEmpty() ? FName("BoldItalic") : bBold && !S.Bold.IsEmpty() ? FName("Bold")
 		: bItalic && !S.Italic.IsEmpty() ? FName("Italic") : FName("Regular");
 	return FSlateFontInfo(S.Font, Pt, Face);

@@ -50,10 +50,26 @@ public:
 	// a text box has the keyboard (the menus' keys stay out of the way while you type)
 	static bool IsTyping();
 
+	// the admin console (hud.js openConsole, free roam): ` opens it; one line in, one line out
+	void OpenConsole();
+	void CloseConsole();
+	bool IsConsoleOpen() const { return bConsoleOpen; }
+	FString RunConsole(const FString& Line); // (also for test scripts)
+
 private:
 	TSharedPtr<class SWidget> ChatWidget;
 	TSharedPtr<class SEditableText> ChatText;
 	bool bChatOpen = false;
+	TSharedPtr<class SWidget> ConsoleWidget;
+	TSharedPtr<class SEditableText> ConsoleText;
+	TSharedPtr<class SVerticalBox> ConsoleLog;
+	struct FConLine { bool bCmd; FString Html; };
+	TArray<FConLine> ConLines;
+	TArray<FString> ConHist;
+	int32 ConIdx = 0;
+	float ConWidth = 560.f;
+	bool bConsoleOpen = false;
+	void RebuildConsoleLog();
 	UPROPERTY() TObjectPtr<UATGMenuSystem> MenuSystem;
 	bool bMainMenuNavigation = false;
 	int32 MenuLastX = 0, MenuLastY = 0, MenuLastTab = 0;

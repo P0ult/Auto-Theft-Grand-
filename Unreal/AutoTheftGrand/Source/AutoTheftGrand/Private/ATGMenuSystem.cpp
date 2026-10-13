@@ -1105,6 +1105,12 @@ void SpawnGroups(TArray<FATGMenuGroup>& Out) {
 }
 } // namespace
 
+namespace {
+// (with the Online tab's helpers, further down)
+FString Std(const std::string& S);
+TSharedRef<SWidget> HtmlLine(const FString& Html, const FLinearColor& Base, float Px, bool bItalic);
+}
+
 TSharedRef<SWidget> SATGPauseMenu::CreateVehiclesTab() {
 	atg::Game* G = GetSimulation();
 	TSharedRef<SVerticalBox> Out = SNew(SVerticalBox);
@@ -1112,7 +1118,7 @@ TSharedRef<SWidget> SATGPauseMenu::CreateVehiclesTab() {
 		Out->AddSlot().AutoHeight()[Muted_(LOCTEXT("VehFree", "Spawning a vehicle is a free roam feature. Pick Free Roam on the title screen."))];
 		return Out;
 	}
-	AddMuted(Out, LOCTEXT("VehTop", "Pick a vehicle to drive it away. Planes and helicopters can start in the air."));
+	Out->AddSlot().AutoHeight().Padding(0.f, 0.f, 0.f, 10.f)[HtmlLine(TEXT("Pick a vehicle to drive it away. Online, other players see it too. Or type <b>car &lt;name&gt;</b> in the console (<b>`</b>)."), Muted, 13.f, false)];
 
 	// the options (hud.js _spawnOpts: into, air, and the paint)
 	TSharedRef<SWrapBox> Options = SNew(SWrapBox).InnerSlotPadding(FVector2D(6.f, 6.f)).UseAllottedSize(true);
@@ -1145,6 +1151,8 @@ TSharedRef<SWidget> SATGPauseMenu::CreateVehiclesTab() {
 	for (int32 I = 0; I < (int32)UE_ARRAY_COUNT(Paints); I++) Swatch(FString::Printf(TEXT("Paint:%u"), Paints[I]), HexColor(Paints[I]), FText::GetEmpty());
 	Out->AddSlot().AutoHeight().Padding(0.f, 0.f, 0.f, 12.f)[Swatches];
 
+	// .vs-msg: the spawner's answer when it couldn't
+	if (!VehMsg.IsEmpty()) Out->AddSlot().AutoHeight().Padding(0.f, 0.f, 0.f, 10.f)[HtmlLine(VehMsg, Srgb(0xff, 0x8a, 0x8a), 14.f, false)];
 	TArray<FATGMenuGroup> Groups;
 	SpawnGroups(Groups);
 	Out->AddSlot().AutoHeight()[MakeGroupGrid(Groups)];
@@ -1154,9 +1162,26 @@ TSharedRef<SWidget> SATGPauseMenu::CreateVehiclesTab() {
 TSharedRef<SWidget> SATGPauseMenu::CreateAdminTab() {
 	atg::Game* G = GetSimulation();
 	TSharedRef<SVerticalBox> Out = SNew(SVerticalBox);
-	if (!bIsFreeRoam || !G) {
+	if (!bIsFreeRoam || !G || !G->freeroam) {
 		Out->AddSlot().AutoHeight()[Muted_(LOCTEXT("AdminFree", "Admin tools are a free roam feature. Pick Free Roam on the title screen."))];
 		return Out;
+	}
+	atg::FreeRoam& Adm = *G->freeroam;
+	if (!Adm.allowed()) {
+		AddMuted(Out, G->net && G->net->online()
+			? LOCTEXT("AdminOnline", "Admin tools are switched off while you're online \u2014 everyone in a shared world plays by the same rules. Leave multiplayer (Online tab) to use them. The vehicle spawner still works.")
+			: LOCTEXT("AdminOnlyFree", "Admin tools are available in free roam."));
+		return Out;
+	}
+	// .adm-msg: the last action's answer (gold at 12 % behind, a gold left border, 14 px)
+	if (AdminMsg.IsEmpty()) AdminMsg = TEXT("Tip: press <b>`</b> (backtick) in game to type commands \u2014 try <b>help</b>.");
+	{
+		static const FSlateColorBrush MsgBack(Srgb(0xe8, 0xb6, 0x4c, 0.12f));
+		Out->AddSlot().AutoHeight().Padding(0.f, 0.f, 0.f, 14.f)[
+			SNew(SBorder).BorderImage(&MsgBack).Padding(FMargin(0.f))[
+				SNew(SHorizontalBox)
+				+ SHorizontalBox::Slot().AutoWidth()[SNew(SBox).WidthOverride(3.f)[SNew(SImage).Image(White()).ColorAndOpacity(Gold)]]
+				+ SHorizontalBox::Slot().FillWidth(1.f).Padding(FMargin(12.f, 7.f))[HtmlLine(AdminMsg, Srgb(0xf1, 0xe6, 0xcf), 14.f, false)]]];
 	}
 	// a wrapped grid of buttons, the way the Admin tab lays its sections out
 	auto Grid = [this](const TArray<FATGMenuRowDef>& Defs) {
@@ -1166,20 +1191,19 @@ TSharedRef<SWidget> SATGPauseMenu::CreateAdminTab() {
 		return Wrap;
 	};
 
-	AddHeader(Out, LOCTEXT("AdminCheats", "Cheats"), LOCTEXT("AdminCheatsSub", "Free roam, single player only."));
-	struct FToggle { const char* L; bool atg::Cheats::*P; };
-	static const FToggle Ts[] = {
-		{ "God mode", &atg::Cheats::god }, { "Bulletproof vehicle", &atg::Cheats::vehGod }, { "Never wanted", &atg::Cheats::neverWanted },
-		{ "Super jump", &atg::Cheats::superJump }, { "Super run", &atg::Cheats::superRun }, { "Infinite sprint", &atg::Cheats::infSprint },
-		{ "Low gravity", &atg::Cheats::lowGravity }, { "Explosive bullets", &atg::Cheats::explosive }, { "One-hit kills", &atg::Cheats::oneHit },
-		{ "Freeze time", &atg::Cheats::freezeTime }, { "Slow motion", &atg::Cheats::slowmo }, { "Riot", &atg::Cheats::riot },
-	};
+	AddHeader(Out, LOCTEXT("AdminCheats", "Cheats"), FText::GetEmpty());
 	TArray<FATGMenuRowDef> Cheats;
-	for (const FToggle& T : Ts) {
-		const bool bEnabled = G->freeroamActive() && (G->cheats.*(T.P));
-		Cheats.Add(FATGMenuRowDef(FString(T.L), FString(TEXT("Toggle:")) + FString(T.L), bEnabled ? FString(TEXT("ON")) : FString(TEXT("OFF"))));
-	}
+	for (const atg::AdminToggle& T : atg::AdminToggles())
+		Cheats.Add(FATGMenuRowDef(Std(T.label), FString(TEXT("Toggle:")) + Std(T.key), (G->cheats.*(T.flag)) ? FString(TEXT("ON")) : FString(TEXT("OFF"))));
 	Out->AddSlot().AutoHeight().Padding(0.f, 0.f, 0.f, 14.f)[Grid(Cheats)];
+
+	AddHeader(Out, LOCTEXT("AdminActions", "Actions"), FText::GetEmpty());
+	TArray<FATGMenuRowDef> Acts;
+	for (const auto& [L, A] : TArray<TPair<const TCHAR*, const TCHAR*>>{ { TEXT("Heal & armour"), TEXT("heal") }, { TEXT("All weapons"), TEXT("weapons") },
+			{ TEXT("Repair vehicle"), TEXT("repair") }, { TEXT("Flip vehicle"), TEXT("flip") }, { TEXT("Clear the area"), TEXT("clear") },
+			{ TEXT("Blow up nearby cars"), TEXT("explode") }, { TEXT("Bodyguard"), TEXT("bodyguard") }, { TEXT("Send enemies"), TEXT("enemies") }, { TEXT("Skydive"), TEXT("skydive") } })
+		Acts.Add(FATGMenuRowDef(FString(L), FString(TEXT("Act:")) + A, FString()));
+	Out->AddSlot().AutoHeight().Padding(0.f, 0.f, 0.f, 14.f)[Grid(Acts)];
 
 	AddHeader(Out, LOCTEXT("AdminWanted", "Wanted level"), FText::GetEmpty());
 	TArray<FATGMenuRowDef> Wanted;
@@ -1201,7 +1225,18 @@ TSharedRef<SWidget> SATGPauseMenu::CreateAdminTab() {
 		if (!Cap.IsEmpty()) Cap[0] = FChar::ToUpper(Cap[0]);
 		Weathers.Add(FATGMenuRowDef(Cap, FString(TEXT("Weather:")) + UTF8_TO_TCHAR(W), G->env.weather == W ? FString(TEXT("NOW")) : FString()));
 	}
-	Out->AddSlot().AutoHeight()[Grid(Weathers)];
+	Out->AddSlot().AutoHeight().Padding(0.f, 0.f, 0.f, 14.f)[Grid(Weathers)];
+
+	// the streets: traffic and pedestrians off / normal / heavy
+	AddHeader(Out, LOCTEXT("AdminStreets", "Streets"), FText::GetEmpty());
+	TArray<FATGMenuRowDef> Streets;
+	for (const auto& [L, K] : TArray<TPair<const TCHAR*, const TCHAR*>>{ { TEXT("Traffic"), TEXT("traffic") }, { TEXT("Pedestrians"), TEXT("peds") } })
+		for (const TCHAR* V : { TEXT("off"), TEXT("normal"), TEXT("heavy") }) {
+			const std::string Cur = FString(K) == TEXT("traffic") ? Adm.traffic : Adm.peds;
+			FString Vc(V); Vc[0] = FChar::ToUpper(Vc[0]);
+			Streets.Add(FATGMenuRowDef(FString(L) + TEXT(": ") + Vc, FString::Printf(TEXT("Density:%s:%s"), K, V), Cur == TCHAR_TO_UTF8(V) ? FString(TEXT("NOW")) : FString()));
+		}
+	Out->AddSlot().AutoHeight()[Grid(Streets)];
 	return Out;
 }
 
@@ -1944,36 +1979,55 @@ FReply SATGPauseMenu::OnActionButtonClicked(FString Action) {
 	}
 	if (Action == TEXT("SpawnInto")) { bSpawnInto = !bSpawnInto; RefreshTab(); }
 	else if (Action == TEXT("SpawnAir")) { bSpawnAir = !bSpawnAir; RefreshTab(); }
-	else if (Action.StartsWith(TEXT("Paint:"))) { SpawnColor = FCString::Atoi64(*Action.RightChop(6)); RefreshTab(); }
+	else if (Action.StartsWith(TEXT("Paint:"))) {
+		SpawnColor = FCString::Atoi64(*Action.RightChop(6));
+		if (G->freeroam) { G->freeroam->hasColor = SpawnColor >= 0; G->freeroam->color = (uint32)FMath::Max<int64>(SpawnColor, 0); }
+		RefreshTab();
+	}
 	else if (Action.StartsWith(TEXT("Teleport:")) && G->freeroam) {
 		const FString Name = Action.RightChop(9);
 		for (const atg::FreeDestination& D : G->freeroam->destinations())
 			if (Name == UTF8_TO_TCHAR(D.name.c_str())) { G->freeroam->teleport(D, true); if (OnAction.IsBound()) OnAction.Execute(TEXT("Resume")); break; }
 	}
-	else if (Action.StartsWith(TEXT("Wanted:")) && G->freeroam) { G->freeroam->setWanted(FCString::Atoi(*Action.RightChop(7))); RefreshTab(); }
-	else if (Action.StartsWith(TEXT("Weather:")) && G->freeroam) { G->freeroam->setWeather(TCHAR_TO_UTF8(*Action.RightChop(8))); RefreshTab(); }
-	else if (Action.StartsWith(TEXT("TimeOfDay:")) && G->freeroam) { G->freeroam->setTimeOfDay(FCString::Atod(*Action.RightChop(10))); RefreshTab(); }
-	else if (Action.StartsWith(TEXT("Toggle:")) && G->freeroam) {
-		const FString Toggle = Action.RightChop(7);
-		G->freeroam->toggleCheat(TCHAR_TO_UTF8(*Toggle));
+	// the Admin tab (hud.js _tab_admin: each button says what it did in the line at the top)
+	else if (Action.StartsWith(TEXT("Wanted:")) && G->freeroam) { AdminMsg = Std(G->freeroam->wanted(FCString::Atoi(*Action.RightChop(7)))); RefreshTab(); }
+	else if (Action.StartsWith(TEXT("Weather:")) && G->freeroam) { AdminMsg = Std(G->freeroam->weather(TCHAR_TO_UTF8(*Action.RightChop(8)))); RefreshTab(); }
+	else if (Action.StartsWith(TEXT("TimeOfDay:")) && G->freeroam) { AdminMsg = Std(G->freeroam->setTime(FCString::Atod(*Action.RightChop(10)))); RefreshTab(); }
+	else if (Action.StartsWith(TEXT("Toggle:")) && G->freeroam) { AdminMsg = Std(G->freeroam->toggle(TCHAR_TO_UTF8(*Action.RightChop(7)))); RefreshTab(); }
+	else if (Action.StartsWith(TEXT("Density:")) && G->freeroam) {
+		TArray<FString> P; Action.ParseIntoArray(P, TEXT(":"));
+		if (P.Num() == 3) {
+			(P[1] == TEXT("traffic") ? G->freeroam->traffic : G->freeroam->peds) = TCHAR_TO_UTF8(*P[2]);
+			AdminMsg = FString::Printf(TEXT("%s: %s."), P[1] == TEXT("traffic") ? TEXT("Traffic") : TEXT("Pedestrians"), *P[2]);
+		}
+		RefreshTab();
+	}
+	else if (Action.StartsWith(TEXT("Act:")) && G->freeroam) {
+		atg::FreeRoam& A = *G->freeroam;
+		const FString K = Action.RightChop(4);
+		const std::string R = K == TEXT("heal") ? A.heal() : K == TEXT("weapons") ? A.weapons() : K == TEXT("repair") ? A.repair() : K == TEXT("flip") ? A.flip()
+			: K == TEXT("clear") ? A.clearArea() : K == TEXT("explode") ? A.explodeNearby() : K == TEXT("bodyguard") ? A.bodyguard() : K == TEXT("enemies") ? A.enemies()
+			: K == TEXT("skydive") ? A.skydive() : std::string();
+		AdminMsg = Std(R);
+		// (Skydive closes the menu so you can see the drop)
+		if (K == TEXT("skydive")) { if (OnAction.IsBound()) OnAction.Execute(TEXT("Resume")); return FReply::Handled(); }
 		RefreshTab();
 	}
 	// the vehicle spawns last: they live on the Vehicles tab
 	else if (Action.StartsWith(TEXT("Spawn:"))) {
+		// (hud.js: adm.summon(id, { into, air: air ? undefined : false }); a vehicle closes the menu, a refusal says why)
 		const FString Id = Action.RightChop(6);
-		const atg::VehicleDef* Def = atg::FindVehicle(TCHAR_TO_UTF8(*Id));
-		if (Def && G->freeRoam) {
-			const atg::V3 P = G->player->vehicle ? G->player->vehicle->pos : G->player->pos;
-			atg::SpawnOpts Opts;
-			Opts.persistent = true;
-			if (SpawnColor >= 0) { Opts.hasColor = true; Opts.color = (uint32)SpawnColor; }
-			if (Def->aircraft && bSpawnAir) { Opts.hasY = true; Opts.y = P.y + 80; }
-			atg::Vehicle* V = G->vehicles.spawn(TCHAR_TO_UTF8(*Id), P.x + 7, P.z + 7, G->player->yaw, Opts);
-			if (V) {
-				if (G->player->vehicle) G->vehicles.exit(G->player.get());
-				if (Def->aircraft && bSpawnAir) { V->airborne = true; if (auto* Air = dynamic_cast<atg::AirVehicle*>(V)) Air->grounded = false; }
-				if (bSpawnInto) G->vehicles.enter(G->player.get(), V, 0, true);
+		if (G->freeroam) {
+			if (G->audioSys) G->sound("ui");
+			const std::string R = G->freeroam->summon(TCHAR_TO_UTF8(*Id), bSpawnInto, bSpawnAir ? -1 : 0);
+			const bool bOk = !R.empty() && R.back() == '.' && R.rfind("No", 0) != 0 && R.rfind("Not", 0) != 0 && R.rfind("Vehicle spawning", 0) != 0;
+			if (bOk) {
+				VehMsg.Reset();
+				if (OnAction.IsBound()) OnAction.Execute(TEXT("Resume"));
+				if (G->hud) G->hud->help("Spawned: <b>" + R + "</b>", 3);
+				return FReply::Handled();
 			}
+			VehMsg = Std(R);
 		}
 		RefreshTab();
 	}

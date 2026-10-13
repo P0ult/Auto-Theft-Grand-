@@ -42,7 +42,9 @@ TArray<FATGNetRun> ATGNetRuns(const FString& Html, const FLinearColor& Base, boo
 	FString Cur;
 	auto Flush = [&]() { if (!Cur.IsEmpty()) { const FSt& T = Stack.Last(); Out.Add({ Unescape(Cur), T.Col, T.bBold, T.bItalic, T.bHud }); Cur.Reset(); } };
 	for (int32 I = 0; I < Html.Len(); I++) {
-		if (Html[I] != TEXT('<')) { Cur.AppendChar(Html[I]); continue; }
+		// (as html: a tag starts with a letter or a slash; anything else after '<' is plain text, e.g. "<0-5>")
+		const bool bTag = Html[I] == TEXT('<') && I + 1 < Html.Len() && (FChar::IsAlpha(Html[I + 1]) || Html[I + 1] == TEXT('/'));
+		if (!bTag) { Cur.AppendChar(Html[I]); continue; }
 		const int32 E = Html.Find(TEXT(">"), ESearchCase::CaseSensitive, ESearchDir::FromStart, I);
 		if (E < 0) { Cur.AppendChar(Html[I]); continue; }
 		const FString Tag = Html.Mid(I + 1, E - I - 1);
