@@ -3,6 +3,7 @@
 #include "Game/ATGWorld.h"
 #include "Game/ATGCoords.h"
 #include "Game/ATGPainter.h"
+#include "Game/ATGNetText.h"
 #include "Game/ATGGameMode.h"
 #include "ATGGameInstance.h"
 #include "Sim/Ragdoll.h"
@@ -352,27 +353,107 @@ void AATGHUD::DrawMessages(atg::Game* G, float Dt) {
 	}
 	// subtitles: bottom centre
 	SubsAlpha = Approach(SubsAlpha, M->subs.t > 0 ? 1.f : 0.f, 4.f, Dt);
-	if (SubsAlpha > 0 && !M->subs.text.empty()) {
-		const FString S = M->subsSpeaker.empty() ? Plain(M->subs.text) : FString(UTF8_TO_TCHAR(M->subsSpeaker.c_str())) + TEXT(": ") + Plain(M->subs.text);
-		// (.hud-subtitles: the text font, 600, 22 px, 13 % up from the bottom, a 2 px shadow and a 1 px outline)
-		CssText(S, Canvas->ClipX / 2, Canvas->ClipY * 0.87f - 6 * Ui, 22 * Ui, TEXT("Text Bold"), FLinearColor(1, 1, 1, SubsAlpha * A), 0.5f,
-			{ FVector3f(2 * Ui, 2 * Ui, 1), FVector3f(-Ui, -Ui, 1) });
-	}
-	// the bar (drift, mission progress)
-	if (M->bar.on) {
-		// (.hud-progress: 200 px wide, 330 px down the right edge, the label right-aligned over the bar)
-		const float Bw = 200 * Ui, Bh = 14 * Ui, Bx = Canvas->ClipX - 28 * Ui - Bw, By = 356 * Ui;
-		Text(UTF8_TO_TCHAR(M->bar.label.c_str()), Canvas->ClipX - 28 * Ui, 330 * Ui, Small, 1.4f * Ui, FLinearColor(1, 1, 1, A), 1.f);
-		DrawRect(FLinearColor(0, 0, 0, 0.75f * A), Bx, By, Bw, Bh);
-		const FLinearColor C = CssHex(M->bar.color, FLinearColor(0.9f, 0.22f, 0.27f));
-		DrawRect(FLinearColor(C.R, C.G, C.B, A), Bx, By, Bw * (float)M->bar.v, Bh);
-	}
-	if (!M->objectiveText.empty() && M->subs.t <= 0) Text(Plain(M->objectiveText), Canvas->ClipX / 2, Canvas->ClipY * 0.92f, Small, 1.3f * Ui, FLinearColor(1, 1, 1, 0.8f * A), 0.5f);
+	if (SubsAlpha > 0 && !M->subs.text.empty()) DrawSubtitles(G, SubsAlpha * A);
+	// the timer, the counter and the bar, down the right edge (.hud-timer top 240, .hud-counter top 288,
+	// .hud-progress top 330; right 28): the HUD font on black at 40 % with 12 px either side
+	FATGPainter c(Canvas);
+	const float Right = Canvas->ClipX - 28 * Ui;
+	auto Boxed = [&](const TArray<TPair<FString, FLinearColor>>& Parts, float Top, float Px, float Sh) {
+		float W = 0;
+		for (const auto& P : Parts) W += c.FontWidth(P.Key, Px * Ui, TEXT("Hud"));
+		const float H = Px * 1.2f * Ui, X0 = Right - W - 24 * Ui;
+		c.Fill = FLinearColor(0, 0, 0, 0.4f * A); c.FillRect(X0, Top * Ui, W + 24 * Ui, H);
+		float X = X0 + 12 * Ui;
+		for (const auto& P : Parts) {
+			c.Fill = FLinearColor(0, 0, 0, A); c.FontTextBox(P.Key, X + Sh * Ui, Top * Ui + Sh * Ui, Px * Ui, TEXT("Hud"), 0.f, 0.f, 1.2f);
+			c.Fill = P.Value.CopyWithNewOpacity(A); X += c.FontTextBox(P.Key, X, Top * Ui, Px * Ui, TEXT("Hud"), 0.f, 0.f, 1.2f);
+		}
+	};
 	if (atg::Finite(M->timerSeconds)) {
 		const int32 Sec = FMath::Max(0, (int32)M->timerSeconds);
-		Text(FString::Printf(TEXT("%d:%02d"), Sec / 60, Sec % 60), Canvas->ClipX - 40 * Ui, Canvas->ClipY * 0.7f, Big, 1.8f * Ui, M->timerSeconds < 10 ? FLinearColor(1, 0.3f, 0.2f, A) : FLinearColor(1, 1, 1, A), 1.f);
+		Boxed({ { FString::Printf(TEXT("%d:%02d"), Sec / 60, Sec % 60), M->timerSeconds < 10 ? FLinearColor(FColor(0xff, 0x52, 0x52)) : FLinearColor::White } }, 240, 38, 3);
 	}
-	if (!M->counterLabel.empty()) Text(Plain(M->counterLabel + " " + M->counterValue), Canvas->ClipX - 40 * Ui, Canvas->ClipY * 0.76f, Small, 1.5f * Ui, FLinearColor(1, 1, 1, A), 1.f);
+	// (`${label} <b>${value}</b>`: the value in gold)
+	if (!M->counterLabel.empty()) Boxed({ { Plain(M->counterLabel) + TEXT(" "), FLinearColor::White }, { Plain(M->counterValue), Gold } }, 288, 26, 2);
+	if (M->bar.on) {
+		// (.hud-progress: 200 px wide, the label right-aligned (20 px), under it a 12 px bar in a 2 px black border)
+		const float Bw = 200 * Ui, Top = 330 * Ui;
+		const FString Label = UTF8_TO_TCHAR(M->bar.label.c_str());
+		c.Fill = FLinearColor(0, 0, 0, A); c.FontTextBox(Label, Right + 2 * Ui, Top + 2 * Ui, 20 * Ui, TEXT("Hud"), 1.f, 0.f, 1.2f);
+		c.Fill = FLinearColor(1, 1, 1, A); c.FontTextBox(Label, Right, Top, 20 * Ui, TEXT("Hud"), 1.f, 0.f, 1.2f);
+		const float By = Top + 20 * 1.2f * Ui + 2 * Ui;
+		c.Fill = FLinearColor(0, 0, 0, A); c.FillRect(Right - Bw, By, Bw, 16 * Ui);
+		c.Fill = FLinearColor(0, 0, 0, 0.7f * A); c.FillRect(Right - Bw + 2 * Ui, By + 2 * Ui, Bw - 4 * Ui, 12 * Ui);
+		const FLinearColor C = CssHex(M->bar.color, FLinearColor(0.9f, 0.22f, 0.27f));
+		c.Fill = C.CopyWithNewOpacity(A); c.FillRect(Right - Bw + 2 * Ui, By + 2 * Ui, (Bw - 4 * Ui) * (float)M->bar.v, 12 * Ui);
+	}
+}
+
+// .hud-subtitles: the speaker's name in their colour, then the line with its coloured highlights, the text font at
+// 600 and 22 px, centred and wrapped at min(900px, 80vw), line-height 1.35, its bottom 13 % up the screen (3.5 % in
+// the letterbox); text-shadow 2px 2px 0 #000, -1px -1px 0 #000, 0 0 8px rgba(0,0,0,0.9)
+void AATGHUD::DrawSubtitles(atg::Game* G, float Alpha) {
+	atg::HudModel* M = G->hudModel;
+	FString Html = UTF8_TO_TCHAR(M->subs.text.c_str());
+	if (!M->subsSpeaker.empty()) {
+		// (hud.js speakerColor: Dre is light blue; anyone else a hue from their name, at 70 % saturation and lightness)
+		const FString Name = UTF8_TO_TCHAR(M->subsSpeaker.c_str());
+		uint32 Hex = 0x8fd3ff;
+		if (Name != TEXT("Dre")) {
+			uint32 H = 0;
+			for (const TCHAR Ch : Name) H = H * 31 + (uint32)Ch;
+			const double Hue = H % 360, C = 0.42, X = C * (1 - FMath::Abs(FMath::Fmod(Hue / 60.0, 2.0) - 1)), Mn = 0.49;
+			double R = 0, Gg = 0, B = 0;
+			if (Hue < 60) { R = C; Gg = X; } else if (Hue < 120) { R = X; Gg = C; } else if (Hue < 180) { Gg = C; B = X; }
+			else if (Hue < 240) { Gg = X; B = C; } else if (Hue < 300) { R = X; B = C; } else { R = C; B = X; }
+			auto To = [](double v) { return (uint32)FMath::Clamp(FMath::RoundToInt((v) * 255), 0, 255); };
+			Hex = (To(R + Mn) << 16) | (To(Gg + Mn) << 8) | To(B + Mn);
+		}
+		Html = FString::Printf(TEXT("<b style=\"color:#%06x\">%s:</b> "), Hex, *Name) + Html;
+	}
+	const float Px = 22 * Ui, LineH = Px * 1.35f, MaxW = FMath::Min(900.f * Ui, Canvas->ClipX * 0.8f);
+	FATGPainter c(Canvas);
+	// the words, then lines that fit
+	struct FWord { FString S; FLinearColor Col; float W; };
+	TArray<FWord> Words;
+	for (const FATGNetRun& R : ATGNetRuns(Html, FLinearColor::White, false)) {
+		int32 I = 0;
+		while (I < R.S.Len()) {
+			int32 E = I;
+			while (E < R.S.Len() && R.S[E] == TEXT(' ')) E++;
+			while (E < R.S.Len() && R.S[E] != TEXT(' ')) E++;
+			while (E < R.S.Len() && R.S[E] == TEXT(' ')) E++;
+			const FString S = R.S.Mid(I, E - I);
+			Words.Add({ S, R.Col, c.FontWidth(S, Px, TEXT("Text Bold")) });
+			I = E;
+		}
+	}
+	TArray<TArray<int32>> Lines;
+	Lines.AddDefaulted();
+	float Lw = 0;
+	for (int32 I = 0; I < Words.Num(); I++) {
+		const float Wt = Words[I].W - c.FontWidth(Words[I].S.Right(Words[I].S.Len() - Words[I].S.TrimEnd().Len()), Px, TEXT("Text Bold"));
+		if (Lw > 0 && Lw + Wt > MaxW) { Lines.AddDefaulted(); Lw = 0; }
+		Lines.Last().Add(I);
+		Lw += Words[I].W;
+	}
+	const float Bottom = Canvas->ClipY * (M->letterboxed ? 0.965f : 0.87f);
+	float Y = Bottom - Lines.Num() * LineH;
+	for (const TArray<int32>& L : Lines) {
+		float W = 0;
+		for (int32 I : L) W += Words[I].W;
+		if (L.Num()) W -= Words[L.Last()].W - c.FontWidth(Words[L.Last()].S.TrimEnd(), Px, TEXT("Text Bold"));
+		float X = Canvas->ClipX / 2 - W / 2;
+		for (int32 I : L) {
+			const FWord& Wd = Words[I];
+			for (const FVector2f O : { FVector2f(2.5f, 2.5f), FVector2f(-2.5f, 2.5f), FVector2f(2.5f, -2.5f), FVector2f(-2.5f, -2.5f) }) { c.Fill = FLinearColor(0, 0, 0, 0.25f * Alpha); c.FontTextBox(Wd.S, X + O.X * Ui, Y + O.Y * Ui, Px, TEXT("Text Bold"), 0.f, 0.f, 1.35f); }
+			c.Fill = FLinearColor(0, 0, 0, Alpha); c.FontTextBox(Wd.S, X + 2 * Ui, Y + 2 * Ui, Px, TEXT("Text Bold"), 0.f, 0.f, 1.35f);
+			c.FontTextBox(Wd.S, X - Ui, Y - Ui, Px, TEXT("Text Bold"), 0.f, 0.f, 1.35f);
+			c.Fill = Wd.Col.CopyWithNewOpacity(Alpha); c.FontTextBox(Wd.S, X, Y, Px, TEXT("Text Bold"), 0.f, 0.f, 1.35f);
+			X += Wd.W;
+		}
+		Y += LineH;
+	}
 }
 
 void AATGHUD::DrawCredits(atg::Game* G) {

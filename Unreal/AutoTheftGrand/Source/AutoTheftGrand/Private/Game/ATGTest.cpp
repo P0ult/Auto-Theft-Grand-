@@ -385,6 +385,21 @@ ATG_CMD(CmdConsole, "ATG.Console", "ATG.Console open|close | command...: the adm
 	const FString R = PC->RunConsole(FString::Join(Args, TEXT(" ")));
 	UE_LOG(LogATG, Display, TEXT("ATG console: %s"), *R);
 })
+ATG_CMD(CmdSubtitle, "ATG.Subtitle", "ATG.Subtitle speaker|- html...: show a subtitle (- for none: an objective line)", {
+	atg::Game* G = Sim(W);
+	if (!G || !G->hud || Args.Num() < 2) return;
+	FString T; for (int32 I = 1; I < Args.Num(); I++) T += (I > 1 ? TEXT(" ") : TEXT("")) + Args[I];
+	if (Args[0] == TEXT("-")) G->hud->objective(TCHAR_TO_UTF8(*T), 6); else G->hud->subtitle(TCHAR_TO_UTF8(*T), TCHAR_TO_UTF8(*Args[0]), 6);
+})
+ATG_CMD(CmdHudBits, "ATG.HudBits", "ATG.HudBits seconds count value: show the mission timer, a counter and the bar (0 0 0 clears them)", {
+	atg::Game* G = Sim(W);
+	if (!G || !G->hud) return;
+	const double T = Arg(Args, 0), N = Arg(Args, 1), V = Arg(Args, 2);
+	G->hud->setTimer(T > 0 ? T : atg::NaN());
+	if (N > 0) G->hud->setCounter("Targets", std::to_string((int)N) + " / 5"); else G->hud->setCounter("", "");
+	const std::string L = "Drift";
+	G->hud->setBar(V > 0 ? &L : nullptr, V);
+})
 ATG_CMD(CmdBig, "ATG.Big", "ATG.Big style text...: show a big message (title, passed, failed, wasted, busted, hint, chapter)", {
 	atg::Game* G = Sim(W);
 	if (!G || !G->hud || Args.Num() < 2) return;

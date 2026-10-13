@@ -55,6 +55,11 @@ TArray<FATGNetRun> ATGNetRuns(const FString& Html, const FLinearColor& Base, boo
 		if (Tag.StartsWith(TEXT("b"))) N.bBold = true;
 		else if (Tag.StartsWith(TEXT("i"))) N.bItalic = true;
 		else if (Tag.Contains(TEXT("kf"))) { N.bHud = true; N.bItalic = false; N.Col = FLinearColor(FColor(0xff, 0x6b, 0x6b)); }
+		// (.hud-subtitles .y / .r / .b / .g: the dialogue's highlights)
+		else if (Tag.Contains(TEXT("class=\"y\""))) N.Col = FLinearColor(FColor(0xff, 0xd2, 0x3f));
+		else if (Tag.Contains(TEXT("class=\"r\""))) N.Col = FLinearColor(FColor(0xff, 0x6b, 0x6b));
+		else if (Tag.Contains(TEXT("class=\"b\""))) N.Col = FLinearColor(FColor(0x7f, 0xb6, 0xff));
+		else if (Tag.Contains(TEXT("class=\"g\""))) N.Col = FLinearColor(FColor(0x7d, 0xff, 0x8a));
 		const int32 C = Tag.Find(TEXT("color:"));
 		if (C >= 0) N.Col = HexCol(Tag.Mid(C + 6, 7), N.Col);
 		Stack.Add(N);

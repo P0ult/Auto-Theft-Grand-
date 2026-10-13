@@ -37,6 +37,7 @@ private:
 	// the modern (GTA V) layout: ATGHudModern.cpp
 	void DrawMinimap(atg::Game* G, AATGWorld* W, float Dt, float Left, float Top);
 	float DrawTopRight(atg::Game* G, float Right, float Top);          // (returns the cluster's bottom)
+	void DrawSubtitles(atg::Game* G, float Alpha);
 	float DrawTopRightClassic(atg::Game* G, float Right, float Top);
 	void DrawTopRightLines(atg::Game* G, float Right, float Top, float Gap, float Alpha);
 	void DrawSpeedo(atg::Game* G, float Dt);
