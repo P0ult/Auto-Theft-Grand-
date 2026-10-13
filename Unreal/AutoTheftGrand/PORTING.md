@@ -154,7 +154,7 @@ missions recorded). Several optional single-player features and phase 6 items re
 
 - The menus and the HUD use the browser's font stacks (`ATGFonts`), and the radar's letters its bold Arial. The
   Google fonts themselves are not in the repository: put them in `Content/Fonts/`, or the Windows fallbacks of
-  the CSS stacks are used. Canvas text has no letter-spacing, and the mission title's soft 30 px glow is missing
-  (it is tilted, with its drop shadow).
+  the CSS stacks are used. Blurred text shadows (the mission title's 30 px glow, the subtitles' 8 px one) are
+  drawn as a few offset copies.
 - The WASTED look approximates postfx.js's grade with Unreal's post-process (saturation, gain, vignette); its
   ghosting blur is postfx.js's own (a post-process material), but the grade's smoothstep curve is not.

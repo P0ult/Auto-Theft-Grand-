@@ -166,7 +166,8 @@ float FATGPainter::FontText(const FString& S, float X, float Y, float Px, const 
 	if (S.IsEmpty() || !GEngine || !FEngineFontServices::IsInitialized()) return 0;
 	const float K = ScaleOf();
 	// (Slate sizes are points at 96 dpi)
-	const FSlateFontInfo Info = PainterFont(Face, Px * K);
+	FSlateFontInfo Info = PainterFont(Face, Px * K);
+	if (LetterSpacing != 0 && Px > 0) Info.LetterSpacing = FMath::RoundToInt(LetterSpacing / Px * 1000.f);
 	const TSharedPtr<FSlateFontMeasure> Measure = FEngineFontServices::Get().GetFontMeasure();
 	if (!Measure.IsValid()) return 0;
 	const FVector2D Size = Measure->Measure(S, Info);
@@ -181,7 +182,8 @@ float FATGPainter::FontText(const FString& S, float X, float Y, float Px, const 
 float FATGPainter::FontTextBox(const FString& S, float X, float Y, float Px, const TCHAR* Face, float AlignX, float AlignY, float LineEm) {
 	if (S.IsEmpty() || !GEngine || !FEngineFontServices::IsInitialized()) return 0;
 	const float K = ScaleOf();
-	const FSlateFontInfo Info = PainterFont(Face, Px * K);
+	FSlateFontInfo Info = PainterFont(Face, Px * K);
+	if (LetterSpacing != 0 && Px > 0) Info.LetterSpacing = FMath::RoundToInt(LetterSpacing / Px * 1000.f);
 	const TSharedPtr<FSlateFontMeasure> Measure = FEngineFontServices::Get().GetFontMeasure();
 	if (!Measure.IsValid()) return 0;
 	const FVector2D Size = Measure->Measure(S, Info);
@@ -196,7 +198,8 @@ float FATGPainter::FontTextBox(const FString& S, float X, float Y, float Px, con
 float FATGPainter::FontWidth(const FString& S, float Px, const TCHAR* Face, float Condense) const {
 	if (S.IsEmpty() || !GEngine || !FEngineFontServices::IsInitialized()) return 0;
 	const float K = ScaleOf();
-	const FSlateFontInfo Info = PainterFont(Face, Px * K);
+	FSlateFontInfo Info = PainterFont(Face, Px * K);
+	if (LetterSpacing != 0 && Px > 0) Info.LetterSpacing = FMath::RoundToInt(LetterSpacing / Px * 1000.f);
 	const TSharedPtr<FSlateFontMeasure> Measure = FEngineFontServices::Get().GetFontMeasure();
 	return Measure.IsValid() && K > 0 ? (float)Measure->Measure(S, Info).X * Condense / K : 0.f;
 }

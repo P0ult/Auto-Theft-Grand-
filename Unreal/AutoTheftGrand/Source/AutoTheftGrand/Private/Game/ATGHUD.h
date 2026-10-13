@@ -29,7 +29,7 @@ private:
 	void Text(const FString& S, float X, float Y, UFont* Font, float Scale, const FLinearColor& Color, float AlignX = 0.f);
 	void DrawMapLayers(AATGWorld* W, double MinX, double MinZ, double MaxX, double MaxZ, float Sx, float Sy, float Sw, float Sh);
 	void Arrow(float Cx, float Cy, double Heading, float Size, const FLinearColor& Color);
-	void CssText(const FString& S, float X, float Y, float Px, const TCHAR* Face, const FLinearColor& Col, float AlignX, std::initializer_list<FVector3f> Shadows = {});
+	void CssText(const FString& S, float X, float Y, float Px, const TCHAR* Face, const FLinearColor& Col, float AlignX, std::initializer_list<FVector3f> Shadows = {}, float Spacing = 0);
 	void DrawLoading(AATGWorld* W);
 	void DrawBigMap(AATGWorld* W, double Px, double Pz, double Heading);
 	// the HUD model's messages (help, big messages, subtitles, the bar, money, dispatch) and the full-screen

@@ -56,9 +56,10 @@ void AATGHUD::Text(const FString& S, float X, float Y, UFont* Font, float Scale,
 
 // CSS text: one of the browser's font stacks at Px (screen pixels), its baseline at Y, with black text-shadows
 // (dx, dy, opacity) drawn under it
-void AATGHUD::CssText(const FString& S, float X, float Y, float Px, const TCHAR* Face, const FLinearColor& Col, float AlignX, std::initializer_list<FVector3f> Shadows) {
+void AATGHUD::CssText(const FString& S, float X, float Y, float Px, const TCHAR* Face, const FLinearColor& Col, float AlignX, std::initializer_list<FVector3f> Shadows, float Spacing) {
 	if (S.IsEmpty()) return;
 	FATGPainter c(Canvas);
+	c.LetterSpacing = Spacing; // (CSS letter-spacing, screen pixels)
 	for (const FVector3f& Sh : Shadows) { c.Fill = FLinearColor(0, 0, 0, Sh.Z * Col.A); c.FontText(S, X + Sh.X, Y + Sh.Y, Px, Face, AlignX); }
 	c.Fill = Col; c.FontText(S, X, Y, Px, Face, AlignX);
 }
@@ -145,7 +146,7 @@ void AATGHUD::DrawHUD() {
 			// bottom 84; both higher while you drive: body.in-vehicle, the driver's seat only)
 			const bool bDrive = Car && Pl.seat == 0;
 			if (M->zone.t > 0 && !G->phoneOpen) CssText(Plain(M->zone.text), Right, Bottom - ((bDrive ? 226 : 30) + 13) * Ui, 42 * Ui, TEXT("Script"), FLinearColor(1, 1, 1, FMath::Min(1.f, (float)M->zone.t / 0.6f) * DeadAlpha), 1.f, { FVector3f(3 * Ui, 3 * Ui, 1), FVector3f(-1 * Ui, -1 * Ui, 1) });
-			if (M->veh.t > 0 && !G->phoneOpen) CssText(Plain(M->veh.text), Right, Bottom - ((bDrive ? 276 : 84) + 10) * Ui, 36 * Ui, TEXT("Hud"), FLinearColor(FColor(0x7e, 0xcb, 0xff)).CopyWithNewOpacity(FMath::Min(1.f, (float)M->veh.t / 0.6f) * DeadAlpha), 1.f, { FVector3f(3 * Ui, 3 * Ui, 1) });
+			if (M->veh.t > 0 && !G->phoneOpen) CssText(Plain(M->veh.text), Right, Bottom - ((bDrive ? 276 : 84) + 10) * Ui, 36 * Ui, TEXT("Hud"), FLinearColor(FColor(0x7e, 0xcb, 0xff)).CopyWithNewOpacity(FMath::Min(1.f, (float)M->veh.t / 0.6f) * DeadAlpha), 1.f, { FVector3f(3 * Ui, 3 * Ui, 1) }, 2 * Ui);
 		}
 		// (.hud-zone: 600 italic 30 px, white; .hud-vehname: 600 italic 26 px, #ffe08a; both with a 2 px shadow)
 		else if (M->zone.t > 0 && !G->phoneOpen) CssText(Plain(M->zone.text), Right, Bottom - ((bIn ? 232 : 28) + 8) * Ui, 30 * Ui, TEXT("Text BoldItalic"), FLinearColor(1, 1, 1, FMath::Min(1.f, (float)M->zone.t * 3.f) * DeadAlpha), 1.f, { FVector3f(2 * Ui, 2 * Ui, 1) });
@@ -154,8 +155,8 @@ void AATGHUD::DrawHUD() {
 		if (M->radio.t > 0) {
 			const float A = FMath::Min(1.f, (float)M->radio.t * 3.f) * DeadAlpha;
 			// (.hud-radio: the HUD font, 34 px, gold, a 3 px shadow; small: 18 px white)
-			CssText(Plain(M->radio.text), Canvas->ClipX / 2, (22 + 30) * Ui, 34 * Ui, TEXT("Hud"), FLinearColor(FColor(0xe8, 0xb6, 0x4c)).CopyWithNewOpacity(A), 0.5f, { FVector3f(3 * Ui, 3 * Ui, 1) });
-			if (!M->radioGenre.empty()) CssText(Plain(M->radioGenre), Canvas->ClipX / 2, (22 + 30 + 20) * Ui, 18 * Ui, TEXT("Hud"), FLinearColor(1, 1, 1, A), 0.5f, { FVector3f(3 * Ui, 3 * Ui, 1) });
+			CssText(Plain(M->radio.text), Canvas->ClipX / 2, (22 + 30) * Ui, 34 * Ui, TEXT("Hud"), FLinearColor(FColor(0xe8, 0xb6, 0x4c)).CopyWithNewOpacity(A), 0.5f, { FVector3f(3 * Ui, 3 * Ui, 1) }, 2 * Ui);
+			if (!M->radioGenre.empty()) CssText(Plain(M->radioGenre), Canvas->ClipX / 2, (22 + 30 + 20) * Ui, 18 * Ui, TEXT("Hud"), FLinearColor(1, 1, 1, A), 0.5f, { FVector3f(3 * Ui, 3 * Ui, 1) }, 2 * Ui);
 		}
 	}
 
@@ -190,7 +191,9 @@ void AATGHUD::DrawLoading(AATGWorld* W) {
 	const float P = W ? W->LoadingProgress() : 0.f;
 	if (P > 0) c.GradientRect(Cx - Bw / 2, By + 2 * Ui, Bw * P, 10 * Ui, FLinearColor(FColor(0x9b, 0x5b, 0x12)), Gold);
 	c.Fill = FLinearColor(FColor(0xaa, 0xaa, 0xaa));
+	c.LetterSpacing = 2 * Ui;
 	c.FontTextBox((W ? W->LoadingText() : FString(TEXT("Starting up"))).ToUpper(), Cx, By + 14 * Ui + 14 * Ui, 22 * Ui, TEXT("Hud"), 0.5f, 0.f, 1.2f);
+	c.LetterSpacing = 0;
 	// .tip: 40 px from the bottom, 15 px, #888 (one of main.js's TIPS, picked when the game starts)
 	static const TCHAR* Tips[] = {
 		TEXT("Tap Space while turning to kick the tail out. Hold throttle to keep the drift alive."),
@@ -322,6 +325,8 @@ void AATGHUD::DrawMessages(atg::Game* G, float Dt) {
 		const std::string& St = M->big.style;
 		// css .hud-big.title / passed / failed / wasted / busted / hint / chapter: the font, its size, colour and shadows
 		const TCHAR* Face = TEXT("Title"); float Px = 70; uint32 Hex = 0xe8b64c;
+		// (letter-spacing: passed and failed 3, wasted and busted 6, hint 2, chapter 10)
+		const float Spacing = St == "wasted" || St == "busted" ? 6.f : St == "hint" ? 2.f : St == "chapter" ? 10.f : St == "title" ? 0.f : 3.f;
 		const TArray<FVector3f> Drop3 = { FVector3f(3, 3, 1) };
 		TArray<FVector3f> Sh = { FVector3f(4, 4, 1), FVector3f(-2, -2, 1), FVector3f(2, -2, 1), FVector3f(-2, 2, 1) };
 		if (St == "title") { Face = TEXT("Script"); Px = 64; Sh = Drop3; }
@@ -334,6 +339,7 @@ void AATGHUD::DrawMessages(atg::Game* G, float Dt) {
 		const float Top = Canvas->ClipY * 0.36f, Base = Top + Px * 0.95f * Ui;
 		const FLinearColor Col = FLinearColor(FColor((Hex >> 16) & 255, (Hex >> 8) & 255, Hex & 255)).CopyWithNewOpacity(BigAlpha * A);
 		FATGPainter c(Canvas);
+		c.LetterSpacing = Spacing * Ui;
 		// (.hud-big.title div: rotate(-3deg) about its centre)
 		const bool bTilt = St == "title" && Canvas->Canvas;
 		if (bTilt) {
@@ -348,7 +354,7 @@ void AATGHUD::DrawMessages(atg::Game* G, float Dt) {
 			const bool bChapter = St == "chapter";
 			const float SubPx = bChapter ? 58.f : 34.f;
 			CssText(Plain(M->big.sub), Canvas->ClipX / 2, Base + (Px * 0.25f + 6 + SubPx * 0.95f) * Ui, SubPx * Ui, bChapter ? TEXT("Script") : TEXT("Hud"),
-				(bChapter ? FLinearColor(FColor(0xe8, 0xb6, 0x4c)) : FLinearColor::White).CopyWithNewOpacity(BigAlpha * A), 0.5f, { FVector3f(3 * Ui, 3 * Ui, 1) });
+				(bChapter ? FLinearColor(FColor(0xe8, 0xb6, 0x4c)) : FLinearColor::White).CopyWithNewOpacity(BigAlpha * A), 0.5f, { FVector3f(3 * Ui, 3 * Ui, 1) }, bChapter ? 0.f : 2 * Ui);
 		}
 	}
 	// subtitles: bottom centre
@@ -477,6 +483,7 @@ void AATGHUD::DrawCredits(atg::Game* G) {
 	FATGPainter c(Canvas);
 	for (const auto& R : Rows) {
 		c.Fill = R.Color;
+		c.LetterSpacing = (R.Size >= 60 ? 4.f : R.Size >= 28 ? 3.f : 0.f) * Ui;
 		c.FontTextBox(R.Text, Canvas->ClipX / 2, Y, R.Size * Ui, R.Size >= 60 ? TEXT("Title") : R.Size >= 28 ? TEXT("Hud") : TEXT("Text"), 0.5f, 0.f, 1.2f);
 		Y += R.Space * Ui;
 	}
@@ -557,7 +564,7 @@ void AATGHUD::DrawOverlays(atg::Game* G, float Dt) {
 		const float Px = FMath::Clamp(0.125f * H, 66.f * Ui, 128.f * Ui) * (1.5f - 0.5f * E), Alpha = FMath::Clamp(K / 0.6f, 0.f, 1.f);
 		FLinearColor Red = FLinearColor(FColor(0xc3, 0x27, 0x2b)); Red.A = Alpha;
 		CssText(Word, W / 2, H / 2 + Px * 0.36f, Px, TEXT("Title"), Red, 0.5f,
-			{ FVector3f(2 * Ui, 2 * Ui, 0.9f), FVector3f(-Ui, -Ui, 0.7f), FVector3f(Ui, -Ui, 0.7f), FVector3f(-Ui, Ui, 0.7f) });
+			{ FVector3f(2 * Ui, 2 * Ui, 0.9f), FVector3f(-Ui, -Ui, 0.7f), FVector3f(Ui, -Ui, 0.7f), FVector3f(-Ui, Ui, 0.7f) }, Ui); // (letter-spacing 1px)
 	}
 	// the black fade
 	const double F = M ? M->fadeState.value() : 0;

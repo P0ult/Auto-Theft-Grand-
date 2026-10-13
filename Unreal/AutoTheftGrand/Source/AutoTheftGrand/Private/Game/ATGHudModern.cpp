@@ -347,8 +347,10 @@ float AATGHUD::DrawTopRight(atg::Game* G, float Right, float Top) {
 	// cash
 	// (.hud-money: the text font, 600, 30 px, #b9eab3, a 2 px shadow)
 	const FString Cash = FString::Printf(TEXT("$%08lld"), (long long)FMath::Max(0.0, FMath::Floor(p.money)));
+	c.LetterSpacing = 0.5f;
 	c.Fill = FLinearColor(0, 0, 0, 0.9f); c.FontText(Cash, 2, 52 + 11 + 2, 30, TEXT("Text Bold"), 1.f);
 	c.Fill = CssColor(0xb9eab3); c.FontText(Cash, 0, 52 + 11, 30, TEXT("Text Bold"), 1.f);
+	c.LetterSpacing = 0;
 	// weapon and ammo
 	const atg::WeaponDef& def = p.weaponDef();
 	c.Save(); c.Translate(-96 + 6, 72); WeaponIcon(c, p.weapon, 96); c.Restore();
@@ -374,6 +376,7 @@ float AATGHUD::DrawTopRightClassic(atg::Game* G, float Right, float Top) {
 	c.Scale(Ui, Ui);
 	atg::Player& p = *G->player;
 	// (text-shadow: 3px 3px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000)
+	c.LetterSpacing = 1; // (.hud-clock, .hud-money: 1px)
 	auto Outlined = [&](const FString& S, float x, float y, float Px, const FLinearColor& Col) {
 		c.Fill = FLinearColor::Black;
 		for (const FVector2f O : { FVector2f(3, 3), FVector2f(-1, -1), FVector2f(1, -1), FVector2f(-1, 1) }) c.FontTextBox(S, x + O.X, y + O.Y, Px, TEXT("Hud"), 1.f, 0.f, 1.f);
@@ -473,6 +476,7 @@ void AATGHUD::DrawTopRightLines(atg::Game* G, float Right, float Top, float Gap,
 		Shadowed(UTF8_TO_TCHAR(M->money.text.c_str()), 0, y - 6 * (1 - A), 28, CssColor(0x7dff8a, A * Alpha), 1.f);
 	}
 	y += 28 * 1.2f + Gap;
+	c.LetterSpacing = 1; // (.hud-pet, .hud-dispatch: 1px)
 	// your pet: 22 px, #e9f7df (#ff8a7a when hurt), 4 px down
 	if (G->pets && G->pets->pet && !G->pets->pet->removed) {
 		const auto& A = *G->pets->pet;

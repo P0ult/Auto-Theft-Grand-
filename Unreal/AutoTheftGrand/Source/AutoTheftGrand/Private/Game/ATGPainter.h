@@ -18,6 +18,7 @@ public:
 	struct FMat { float a = 1, b = 0, c = 0, d = 1, e = 0, f = 0; };
 	FMat M;
 	FLinearColor Fill = FLinearColor::White, Stroke = FLinearColor::Black;
+	float LetterSpacing = 0; // (CSS letter-spacing, in this painter's units: the font text calls apply it)
 	float LineWidth = 1.f, Alpha = 1.f;
 	bool Invert = false; // (CSS filter: invert(1), on the sRGB values)
 

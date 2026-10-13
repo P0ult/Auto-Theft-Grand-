@@ -148,6 +148,7 @@ void AATGHUD::DrawNet(atg::Game* G) {
 		const float X = 24 * Ui, Base = H - 228 * Ui;
 		const FLinearColor Dot = N->linkUp ? FLinearColor(FColor(0x3d, 0xdc, 0x84)) : FLinearColor(FColor(0x77, 0x77, 0x77));
 		c.Fill = Dot; c.BeginPath(); c.Arc(X + 4.5f * Ui, Base - 5.5f * Ui, 4.5f * Ui, 0, 2 * PI); c.FillPath();
+		c.LetterSpacing = 1.5f * Ui; // (.net-badge: 1.5px)
 		c.Fill = FLinearColor::Black; c.FontText(Txt, X + 16 * Ui + 2 * Ui, Base + 2 * Ui, 16 * Ui, TEXT("Hud"));
 		c.Fill = FLinearColor::White; c.FontText(Txt, X + 16 * Ui, Base, 16 * Ui, TEXT("Hud"));
 	}
