@@ -923,6 +923,15 @@ void AATGWorld::SetDeathLook(double Desat, double Death, double Boost) {
 	const double Gain = (1 + Death * Boost) * (1 - 0.18 * Death * (1 - FMath::Clamp(Boost * 0.5, 0.0, 1.0)));
 	S.bOverride_ColorGain = bOn; S.ColorGain = FVector4(1, 1, 1, Gain);
 	S.bOverride_VignetteIntensity = bOn; S.VignetteIntensity = 0.4f + 0.9f * (float)Death;
+	// the blur: a post-process material, weighted in only while it does something
+	if (!DeathBlur && Death > 0) {
+		DeathBlur = UMaterialInstanceDynamic::Create(ATGMaterials::Get(EATGMat::DeathBlur), this);
+		S.WeightedBlendables.Array.Add(FWeightedBlendable(0.f, DeathBlur));
+	}
+	if (DeathBlur) {
+		DeathBlur->SetScalarParameterValue(TEXT("Death"), (float)Death);
+		for (FWeightedBlendable& Wb : S.WeightedBlendables.Array) if (Wb.Object == DeathBlur) Wb.Weight = Death > 0 ? 1.f : 0.f;
+	}
 }
 
 void AATGWorld::SetFringe(double Chroma) {

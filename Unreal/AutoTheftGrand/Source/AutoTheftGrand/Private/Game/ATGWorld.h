@@ -157,6 +157,7 @@ private:
 	UPROPERTY(VisibleAnywhere) TObjectPtr<USkyLightComponent> SkyLight;
 	UPROPERTY(VisibleAnywhere) TObjectPtr<UExponentialHeightFogComponent> Fog;
 	UPROPERTY(VisibleAnywhere) TObjectPtr<UPostProcessComponent> Post;
+	UPROPERTY(Transient) TObjectPtr<class UMaterialInstanceDynamic> DeathBlur; // (postfx.js's death blur, a blendable)
 	UPROPERTY(Transient) TArray<TObjectPtr<UPointLightComponent>> Lamps;
 	TArray<FVector> LampPositions; // game metres (x, y, z of the lamp head)
 	// the one light that follows the shop nearest the camera (city.js interiorLight)

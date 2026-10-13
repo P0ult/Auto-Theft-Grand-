@@ -19,6 +19,8 @@
 #include "Materials/MaterialExpressionLocalPosition.h"
 #include "Materials/MaterialExpressionPerInstanceCustomData.h"
 #include "Materials/MaterialExpressionPixelDepth.h"
+#include "Materials/MaterialExpressionScalarParameter.h"
+#include "Materials/MaterialExpressionSceneTexture.h"
 #include "Materials/MaterialExpressionTextureCoordinate.h"
 #include "Materials/MaterialExpressionTextureSampleParameter2D.h"
 #include "Engine/Texture2D.h"
@@ -32,8 +34,8 @@
 
 namespace {
 // bump when the generated materials change: new assets are made under new names
-constexpr int32 GMatVersion = 12;
-const TCHAR* GMatNames[] = { TEXT("Terrain"), TEXT("Road"), TEXT("Street"), TEXT("Ground"), TEXT("Building"), TEXT("VertexLit"), TEXT("Frond"), TEXT("Water"), TEXT("Standard"), TEXT("Glass"), TEXT("FxAlpha"), TEXT("FxAdd"), TEXT("Unlit"), TEXT("Picture"), TEXT("Rain"), TEXT("Wood"), TEXT("Cutout"), TEXT("Beam") };
+constexpr int32 GMatVersion = 13;
+const TCHAR* GMatNames[] = { TEXT("Terrain"), TEXT("Road"), TEXT("Street"), TEXT("Ground"), TEXT("Building"), TEXT("VertexLit"), TEXT("Frond"), TEXT("Water"), TEXT("Standard"), TEXT("Glass"), TEXT("FxAlpha"), TEXT("FxAdd"), TEXT("Unlit"), TEXT("Picture"), TEXT("Rain"), TEXT("Wood"), TEXT("Cutout"), TEXT("Beam"), TEXT("DeathBlur") };
 
 FString AssetName(const TCHAR* Base) { return FString::Printf(TEXT("M_ATG_%s_%d"), Base, GMatVersion); }
 FString MpcName() { return FString::Printf(TEXT("MPC_ATG_%d"), GMatVersion); }
@@ -1046,7 +1048,6 @@ return float4(c * (1.0 - Wet * 0.3), 0.85);
 		B.Out()->OpacityMask.Connect(0, B.Mask(E, false, false, false, true));
 		break;
 	}
-	case EATGMat::FxAlpha:
 	case EATGMat::Beam: {
 		// vehiclemodels.js beamMaterial: the headlights' glow on the road ahead, added to what is under it
 		// (uv: x across, y 0 far .. 1 near)
@@ -1063,6 +1064,7 @@ return float4(float3(1.0, 0.92, 0.75) * a * twin * 0.55, 1.0);
 		B.Out()->EmissiveColor.Connect(0, B.Mask(E, true, true, true, false));
 		break;
 	}
+	case EATGMat::FxAlpha:
 	case EATGMat::FxAdd: {
 		const bool bAdd = Which == EATGMat::FxAdd;
 		M->SetShadingModel(MSM_Unlit);
@@ -1078,6 +1080,37 @@ return float4(float3(1.0, 0.92, 0.75) * a * twin * 0.55, 1.0);
 		UMaterialExpressionCustom* E = B.Custom(Body, CMOT_Float4, Ins, TEXT("ATG effects"));
 		B.Out()->EmissiveColor.Connect(0, B.Mask(E, true, true, true, false));
 		if (!bAdd) B.Out()->Opacity.Connect(0, B.Mask(E, false, false, false, true));
+		break;
+	}
+	case EATGMat::DeathBlur: {
+		// postfx.js, the death screen: a soft ghosting blur that grows toward the edges (six taps round each pixel,
+		// further apart the further out), mixed in by uDeath before the tone mapping as in the browser
+		M->MaterialDomain = MD_PostProcess;
+		M->BlendableLocation = BL_SceneColorBeforeBloom;
+		M->SetShadingModel(MSM_Unlit);
+		auto* Scene = B.New<UMaterialExpressionSceneTexture>();
+		Scene->SceneTextureId = PPI_PostProcessInput0;
+		auto* Death = B.New<UMaterialExpressionScalarParameter>();
+		Death->ParameterName = FName(TEXT("Death")); Death->DefaultValue = 0.f;
+		TArray<TPair<FString, UMaterialExpression*>> Ins;
+		Ins.Add({ TEXT("Scene"), Scene }); Ins.Add({ TEXT("Death"), Death });
+		UMaterialExpressionCustom* E = B.Custom(TEXT(R"HLSL(
+float2 vuv = GetViewportUV(Parameters);
+float4 vs = GetSceneTextureViewSize(PPI_PostProcessInput0);
+float2 cc = vuv - 0.5;
+float r2 = dot(cc, cc);
+float2 px = (0.6 + 2.4 * r2 * 4.0) * Death * 3.0 * vs.zw;
+float3 col = SceneTextureLookup(ViewportUVToSceneTextureUV(vuv, PPI_PostProcessInput0), PPI_PostProcessInput0, false).rgb;
+float3 acc = col;
+acc += SceneTextureLookup(ViewportUVToSceneTextureUV(vuv + float2(px.x, 0.0), PPI_PostProcessInput0), PPI_PostProcessInput0, false).rgb;
+acc += SceneTextureLookup(ViewportUVToSceneTextureUV(vuv - float2(px.x, 0.0), PPI_PostProcessInput0), PPI_PostProcessInput0, false).rgb;
+acc += SceneTextureLookup(ViewportUVToSceneTextureUV(vuv + float2(0.0, px.y), PPI_PostProcessInput0), PPI_PostProcessInput0, false).rgb;
+acc += SceneTextureLookup(ViewportUVToSceneTextureUV(vuv - float2(0.0, px.y), PPI_PostProcessInput0), PPI_PostProcessInput0, false).rgb;
+acc += SceneTextureLookup(ViewportUVToSceneTextureUV(vuv + px * 0.7, PPI_PostProcessInput0), PPI_PostProcessInput0, false).rgb;
+acc += SceneTextureLookup(ViewportUVToSceneTextureUV(vuv - px * 0.7, PPI_PostProcessInput0), PPI_PostProcessInput0, false).rgb;
+return float4(lerp(col, acc / 7.0, saturate(Death) * 0.7), 1.0);
+)HLSL"), CMOT_Float4, Ins, TEXT("ATG death blur"));
+		B.Out()->EmissiveColor.Connect(0, B.Mask(E, true, true, true, false));
 		break;
 	}
 	default: break;
