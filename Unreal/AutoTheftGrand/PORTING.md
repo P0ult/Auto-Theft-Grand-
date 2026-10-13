@@ -21,7 +21,7 @@ pad, and plays its sounds.
 | world/worldgen.js, roadnet.js, roadlayout.js, northcity.js, railway.js, citymap.js, countryside.js | `Gen/*` (plain C++) | Bit-exact port: Mulberry32, float32 storage where JS used Float32Array, stable sorts, V8's `Math.hypot`. `Tools/gentest` diffs it against `Tools/dumpworld.mjs`. |
 | world/terrainmesh.js, roadmesh.js, city.js, props.js, vegetation.js | `Gen/TerrainMesh.cpp`, `RoadMesh.cpp`, `CityMesh.cpp`, `PropMesh.cpp` | Same geometry. The four per-vertex channels carry what the shaders need (see `ATGMaterials.h`). |
 | world/shaders.js, render/materials.js | `ATGMaterials` | GLSL → HLSL custom nodes, generated as assets in the editor. No screen-space derivatives (ray-tracing safe). |
-| entities/humanoid.js | `Sim/Humanoid`, `ATGHumanMesh`, `ATGPerson` | The smooth-skinned mesh, identical to the JavaScript's (`Tools/humantest.cpp`), as a skeletal mesh built at runtime on a poseable component that copies the simulation's 17 bones. |
+| entities/humanoid.js | `Sim/Humanoid`, `ATGHumanMesh`, `ATGPerson` | The smooth-skinned mesh, identical to the JavaScript's (`Tools/humantest.cpp`), as a skeletal mesh built at runtime on a poseable component that copies the simulation's 17 bones. Its material is humanoidMaterial's (`ATGMaterials` Human): the knit, skin, hair and denim patterns from the bind-pose position, faded with distance, each part's roughness, and metal buckles and badges. |
 | world/environment.js, render/sky.js | `ATGWorld` sky | SkyAtmosphere, a sun and a moon as atmosphere lights, a real-time sky light, height fog, the same clock and sun path. |
 | entities/vehicledefs.js, vehiclemodels.js, loft.js | `Gen/VehicleDefs`, `Gen/VehicleModels`, `Gen/Loft` | The whole catalogue; car models identical to the JavaScript's (`Tools/carstest.cpp`). |
 | world/collision.js (+ the colliders city.js, roadmesh.js and vegetation.js add) | `Sim/Collision`, `Gen/RoadMesh` | The same boxes, oriented boxes, circles and decks, in the same order (`Tools/coltest.cpp`). |
@@ -147,8 +147,6 @@ missions recorded). Several optional single-player features and phase 6 items re
 
 ## Known gaps
 
-- The people's material takes each part's roughness from humanoidMaterial, but not yet its fine fabric,
-  hair and denim patterns, or the metalness of buckles and badges.
 - The menus and the HUD use the browser's font stacks (`ATGFonts`), and the radar's letters its bold Arial. The
   Google fonts themselves are not in the repository: put them in `Content/Fonts/`, or the Windows fallbacks of
   the CSS stacks are used. Canvas text has no letter-spacing, and the mission title's soft 30 px glow is missing

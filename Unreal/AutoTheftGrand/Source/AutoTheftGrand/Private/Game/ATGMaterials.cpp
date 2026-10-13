@@ -35,7 +35,7 @@
 namespace {
 // bump when the generated materials change: new assets are made under new names
 constexpr int32 GMatVersion = 13;
-const TCHAR* GMatNames[] = { TEXT("Terrain"), TEXT("Road"), TEXT("Street"), TEXT("Ground"), TEXT("Building"), TEXT("VertexLit"), TEXT("Frond"), TEXT("Water"), TEXT("Standard"), TEXT("Glass"), TEXT("FxAlpha"), TEXT("FxAdd"), TEXT("Unlit"), TEXT("Picture"), TEXT("Rain"), TEXT("Wood"), TEXT("Cutout"), TEXT("Beam"), TEXT("DeathBlur") };
+const TCHAR* GMatNames[] = { TEXT("Terrain"), TEXT("Road"), TEXT("Street"), TEXT("Ground"), TEXT("Building"), TEXT("VertexLit"), TEXT("Frond"), TEXT("Water"), TEXT("Standard"), TEXT("Glass"), TEXT("FxAlpha"), TEXT("FxAdd"), TEXT("Unlit"), TEXT("Picture"), TEXT("Rain"), TEXT("Wood"), TEXT("Cutout"), TEXT("Beam"), TEXT("DeathBlur"), TEXT("Human") };
 
 FString AssetName(const TCHAR* Base) { return FString::Printf(TEXT("M_ATG_%s_%d"), Base, GMatVersion); }
 FString MpcName() { return FString::Printf(TEXT("MPC_ATG_%d"), GMatVersion); }
@@ -1080,6 +1080,45 @@ return float4(float3(1.0, 0.92, 0.75) * a * twin * 0.55, 1.0);
 		UMaterialExpressionCustom* E = B.Custom(Body, CMOT_Float4, Ins, TEXT("ATG effects"));
 		B.Out()->EmissiveColor.Connect(0, B.Mask(E, true, true, true, false));
 		if (!bAdd) B.Out()->Opacity.Connect(0, B.Mask(E, false, false, false, true));
+		break;
+	}
+	case EATGMat::Human: {
+		// humanoid.js humanoidMaterial: the vertex colour, and per material id (uv0.x) a fine pattern drawn from the
+		// bind-pose position (knit cloth, skin, hair strands, denim twill; faded out with distance by fwidth), its
+		// roughness, and metal for buckles and badges. The bind-pose position (game metres) rides in the spare uv
+		// slots: uv0.y, uv2.y, uv3.x (ATGHumanMesh)
+		M->SetUsageByFlag(MATUSAGE_SkeletalMesh, true);
+		TArray<TPair<FString, UMaterialExpression*>> Ins;
+		for (int32 i = 0; i < 4; i++) Ins.Add({ FString::Printf(TEXT("uv%d"), i), B.UV(i) });
+		const FString Body = TEXT(R"HLSL(
+float3 col = float3(uv1.x, uv1.y, uv2.x);
+float m = floor(uv0.x + 0.5);
+float3 vObj = float3(uv0.y, uv2.y, uv3.x); // (the bind pose, in the browser's axes and metres)
+float3 o = vObj * 60.0;
+float fw = clamp(length(fwidth(o)) * 0.6, 0.0, 1.0); // fade the weave out with distance
+float rough = 0.8, metal = 0.0;
+if (m < 0.5) { // knit cloth
+	float k = sin(o.x * 3.0) * sin(o.y * 3.0) * 0.5 + 0.5;
+	col *= lerp(0.94 + 0.08 * k, 1.0, fw);
+	rough = 0.9;
+} else if (m < 1.5) { // skin
+	rough = 0.52;
+	col *= 1.0 + 0.03 * sin(o.x * 2.1 + o.y * 1.7) * (1.0 - fw);
+} else if (m < 2.5) { // hair: fine strands
+	float st = sin((vObj.x * 0.6 + vObj.z * 0.8) * 900.0) * 0.5 + 0.5;
+	col *= lerp(0.85 + 0.25 * st, 1.0, fw);
+	rough = 0.55;
+} else if (m < 3.5) { rough = 0.38; } // leather / rubber
+else if (m < 4.5) { rough = 0.06; } // eyes & lenses
+else if (m < 5.5) { // denim twill
+	float tw = sin((vObj.y * 1.0 + vObj.x * 0.7 + vObj.z * 0.7) * 1100.0) * 0.5 + 0.5;
+	col *= lerp(0.86 + 0.2 * tw, 1.0, fw);
+	rough = 0.93;
+} else { rough = 0.3; metal = 0.8; }
+)HLSL");
+		Split(B.Custom(Body + TEXT("return float4(col, rough);"), CMOT_Float4, Ins, TEXT("ATG person surface")));
+		UMaterialExpressionCustom* Mt = B.Custom(Body + TEXT("return float4(metal, 0, 0, 0);"), CMOT_Float4, Ins, TEXT("ATG person metal"));
+		B.Out()->Metallic.Connect(0, B.Mask(Mt, true, false, false, false));
 		break;
 	}
 	case EATGMat::DeathBlur: {

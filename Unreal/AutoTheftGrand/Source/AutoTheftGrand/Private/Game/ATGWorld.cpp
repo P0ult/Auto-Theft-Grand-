@@ -945,7 +945,7 @@ USkeletalMesh* AATGWorld::HumanMesh(const atg::Appearance& A) {
 	const FString Key = ATGHuman::Key(A);
 	if (TWeakObjectPtr<USkeletalMesh>* M = HumanCache.Find(Key)) if (M->IsValid()) return M->Get();
 	USkeleton* Skel = HumanSkeleton;
-	USkeletalMesh* M = ATGHuman::Build(this, A, Skel, ATGMaterials::Get(EATGMat::VertexLit));
+	USkeletalMesh* M = ATGHuman::Build(this, A, Skel, ATGMaterials::Get(EATGMat::Human));
 	HumanSkeleton = Skel;
 	HumanCache.Add(Key, M);
 	// (forget the ones nobody uses any more)

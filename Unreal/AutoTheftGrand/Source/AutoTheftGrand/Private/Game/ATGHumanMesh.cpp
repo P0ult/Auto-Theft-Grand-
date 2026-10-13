@@ -11,8 +11,8 @@
 #include "Rendering/SkeletalMeshRenderData.h"
 
 namespace {
-// humanoidMaterial's roughness per material id (cloth, skin, hair, leather, eye, denim, metal); the vertex-lit
-// material takes it from the fourth uv channel
+// humanoidMaterial's roughness per material id (cloth, skin, hair, leather, eye, denim, metal), in the fourth uv
+// channel as the vertex-lit material reads it (the Human material works it out from the id in the first)
 const float GRough[7] = { 0.9f, 0.52f, 0.55f, 0.38f, 0.06f, 0.93f, 0.3f };
 
 FVector3f AnyTangent(const FVector3f& N) {
@@ -75,10 +75,11 @@ USkeletalMesh* ATGHuman::Build(UObject* Outer, const atg::Appearance& A, USkelet
 		const FVector3f Tx = AnyTangent(N);
 		LOD.StaticVertexBuffers.StaticMeshVertexBuffer.SetVertexTangents(I, Tx, FVector3f::CrossProduct(N, Tx), N);
 		const int32 Mat = FMath::Clamp((int32)FMath::RoundToInt(H.mat[I]), 0, 6);
-		LOD.StaticVertexBuffers.StaticMeshVertexBuffer.SetVertexUV(I, 0, FVector2f(0, 0));
+		// (uv0: the material id and the bind pose's x; uv1, uv2.x: the colour; uv2.y: y; uv3: z and the roughness)
+		LOD.StaticVertexBuffers.StaticMeshVertexBuffer.SetVertexUV(I, 0, FVector2f((float)Mat, H.P[I * 3]));
 		LOD.StaticVertexBuffers.StaticMeshVertexBuffer.SetVertexUV(I, 1, FVector2f(H.C[I * 3], H.C[I * 3 + 1]));
-		LOD.StaticVertexBuffers.StaticMeshVertexBuffer.SetVertexUV(I, 2, FVector2f(H.C[I * 3 + 2], 0));
-		LOD.StaticVertexBuffers.StaticMeshVertexBuffer.SetVertexUV(I, 3, FVector2f(0, GRough[Mat]));
+		LOD.StaticVertexBuffers.StaticMeshVertexBuffer.SetVertexUV(I, 2, FVector2f(H.C[I * 3 + 2], H.P[I * 3 + 1]));
+		LOD.StaticVertexBuffers.StaticMeshVertexBuffer.SetVertexUV(I, 3, FVector2f(H.P[I * 3 + 2], GRough[Mat]));
 		// weights as 16-bit fractions that add up to exactly 65535
 		FSkinWeightInfo& W = Weights[I];
 		int32 Total = 0, Heaviest = 0;

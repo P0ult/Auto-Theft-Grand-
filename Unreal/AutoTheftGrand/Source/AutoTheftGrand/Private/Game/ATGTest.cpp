@@ -157,6 +157,13 @@ ATG_CMD(CmdCamAt, "ATG.CamAt", "ATG.CamAt dx dy dz [tx ty tz]: hold the camera a
 	const atg::V3 T(Args.Num() > 5 ? Arg(Args, 3) : 0, Args.Num() > 5 ? Arg(Args, 4) : 1, Args.Num() > 5 ? Arg(Args, 5) : 0);
 	G->rig.setCinematic(P + atg::V3(Arg(Args, 0), Arg(Args, 1), Arg(Args, 2)), P + T, 50);
 })
+ATG_CMD(CmdCineCam, "ATG.CineCam", "ATG.CineCam dx dy dz [fov] | off: a fixed camera at the player plus (dx, dy, dz) metres, looking at their chest", {
+	atg::Game* G = Sim(W);
+	if (!G) return;
+	if (Args.Num() && Args[0] == TEXT("off")) { G->rig.clearCinematic(); return; }
+	const atg::V3 P = G->player->pos;
+	G->rig.setCinematic(P + atg::V3(Arg(Args, 0), Arg(Args, 1, 1.5), Arg(Args, 2, 2)), P + atg::V3(0, 1.3, 0), Arg(Args, 3, 40));
+})
 ATG_CMD(CmdCam, "ATG.Cam", "ATG.Cam yaw pitch: point the camera (radians; yaw is from the player towards the camera)", {
 	if (atg::Game* G = Sim(W)) { G->rig.yaw = Arg(Args, 0, G->rig.yaw); G->rig.pitch = Arg(Args, 1, G->rig.pitch); }
 })
