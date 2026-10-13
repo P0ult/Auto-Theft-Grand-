@@ -915,23 +915,25 @@ UStaticMesh* AATGWorld::PropMesh(int32 PropIndex) const {
 
 void AATGWorld::SetDeathLook(double Desat, double Death, double Boost) {
 	FPostProcessSettings& S = Post->Settings;
-	// grey = mix(colour, luma, desat) then mix(..., luma, death * 1.3)
-	const double Sat = (1 - FMath::Clamp(Desat, 0.0, 1.0)) * (1 - FMath::Clamp(Death * 1.3, 0.0, 1.0));
+	// uDesat (the special ability, the first moments of WASTED): the grading's saturation
 	const bool bOn = Desat > 0 || Death > 0;
-	S.bOverride_ColorSaturation = bOn; S.ColorSaturation = FVector4(1, 1, 1, Sat);
-	// brighter by death * boost, darker by 18% of death unless the night boost lifts it
-	const double Gain = (1 + Death * Boost) * (1 - 0.18 * Death * (1 - FMath::Clamp(Boost * 0.5, 0.0, 1.0)));
-	S.bOverride_ColorGain = bOn; S.ColorGain = FVector4(1, 1, 1, Gain);
+	S.bOverride_ColorSaturation = bOn; S.ColorSaturation = FVector4(1, 1, 1, 1 - FMath::Clamp(Desat, 0.0, 1.0));
+	// the death screen opens the exposure up before the tone mapping (col *= 1 + death * boost)
+	S.bOverride_ColorGain = bOn; S.ColorGain = FVector4(1, 1, 1, 1 + Death * Boost);
 	S.bOverride_VignetteIntensity = bOn; S.VignetteIntensity = 0.4f + 0.9f * (float)Death;
-	// the blur: a post-process material, weighted in only while it does something
-	if (!DeathBlur && Death > 0) {
-		DeathBlur = UMaterialInstanceDynamic::Create(ATGMaterials::Get(EATGMat::DeathBlur), this);
-		S.WeightedBlendables.Array.Add(FWeightedBlendable(0.f, DeathBlur));
-	}
-	if (DeathBlur) {
-		DeathBlur->SetScalarParameterValue(TEXT("Death"), (float)Death);
-		for (FWeightedBlendable& Wb : S.WeightedBlendables.Array) if (Wb.Object == DeathBlur) Wb.Weight = Death > 0 ? 1.f : 0.f;
-	}
+	// the blur and the black and white grade: post-process materials, weighted in only while they do something
+	auto Blend = [&](TObjectPtr<UMaterialInstanceDynamic>& Mid, EATGMat Which) {
+		if (!Mid && Death > 0) {
+			Mid = UMaterialInstanceDynamic::Create(ATGMaterials::Get(Which), this);
+			S.WeightedBlendables.Array.Add(FWeightedBlendable(0.f, Mid));
+		}
+		if (!Mid) return;
+		Mid->SetScalarParameterValue(TEXT("Death"), (float)Death);
+		Mid->SetScalarParameterValue(TEXT("Boost"), (float)Boost);
+		for (FWeightedBlendable& Wb : S.WeightedBlendables.Array) if (Wb.Object == Mid) Wb.Weight = Death > 0 ? 1.f : 0.f;
+	};
+	Blend(DeathBlur, EATGMat::DeathBlur);
+	Blend(DeathGrade, EATGMat::DeathGrade);
 }
 
 void AATGWorld::SetFringe(double Chroma) {

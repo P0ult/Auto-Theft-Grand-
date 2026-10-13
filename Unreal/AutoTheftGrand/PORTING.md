@@ -156,5 +156,5 @@ missions recorded). Several optional single-player features and phase 6 items re
   Google fonts themselves are not in the repository: put them in `Content/Fonts/`, or the Windows fallbacks of
   the CSS stacks are used. Blurred text shadows (the mission title's 30 px glow, the subtitles' 8 px one) are
   drawn as a few offset copies.
-- The WASTED look approximates postfx.js's grade with Unreal's post-process (saturation, gain, vignette); its
-  ghosting blur is postfx.js's own (a post-process material), but the grade's smoothstep curve is not.
+- The WASTED look is postfx.js's blur and black-and-white grade (post-process materials before and after the tone
+  mapping), on top of Unreal's own tone mapper rather than the browser's ACES fit; the vignette is Unreal's.

@@ -35,7 +35,7 @@
 namespace {
 // bump when the generated materials change: new assets are made under new names
 constexpr int32 GMatVersion = 13;
-const TCHAR* GMatNames[] = { TEXT("Terrain"), TEXT("Road"), TEXT("Street"), TEXT("Ground"), TEXT("Building"), TEXT("VertexLit"), TEXT("Frond"), TEXT("Water"), TEXT("Standard"), TEXT("Glass"), TEXT("FxAlpha"), TEXT("FxAdd"), TEXT("Unlit"), TEXT("Picture"), TEXT("Rain"), TEXT("Wood"), TEXT("Cutout"), TEXT("Beam"), TEXT("DeathBlur"), TEXT("Human") };
+const TCHAR* GMatNames[] = { TEXT("Terrain"), TEXT("Road"), TEXT("Street"), TEXT("Ground"), TEXT("Building"), TEXT("VertexLit"), TEXT("Frond"), TEXT("Water"), TEXT("Standard"), TEXT("Glass"), TEXT("FxAlpha"), TEXT("FxAdd"), TEXT("Unlit"), TEXT("Picture"), TEXT("Rain"), TEXT("Wood"), TEXT("Cutout"), TEXT("Beam"), TEXT("DeathBlur"), TEXT("Human"), TEXT("DeathGrade") };
 
 FString AssetName(const TCHAR* Base) { return FString::Printf(TEXT("M_ATG_%s_%d"), Base, GMatVersion); }
 FString MpcName() { return FString::Printf(TEXT("MPC_ATG_%d"), GMatVersion); }
@@ -1119,6 +1119,37 @@ else if (m < 5.5) { // denim twill
 		Split(B.Custom(Body + TEXT("return float4(col, rough);"), CMOT_Float4, Ins, TEXT("ATG person surface")));
 		UMaterialExpressionCustom* Mt = B.Custom(Body + TEXT("return float4(metal, 0, 0, 0);"), CMOT_Float4, Ins, TEXT("ATG person metal"));
 		B.Out()->Metallic.Connect(0, B.Mask(Mt, true, false, false, false));
+		break;
+	}
+	case EATGMat::DeathGrade: {
+		// postfx.js, the death screen's grade after the tone mapping: harsh black and white with crushed blacks
+		// (lifted at night by uDeathBoost) and a slow darkening. The browser grades its linear display colour before
+		// encoding it; Unreal's colour here is already encoded, so it is decoded, graded and encoded again.
+		M->MaterialDomain = MD_PostProcess;
+		M->BlendableLocation = BL_SceneColorAfterTonemapping;
+		M->SetShadingModel(MSM_Unlit);
+		auto* Scene = B.New<UMaterialExpressionSceneTexture>();
+		Scene->SceneTextureId = PPI_PostProcessInput0;
+		auto* Death = B.New<UMaterialExpressionScalarParameter>();
+		Death->ParameterName = FName(TEXT("Death")); Death->DefaultValue = 0.f;
+		auto* Boost = B.New<UMaterialExpressionScalarParameter>();
+		Boost->ParameterName = FName(TEXT("Boost")); Boost->DefaultValue = 0.f;
+		TArray<TPair<FString, UMaterialExpression*>> Ins;
+		Ins.Add({ TEXT("Scene"), Scene }); Ins.Add({ TEXT("Death"), Death }); Ins.Add({ TEXT("Boost"), Boost });
+		UMaterialExpressionCustom* E = B.Custom(TEXT(R"HLSL(
+float2 vuv = GetViewportUV(Parameters);
+float3 c = SceneTextureLookup(ViewportUVToSceneTextureUV(vuv, PPI_PostProcessInput0), PPI_PostProcessInput0, false).rgb;
+float3 lin = select(c <= 0.04045, c / 12.92, pow((max(c, 0.0) + 0.055) / 1.055, 2.4));
+float g = dot(lin, float3(0.2126, 0.7152, 0.0722));
+g = smoothstep(0.02, 0.92, g);
+g = pow(g, 1.12);
+g = lerp(g, 0.07 + 0.93 * g, saturate(Boost * 0.4)); // (never crush a dark night to pure black)
+lin = lerp(lin, float3(g, g, g), saturate(Death * 1.3));
+lin *= 1.0 - 0.18 * Death * (1.0 - saturate(Boost * 0.5));
+float3 enc = select(lin <= 0.0031308, lin * 12.92, 1.055 * pow(max(lin, 0.0), 1.0 / 2.4) - 0.055);
+return float4(enc, 1.0);
+)HLSL"), CMOT_Float4, Ins, TEXT("ATG death grade"));
+		B.Out()->EmissiveColor.Connect(0, B.Mask(E, true, true, true, false));
 		break;
 	}
 	case EATGMat::DeathBlur: {
