@@ -25,3 +25,5 @@ Tools/*.pdb
 Tools/*.ilk
 Tools/*.txt
 Tools/wav/
+Packaged/
+SourceAssets/

@@ -65,7 +65,11 @@ UStaticMesh* ATGMesh::BuildStaticMesh(UObject* Outer, const TCHAR* Name, const T
 	TArray<UMaterialInterface*> Mats;
 	for (const TArray<FATGPart>& L : Lods) for (const FATGPart& P : L) if (P.Mesh && !P.Mesh->Empty()) Mats.AddUnique(P.Material);
 	auto SlotName = [](int32 i) { return FName(*FString::Printf(TEXT("Slot%d"), i)); };
-	for (int32 i = 0; i < Mats.Num(); i++) SM->GetStaticMaterials().Add(FStaticMaterial(Mats[i], SlotName(i)));
+	for (int32 i = 0; i < Mats.Num(); i++) {
+		FStaticMaterial& Slot = SM->GetStaticMaterials().Add_GetRef(FStaticMaterial(Mats[i], SlotName(i)));
+		// (texture streaming reads the UV density; the editor fills it in, a packaged build does not)
+		Slot.UVChannelData = FMeshUVChannelInfo(1.f);
+	}
 
 	TArray<FMeshDescription> Descs;
 	Descs.SetNum(Lods.Num());

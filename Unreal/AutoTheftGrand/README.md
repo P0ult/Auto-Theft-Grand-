@@ -94,8 +94,27 @@ Steps:
    Castillo house in Cedar Row, with traffic on the streets and people on the pavements.
 
 The project opens on the engine's empty `Entry` map. Everything else is spawned by the game mode, so no level
-needs to be saved. To package the game, use **Platforms → Windows → Package Project**. The generated
-materials are cooked because `/Game/ATG` is set to always cook.
+needs to be saved.
+
+### Windows package (play without Unreal)
+
+`Tools/package.sh` (from Git Bash) builds, cooks and stages a standalone copy in `Packaged/Windows`. Start the
+editor once first so the generated materials exist; `/Game/ATG` and `/Game/Audio` are set to always cook. It
+takes a few minutes and ends with `BUILD SUCCESSFUL`. **Platforms → Windows → Package Project** in the editor
+does the same.
+
+Copy the whole `Packaged/Windows` folder to any Windows 10 or 11 PC and run `AutoTheftGrand.exe`. That PC needs
+no Unreal install. It needs a DirectX 12 graphics card; one with ray tracing gives the full lighting (see
+Graphics below). If Windows says a DLL is missing, run `Engine/Extras/Redist/en-us/vc_redist.x64.exe` from the
+same folder once.
+
+The default build is Development: it writes a log to `AutoTheftGrand/Saved/Logs`, the console and the `ATG.*`
+test commands work, and `AutoTheftGrand.pdb` (about 400 MB) is there for crash reports. You can delete the
+`.pdb` to save space. `CONFIG=Shipping Tools/package.sh` makes a smaller build without the console. The
+packaged exe takes the same `-ATGScript=` and `-ATGMenu` arguments as `Tools/run.sh`.
+
+The build includes `Content/Audio/wasted` if you have added your own clip there. Do not share a build that
+contains a clip you have no rights to.
 
 To start the story from PowerShell, add `-ATGStory` to the game launch:
 
