@@ -233,6 +233,10 @@ private:
 	TArray<float> Stops;
 };
 
+// (the Online tab's helpers, further down)
+FString Std(const std::string& S);
+TSharedRef<SWidget> HtmlLine(const FString& Html, const FLinearColor& Base, float Px, bool bItalic);
+
 } // namespace
 
 // ============================================================================ SATGMenuRow
@@ -1062,7 +1066,8 @@ TSharedRef<SWidget> SATGPauseMenu::CreateTeleportTab() {
 		: V->def.train ? LOCTEXT("TpTrain", "You'll step off the train first — it can't leave the rails.")
 		: (Air && !Air->grounded) ? FText::FromString(FString::Printf(TEXT("Your %s will arrive in the air over the destination."), UTF8_TO_TCHAR(V->def.name.c_str())))
 		: FText::FromString(FString::Printf(TEXT("Your %s comes with you, parked at the kerb."), UTF8_TO_TCHAR(V->def.name.c_str())));
-	AddMuted(Out, Note);
+	// (`p.muted`: the note, then how to go anywhere else)
+	Out->AddSlot().AutoHeight().Padding(0.f, 0.f, 0.f, 10.f)[HtmlLine(Note.ToString() + TEXT(" Set a waypoint on the map to teleport anywhere. Press <b>T</b> any time to open this list."), Muted, 13.f, false)];
 
 	TArray<FATGMenuGroup> Groups;
 	for (const atg::FreeDestination& D : G->freeroam->destinations()) {
@@ -1104,12 +1109,6 @@ void SpawnGroups(TArray<FATGMenuGroup>& Out) {
 	}
 }
 } // namespace
-
-namespace {
-// (with the Online tab's helpers, further down)
-FString Std(const std::string& S);
-TSharedRef<SWidget> HtmlLine(const FString& Html, const FLinearColor& Base, float Px, bool bItalic);
-}
 
 TSharedRef<SWidget> SATGPauseMenu::CreateVehiclesTab() {
 	atg::Game* G = GetSimulation();
@@ -2056,7 +2055,7 @@ FReply SATGPauseMenu::OnActionButtonClicked(FString Action) {
 	else if (Action.StartsWith(TEXT("Teleport:")) && G->freeroam) {
 		const FString Name = Action.RightChop(9);
 		for (const atg::FreeDestination& D : G->freeroam->destinations())
-			if (Name == UTF8_TO_TCHAR(D.name.c_str())) { G->freeroam->teleport(D, true); if (OnAction.IsBound()) OnAction.Execute(TEXT("Resume")); break; }
+			if (Name == UTF8_TO_TCHAR(D.name.c_str())) { if (OnAction.IsBound()) OnAction.Execute(TEXT("Resume")); G->sound("ui"); G->freeroam->teleport(D); break; }
 	}
 	// the Admin tab (hud.js _tab_admin: each button says what it did in the line at the top)
 	else if (Action.StartsWith(TEXT("Wanted:")) && G->freeroam) { AdminMsg = Std(G->freeroam->wanted(FCString::Atoi(*Action.RightChop(7)))); RefreshTab(); }
