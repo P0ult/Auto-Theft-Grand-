@@ -11,6 +11,7 @@
 #include "Sim/Pets.h"
 
 #include "CanvasItem.h"
+#include "CanvasTypes.h"
 #include "Engine/Canvas.h"
 #include "Engine/Engine.h"
 #include "Engine/Font.h"
@@ -171,16 +172,38 @@ void AATGHUD::DrawHUD() {
 }
 
 void AATGHUD::DrawLoading(AATGWorld* W) {
-	DrawRect(Ink, 0, 0, Canvas->ClipX, Canvas->ClipY);
-	UFont* Big = GEngine->GetLargeFont();
-	UFont* Small = GEngine->GetSmallFont();
+	DrawRect(FLinearColor(FColor(0x07, 0x06, 0x0b)), 0, 0, Canvas->ClipX, Canvas->ClipY);
 	const float Cx = Canvas->ClipX / 2, Cy = Canvas->ClipY / 2;
-	Text(TEXT("AUTO THEFT GRAND"), Cx, Cy - 90 * Ui, Big, 3.2f * Ui, Gold, 0.5f);
-	Text(W ? W->LoadingText() : FString(TEXT("Starting")), Cx, Cy + 20 * Ui, Small, 1.5f * Ui, Paper, 0.5f);
-	// a simple "working" bar
-	const float Bw = 360 * Ui, T = (float)FMath::Fmod(GetWorld()->GetRealTimeSeconds() * 0.6, 1.0);
-	DrawRect(FLinearColor(1, 1, 1, 0.12f), Cx - Bw / 2, Cy + 70 * Ui, Bw, 4 * Ui);
-	DrawRect(Gold, Cx - Bw / 2 + Bw * 0.8f * T, Cy + 70 * Ui, Bw * 0.2f, 4 * Ui);
+	FATGPainter c(Canvas);
+	// (a column, centred: .art 34 px + 30 margin, .bar 10 + 2 x 2 border, .msg 14 margin + 22 px)
+	const float ArtH = 34 * 1.2f * Ui, Col = ArtH + 30 * Ui + 14 * Ui + 14 * Ui + 22 * 1.2f * Ui, Top = Cy - Col / 2;
+	CssText(TEXT("Auto Theft Grand"), Cx, Top + ArtH * 0.78f, 34 * Ui, TEXT("Script"), Gold, 0.5f, { FVector3f(3 * Ui, 3 * Ui, 1) });
+	const float Bw = FMath::Min(520.f * Ui, Canvas->ClipX * 0.7f), By = Top + ArtH + 30 * Ui;
+	c.Fill = FLinearColor::Black; c.FillRect(Cx - Bw / 2 - 2 * Ui, By, Bw + 4 * Ui, 14 * Ui);
+	c.Fill = FLinearColor(FColor(0x1b, 0x1a, 0x22)); c.FillRect(Cx - Bw / 2, By + 2 * Ui, Bw, 10 * Ui);
+	const float P = W ? W->LoadingProgress() : 0.f;
+	if (P > 0) c.GradientRect(Cx - Bw / 2, By + 2 * Ui, Bw * P, 10 * Ui, FLinearColor(FColor(0x9b, 0x5b, 0x12)), Gold);
+	c.Fill = FLinearColor(FColor(0xaa, 0xaa, 0xaa));
+	c.FontTextBox((W ? W->LoadingText() : FString(TEXT("Starting up"))).ToUpper(), Cx, By + 14 * Ui + 14 * Ui, 22 * Ui, TEXT("Hud"), 0.5f, 0.f, 1.2f);
+	// .tip: 40 px from the bottom, 15 px, #888 (one of main.js's TIPS, picked when the game starts)
+	static const TCHAR* Tips[] = {
+		TEXT("Tap Space while turning to kick the tail out. Hold throttle to keep the drift alive."),
+		TEXT("Losing the cops? Break line of sight and wait for the stars to stop flashing — or visit a Spray Shack."),
+		TEXT("Headshots are instant kills on most enemies."),
+		TEXT("Hidden packages are scattered across Los Soles. Find them all for a special reward at your safehouse."),
+		TEXT("Walk into the green marker at your safehouse to save the game."),
+		TEXT("Big Bun Burgers restores your health for $10."),
+		TEXT("Press N in a car to cycle radio stations. Radio Los Soles plays West Coast classics."),
+		TEXT("Lowriders have hydraulics — press G to bounce."),
+		TEXT("Gun Barn in the Market District sells weapons, ammo and body armor."),
+		TEXT("In free roam, press T to teleport to any town, station, airfield or landmark."),
+		TEXT("Press H on the pavement to whistle for a cab. In the back, Space skips the trip."),
+		TEXT("Driving a cab? Press J to pick up fares for cash."),
+		TEXT("Catch the Sol Line at Union Station: ride it to Fern Creek and Dry Wells, or climb into the cab and drive."),
+	};
+	static const int32 Tip = FMath::RandRange(0, UE_ARRAY_COUNT(Tips) - 1);
+	c.Fill = FLinearColor(FColor(0x88, 0x88, 0x88));
+	c.FontTextBox(Tips[Tip], Cx, Canvas->ClipY - 40 * Ui, 15 * Ui, TEXT("Text"), 0.5f, 1.f, 1.2f);
 }
 
 void AATGHUD::DrawBigMap(AATGWorld* W, double Px, double Pz, double Heading) {
@@ -305,8 +328,15 @@ void AATGHUD::DrawMessages(atg::Game* G, float Dt) {
 		const float Top = Canvas->ClipY * 0.36f, Base = Top + Px * 0.95f * Ui;
 		const FLinearColor Col = FLinearColor(FColor((Hex >> 16) & 255, (Hex >> 8) & 255, Hex & 255)).CopyWithNewOpacity(BigAlpha * A);
 		FATGPainter c(Canvas);
+		// (.hud-big.title div: rotate(-3deg) about its centre)
+		const bool bTilt = St == "title" && Canvas->Canvas;
+		if (bTilt) {
+			const FVector Pivot(Canvas->ClipX / 2, Base - Px * 0.35f * Ui, 0);
+			Canvas->Canvas->PushRelativeTransform(FTranslationMatrix(-Pivot) * FRotationMatrix(FRotator(0, -3, 0)) * FTranslationMatrix(Pivot));
+		}
 		for (const FVector3f& V : Scaled) { c.Fill = FLinearColor(0, 0, 0, V.Z * Col.A); c.FontText(Plain(M->big.text), Canvas->ClipX / 2 + V.X, Base + V.Y, Px * Ui, Face, 0.5f); }
 		c.Fill = Col; c.FontText(Plain(M->big.text), Canvas->ClipX / 2, Base, Px * Ui, Face, 0.5f);
+		if (bTilt) Canvas->Canvas->PopTransform();
 		// (small: the HUD font 34 px white, 6 px under; a chapter's is the script, 58 px gold)
 		if (!M->big.sub.empty()) {
 			const bool bChapter = St == "chapter";
@@ -357,12 +387,14 @@ void AATGHUD::DrawCredits(atg::Game* G) {
 		{TEXT("IN MEMORY OF"),28,80,Gray}, {TEXT("Tino Castillo"),20,76,White},
 		{TEXT("THANK YOU FOR PLAYING"),28,80,Gray}, {TEXT("The city is yours. Keep exploring — there are still hidden packages to find."),20,76,White}
 	};
-	float Height = 0; for (const auto& R : Rows) Height += R.Space;
+	float Height = 0; for (const auto& R : Rows) Height += R.Space * Ui;
 	const float K = FMath::Clamp((float)G->hudModel->creditsT / 40.f, 0.f, 1.f);
 	float Y = (Canvas->ClipY - Height) / 2 + FMath::Lerp(Canvas->ClipY * 0.8f, -Height * 1.6f, K);
+	FATGPainter c(Canvas);
 	for (const auto& R : Rows) {
-		float Tw = 0, Th = 0; Canvas->TextSize(GEngine->GetMediumFont(), R.Text, Tw, Th);
-		Text(R.Text, Canvas->ClipX / 2, Y, GEngine->GetMediumFont(), R.Size / FMath::Max(1.f, Th), R.Color, 0.5f); Y += R.Space;
+		c.Fill = R.Color;
+		c.FontTextBox(R.Text, Canvas->ClipX / 2, Y, R.Size * Ui, R.Size >= 60 ? TEXT("Title") : R.Size >= 28 ? TEXT("Hud") : TEXT("Text"), 0.5f, 0.f, 1.2f);
+		Y += R.Space * Ui;
 	}
 }
 
@@ -373,7 +405,6 @@ void AATGHUD::DrawTags(atg::Game* G) {
 	auto Screen = [&](const atg::V3& P, FVector2D& Out) { return PlayerOwner->ProjectWorldLocationToScreen(ATG::ToUE(P), Out, true); };
 	auto Head = [](const atg::Character* C) { return C->ragdolling && C->ragdoll ? C->ragdoll->center() : C->pos; };
 	FATGPainter c(Canvas);
-	UFont* Font = GEngine->GetSmallFont();
 	// the stars: yellow with a black edge, flashing red while the police are on them
 	std::vector<atg::NpcTag> Suspects;
 	if (G->npcCrime) G->npcCrime->tagged(Suspects);
@@ -402,15 +433,13 @@ void AATGHUD::DrawTags(atg::Game* G) {
 		if ((H - Cam).length() > 35 || !Screen(atg::V3(H.x, H.y + 2.1, H.z), S)) continue;
 		c.Alpha = FMath::Min(1.f, (float)Sp.t * 2.f);
 		const FString Str = Plain(Sp.text);
-		float Tw = 0, Th = 0;
-		Canvas->TextSize(Font, Str, Tw, Th);
-		const float Fs = 14 * Ui, K = Th > 0 ? Fs / Th : 1.f, W = Tw * K + 20 * Ui, Hh = Fs + 10 * Ui;
+		const float Fs = 14 * Ui, W = c.FontWidth(Str, Fs, TEXT("Text Bold")) + 20 * Ui, Hh = Fs * 1.2f + 10 * Ui;
 		const float X = (float)S.X - W / 2, Y = (float)S.Y - Hh - 6 * Ui;
 		c.Fill = FLinearColor(1, 1, 1, 0.92f);
 		c.BeginPath(); c.RoundRect(X, Y, W, Hh, 12 * Ui); c.FillPath();
 		c.BeginPath(); c.MoveTo((float)S.X - 6 * Ui, Y + Hh); c.LineTo((float)S.X + 6 * Ui, Y + Hh); c.LineTo((float)S.X, Y + Hh + 6 * Ui); c.ClosePath(); c.FillPath();
 		c.Fill = CssColor(0x111111);
-		c.Text(Str, (float)S.X, Y + Hh / 2, Font, Fs, 0.5f, 0.5f);
+		c.FontTextBox(Str, (float)S.X, Y + Hh / 2, Fs, TEXT("Text Bold"), 0.5f, 0.5f, 1.2f);
 		c.Alpha = 1;
 	}
 }

@@ -47,6 +47,9 @@ public:
 	// Returns its width in this painter's units. FontWidth measures without drawing.
 	float FontText(const FString& S, float X, float Y, float Px, const TCHAR* Face, float AlignX = 0.f, float Condense = 1.f);
 	float FontWidth(const FString& S, float Px, const TCHAR* Face, float Condense = 1.f) const;
+	// text placed by its CSS line box (LineEm x Px tall): AlignY 0 puts the box's top at Y, 0.5 its middle (canvas
+	// textBaseline 'middle'), 1 its bottom
+	float FontTextBox(const FString& S, float X, float Y, float Px, const TCHAR* Face, float AlignX = 0.f, float AlignY = 0.5f, float LineEm = 1.f);
 	// canvas createLinearGradient from (X, Y) to (X + W, Y + H) with two stops, filling that rectangle
 	void GradientRect(float X, float Y, float W, float H, const FLinearColor& C0, const FLinearColor& C1);
 	// a polygon textured from Tex (a fan): points in this painter's space, uvs per point

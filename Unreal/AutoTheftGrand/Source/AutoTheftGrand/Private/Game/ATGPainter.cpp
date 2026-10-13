@@ -158,6 +158,7 @@ static FSlateFontInfo PainterFont(const TCHAR* Face, float Px) {
 	if (F == TEXT("Title")) return ATGFonts::Get(EATGFont::Title, Px);
 	if (F == TEXT("Script")) return ATGFonts::Get(EATGFont::Script, Px);
 	if (F.StartsWith(TEXT("Text"))) return ATGFonts::Get(EATGFont::Text, Px, F.Contains(TEXT("Bold")), F.Contains(TEXT("Italic")));
+	if (F.StartsWith(TEXT("Arial"))) return ATGFonts::Get(EATGFont::Arial, Px, F.Contains(TEXT("Bold")));
 	return FSlateFontInfo(GEngine->GetLargeFont(), FMath::Max(1.f, Px * 0.75f), FName(Face));
 }
 
@@ -175,6 +176,21 @@ float FATGPainter::FontText(const FString& S, float X, float Y, float Px, const 
 	Item.Scale = FVector2D(Condense, 1.f);
 	Canvas->DrawItem(Item);
 	return K > 0 ? (float)Size.X * Condense / K : 0.f;
+}
+
+float FATGPainter::FontTextBox(const FString& S, float X, float Y, float Px, const TCHAR* Face, float AlignX, float AlignY, float LineEm) {
+	if (S.IsEmpty() || !GEngine || !FEngineFontServices::IsInitialized()) return 0;
+	const float K = ScaleOf();
+	const FSlateFontInfo Info = PainterFont(Face, Px * K);
+	const TSharedPtr<FSlateFontMeasure> Measure = FEngineFontServices::Get().GetFontMeasure();
+	if (!Measure.IsValid()) return 0;
+	const FVector2D Size = Measure->Measure(S, Info);
+	// (the glyphs' own box, ascent + descent, sits in the middle of the line box)
+	const float Content = (float)Measure->GetMaxCharacterHeight(Info), Box = Px * LineEm * K;
+	const FVector2f P = ToScreen(X, Y);
+	FCanvasTextItem Item(FVector2D(P.X - Size.X * AlignX, P.Y - Box * AlignY + (Box - Content) / 2), FText::FromString(S), Info, WithAlpha(Fill));
+	Canvas->DrawItem(Item);
+	return K > 0 ? (float)Size.X / K : 0.f;
 }
 
 float FATGPainter::FontWidth(const FString& S, float Px, const TCHAR* Face, float Condense) const {

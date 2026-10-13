@@ -54,6 +54,7 @@ public:
 	// ---- loading
 	bool IsReady() const { return bReady; }
 	FString LoadingText() const;
+	float LoadingProgress() const; // (0 to 1: the generator's stages, then the mesh building)
 
 	// ---- the generated data (valid once ready)
 	const atg::CityMap* Map() const;

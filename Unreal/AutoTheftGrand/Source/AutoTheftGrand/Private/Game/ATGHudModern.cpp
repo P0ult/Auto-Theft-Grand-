@@ -5,6 +5,7 @@
 #include "Game/ATGHudDraw.h"
 #include "Game/ATGPainter.h"
 #include "Game/ATGWorld.h"
+#include "Sim/Aircraft.h"
 #include "Sim/Game.h"
 #include "Sim/Hud.h"
 #include "Sim/Weapons.h"
@@ -54,7 +55,7 @@ bool Icon(FATGPainter& c, const std::string& Id) {
 	else if (Id == "burger") { c.BeginPath(); c.Arc(0, 0, 5, PI, 2 * PI); c.ClosePath(); c.FillPath(); Fr(-5, 1, 10, 3); }
 	else if (Id == "house") { Poly({ { -6, 0 }, { 0, -6 }, { 6, 0 } }); Fr(-4, 0, 8, 5); }
 	else if (Id == "waypoint") { c.BeginPath(); c.MoveTo(0, 6); c.LineTo(-5, -2); c.Arc(0, -2, 5, PI, 2 * PI); c.ClosePath(); c.FillPath(); }
-	else if (Id == "money") c.Text(TEXT("$"), 0, 1, GEngine->GetMediumFont(), 12, 0.5f, 0.5f);
+	else if (Id == "money") c.FontTextBox(TEXT("$"), 0, 1, 12, TEXT("Arial Bold"), 0.5f, 0.5f); // (bold 12px Arial)
 	else if (Id == "health") { Fr(-5, -1.5f, 10, 3); Fr(-1.5f, -5, 3, 10); }
 	else if (Id == "armor") Fr(-4, -5, 8, 10);
 	else if (Id == "car") { Fr(-6, -2, 12, 5); Fr(-3, -5, 6, 3); }
@@ -85,7 +86,7 @@ void Blip(FATGPainter& c, float X, float Y, const atg::Blip& b, float Scale) {
 	c.LineWidth = 2; c.Stroke = FLinearColor::Black;
 	if (!b.letter.empty()) {
 		c.Fill = Col; c.BeginPath(); c.Arc(0, 0, 9, 0, 2 * PI); c.FillPath(); c.StrokePath();
-		c.Fill = CssColor(0x111111); c.Text(UTF8_TO_TCHAR(b.letter.c_str()), 0, 1, GEngine->GetMediumFont(), 13, 0.5f, 0.5f);
+		c.Fill = CssColor(0x111111); c.FontTextBox(UTF8_TO_TCHAR(b.letter.c_str()), 0, 1, 13, TEXT("Arial Bold"), 0.5f, 0.5f); // (bold 13px Arial)
 	} else if (!b.icon.empty() && b.icon != "dot") {
 		// (the icon's own drawing first, to check it exists)
 		FATGPainter::FMat Saved = c.M;
@@ -265,7 +266,7 @@ void AATGHUD::DrawMinimap(atg::Game* G, AATGWorld* W, float Dt, float Left, floa
 		const float k = FMath::Min(FMath::Abs(dx) > 1e-4f ? (dx < 0 ? edgeX0 / dx : edgeX1 / dx) : 1e9f, FMath::Abs(dy) > 1e-4f ? (dy < 0 ? edgeY0 / dy : edgeY1 / dy) : 1e9f);
 		const float nX = C + dx * k, nY = CY + dy * k;
 		c.Fill = FLinearColor(0, 0, 0, 0.7f); c.BeginPath(); c.Arc(nX, nY, 9, 0, 2 * PI); c.FillPath();
-		c.Fill = FLinearColor::White; c.Text(TEXT("N"), nX, nY + 1, GEngine->GetMediumFont(), 15, 0.5f, 0.5f);
+		c.Fill = FLinearColor::White; c.FontTextBox(TEXT("N"), nX, nY + 1, 15, TEXT("Hud"), 0.5f, 0.5f); // (bold 15px "Bebas Neue")
 	}
 	const double heading = p.vehicle ? p.vehicle->yaw : p.yaw;
 	PlayerArrow(c, C, CY, (float)(heading - fy), 1);
@@ -367,26 +368,29 @@ void AATGHUD::DrawSpeedo(atg::Game* G, float Dt) {
 		const float r0 = R - (big ? 24 : 18), r1 = R - 9;
 		c.Stroke = big ? CssColor(0xf4f4f4) : CssColor(0xf4f4f4, 0.55f); c.LineWidth = big ? 3.f : 1.5f;
 		c.BeginPath(); c.MoveTo(C + FMath::Cos(a) * r0, C + FMath::Sin(a) * r0); c.LineTo(C + FMath::Cos(a) * r1, C + FMath::Sin(a) * r1); c.StrokePath();
-		if (big) { c.Fill = CssColor(0xe9e9e9); c.Text(FString::FromInt((int32)std::round(val)), C + FMath::Cos(a) * (R - 38), C + FMath::Sin(a) * (R - 38), GEngine->GetMediumFont(), 17, 0.5f, 0.5f); }
+		if (big) { c.Fill = CssColor(0xe9e9e9); c.FontTextBox(FString::FromInt((int32)std::round(val)), C + FMath::Cos(a) * (R - 38), C + FMath::Sin(a) * (R - 38), 17, TEXT("Hud"), 0.5f, 0.5f); }
 	}
 	// digital readout
 	c.Fill = FLinearColor::White;
 	FString Digits = FString::FromInt((int32)std::round(mph));
 	while (Digits.Len() < (air ? 3 : 2)) Digits = TEXT("0") + Digits;
-	c.Text(Digits, C, C + R * 0.42f, GEngine->GetLargeFont(), 38, 0.5f, 0.5f);
+	c.FontTextBox(Digits, C, C + R * 0.42f, 38, TEXT("Hud"), 0.5f, 0.5f);
 	c.Fill = CssColor(0xe8b64c);
-	c.Text(air ? TEXT("MPH · AIRSPEED") : TEXT("MPH"), C, C + R * 0.62f, GEngine->GetMediumFont(), 14, 0.5f, 0.5f);
+	c.FontTextBox(air ? TEXT("MPH · AIRSPEED") : TEXT("MPH"), C, C + R * 0.62f, 14, TEXT("Hud"), 0.5f, 0.5f);
 	if (air) {
 		const double alt = FMath::Max(0.0, v->altitude());
 		c.Fill = CssColor(0x9fe3ff);
-		c.Text(TEXT("ALT FT"), C, C - R * 0.4f, GEngine->GetMediumFont(), 12, 0.5f, 0.5f);
-		c.Text(FString::FromInt((int32)std::round(alt * 3.281)), C, C - R * 0.22f, GEngine->GetMediumFont(), 19, 0.5f, 0.5f);
-		// (the throttle bar comes with the aircraft)
+		c.FontTextBox(TEXT("ALT FT"), C, C - R * 0.4f, 12, TEXT("Hud"), 0.5f, 0.5f);
+		c.FontTextBox(FString::FromInt((int32)std::round(alt * 3.281)), C, C - R * 0.22f, 19, TEXT("Hud"), 0.5f, 0.5f);
+		// the throttle / rotor bar under the damage bar
+		const atg::AirVehicle* av = dynamic_cast<const atg::AirVehicle*>(v);
+		c.Fill = FLinearColor(1, 1, 1, 0.12f); c.FillRect(C - 34, C + R * 0.84f, 68, 4);
+		c.Fill = CssColor(0x6cff8a); c.FillRect(C - 34, C + R * 0.84f, 68 * FMath::Clamp(av ? (float)av->throttle() : 0.f, 0.f, 1.f), 4);
 	} else {
 		const double sp = v->speed();
 		const FString gear = sp < -0.5 ? FString(TEXT("R")) : mph < 1 ? FString(TEXT("N")) : FString::FromInt((int32)FMath::Min(6.0, 1 + std::floor(mph / (max / 6.2))));
 		c.Fill = gear == TEXT("R") ? CssColor(0xff6b5a) : FLinearColor::White;
-		c.Text(gear, C, C - R * 0.34f, GEngine->GetLargeFont(), 22, 0.5f, 0.5f);
+		c.FontTextBox(gear, C, C - R * 0.34f, 22, TEXT("Hud"), 0.5f, 0.5f);
 	}
 	// damage bar
 	const float hp = FMath::Clamp((float)(v->health / (v->maxHealth ? v->maxHealth : 1000)), 0.f, 1.f);
@@ -439,8 +443,8 @@ void AATGHUD::DrawPhone(atg::Game* G, float Dt) {
 	c.Translate(W - 0.04f * W - Pw * Ui, H);
 	c.Scale(Ui, Ui);
 	c.Translate(0, -Fh + (1.1f * Fh) * (1 - K) - 14 * K);
-	UFont* Font = GEngine->GetSmallFont();
-	auto Txt = [&](const FString& S, float x, float y, float Px, const FLinearColor& Col, float Ax = 0.f, bool Bold = false) { c.Fill = Col; c.Text(S, x, y, Bold ? GEngine->GetMediumFont() : Font, Px * 1.2f, Ax, 0.f); };
+	// (.phone: the text font; each line's box is 1.2 em tall, its top at y)
+	auto Txt = [&](const FString& S, float x, float y, float Px, const FLinearColor& Col, float Ax = 0.f, bool Bold = false) { c.Fill = Col; c.FontTextBox(S, x, y, Px, Bold ? TEXT("Text Bold") : TEXT("Text"), Ax, 0.f, 1.2f); };
 	// the frame: rings, the body gradient, the screen
 	c.Fill = FLinearColor(0, 0, 0, 0.25f); c.BeginPath(); c.RoundRect(-4, 10, Pw + 8, Fh + 18, 34); c.FillPath();
 	c.Fill = CssColor(0x0a0b0d); c.BeginPath(); c.RoundRect(-5, -5, Pw + 10, Fh + 10, 35); c.FillPath();
@@ -524,13 +528,19 @@ void AATGHUD::DrawPhotoHint(float Dt) {
 	if (A <= 0) return;
 	FATGPainter c(Canvas);
 	c.Alpha = A;
-	UFont* Font = GEngine->GetSmallFont();
-	const FString S = TEXT("Snapmatic \x00B7 HUD hidden for photos \x00B7 press I or Backspace to put the camera away");
-	float Tw = 0, Th = 0; Canvas->TextSize(Font, S, Tw, Th);
-	const float Fs = 13 * 1.2f * Ui, Kf = Th > 0 ? Fs / Th : 1, Bw = Tw * Kf + 28 * Ui, Bh = Fs + 16 * Ui;
+	// (.photo-hint: <b>Snapmatic</b> · HUD hidden for photos · press <b>I</b> or <b>Backspace</b> to put the camera away)
+	struct FRun { const TCHAR* S; bool bBold; };
+	static const FRun Runs[] = { { TEXT("Snapmatic"), true }, { TEXT(" \x00B7 HUD hidden for photos \x00B7 press "), false }, { TEXT("I"), true },
+		{ TEXT(" or "), false }, { TEXT("Backspace"), true }, { TEXT(" to put the camera away"), false } };
+	const float Fs = 13 * Ui;
+	float Tw = 0;
+	for (const FRun& R : Runs) Tw += c.FontWidth(R.S, Fs, R.bBold ? TEXT("Text Bold") : TEXT("Text"));
+	const float Bw = Tw + 28 * Ui, Bh = Fs * 1.2f + 16 * Ui;
 	const float X = Canvas->ClipX / 2 - Bw / 2, Y = Canvas->ClipY - 24 * Ui - Bh;
 	c.Fill = FLinearColor(0, 0, 0, 0.55f); c.BeginPath(); c.RoundRect(X, Y, Bw, Bh, 4 * Ui); c.FillPath();
-	c.Fill = CssColor(0xdfe6ee); c.Text(S, Canvas->ClipX / 2, Y + Bh / 2, Font, Fs, 0.5f, 0.5f);
+	c.Fill = CssColor(0xdfe6ee);
+	float Tx = X + 14 * Ui;
+	for (const FRun& R : Runs) Tx += c.FontTextBox(R.S, Tx, Y + Bh / 2, Fs, R.bBold ? TEXT("Text Bold") : TEXT("Text"), 0.f, 0.5f, 1.2f);
 }
 
 // ------------------------------------------------------------------ the weapon wheel (weaponwheel.js _draw)
@@ -585,11 +595,11 @@ void AATGHUD::DrawWheel(atg::Game* G, float Dt) {
 	if (!d || it == p.weapons.end()) return;
 	FString Ammo;
 	if (d->type != "melee") Ammo = G->freeroamActive() ? FString(TEXT("\x221E")) : d->type == "thrown" ? FString::Printf(TEXT("%d"), (int)(it->second.clip + it->second.ammo)) : FString::Printf(TEXT("%d / %d"), (int)it->second.clip, (int)it->second.ammo);
-	UFont* Font = GEngine->GetSmallFont();
-	const float Ly = Ammo.IsEmpty() ? C : C - 10;
-	c.Fill = FLinearColor::White;
-	c.Text(UTF8_TO_TCHAR(d->name.c_str()), C, Ly, Font, 17 * 1.2f * 460 / Disp * Ui, 0.5f, 0.5f, true); // (Size is the line height: font-size x 1.2)
-	if (!Ammo.IsEmpty()) { c.Fill = CssColor(0xcfd6e0); c.Text(Ammo, C, Ly + 22 * 460 / Disp * Ui, Font, 15 * 1.2f * 460 / Disp * Ui, 0.5f, 0.5f); }
+	const float Ly = Ammo.IsEmpty() ? C : C - 10, Kd = 460 / Disp * Ui;
+	const FString Name = UTF8_TO_TCHAR(d->name.c_str());
+	c.Fill = FLinearColor::Black; c.FontTextBox(Name, C + Kd, Ly + Kd, 17 * Kd, TEXT("Text Bold"), 0.5f, 0.5f, 1.2f);
+	c.Fill = FLinearColor::White; c.FontTextBox(Name, C, Ly, 17 * Kd, TEXT("Text Bold"), 0.5f, 0.5f, 1.2f);
+	if (!Ammo.IsEmpty()) { c.Fill = CssColor(0xcfd6e0); c.FontTextBox(Ammo, C, Ly + 22 * Kd, 15 * Kd, TEXT("Text"), 0.5f, 0.5f, 1.2f); }
 }
 
 void AATGHUD::DrawCrosshair(atg::Game* G) {
@@ -615,8 +625,11 @@ void AATGHUD::DrawCrosshair(atg::Game* G) {
 		c.FillRect(W / 2 - R, H / 2 - 0.75f, R * 2, 1.5f);
 		c.FillRect(W / 2 - 0.75f, H / 2 - R, 1.5f, R * 2);
 		c.Fill = CssColor(0xe0322a); c.BeginPath(); c.Arc(W / 2, H / 2, 2.5f, 0, 2 * PI); c.FillPath();
+		const FString Zoom = FString::Printf(TEXT("%.1f×"), 60 / G->rig.scopeFov);
+		c.Fill = FLinearColor(0, 0, 0, 0.6f);
+		for (const FVector2f O : { FVector2f(1, 1), FVector2f(-1, 1), FVector2f(1, -1), FVector2f(-1, -1) }) c.FontTextBox(Zoom, W / 2 + O.X, H / 2 + 30 * Vmin + O.Y, 14 * Ui, TEXT("Text Bold"), 0.5f, 0.f);
 		c.Fill = FLinearColor::White;
-		c.Text(FString::Printf(TEXT("%.1f×"), 60 / G->rig.scopeFov), W / 2, H / 2 + 30 * Vmin, GEngine->GetMediumFont(), 14 * Ui, 0.5f, 0, true);
+		c.FontTextBox(Zoom, W / 2, H / 2 + 30 * Vmin, 14 * Ui, TEXT("Text Bold"), 0.5f, 0.f);
 		return;
 	}
 	if (!aimVisible) return;
@@ -660,17 +673,17 @@ void AATGHUD::DrawShopMenu(atg::Game* G) {
 	c.Fill = CssColor(0x080a0e, 0.86f); c.BeginPath(); c.RoundRect(0, 0, Pw, Ph, 6); c.FillPath();
 	c.Stroke = FLinearColor(1, 1, 1, 0.08f); c.LineWidth = 1; c.StrokePath();
 	float y = PadY;
-	c.Fill = Gold; c.FontText(Str(Mn.title), PadX, y + 34, 34, TEXT("Bold"), 0, 0.8f);
+	c.Fill = Gold; c.FontText(Str(Mn.title), PadX, y + 34, 34, TEXT("Title"));
 	y += 46;
-	c.Fill = Muted; c.FontText(Str(Mn.sub), PadX, y + 12, 13, TEXT("Regular"));
+	c.Fill = Muted; c.FontText(Str(Mn.sub), PadX, y + 12, 13, TEXT("Text"));
 	y += 18 + 12;
 	// Cash: $00001234 — note
 	const double Money = G->player ? G->player->money : 0;
 	c.Fill = FLinearColor::White;
-	float x = PadX + c.FontText(TEXT("Cash: "), PadX, y + 26, 26, TEXT("Bold"), 0, 0.8f);
+	float x = PadX + c.FontText(TEXT("Cash: "), PadX, y + 26, 26, TEXT("Hud"));
 	c.Fill = CssColor(0x3ba34a);
-	x += c.FontText(FString::Printf(TEXT("$%08lld"), (long long)FMath::Max(0.0, FMath::Floor(Money))), x, y + 26, 26, TEXT("Bold"), 0, 0.8f);
-	if (!Mn.note.empty()) { c.Fill = Muted; c.FontText(TEXT(" — ") + Str(Mn.note), x, y + 26, 26, TEXT("Regular"), 0, 0.8f); }
+	x += c.FontText(FString::Printf(TEXT("$%08lld"), (long long)FMath::Max(0.0, FMath::Floor(Money))), x, y + 26, 26, TEXT("Hud"));
+	if (!Mn.note.empty()) { c.Fill = Muted; c.FontText(TEXT(" — ") + Str(Mn.note), x, y + 26, 13, TEXT("Hud")); }
 	y += 34 + 10;
 	// a button (.btn, .btn.primary): its box, the focus ring, the hover, the label
 	auto Button = [&](int32 I, float Bx, float By, float Bw, float Bh) {
@@ -691,16 +704,13 @@ void AATGHUD::DrawShopMenu(atg::Game* G) {
 		c.BeginPath(); c.RoundRect(Bx, By, Bw, Bh, 3); c.FillPath();
 		c.Stroke = R.primary || bHover ? Gold : FLinearColor(1, 1, 1, 0.18f); c.LineWidth = 1; c.StrokePath();
 		c.Fill = R.primary ? CssColor(0x1a1205) : FLinearColor::White;
-		c.FontText(Str(R.button), Bx + Bw / 2, By + Bh / 2 + 5.5f, 15, TEXT("Bold"), 0.5f);
+		c.FontTextBox(Str(R.button), Bx + Bw / 2, By + Bh / 2, 15, TEXT("Text Bold"), 0.5f, 0.5f);
 		c.Restore();
 	};
 	auto ButtonW = [&](const std::string& Label) {
 		// (measured by drawing nothing: the label's width at 15 px plus the padding)
 		float Tw = 0;
-		if (FEngineFontServices::IsInitialized() && GEngine) {
-			const FSlateFontInfo Info(GEngine->GetLargeFont(), 15 * c.ScaleOf() * 0.75f, FName(TEXT("Bold")));
-			Tw = (float)FEngineFontServices::Get().GetFontMeasure()->Measure(Str(Label), Info).X / FMath::Max(0.001f, c.ScaleOf());
-		}
+		Tw = c.FontWidth(Str(Label), 15, TEXT("Text Bold"));
 		return Tw + 38;
 	};
 	for (int32 I = 0; I < N; I++) {
@@ -720,8 +730,8 @@ void AATGHUD::DrawShopMenu(atg::Game* G) {
 			Tx += 28 + 12;
 		}
 		const float Top = y + (Rh - 35) / 2;
-		c.Fill = FLinearColor::White; c.FontText(Str(R.name), Tx, Top + 17, 17, TEXT("Bold"));
-		c.Fill = Muted; c.FontText(Str(R.desc), Tx, Top + 32, 12, TEXT("Regular"));
+		c.Fill = FLinearColor::White; c.FontText(Str(R.name), Tx, Top + 17, 17, TEXT("Text Bold"));
+		c.Fill = Muted; c.FontText(Str(R.desc), Tx, Top + 32, 12, TEXT("Text"));
 		const float Bw = FMath::Max(130.f, ButtonW(R.button)), Bh = 40;
 		Button(I, PadX + Cw - 10 - Bw, y + (Rh - Bh) / 2, Bw, Bh);
 		y += Rh + 6;

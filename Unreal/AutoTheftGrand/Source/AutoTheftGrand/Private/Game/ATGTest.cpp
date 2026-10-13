@@ -364,6 +364,12 @@ ATG_CMD(CmdNet, "ATG.Net", "ATG.Net join [code] | leave | say text... | state: m
 	for (const auto& R : N.roster()) UE_LOG(LogATG, Display, TEXT("ATG net peer: %s '%s' at (%.1f, %.1f), %.0f m, hp %.0f%s"), UTF8_TO_TCHAR(R.id.c_str()), UTF8_TO_TCHAR(R.name.c_str()), R.x, R.z, R.dist, R.hp, R.vehicle.empty() ? TEXT("") : *(TEXT(", in ") + FString(UTF8_TO_TCHAR(R.vehicle.c_str()))));
 	for (const auto& L : N.chat) UE_LOG(LogATG, Display, TEXT("ATG net chat: %s%s"), L.sys ? TEXT("") : *(FString(UTF8_TO_TCHAR(L.name.c_str())) + TEXT(": ")), UTF8_TO_TCHAR(L.text.c_str()));
 })
+ATG_CMD(CmdBig, "ATG.Big", "ATG.Big style text...: show a big message (title, passed, failed, wasted, busted, hint, chapter)", {
+	atg::Game* G = Sim(W);
+	if (!G || !G->hud || Args.Num() < 2) return;
+	FString T; for (int32 I = 1; I < Args.Num(); I++) T += (I > 1 ? TEXT(" ") : TEXT("")) + Args[I];
+	G->hud->bigMessage(TCHAR_TO_UTF8(*T), TCHAR_TO_UTF8(*Args[0]), 4);
+})
 ATG_CMD(CmdState, "ATG.State", "ATG.State: log the player's position, vehicle, speed and the journey (free roam, cash, weapons)", {
 	atg::Game* G = Sim(W);
 	if (!G) { UE_LOG(LogATG, Display, TEXT("ATG state: no game")); return; }

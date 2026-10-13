@@ -296,6 +296,12 @@ FString AATGWorld::LoadingText() const {
 	return FString(Names[S]);
 }
 
+float AATGWorld::LoadingProgress() const {
+	const int32 S = FMath::Clamp(LoadStage.load(), 0, 8);
+	const float Build = S == 8 && Steps.Num() ? (float)StepIndex / Steps.Num() : 0.f;
+	return FMath::Clamp((S + Build) / 9.f, 0.f, 1.f);
+}
+
 const atg::CityMap* AATGWorld::Map() const { return Data ? &Data->Map : nullptr; }
 double AATGWorld::GroundHeight(double X, double Z) const { return Data ? Data->Map.GroundHeight(X, Z) : 0.0; }
 FString AATGWorld::ZoneName(double X, double Z) const { return Data ? Str(Data->Map.ZoneName(X, Z)) : FString(); }

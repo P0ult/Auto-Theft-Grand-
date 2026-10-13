@@ -180,6 +180,59 @@ private:
 	FLinearColor Top, Bottom;
 };
 
+// Text filled with a vertical gradient (`.title-logo .l2`: background-clip: text over a linear-gradient, a black
+// stroke and a drop shadow). Slate can't clip a gradient to glyphs, so the text is drawn once per thin horizontal
+// band, each clipped to its band and filled with the gradient's colour there. The gradient spans the CSS line box
+// (line-height x font size), centred on the glyphs.
+class SATGGradientText : public SLeafWidget {
+public:
+	SLATE_BEGIN_ARGS(SATGGradientText) : _LineHeight(1.f), _Shadow(0.f, 0.f) {}
+		SLATE_ARGUMENT(FText, Text)
+		SLATE_ARGUMENT(FSlateFontInfo, Font)
+		SLATE_ARGUMENT(float, LineHeight)   // (em)
+		SLATE_ARGUMENT(FVector2D, Shadow)   // (drop-shadow offset, black)
+		SLATE_ARGUMENT(TArray<FLinearColor>, Colors)
+		SLATE_ARGUMENT(TArray<float>, Stops)
+	SLATE_END_ARGS()
+	void Construct(const FArguments& A) { Text = A._Text; Font = A._Font; LineHeight = A._LineHeight; Shadow = A._Shadow; Colors = A._Colors; Stops = A._Stops; }
+	virtual FVector2D ComputeDesiredSize(float) const override {
+		if (!FSlateApplication::IsInitialized()) return FVector2D(8, 8);
+		const TSharedRef<FSlateFontMeasure> M = FSlateApplication::Get().GetRenderer()->GetFontMeasureService();
+		return M->Measure(Text, Font);
+	}
+	virtual int32 OnPaint(const FPaintArgs&, const FGeometry& G, const FSlateRect&, FSlateWindowElementList& Out, int32 Layer, const FWidgetStyle&, bool) const override {
+		const FVector2f Size = G.GetLocalSize();
+		if (!Shadow.IsZero()) {
+			FSlateFontInfo SF = Font;
+			SF.OutlineSettings.OutlineColor = FLinearColor::Black;
+			FSlateDrawElement::MakeText(Out, Layer, G.ToPaintGeometry(FVector2f(Size), FSlateLayoutTransform(FVector2f(Shadow))), Text, SF, ESlateDrawEffect::None, FLinearColor::Black);
+		}
+		const float Px = (float)Font.Size * 96.f / 72.f; // (Slate font sizes are points)
+		const float Box = LineHeight * Px, Top = Size.Y / 2 - Box / 2;
+		const int32 Bands = FMath::Clamp((int32)(Size.Y / 3.f), 8, 96);
+		for (int32 I = 0; I < Bands; I++) {
+			const float Y0 = Size.Y * I / Bands, Y1 = Size.Y * (I + 1) / Bands;
+			const float T = FMath::Clamp(((Y0 + Y1) / 2 - Top) / FMath::Max(1.f, Box), 0.f, 1.f);
+			FLinearColor C = Colors.Num() ? Colors.Last() : FLinearColor::White;
+			for (int32 K = 1; K < Stops.Num() && K < Colors.Num(); K++)
+				if (T <= Stops[K]) { C = FMath::Lerp(Colors[K - 1], Colors[K], (T - Stops[K - 1]) / FMath::Max(1e-4f, Stops[K] - Stops[K - 1])); break; }
+			// (the band reaches past the sides so the stroke and the shadow side stay whole)
+			const FVector2f A = G.LocalToAbsolute(FVector2f(-40.f, Y0)), B = G.LocalToAbsolute(FVector2f(Size.X + 40.f, Y1));
+			Out.PushClip(FSlateClippingZone(FSlateRect(A.X, A.Y, B.X, B.Y)));
+			FSlateDrawElement::MakeText(Out, Layer + 1, G.ToPaintGeometry(), Text, Font, ESlateDrawEffect::None, C);
+			Out.PopClip();
+		}
+		return Layer + 2;
+	}
+private:
+	FText Text;
+	FSlateFontInfo Font;
+	float LineHeight = 1.f;
+	FVector2D Shadow;
+	TArray<FLinearColor> Colors;
+	TArray<float> Stops;
+};
+
 } // namespace
 
 // ============================================================================ SATGMenuRow
@@ -575,8 +628,9 @@ TSharedRef<SWidget> SATGMainMenu::BuildMenu() {
 			SNew(STextBlock).Text(LOCTEXT("Title1", "AUTO THEFT")).Font(F1)
 			.ColorAndOpacity(FSlateColor(FLinearColor::White)).ShadowOffset(FVector2D(6, 6)).ShadowColorAndOpacity(FLinearColor::Black)]
 		+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center).Padding(CssLineHeight(F2, L2, 0.85f))[
-			SNew(STextBlock).Text(LOCTEXT("Title2", "GRAND")).Font(F2)
-			.ColorAndOpacity(FSlateColor(Gold)).ShadowOffset(FVector2D(6, 6)).ShadowColorAndOpacity(FLinearColor::Black)]
+			// (linear-gradient(180deg, #ffe89a 0%, #e8b64c 45%, #9b5b12 100%))
+			SNew(SATGGradientText).Text(LOCTEXT("Title2", "GRAND")).Font(F2).LineHeight(0.85f).Shadow(FVector2D(6, 6))
+			.Colors({ Srgb(0xff, 0xe8, 0x9a), Srgb(0xe8, 0xb6, 0x4c), Srgb(0x9b, 0x5b, 0x12) }).Stops({ 0.f, 0.45f, 1.f })]
 		+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center).Padding(0.f, 8.f, 0.f, 0.f)[
 			SNew(STextBlock).Text(LOCTEXT("Title3", "Los Soles")).Font(ScriptFont(L3))
 			.ColorAndOpacity(FSlateColor(Srgb(0xff, 0xd6, 0xa0))).ShadowOffset(FVector2D(2, 2)).ShadowColorAndOpacity(FLinearColor::Black)];

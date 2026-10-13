@@ -3,6 +3,7 @@
 //   Title  'Anton', Impact, 'Arial Black'         (the logo, mission passed / WASTED)
 //   Script 'Permanent Marker', 'Brush Script MT'  (Los Soles, zone names, chapter titles)
 //   Text   'Rubik', 'Segoe UI', Roboto            (body text)
+//   Arial  Arial                                   (the radar's blip letters and $)
 // Each stack takes the first font it finds: Content/Fonts/<file> (the Google fonts, under the SIL Open Font
 // License, if they have been put there), then Windows' own fonts, then the engine's Roboto. Sizes are CSS pixels
 // at the current DPI scale: pass Px and the Slate size is Px * 0.75 (Slate sizes are points at 96 dpi).
@@ -11,7 +12,7 @@
 #include "CoreMinimal.h"
 #include "Fonts/SlateFontInfo.h"
 
-enum class EATGFont : uint8 { Hud, Title, Script, Text };
+enum class EATGFont : uint8 { Hud, Title, Script, Text, Arial };
 
 namespace ATGFonts {
 // Bold (and Bold + Italic) pick the text stack's faces (Rubik / Segoe UI / Roboto); the display fonts have one weight.
