@@ -364,6 +364,12 @@ ATG_CMD(CmdNet, "ATG.Net", "ATG.Net join [code] | leave | say text... | state: m
 	for (const auto& R : N.roster()) UE_LOG(LogATG, Display, TEXT("ATG net peer: %s '%s' at (%.1f, %.1f), %.0f m, hp %.0f%s"), UTF8_TO_TCHAR(R.id.c_str()), UTF8_TO_TCHAR(R.name.c_str()), R.x, R.z, R.dist, R.hp, R.vehicle.empty() ? TEXT("") : *(TEXT(", in ") + FString(UTF8_TO_TCHAR(R.vehicle.c_str()))));
 	for (const auto& L : N.chat) UE_LOG(LogATG, Display, TEXT("ATG net chat: %s%s"), L.sys ? TEXT("") : *(FString(UTF8_TO_TCHAR(L.name.c_str())) + TEXT(": ")), UTF8_TO_TCHAR(L.text.c_str()));
 })
+ATG_CMD(CmdHudStyle, "ATG.HudStyle", "ATG.HudStyle modern|classic: the HUD's layout (Settings: HUD style)", {
+	atg::Game* G = Sim(W);
+	if (!G || !Args.Num()) return;
+	G->settings.hudStyle = Args[0] == TEXT("classic") ? "classic" : "modern";
+	UE_LOG(LogATG, Display, TEXT("ATG hud style %s"), UTF8_TO_TCHAR(G->settings.hudStyle.c_str()));
+})
 ATG_CMD(CmdBig, "ATG.Big", "ATG.Big style text...: show a big message (title, passed, failed, wasted, busted, hint, chapter)", {
 	atg::Game* G = Sim(W);
 	if (!G || !G->hud || Args.Num() < 2) return;
@@ -446,7 +452,7 @@ ATG_CMD(CmdMapWaypoint, "ATG.MapWaypoint", "ATG.MapWaypoint fx fy: right-click t
 	const auto Wp = G->hud ? G->hud->waypoint() : std::nullopt;
 	UE_LOG(LogATG, Display, TEXT("ATG map waypoint: %s, route %d points"), Wp ? *FString::Printf(TEXT("(%.0f, %.0f)"), Wp->x, Wp->z) : TEXT("none"), G->hudModel ? (int32)G->hudModel->route.size() : 0);
 })
-ATG_CMD(CmdMenuCheck, "ATG.MenuCheck", "ATG.MenuCheck selected|tab|open|volume|music|sensitivity|invert|quality|crime|timeScale|cheat expected: assert actual menu state", {
+ATG_CMD(CmdMenuCheck, "ATG.MenuCheck", "ATG.MenuCheck selected|tab|open|volume|music|sensitivity|invert|quality|hud|crime|timeScale|cheat expected: assert actual menu state", {
 	AATGGameMode* GM = W ? Cast<AATGGameMode>(W->GetAuthGameMode()) : nullptr;
 	UATGMenuSystem* M = GM ? GM->GetMenuSystem() : nullptr;
 	atg::Game* G = Sim(W);
@@ -465,6 +471,7 @@ ATG_CMD(CmdMenuCheck, "ATG.MenuCheck", "ATG.MenuCheck selected|tab|open|volume|m
 	else if (Key == TEXT("invert")) { bNumeric = true; Number = G->settings.invertY; }
 	else if (Key == TEXT("quality")) Actual = UTF8_TO_TCHAR(G->settings.quality.c_str());
 	else if (Key == TEXT("crime")) Actual = UTF8_TO_TCHAR(G->settings.npcCrime.c_str());
+	else if (Key == TEXT("hud")) Actual = UTF8_TO_TCHAR(G->settings.hudStyle.c_str());
 	else if (Key == TEXT("timeScale")) { bNumeric = true; Number = G->env.timeScale; }
 	else if (Key == TEXT("cheat") && Args.Num() >= 3) {
 		static const TPair<const TCHAR*, bool atg::Cheats::*> Cheats[] = {

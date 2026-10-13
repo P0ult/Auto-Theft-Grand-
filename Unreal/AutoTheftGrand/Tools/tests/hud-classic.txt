@@ -1,0 +1,25 @@
+# The classic HUD (Settings: HUD style): the round radar, the clock, the weapon badge with its ammo, armour and
+# health bars, the cash and the stars top right, the pet's line under them; the zone name in the script.
+wait 1
+ATG.God 1
+ATG.HudStyle classic
+ATG.Teleport -622 330 2.4
+ATG.Give pistol 60
+ATG.Pet husky Rex
+wait 2
+shot hudc_foot
+ATG.Wanted 2
+wait 0.5
+shot hudc_wanted
+ATG.Wanted 0
+ATG.Spawn zenith
+wait 0.5
+ATG.Enter
+ATG.Press KeyW
+wait 3
+ATG.Release
+shot hudc_car
+ATG.HudStyle modern
+wait 0.3
+shot hudc_modern
+quit

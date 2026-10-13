@@ -6,6 +6,7 @@
 #include "Game/ATGPainter.h"
 #include "Game/ATGWorld.h"
 #include "Sim/Aircraft.h"
+#include "Sim/Pets.h"
 #include "Sim/Game.h"
 #include "Sim/Hud.h"
 #include "Sim/Weapons.h"
@@ -160,8 +161,9 @@ void AATGHUD::DrawMinimap(atg::Game* G, AATGWorld* W, float Dt, float Left, floa
 	FATGPainter c(Canvas);
 	c.Translate(Left, Top);
 	c.Scale(Ui, Ui);
-	const float Wd = 300, Ht = 190;
-	const float C = Wd / 2, CY = Ht * 0.6f, R = Ht * 0.6f;
+	const bool bClassic = G->settings.hudStyle == "classic";
+	const float Wd = bClassic ? 230 : 300, Ht = bClassic ? 230 : 190;
+	const float C = Wd / 2, CY = bClassic ? Ht / 2 : Ht * 0.6f, R = bClassic ? Wd / 2 - 8 : Ht * 0.6f; // (px from the player to the edge of the view)
 	atg::Player& p = *G->player;
 	const atg::V3 pos = p.vehicle ? p.vehicle->pos : p.ragdolling && p.ragdoll ? p.ragdoll->center() : p.pos;
 	const double speed = p.vehicle ? p.vehicle->speedAbs() : 0;
@@ -174,9 +176,10 @@ void AATGHUD::DrawMinimap(atg::Game* G, AATGWorld* W, float Dt, float Left, floa
 	const float cs = FMath::Cos(theta), sn = FMath::Sin(theta);
 	auto toRadar = [&](double x, double z) { const float dx = (float)(x - pos.x) * scale, dz = (float)(z - pos.z) * scale; return P2(dx * cs - dz * sn, dx * sn + dz * cs); };
 	auto toWorld = [&](const P2& r) { const float rx = r.X - C, ry = r.Y - CY; const float dx = rx * cs + ry * sn, dz = -rx * sn + ry * cs; return P2((float)(pos.x + dx / scale), (float)(pos.z + dz / scale)); };
-	// the shape (a rounded rectangle inset 3 px), as a polygon
+	// the shape (a rounded rectangle inset 3 px, or the classic circle), as a polygon
 	TArray<P2> Shape;
-	{
+	if (bClassic) for (int i = 0; i < 64; i++) { const float a = i / 64.f * PI * 2; Shape.Add(P2(C + FMath::Cos(a) * R, CY + FMath::Sin(a) * R)); }
+	else {
 		const float x = 3, y = 3, w = Wd - 6, h = Ht - 6, r = 6;
 		auto Arc = [&](float cx, float cy, float a0, float a1) { for (int i = 0; i <= 4; i++) { const float a = a0 + (a1 - a0) * i / 4; Shape.Add(P2(cx + FMath::Cos(a) * r, cy + FMath::Sin(a) * r)); } };
 		Arc(x + w - r, y + r, -PI / 2, 0); Arc(x + w - r, y + h - r, 0, PI / 2); Arc(x + r, y + h - r, PI / 2, PI); Arc(x + r, y + r, PI, PI * 1.5f);
@@ -195,7 +198,7 @@ void AATGHUD::DrawMinimap(atg::Game* G, AATGWorld* W, float Dt, float Left, floa
 		}
 		TArray<P2> Uv;
 		for (const P2& q : Poly) { const P2 w = toWorld(q); Uv.Add(P2((float)((w.X - Rect.Min.X) / (Rect.Max.X - Rect.Min.X)), (float)((w.Y - Rect.Min.Y) / (Rect.Max.Y - Rect.Min.Y)))); }
-		c.TexturedPoly(Tex, Poly, Uv, FLinearColor(1, 1, 1, 0.88f));
+		c.TexturedPoly(Tex, Poly, Uv, FLinearColor(1, 1, 1, bClassic ? 0.92f : 0.88f));
 	};
 	Layer(W->MapWorldTex, W->MapWorldRect, false);
 	Layer(W->MapCityTex, W->MapCityRect, true);
@@ -236,9 +239,25 @@ void AATGHUD::DrawMinimap(atg::Game* G, AATGWorld* W, float Dt, float Left, floa
 			c.BeginPath(); c.MoveTo(Clipped[0].X, Clipped[0].Y); for (int32 i = 1; i < Clipped.Num(); i++) c.LineTo(Clipped[i].X, Clipped[i].Y); c.ClosePath(); c.FillPath();
 		}
 	}
-	// a little shade at the top and the bottom (the canvas's linear gradient, in bands)
-	for (int i = 0; i < 6; i++) { c.Fill = FLinearColor(0, 0, 0, 0.28f * (1 - i / 6.f) * 0.5f); c.FillRect(3, 3 + i * (Ht - 6) * 0.25f / 6, Wd - 6, (Ht - 6) * 0.25f / 6); }
-	for (int i = 0; i < 6; i++) { c.Fill = FLinearColor(0, 0, 0, 0.12f * (i / 6.f) * 0.5f); c.FillRect(3, 3 + (Ht - 6) * (0.25f + 0.75f * i / 6.f), Wd - 6, (Ht - 6) * 0.75f / 6); }
+	if (bClassic) {
+		// the classic vignette: a radial gradient from clear at 0.7 R to black at 35 % on the edge, as rings
+		const int Bands = 8, Segs = 48;
+		for (int k = 0; k < Bands; k++) {
+			const float r0 = R * (0.7f + 0.3f * k / Bands), r1 = R * (0.7f + 0.3f * (k + 1) / Bands);
+			c.Fill = FLinearColor(0, 0, 0, 0.35f * (k + 0.5f) / Bands);
+			for (int j = 0; j < Segs; j++) {
+				const float a0 = j / (float)Segs * PI * 2, a1 = (j + 1) / (float)Segs * PI * 2;
+				c.BeginPath();
+				c.MoveTo(C + FMath::Cos(a0) * r0, CY + FMath::Sin(a0) * r0); c.LineTo(C + FMath::Cos(a0) * r1, CY + FMath::Sin(a0) * r1);
+				c.LineTo(C + FMath::Cos(a1) * r1, CY + FMath::Sin(a1) * r1); c.LineTo(C + FMath::Cos(a1) * r0, CY + FMath::Sin(a1) * r0);
+				c.ClosePath(); c.FillPath();
+			}
+		}
+	} else {
+		// a little shade at the top and the bottom (the canvas's linear gradient, in bands)
+		for (int i = 0; i < 6; i++) { c.Fill = FLinearColor(0, 0, 0, 0.28f * (1 - i / 6.f) * 0.5f); c.FillRect(3, 3 + i * (Ht - 6) * 0.25f / 6, Wd - 6, (Ht - 6) * 0.25f / 6); }
+		for (int i = 0; i < 6; i++) { c.Fill = FLinearColor(0, 0, 0, 0.12f * (i / 6.f) * 0.5f); c.FillRect(3, 3 + (Ht - 6) * (0.25f + 0.75f * i / 6.f), Wd - 6, (Ht - 6) * 0.75f / 6); }
+	}
 	// blips: the game's, then the police (flashing red / blue) while you're wanted
 	TArray<atg::Blip> List;
 	for (const auto& b : G->blips) List.Add(*b);
@@ -252,11 +271,16 @@ void AATGHUD::DrawMinimap(atg::Game* G, AATGWorld* W, float Dt, float Left, floa
 	const float edgeX0 = -C + 9, edgeX1 = Wd - C - 9, edgeY0 = -CY + 9, edgeY1 = Ht - CY - 9;
 	for (const atg::Blip& b : List) {
 		P2 r = toRadar(b.x, b.z);
-		const bool out = r.X < edgeX0 || r.X > edgeX1 || r.Y < edgeY0 || r.Y > edgeY1;
-		if (out) {
-			if (b.noEdge) continue;
-			const float k = FMath::Min(r.X < 0 ? edgeX0 / r.X : edgeX1 / r.X, r.Y < 0 ? edgeY0 / r.Y : edgeY1 / r.Y);
-			r *= k;
+		if (bClassic) {
+			const float d = r.Size();
+			if (d > R - 7) { if (b.noEdge) continue; r *= (R - 7) / d; }
+		} else {
+			const bool out = r.X < edgeX0 || r.X > edgeX1 || r.Y < edgeY0 || r.Y > edgeY1;
+			if (out) {
+				if (b.noEdge) continue;
+				const float k = FMath::Min(r.X < 0 ? edgeX0 / r.X : edgeX1 / r.X, r.Y < 0 ? edgeY0 / r.Y : edgeY1 / r.Y);
+				r *= k;
+			}
 		}
 		Blip(c, C + r.X, CY + r.Y, b, b.small ? 0.8f : 1.f);
 	}
@@ -264,12 +288,18 @@ void AATGHUD::DrawMinimap(atg::Game* G, AATGWorld* W, float Dt, float Left, floa
 	{
 		const float dx = FMath::Sin(theta), dy = -FMath::Cos(theta);
 		const float k = FMath::Min(FMath::Abs(dx) > 1e-4f ? (dx < 0 ? edgeX0 / dx : edgeX1 / dx) : 1e9f, FMath::Abs(dy) > 1e-4f ? (dy < 0 ? edgeY0 / dy : edgeY1 / dy) : 1e9f);
-		const float nX = C + dx * k, nY = CY + dy * k;
+		const float nX = bClassic ? C + FMath::Cos(-PI / 2 + theta) * (R - 2) : C + dx * k, nY = bClassic ? CY + FMath::Sin(-PI / 2 + theta) * (R - 2) : CY + dy * k;
 		c.Fill = FLinearColor(0, 0, 0, 0.7f); c.BeginPath(); c.Arc(nX, nY, 9, 0, 2 * PI); c.FillPath();
 		c.Fill = FLinearColor::White; c.FontTextBox(TEXT("N"), nX, nY + 1, 15, TEXT("Hud"), 0.5f, 0.5f); // (bold 15px "Bebas Neue")
 	}
 	const double heading = p.vehicle ? p.vehicle->yaw : p.yaw;
 	PlayerArrow(c, C, CY, (float)(heading - fy), 1);
+	if (bClassic) {
+		// the classic frame: a black ring and a faint white one inside it; no bars (they're top right)
+		c.Stroke = FLinearColor(0, 0, 0, 0.85f); c.LineWidth = 5; c.BeginPath(); c.Arc(C, CY, R, 0, PI * 2); c.StrokePath();
+		c.Stroke = FLinearColor(1, 1, 1, 0.25f); c.LineWidth = 1.5f; c.BeginPath(); c.Arc(C, CY, R - 3, 0, PI * 2); c.StrokePath();
+		return;
+	}
 	c.Stroke = FLinearColor(0, 0, 0, 0.85f); c.LineWidth = 4; ShapePath(); c.StrokePath();
 	// ---- the bars under it: health (2), armour (1), special (1)
 	const float By = Ht + 4, Bh = 9, Gap = 4, X0 = 3, Wt = Wd - 6 - Gap * 2;
@@ -297,7 +327,7 @@ void AATGHUD::DrawMinimap(atg::Game* G, AATGWorld* W, float Dt, float Left, floa
 }
 
 // ------------------------------------------------------------------ top right: stars, cash, weapon
-void AATGHUD::DrawTopRight(atg::Game* G, float Right, float Top) {
+float AATGHUD::DrawTopRight(atg::Game* G, float Right, float Top) {
 	FATGPainter c(Canvas);
 	c.Translate(Right, Top);
 	c.Scale(Ui, Ui);
@@ -332,6 +362,136 @@ void AATGHUD::DrawTopRight(atg::Game* G, float Right, float Top) {
 	// (.hud-ammo: the text font, 600, 22 px, white, a 2 px shadow)
 	c.Fill = FLinearColor(0, 0, 0, 0.9f); c.FontText(Ammo, -96 + 2, 106 + 8 + 2, 22, TEXT("Text Bold"), 1.f);
 	c.Fill = FLinearColor::White; c.FontText(Ammo, -96, 106 + 8, 22, TEXT("Text Bold"), 1.f);
+	// (stars 30, gap 4, the cash 2 + 30, gap 4, the weapon row 2 + 56)
+	return Top + 128 * Ui;
+}
+
+// ------------------------------------------------------------------ top right, classic: the clock, the weapon in its
+// round badge with the ammo under it, armour and health bars, the cash, the stars (.hud-tr without hud-modern)
+float AATGHUD::DrawTopRightClassic(atg::Game* G, float Right, float Top) {
+	FATGPainter c(Canvas);
+	c.Translate(Right, Top);
+	c.Scale(Ui, Ui);
+	atg::Player& p = *G->player;
+	// (text-shadow: 3px 3px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000)
+	auto Outlined = [&](const FString& S, float x, float y, float Px, const FLinearColor& Col) {
+		c.Fill = FLinearColor::Black;
+		for (const FVector2f O : { FVector2f(3, 3), FVector2f(-1, -1), FVector2f(1, -1), FVector2f(-1, 1) }) c.FontTextBox(S, x + O.X, y + O.Y, Px, TEXT("Hud"), 1.f, 0.f, 1.f);
+		c.Fill = Col; c.FontTextBox(S, x, y, Px, TEXT("Hud"), 1.f, 0.f, 1.f);
+	};
+	// .hud-clock: the HUD font, 44 px, line-height 1
+	Outlined(UTF8_TO_TCHAR(G->env.timeString().c_str()), 0, 0, 44, FLinearColor::White);
+	float y = 44 + 2;
+	// .hud-row: the weapon badge (84 px and a 3 px border), 10 px, the bars (158 x 15 with 2 px borders)
+	const float Bx = -162, Wx = Bx - 10 - 90;
+	{
+		const float Cx = Wx + 45, Cy = y + 45;
+		TArray<P2> Disc;
+		for (int i = 0; i < 48; i++) { const float a = i / 48.f * PI * 2; Disc.Add(P2(Cx + FMath::Cos(a) * 45, Cy + FMath::Sin(a) * 45)); }
+		// radial-gradient(circle at 40% 35%, rgba(255,255,255,0.18), rgba(0,0,0,0.55)): rings round that point, cut to the disc
+		const P2 G0(Wx + 3 + 84 * 0.4f, y + 3 + 84 * 0.35f);
+		const float Far = 84 * FMath::Sqrt(0.6f * 0.6f + 0.65f * 0.65f);
+		const int Bands = 10, Segs = 32;
+		for (int k = 0; k < Bands; k++) {
+			const float r0 = Far * k / Bands, r1 = Far * (k + 1) / Bands, t = (k + 0.5f) / Bands;
+			c.Fill = FMath::Lerp(FLinearColor(1, 1, 1, 0.18f), FLinearColor(0, 0, 0, 0.55f), t);
+			for (int j = 0; j < Segs; j++) {
+				const float a0 = j / (float)Segs * PI * 2, a1 = (j + 1) / (float)Segs * PI * 2;
+				const TArray<P2> Q = ClipPoly(TArray<P2>{ G0 + P2(FMath::Cos(a0), FMath::Sin(a0)) * r0, G0 + P2(FMath::Cos(a0), FMath::Sin(a0)) * r1,
+					G0 + P2(FMath::Cos(a1), FMath::Sin(a1)) * r1, G0 + P2(FMath::Cos(a1), FMath::Sin(a1)) * r0 }, Disc);
+				if (Q.Num() < 3) continue;
+				c.BeginPath(); c.MoveTo(Q[0].X, Q[0].Y); for (int32 q = 1; q < Q.Num(); q++) c.LineTo(Q[q].X, Q[q].Y); c.ClosePath(); c.FillPath();
+			}
+		}
+		c.Stroke = FLinearColor(0, 0, 0, 0.85f); c.LineWidth = 3; c.BeginPath(); c.Arc(Cx, Cy, 43.5f, 0, PI * 2); c.StrokePath();
+		c.Stroke = FLinearColor(1, 1, 1, 0.12f); c.LineWidth = 2; c.BeginPath(); c.Arc(Cx, Cy, 41, 0, PI * 2); c.StrokePath();
+		c.Save(); c.Translate(Wx + 3 - 6, y + 3 - 6); WeaponIcon(c, p.weapon, 96); c.Restore();
+		// .hud-ammo: the HUD font, 20 px, #dfe9ff, a 2 px shadow; ammo-clip (the browser's classic order)
+		const atg::WeaponDef& def = p.weaponDef();
+		FString Ammo;
+		auto it = p.weapons.find(p.weapon);
+		if (def.type != "melee" && it != p.weapons.end()) {
+			if (G->freeroamActive()) Ammo = TEXT("\x221E");
+			else if (def.type == "thrown") Ammo = FString::Printf(TEXT("%d"), (int)(it->second.clip + it->second.ammo));
+			else Ammo = FString::Printf(TEXT("%d-%d"), (int)it->second.ammo, (int)it->second.clip);
+		}
+		if (!Ammo.IsEmpty()) {
+			const float Ab = y + 3 + 84 + 18; // (bottom: -18px)
+			c.Fill = FLinearColor::Black; c.FontTextBox(Ammo, Wx + 45 + 2, Ab + 2, 20, TEXT("Hud"), 0.5f, 1.f, 1.2f);
+			c.Fill = CssColor(0xdfe9ff); c.FontTextBox(Ammo, Wx + 45, Ab, 20, TEXT("Hud"), 0.5f, 1.f, 1.2f);
+		}
+	}
+	{
+		auto Bar = [&](float By, float V, const FLinearColor& Top, const FLinearColor& Bot) {
+			c.Fill = FLinearColor::Black; c.FillRect(Bx, By, 162, 19);
+			c.Fill = FLinearColor(0, 0, 0, 0.75f); c.FillRect(Bx + 2, By + 2, 158, 15);
+			if (V > 0) c.GradientRect(Bx + 2, By + 2, 158 * V, 15, Top, Bot);
+		};
+		// (armour keeps its place while it's empty: visibility hidden)
+		if (p.armor > 0) Bar(y + 8, FMath::Clamp((float)p.armor / 100.f, 0.f, 1.f), CssColor(0xf2f2f2), CssColor(0x9da3ab));
+		const float hp = FMath::Clamp((float)(p.health / (p.maxHealth ? p.maxHealth : 100)), 0.f, 1.f);
+		const bool low = hp < 0.25f && (int)std::floor(G->time * 3) % 2 == 0;
+		Bar(y + 8 + 19 + 6, hp, low ? CssColor(0xff8a80) : CssColor(0xe5483d), low ? CssColor(0xe53935) : CssColor(0x9d1d14));
+	}
+	y += 90 + 2;
+	// .hud-money: the HUD font, 42 px, var(--money), 10 px down
+	y += 10;
+	Outlined(FString::Printf(TEXT("$%08lld"), (long long)FMath::Max(0.0, FMath::Floor(p.money))), 0, y, 42, CssColor(0x3ba34a));
+	y += 42 + 2;
+	// .hud-stars: five 34 px stars 2 px apart; on: #f7d154 with a black edge and a glow, flashing #7a6420
+	y += 2;
+	const int lvl = G->police ? G->police->wantedLevel() : 0;
+	const bool flash = G->police && G->police->searching() && (int)std::floor(G->time * 4) % 2 == 0;
+	for (int i = 0; i < 5; i++) {
+		const float x = -16 - (4 - i) * 33.f, sy = y + 18;
+		const bool on = i < lvl;
+		auto StarPath = [&](float Ro) { c.BeginPath(); for (int k = 0; k < 10; k++) { const float r = k % 2 ? Ro * 0.43f : Ro, a = k / 10.f * PI * 2 - PI / 2; if (k == 0) c.MoveTo(x + FMath::Cos(a) * r, sy + FMath::Sin(a) * r); else c.LineTo(x + FMath::Cos(a) * r, sy + FMath::Sin(a) * r); } c.ClosePath(); };
+		if (on && !flash) for (int g = 3; g >= 1; g--) { c.Fill = CssColor(0xffd250, 0.12f); StarPath(15.f + g * 2.5f); c.FillPath(); }
+		StarPath(15.f);
+		if (on) { c.Fill = flash ? CssColor(0x7a6420) : CssColor(0xf7d154); c.FillPath(); }
+		c.Stroke = on ? FLinearColor::Black : FLinearColor(0, 0, 0, 0.9f); c.LineWidth = 2; c.StrokePath();
+	}
+	y += 34;
+	return Top + y * Ui;
+}
+
+// ------------------------------------------------------------------ under the top-right cluster: the cash pop, the pet,
+// the police radio (.hud-money-pop, .hud-pet, .hud-dispatch: flex items after the stars, `Gap` apart)
+void AATGHUD::DrawTopRightLines(atg::Game* G, float Right, float Top, float Gap, float Alpha) {
+	FATGPainter c(Canvas);
+	c.Translate(Right, Top);
+	c.Scale(Ui, Ui);
+	atg::HudModel* M = G->hudModel;
+	float y = Gap;
+	auto Shadowed = [&](const FString& S, float x, float yy, float Px, const FLinearColor& Col, float Ax) {
+		c.Fill = FLinearColor(0, 0, 0, Col.A); c.FontTextBox(S, x + 2, yy + 2, Px, TEXT("Hud"), Ax, 0.f, 1.2f);
+		c.Fill = Col; return c.FontTextBox(S, x, yy, Px, TEXT("Hud"), Ax, 0.f, 1.2f);
+	};
+	// the cash pop: 28 px, #7dff8a; it slides down 6 px as it shows (its line is always there)
+	if (M && M->money.t > 0 && !M->money.text.empty()) {
+		const float A = FMath::Min(1.f, (float)M->money.t / 0.3f);
+		Shadowed(UTF8_TO_TCHAR(M->money.text.c_str()), 0, y - 6 * (1 - A), 28, CssColor(0x7dff8a, A * Alpha), 1.f);
+	}
+	y += 28 * 1.2f + Gap;
+	// your pet: 22 px, #e9f7df (#ff8a7a when hurt), 4 px down
+	if (G->pets && G->pets->pet && !G->pets->pet->removed) {
+		const auto& A = *G->pets->pet;
+		// (the browser puts a paw emoji in front; the HUD's fonts have no emoji, so it's left out)
+		const std::string S = A.petName +(A.dead ? " \xE2\x9C\x9D" : G->pets->target ? " \xC2\xB7 attacking" : G->pets->stay ? " \xC2\xB7 staying" : A.inVehicle ? " \xC2\xB7 riding" : "");
+		const bool hurt = !A.dead && A.health < A.maxHealth * 0.35;
+		Shadowed(UTF8_TO_TCHAR(S.c_str()), 0, y + 4, 22, (hurt ? CssColor(0xff8a7a) : CssColor(0xe9f7df)).CopyWithNewOpacity(Alpha), 1.f);
+		y += 4 + 22 * 1.2f + Gap;
+	}
+	// the police radio: 19 px, <b>DISPATCH</b> in #7fa2ff, the place under it at 15 px; slides in from 12 px right
+	if (M && M->dispatchLine.t > 0 && !M->dispatchLine.text.empty()) {
+		const float A = FMath::Min(1.f, (float)M->dispatchLine.t / 0.35f), Dx = 12 * (1 - A);
+		const FString Text = FString(TEXT(" ")) + UTF8_TO_TCHAR(M->dispatchLine.text.c_str());
+		const float Tw = c.FontWidth(Text, 19, TEXT("Hud"));
+		y += 6;
+		Shadowed(Text, Dx, y, 19, CssColor(0xdfe6ff, A * Alpha), 1.f);
+		Shadowed(TEXT("DISPATCH "), Dx - Tw - 6, y, 19, CssColor(0x7fa2ff, A * Alpha), 1.f);
+		if (!M->dispatchWhere.empty()) Shadowed(UTF8_TO_TCHAR(M->dispatchWhere.c_str()), Dx, y + 19 * 1.2f, 15, CssColor(0xaab3c8, A * Alpha), 1.f);
+	}
 }
 
 // ------------------------------------------------------------------ the speedometer (hud.js _drawSpeedo)

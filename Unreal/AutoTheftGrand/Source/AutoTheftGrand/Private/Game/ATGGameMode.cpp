@@ -264,6 +264,7 @@ void AATGGameMode::StartGame(const FString& JourneyMode) {
 		G->settings.sensitivity = GI->GetSensitivity(); G->input.sensitivity = G->settings.sensitivity;
 		G->settings.invertY = GI->GetInvertY(); G->input.invertY = G->settings.invertY;
 		G->settings.npcCrime = TCHAR_TO_UTF8(*GI->GetNPCrimeLevel());
+		G->settings.hudStyle = GI->GetHUDStyle() == TEXT("classic") ? "classic" : "modern";
 		// (net.js: the nickname, colour and player damage switch from last time)
 		if (G->net) {
 			const FString NetName = GI->GetNetName();

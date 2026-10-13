@@ -36,7 +36,9 @@ private:
 	// layers (damage vignette, white flash, the fade, the WASTED / BUSTED shard)
 	// the modern (GTA V) layout: ATGHudModern.cpp
 	void DrawMinimap(atg::Game* G, AATGWorld* W, float Dt, float Left, float Top);
-	void DrawTopRight(atg::Game* G, float Right, float Top);
+	float DrawTopRight(atg::Game* G, float Right, float Top);          // (returns the cluster's bottom)
+	float DrawTopRightClassic(atg::Game* G, float Right, float Top);
+	void DrawTopRightLines(atg::Game* G, float Right, float Top, float Gap, float Alpha);
 	void DrawSpeedo(atg::Game* G, float Dt);
 	void DrawCrosshair(atg::Game* G);
 	void DrawWheel(atg::Game* G, float Dt);

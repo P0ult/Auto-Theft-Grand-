@@ -86,6 +86,7 @@ public:
 	float GetSensitivity() const { return MouseSensitivity; }
 	bool GetInvertY() const { return bInvertMouseY; }
 	FString GetNPCrimeLevel() const { return NPCrimeLevel.ToString(); }
+	FString GetHUDStyle() const { return HUDStyle.ToString(); }
 
 	// multiplayer (net.js saveSettings: the nickname, the colour and the player damage switch)
 	FString GetNetName() const { return NetName; }

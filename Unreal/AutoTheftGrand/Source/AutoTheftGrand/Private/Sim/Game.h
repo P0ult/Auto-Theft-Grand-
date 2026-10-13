@@ -42,6 +42,7 @@ struct Settings {
 	double volume = 0.8, music = 0.6, sensitivity = 1;
 	bool invertY = false;
 	std::string npcCrime = "normal";
+	std::string hudStyle = "modern"; // (modern: the minimap with the bars under it; classic: the round radar)
 };
 
 // a map blip (game.blips): the radar and the pause map draw these

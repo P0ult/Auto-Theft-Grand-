@@ -190,7 +190,8 @@ roam's Teleport tab lists it. Save game says why it can't save in free roam or d
 
 Settings has the browser's rows (kept between runs in `Saved/Config/<platform>/Game.ini`): graphics quality, volumes, mouse sensitivity and invert, ray-traced
 reflections (Lumen reflections), ambient occlusion (screen-space and Lumen short-range AO), an FPS readout,
-street crime and the day/night speed. The browser's HUD style choice is missing (only the modern HUD exists).
+street crime, the day/night speed, and the HUD style: Modern (the minimap with the bars under it) or Classic (the
+round radar, with the clock, the weapon badge, the armour and health bars, the cash and the stars top right).
 
 ### Multiplayer
 
@@ -274,7 +275,7 @@ screen with fixed 1/30 s frames and a script of console commands (`ATG.Teleport`
 `wait 2`, `quit`); screenshots go to `Saved/Screenshots/WindowsEditor/ATG/`. `Tools/tests/city.txt` and
 `city2.txt` look at the traffic, the people, the traffic lights and the trains; `human.txt` at a person
 up close, walking and running; `wasted.txt` at WASTED and BUSTED; `effects.txt` at an explosion and a burning
-car; `hud.txt` at the HUD on foot and in a car; `combat.txt` at aiming, shooting and the RPG; `police.txt` at a
+car; `hud.txt` at the HUD on foot and in a car, `hud-classic.txt` at the classic HUD; `combat.txt` at aiming, shooting and the RPG; `police.txt` at a
 pursuit and the helicopter by night and by day; `pickups.txt` at a pickup and the save and Spray Shack
 markers; `roadblocks.txt` at a roadblock and its spike strip; `npccrime.txt` at a
 suspect's stars, the patrol that comes for them and a staged car theft; `wheel.txt` at the weapon wheel; `special.txt` at the

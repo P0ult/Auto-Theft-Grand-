@@ -128,22 +128,27 @@ void AATGHUD::DrawHUD() {
 	DeadAlpha = Approach(DeadAlpha, bDead ? 0.f : 1.f, 2.f, Dt);
 	if (DeadAlpha <= 0) { DrawOverlays(G, Dt); return; }
 	DrawTags(G);
-	// the minimap and its bars, bottom left (hud-radar: 300 x 190, left 28, bottom 26, the bars 13 px under it)
-	DrawMinimap(G, W, Dt, 28 * Ui, Canvas->ClipY - (26 + 13 + 190) * Ui);
-	DrawTopRight(G, Canvas->ClipX - 30 * Ui, 22 * Ui);
-	if (G->pets && G->pets->pet && !G->pets->pet->removed) {
-		const auto& A = *G->pets->pet;
-		const std::string S = A.petName + (A.dead ? " \xE2\x80\xA0" : G->pets->target ? " \xC2\xB7 attacking" : G->pets->stay ? " \xC2\xB7 staying" : A.inVehicle ? " \xC2\xB7 riding" : "");
-		const FColor C = !A.dead && A.health < A.maxHealth * 0.35 ? FColor(0xff, 0x8a, 0x7a) : FColor(0xe9, 0xf7, 0xdf);
-		Text(UTF8_TO_TCHAR(S.c_str()), Canvas->ClipX - 30 * Ui, 225 * Ui, Small, 1.35f * Ui, FLinearColor(C).CopyWithNewOpacity(DeadAlpha), 1.f);
-	}
+	// the radar, bottom left: the minimap and its bars (hud-radar: 300 x 190, left 28, bottom 26, the bars 13 px under
+	// it), or the classic round one (230 x 230, left 26, bottom 22); then the top-right cluster and the lines under it
+	const bool bClassic = G->settings.hudStyle == "classic";
+	if (bClassic) DrawMinimap(G, W, Dt, 26 * Ui, Canvas->ClipY - (22 + 230) * Ui);
+	else DrawMinimap(G, W, Dt, 28 * Ui, Canvas->ClipY - (26 + 13 + 190) * Ui);
+	const float TrBottom = bClassic ? DrawTopRightClassic(G, Canvas->ClipX - 26 * Ui, 18 * Ui) : DrawTopRight(G, Canvas->ClipX - 30 * Ui, 22 * Ui);
+	DrawTopRightLines(G, Canvas->ClipX - (bClassic ? 26 : 30) * Ui, TrBottom, bClassic ? 2.f : 4.f, DeadAlpha);
 	// zone and vehicle names, bottom right (higher in a vehicle, above the speedometer)
 	const float Right = Canvas->ClipX - 30 * Ui, Bottom = Canvas->ClipY;
 	if (atg::HudModel* M = G->hudModel) {
 		const bool bIn = Car != nullptr;
+		if (bClassic) {
+			// (.hud-zone: the script font, 42 px, white, right 30, bottom 30; .hud-vehname: the HUD font, 36 px, #7ecbff,
+			// bottom 84; both higher while you drive: body.in-vehicle, the driver's seat only)
+			const bool bDrive = Car && Pl.seat == 0;
+			if (M->zone.t > 0 && !G->phoneOpen) CssText(Plain(M->zone.text), Right, Bottom - ((bDrive ? 226 : 30) + 13) * Ui, 42 * Ui, TEXT("Script"), FLinearColor(1, 1, 1, FMath::Min(1.f, (float)M->zone.t / 0.6f) * DeadAlpha), 1.f, { FVector3f(3 * Ui, 3 * Ui, 1), FVector3f(-1 * Ui, -1 * Ui, 1) });
+			if (M->veh.t > 0 && !G->phoneOpen) CssText(Plain(M->veh.text), Right, Bottom - ((bDrive ? 276 : 84) + 10) * Ui, 36 * Ui, TEXT("Hud"), FLinearColor(FColor(0x7e, 0xcb, 0xff)).CopyWithNewOpacity(FMath::Min(1.f, (float)M->veh.t / 0.6f) * DeadAlpha), 1.f, { FVector3f(3 * Ui, 3 * Ui, 1) });
+		}
 		// (.hud-zone: 600 italic 30 px, white; .hud-vehname: 600 italic 26 px, #ffe08a; both with a 2 px shadow)
-		if (M->zone.t > 0 && !G->phoneOpen) CssText(Plain(M->zone.text), Right, Bottom - ((bIn ? 232 : 28) + 8) * Ui, 30 * Ui, TEXT("Text BoldItalic"), FLinearColor(1, 1, 1, FMath::Min(1.f, (float)M->zone.t * 3.f) * DeadAlpha), 1.f, { FVector3f(2 * Ui, 2 * Ui, 1) });
-		if (M->veh.t > 0 && !G->phoneOpen) CssText(Plain(M->veh.text), Right, Bottom - ((bIn ? 274 : 70) + 7) * Ui, 26 * Ui, TEXT("Text BoldItalic"), FLinearColor(FColor(0xff, 0xe0, 0x8a)).CopyWithNewOpacity(FMath::Min(1.f, (float)M->veh.t * 3.f) * DeadAlpha), 1.f, { FVector3f(2 * Ui, 2 * Ui, 1) });
+		else if (M->zone.t > 0 && !G->phoneOpen) CssText(Plain(M->zone.text), Right, Bottom - ((bIn ? 232 : 28) + 8) * Ui, 30 * Ui, TEXT("Text BoldItalic"), FLinearColor(1, 1, 1, FMath::Min(1.f, (float)M->zone.t * 3.f) * DeadAlpha), 1.f, { FVector3f(2 * Ui, 2 * Ui, 1) });
+		if (!bClassic && M->veh.t > 0 && !G->phoneOpen) CssText(Plain(M->veh.text), Right, Bottom - ((bIn ? 274 : 70) + 7) * Ui, 26 * Ui, TEXT("Text BoldItalic"), FLinearColor(FColor(0xff, 0xe0, 0x8a)).CopyWithNewOpacity(FMath::Min(1.f, (float)M->veh.t * 3.f) * DeadAlpha), 1.f, { FVector3f(2 * Ui, 2 * Ui, 1) });
 		// the radio station, top centre (hud-radio: gold, the genre small and white under it)
 		if (M->radio.t > 0) {
 			const float A = FMath::Min(1.f, (float)M->radio.t * 3.f) * DeadAlpha;
@@ -362,8 +367,6 @@ void AATGHUD::DrawMessages(atg::Game* G, float Dt) {
 		const FLinearColor C = CssHex(M->bar.color, FLinearColor(0.9f, 0.22f, 0.27f));
 		DrawRect(FLinearColor(C.R, C.G, C.B, A), Bx, By, Bw * (float)M->bar.v, Bh);
 	}
-	if (M->money.t > 0) Text(UTF8_TO_TCHAR(M->money.text.c_str()), Canvas->ClipX - 40 * Ui, 112 * Ui, Small, 1.6f * Ui, FLinearColor(0.49f, 1.f, 0.54f, FMath::Min(1.f, (float)M->money.t * 3.f) * A), 1.f);
-	if (M->dispatchLine.t > 0) Text(TEXT("DISPATCH ") + Plain(M->dispatchLine.text), Canvas->ClipX - 40 * Ui, 160 * Ui, Small, 1.3f * Ui, FLinearColor(0.87f, 0.9f, 1.f, FMath::Min(1.f, (float)M->dispatchLine.t * 3.f) * A), 1.f);
 	if (!M->objectiveText.empty() && M->subs.t <= 0) Text(Plain(M->objectiveText), Canvas->ClipX / 2, Canvas->ClipY * 0.92f, Small, 1.3f * Ui, FLinearColor(1, 1, 1, 0.8f * A), 0.5f);
 	if (atg::Finite(M->timerSeconds)) {
 		const int32 Sec = FMath::Max(0, (int32)M->timerSeconds);

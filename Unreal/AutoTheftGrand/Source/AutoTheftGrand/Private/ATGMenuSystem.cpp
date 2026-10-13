@@ -1636,6 +1636,7 @@ TSharedRef<SWidget> SATGPauseMenu::CreateSettingsTab() {
 	auto OnOff = [](bool b) { return b ? FString(TEXT("ON")) : FString(TEXT("OFF")); };
 	TArray<FATGMenuRowDef> Defs;
 	Defs.Add(FATGMenuRowDef(FString(TEXT("Graphics quality")), FString(TEXT("Quality")), Cap(G->settings.quality)));
+	Defs.Add(FATGMenuRowDef(FString(TEXT("HUD style")), FString(TEXT("HUDStyle")), G->settings.hudStyle == "classic" ? FString(TEXT("Classic (round radar)")) : FString(TEXT("Modern (minimap, bars underneath)"))));
 	Defs.Add(FATGMenuRowDef(FString(TEXT("Master volume")), FString(TEXT("Volume:0")), FString::Printf(TEXT("%d%%"), FMath::RoundToInt(G->settings.volume * 100))));
 	Defs.Add(FATGMenuRowDef(FString(TEXT("Radio volume")), FString(TEXT("Volume:1")), FString::Printf(TEXT("%d%%"), FMath::RoundToInt(G->settings.music * 100))));
 	Defs.Add(FATGMenuRowDef(FString(TEXT("Mouse sensitivity")), FString(TEXT("Sensitivity")), FString::Printf(TEXT("%.2f"), G->settings.sensitivity)));
@@ -1822,7 +1823,7 @@ FString SATGPauseMenu::SelectionValue() const {
 bool SATGPauseMenu::IsSetting(const FString& Action) {
 	return Action == TEXT("Quality") || Action == TEXT("Volume:0") || Action == TEXT("Volume:1")
 		|| Action == TEXT("Sensitivity") || Action == TEXT("InvertY") || Action == TEXT("Crime") || Action == TEXT("TimeScale")
-		|| Action == TEXT("Reflections") || Action == TEXT("AO") || Action == TEXT("ShowFPS");
+		|| Action == TEXT("Reflections") || Action == TEXT("AO") || Action == TEXT("ShowFPS") || Action == TEXT("HUDStyle");
 }
 
 void SATGPauseMenu::OnControllerAdjust(int32 Direction) {
@@ -1869,6 +1870,9 @@ FReply SATGPauseMenu::ApplySetting(FString Action, int32 Direction) {
 		if (GI) GI->SetAOEnabled(!GI->IsAOEnabled());
 	} else if (Action == TEXT("ShowFPS")) {
 		if (GI) GI->SetShowFPS(!GI->IsShowFPS());
+	} else if (Action == TEXT("HUDStyle")) {
+		G->settings.hudStyle = G->settings.hudStyle == "classic" ? "modern" : "classic";
+		if (GI) GI->SetHUDStyle(FName(UTF8_TO_TCHAR(G->settings.hudStyle.c_str())));
 	} else if (Action == TEXT("TimeScale")) {
 		// (the browser's list: 1 min / sec (default), 2 min / sec, Slow (0.5), Freeze time)
 		static const double Choices[] = { 0, 0.5, 1, 2 };

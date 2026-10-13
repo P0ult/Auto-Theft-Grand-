@@ -41,6 +41,19 @@ wait 0.2
 ATG.MenuCheck quality high
 ATG.Menu Nav 0 1
 wait 0.2
+ATG.MenuCheck selected "HUD style"
+ATG.Input Gamepad_DPad_Right 1
+wait 0.1
+ATG.Input Gamepad_DPad_Right 0
+wait 0.2
+ATG.MenuCheck hud classic
+ATG.Input Gamepad_DPad_Left 1
+wait 0.1
+ATG.Input Gamepad_DPad_Left 0
+wait 0.2
+ATG.MenuCheck hud modern
+ATG.Menu Nav 0 1
+wait 0.2
 ATG.MenuCheck selected "Master volume"
 ATG.Menu Nav -1 0
 wait 0.2
