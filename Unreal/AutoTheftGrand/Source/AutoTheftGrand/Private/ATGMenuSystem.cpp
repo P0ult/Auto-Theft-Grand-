@@ -1614,18 +1614,27 @@ TSharedRef<SWidget> SATGPauseMenu::CreateOnlineTab() {
 TSharedRef<SWidget> SATGPauseMenu::CreateBriefTab() {
 	atg::Game* G = GetSimulation();
 	TSharedRef<SVerticalBox> Out = SNew(SVerticalBox);
+	// hud.js _tab_brief: `.brief h3` (the HUD font, 26 px, gold), the objective or the hint, then the story so far as
+	// a numbered list (`.story-log li`: #ddd, 4 px apart)
+	auto H3 = [&](const FString& T) {
+		Out->AddSlot().AutoHeight().Padding(0.f, 6.f)[SNew(STextBlock).Text(FText::FromString(T.ToUpper())).Font(HudFont(26, 1)).ColorAndOpacity(FSlateColor(Gold))];
+	};
 	if (G && G->missions) {
 		const std::string Title = G->missions->active ? G->missions->active->def.title : std::string();
-		AddHeader(Out, Title.empty() ? LOCTEXT("NoMission", "No active mission")
-				: FText::FromString(FString::Printf(TEXT("Current mission: %s"), UTF8_TO_TCHAR(Title.c_str()))),
-			Title.empty() ? LOCTEXT("BriefHint", "Look for the yellow letter blips on the radar to start the next story mission.") : FText::GetEmpty());
-		AddHeader(Out, LOCTEXT("StorySoFar", "Story so far"), FText::GetEmpty());
+		H3(Title.empty() ? FString(TEXT("No active mission")) : FString::Printf(TEXT("Current mission: %s"), UTF8_TO_TCHAR(Title.c_str())));
+		const std::string Obj = G->hudModel ? G->hudModel->objectiveText : std::string();
+		const FString Para = !Obj.empty() ? FString(UTF8_TO_TCHAR(Obj.c_str()))
+			: Title.empty() ? FString(TEXT("Look for the <b style=\"color:#ffd23f\">yellow letter blips</b> on your radar to start the next story mission.")) : FString();
+		if (!Para.IsEmpty()) Out->AddSlot().AutoHeight().Padding(0.f, 4.f, 0.f, 10.f)[HtmlLine(Para, BodyText, 16.f, false)];
+		H3(TEXT("Story so far"));
 		TArray<FString> Log;
 		for (auto I = G->missions->log.rbegin(); I != G->missions->log.rend() && Log.Num() < 14; ++I) Log.Add(FString(UTF8_TO_TCHAR(I->c_str())));
 		Algo::Reverse(Log);
-		for (const FString& Line : Log)
-			Out->AddSlot().AutoHeight().Padding(0.f, 3.f)[
-				SNew(STextBlock).Text(FText::FromString(TEXT("• ") + Line)).Font(TextFont(15)).ColorAndOpacity(FSlateColor(BodyText)).AutoWrapText(true)];
+		for (int32 I = 0; I < Log.Num(); I++)
+			Out->AddSlot().AutoHeight().Padding(0.f, 4.f)[
+				SNew(SHorizontalBox)
+				+ SHorizontalBox::Slot().AutoWidth().Padding(18.f, 0.f, 8.f, 0.f)[SNew(STextBlock).Text(FText::FromString(FString::Printf(TEXT("%d."), I + 1))).Font(TextFont(16)).ColorAndOpacity(FSlateColor(BodyText))]
+				+ SHorizontalBox::Slot().FillWidth(1.f)[HtmlLine(Log[I], BodyText, 16.f, false)]];
 	}
 	return Out;
 }
@@ -1641,8 +1650,10 @@ TSharedRef<SWidget> SATGPauseMenu::CreateStatsTab() {
 	for (int32 I = 0; I < (int32)S.maxWanted; I++) Stars += TEXT("\u2605");
 	TArray<TPair<FString, FString>> Table;
 	Table.Add({ "Story progress", FString::Printf(TEXT("%d%% (%d/%d missions)"), Total ? (int32)FMath::RoundToInt(100.0 * Done / Total) : 0, Done, Total) });
-	Table.Add({ "Cash", FString::Printf(TEXT("$%.0f"), G->player->money) });
-	Table.Add({ "Time played", FString::Printf(TEXT("%d min"), (int32)(S.playTime / 60)) });
+	// (utils.js formatMoney: eight digits; hud.js fmtTime: hours and minutes)
+	const double Money = G->player->money;
+	Table.Add({ "Cash", FString::Printf(TEXT("%s$%08lld"), Money < 0 ? TEXT("-") : TEXT(""), (long long)FMath::Max(0.0, FMath::Floor(FMath::Abs(Money)))) });
+	Table.Add({ "Time played", FString::Printf(TEXT("%dh %dm"), (int32)FMath::Floor(S.playTime / 3600), (int32)FMath::Floor(FMath::Fmod(S.playTime, 3600.0) / 60)) });
 	Table.Add({ "People killed", FString::Printf(TEXT("%.0f"), S.kills) });
 	Table.Add({ "Cops killed", FString::Printf(TEXT("%.0f"), S.copKills) });
 	Table.Add({ "Headshots", FString::Printf(TEXT("%.0f"), S.headshots) });
