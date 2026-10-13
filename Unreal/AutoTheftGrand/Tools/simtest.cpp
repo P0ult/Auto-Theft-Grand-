@@ -1099,6 +1099,27 @@ static void TestNpcSync(World& w) {
 	gb->net->disconnect(true);
 }
 
+// ---- the light on smoke and decals (environment.js + sky.js's scattering model, effects.js lightColor), against
+// the browser's numbers for the same hours with the same weather
+static void TestSkyLight(World& w) {
+	printf("skylight\n");
+	auto g = w.game(true);
+	Effects* fx = dynamic_cast<Effects*>(g->effects);
+	struct Ref { double h, l[3]; };
+	const Ref refs[] = { { 7, { 0.9125, 1.1232, 1.4000 } }, { 12, { 0.8083, 1.0711, 1.4000 } }, { 18.2, { 0.7325, 0.7785, 0.8690 } },
+		{ 19, { 0.1222, 0.1333, 0.1800 } }, { 23, { 0.2159, 0.2624, 0.4492 } } };
+	double worst = 0;
+	for (const Ref& r : refs) {
+		Environment& e = g->env;
+		e.cloudCover = e.targetCloud = 0.35; e.rain = e.targetRain = 0; e.lightning = 0; e.weatherLocked = true;
+		e.setTime(r.h); e.update(0); fx->update(0);
+		const V3 l = fx->lightColor;
+		printf("  %.1f h: amb %.4f %.4f %.4f sun x %.4f light %.4f %.4f %.4f (browser %.4f %.4f %.4f)\n", r.h, e.ambientColor.x, e.ambientColor.y, e.ambientColor.z, e.sunIntensity, l.x, l.y, l.z, r.l[0], r.l[1], r.l[2]);
+		worst = std::max({ worst, std::fabs(l.x - r.l[0]), std::fabs(l.y - r.l[1]), std::fabs(l.z - r.l[2]) });
+	}
+	Check(worst < 0.002, "smoke and decals are lit by the browser's sky colours");
+}
+
 static void TestJobs(World& w) {
 	printf("jobs\n");
 	auto g = w.game(true);
@@ -2299,6 +2320,7 @@ int main(int argc, char** argv) {
 	if (want("waypoint")) TestWaypoint(w);
 	if (want("net")) TestNet(w);
 	if (want("npcsync")) TestNpcSync(w);
+	if (want("skylight")) TestSkyLight(w);
 	if (want("wildlife")) TestWildlife(w);
 	if (want("pets")) TestPets(w);
 	if (want("missions")) TestMissions(w);

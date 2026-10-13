@@ -85,8 +85,10 @@ void AATGEffects::Sync(atg::Game* G) {
 	UMaterialInterface* MAdd = ATGMaterials::Get(EATGMat::FxAdd);
 	// billboard axes from the camera (game axes)
 	const atg::V3 Right = G->rig.camQuat.rotate(atg::V3(1, 0, 0)), Up = G->rig.camQuat.rotate(atg::V3(0, 1, 0));
-	// the smoke and decal light (effects.js lightColor: ambient plus some sun; a grey stand-in for the sky colours)
-	const float Light = (float)FMath::Clamp(0.18 + 1.1 * G->env.dayF * (1 - 0.4 * G->env.cloudCover), 0.12, 1.4);
+	// the smoke and decal light (effects.js lightColor: the sky's ambient colour and some sun), folded into the
+	// vertex colour so the shader's light term stays 1
+	const atg::V3 Lc = Fx->lightColor;
+	auto Lit = [](const float C[3], const atg::V3& L, float Add, float Out[3]) { Out[0] = C[0] * (float)(L.x + Add); Out[1] = C[1] * (float)(L.y + Add); Out[2] = C[2] * (float)(L.z + Add); };
 	auto Pool = [&](const atg::ParticlePool& P, int32 Section, UMaterialInterface* Mat, float Kind, float L) {
 		FQuads Q;
 		for (const atg::Particle& p : P.parts) {
@@ -94,21 +96,25 @@ void AATGEffects::Sync(atg::Game* G) {
 			const double S = p.size * 0.5, C = std::cos(p.rot), Sn = std::sin(p.rot);
 			// (the plane's corners turned by the particle's rotation in the view plane)
 			auto Corner = [&](double X, double Y) { const double Rx = X * C - Y * Sn, Ry = X * Sn + Y * C; return atg::V3(p.x, p.y, p.z) + Right * (Rx * S * 2) + Up * (Ry * S * 2); };
-			Q.Quad(Corner(-0.5, -0.5), Corner(0.5, -0.5), Corner(0.5, 0.5), Corner(-0.5, 0.5), p.col, p.col, p.a, Kind, L);
+			float Col[3];
+			if (L >= 0) Lit(p.col, Lc, L, Col); else { Col[0] = p.col[0]; Col[1] = p.col[1]; Col[2] = p.col[2]; }
+			Q.Quad(Corner(-0.5, -0.5), Corner(0.5, -0.5), Corner(0.5, 0.5), Corner(-0.5, 0.5), Col, Col, p.a, Kind, 1);
 		}
 		Q.Flush(Mesh, Section, Mat);
 	};
-	Pool(Fx->alphaPool, 0, MAlpha, 0, Light + 0.03f);
-	Pool(Fx->addPool, 1, MAdd, 1, 1);
-	Pool(Fx->dotAlpha, 2, MAlpha, 1, Light + 0.05f);
+	Pool(Fx->alphaPool, 0, MAlpha, 0, 0.03f);
+	Pool(Fx->addPool, 1, MAdd, 1, -1); // (additive: unlit)
+	Pool(Fx->dotAlpha, 2, MAlpha, 1, 0.05f);
 	// decals: flat squares on their surfaces
 	{
 		FQuads Q;
-		static const float White[3] = { 1, 1, 1 };
+		static const float One[3] = { 1, 1, 1 };
+		float White[3];
+		Lit(One, Lc, 0, White);
 		for (const atg::Effects::Decal& D : Fx->decals) {
 			if (!D.live || D.alpha <= 0) continue;
 			const atg::V3 Ax = D.q.rotate(atg::V3(1, 0, 0)) * (D.size * 0.5), Ay = D.q.rotate(atg::V3(0, 1, 0)) * (D.size * 0.5);
-			Q.Quad(D.pos - Ax - Ay, D.pos + Ax - Ay, D.pos + Ax + Ay, D.pos - Ax + Ay, White, White, (float)D.alpha, 3.f + D.tile, Light);
+			Q.Quad(D.pos - Ax - Ay, D.pos + Ax - Ay, D.pos + Ax + Ay, D.pos - Ax + Ay, White, White, (float)D.alpha, 3.f + D.tile, 1);
 		}
 		Q.Flush(Mesh, 3, MAlpha);
 	}
@@ -124,7 +130,10 @@ void AATGEffects::Sync(atg::Game* G) {
 	// at the noise's average cover (a half)
 	{
 		FQuads Q;
-		const float White[3] = { 0.95f, 0.95f, 0.95f };
+		// (wake.update: uLight = lightColor + 0.1; the foam is 0.95 of it)
+		static const float Foam[3] = { 0.95f, 0.95f, 0.95f };
+		float White[3];
+		Lit(Foam, Lc, 0.1f, White);
 		auto Smooth = [](double E0, double E1, double X) { const double T = FMath::Clamp((X - E0) / (E1 - E0), 0.0, 1.0); return T * T * (3 - 2 * T); };
 		for (const atg::Effects::Wake& K : Fx->wakes) {
 			const double A = K.strength * FMath::Clamp(1 - (Fx->wakeTime - K.born) / 9.0, 0.0, 1.0);
@@ -134,7 +143,7 @@ void AATGEffects::Sync(atg::Game* G) {
 				const double Profile = Smooth(1, 0.55, Side) * (0.45 + 0.55 * Smooth(0.2, 0.9, Side));
 				const float Alpha = (float)(A * Profile * 0.5 * 0.5);
 				if (Alpha <= 0.003f) continue;
-				Q.Quad(K.a0.lerp(K.a1, S0), K.a0.lerp(K.a1, S1), K.b0.lerp(K.b1, S1), K.b0.lerp(K.b1, S0), White, White, Alpha, 2, Light + 0.1f);
+				Q.Quad(K.a0.lerp(K.a1, S0), K.a0.lerp(K.a1, S1), K.b0.lerp(K.b1, S1), K.b0.lerp(K.b1, S0), White, White, Alpha, 2, 1);
 			}
 		}
 		Q.Flush(Mesh, 6, MAlpha);

@@ -18,6 +18,10 @@ public:
 	std::string weather = "clear";
 	double cloudCover = 0.35, rain = 0, targetRain = 0, targetCloud = 0.35, fogBoost = 0, fogTarget = 0, weatherTimer = 240, lightning = 0;
 	double uTime = 0;       // the shaders' clock (the traffic lights run on it)
+	// the light (environment.js): the sky's colour straight up (ambientColor), the sun's or the moon's colour and
+	// strength; from sky.js's scattering model, run on the CPU as the browser does
+	V3 ambientColor, sunColor;
+	double sunIntensity = 0;
 	double wet = 0;          // how soaked the ground is (lags the rain)
 	bool weatherLocked = false;
 
@@ -26,5 +30,10 @@ public:
 	void setWeather(const std::string& w, bool instant = false);
 	void update(double dt);
 };
+
+// sky.js Sky.sample / sunTransmittance: the sky's colour in a direction (linear, before exposure; the browser's
+// uniforms: rayleigh 1.6, mie 0.006, g 0.82, exposure 0.55) and the colour of sunlight reaching the ground
+V3 SkySample(const V3& dir, const V3& sunDir, double turbidity);
+V3 SunTransmittance(const V3& sunDir, double turbidity);
 
 } // namespace atg

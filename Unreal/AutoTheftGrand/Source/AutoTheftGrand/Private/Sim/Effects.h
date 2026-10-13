@@ -100,6 +100,7 @@ public:
 	void tireSmokeColor(const V3& pos, double amount, double color);
 	void addDecal(const V3& pos, const V3& normal, double size, int tile, double life = 120, double grow = 0, double targetSize = -1, double alpha = 1);
 	void update(double dt) override;
+	V3 lightColor = V3(1, 1, 1); // (effects.js: the light on smoke and decals: the ambient sky and some sun)
 };
 
 } // namespace atg

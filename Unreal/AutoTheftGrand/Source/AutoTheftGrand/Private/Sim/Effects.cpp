@@ -417,6 +417,11 @@ void Effects::wakeAdd(int key, double x, double y, double z, double w, double st
 
 void Effects::update(double dt) {
 	realNow += game.input.frameDt;
+	// light colour for smoke / decals = sun + ambient approximation
+	const Environment& env = game.env;
+	lightColor = env.ambientColor * 1.6 + env.sunColor * (env.sunIntensity * 0.22);
+	const double maxc = std::max({ lightColor.x, lightColor.y, lightColor.z });
+	if (maxc > 1.4) lightColor = lightColor * (1.4 / maxc);
 	wakeTime += dt;
 	alphaPool.update(dt);
 	addPool.update(dt);
