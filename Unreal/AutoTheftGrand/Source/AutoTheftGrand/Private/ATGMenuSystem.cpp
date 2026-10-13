@@ -13,6 +13,8 @@
 #include "ATGSaveSystem.h"
 #include "Game/ATGFonts.h"
 #include "Game/ATGMapView.h"
+#include "Game/ATGNetText.h"
+#include "Game/ATGNetTransport.h"
 #include "Sim/Hud.h"
 #include "HAL/IConsoleManager.h"
 #include "AutoTheftGrand.h"
@@ -23,6 +25,7 @@
 #include "Sim/FreeRoam.h"
 #include "Sim/Game.h"
 #include "Sim/Missions.h"
+#include "Sim/Net.h"
 #include "Sim/Peds.h"
 #include "Sim/Pickups.h"
 #include "Sim/Police.h"
@@ -47,6 +50,7 @@
 #include "Fonts/FontMeasure.h"
 #include "Rendering/SlateRenderer.h"
 #include "Widgets/Images/SImage.h"
+#include "Widgets/Input/SEditableTextBox.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/Layout/SConstraintCanvas.h"
@@ -193,7 +197,7 @@ void SATGMenuRow::Construct(const FArguments& A) {
 	bList = A._List;
 	RowPadding = A._Padding;
 	// (CSS pixels: .title-menu button 32, .tab clamp(19px, 1.8vw, 24px), .tp-btn 14, .btn 15)
-	FontSize = bTitle ? 32.f : bTab ? FMath::Clamp((float)ViewportSize().X * 0.018f, 19.f, 24.f) : bList ? 14.f : 15.f;
+	FontSize = A._FontPx > 0.f ? A._FontPx : bTitle ? 32.f : bTab ? FMath::Clamp((float)ViewportSize().X * 0.018f, 19.f, 24.f) : bList ? 14.f : 15.f;
 	if (RowPadding == FMargin(0.f)) RowPadding = bTab ? FMargin(FMath::Clamp((float)ViewportSize().X * 0.011f, 8.f, 16.f), 8.f) : bTitle ? FMargin(18.f, 6.f) : bList ? FMargin(10.f, 7.f) : FMargin(18.f, 10.f);
 
 	TSharedRef<SButton> B = SAssignNew(InnerButton, SButton)
@@ -442,6 +446,16 @@ bool FATGMenuSystem::SetMapWaypoint(float Fx, float Fy) {
 	return true;
 }
 
+bool FATGMenuSystem::PauseDo(const FString& Action) {
+	SATGPauseMenu* Pause = PauseWidget();
+	if (!Pause) return false;
+	Pause->DoAction(Action);
+	return true;
+}
+bool FATGMenuSystem::PauseType(const FString& Field, const FString& Text) {
+	SATGPauseMenu* Pause = PauseWidget();
+	return Pause && Pause->TypeInto(Field, Text);
+}
 bool FATGMenuSystem::IsMenuOpen() const { return MenuState != EATGMenuState::None; }
 FATGMenuSystem::EATGMenuState FATGMenuSystem::GetMenuState() const { return MenuState; }
 FName FATGMenuSystem::GetActivePauseTab() const { const SATGPauseMenu* Pause = PauseWidget(); return Pause ? Pause->ActiveTab : NAME_None; }
@@ -1137,10 +1151,374 @@ TSharedRef<SWidget> SATGPauseMenu::CreateAdminTab() {
 	return Out;
 }
 
+// ---------------------------------------------------------------- the Online tab (netui.js renderOnlineTab)
+// Your name and colour, joining the public world or a private room code, who's here (with Go to / Waypoint) and
+// the chat. The tab rebuilds when the connection, the players or the chat change; the text boxes keep their text.
+namespace {
+
+// `.online input`: #111, a 1 px #444 border with 3 px corners, white 15 px text, padding 7 x 9
+const FEditableTextBoxStyle& InputStyle(bool bCode) {
+	static const FSlateRoundedBoxBrush Normal(Srgb(0x11, 0x11, 0x11), 3.f, Srgb(0x44, 0x44, 0x44), 1.f);
+	static const FSlateRoundedBoxBrush Focused(Srgb(0x11, 0x11, 0x11), 3.f, Srgb(0x77, 0x77, 0x77), 1.f);
+	auto Make = [](bool bC) {
+		FEditableTextBoxStyle S = FCoreStyle::Get().GetWidgetStyle<FEditableTextBoxStyle>("NormalEditableTextBox");
+		S.SetBackgroundImageNormal(Normal).SetBackgroundImageHovered(Normal).SetBackgroundImageFocused(Focused).SetBackgroundImageReadOnly(Normal)
+			.SetPadding(FMargin(9.f, 7.f)).SetBackgroundColor(FSlateColor(FLinearColor::White))
+			.SetForegroundColor(FSlateColor(FLinearColor::White)).SetFocusedForegroundColor(FSlateColor(FLinearColor::White))
+			// (`.on-code`: the display font at 20 px, 3 px apart)
+			.SetFont(bC ? HudFont(20, 3) : TextFont(15));
+		return S;
+	};
+	static const FEditableTextBoxStyle Plain = Make(false), Code = Make(true);
+	return bCode ? Code : Plain;
+}
+
+// a round brush: the player dots (`.on-p > i`, 12 px with a black border) and the colour swatches
+const FSlateBrush* Round(const FLinearColor& C, float Radius, const FLinearColor& Edge, float EdgeW) {
+	static TMap<FString, TSharedPtr<FSlateRoundedBoxBrush>> Cache;
+	const FString Key = FString::Printf(TEXT("%08x %.1f %08x %.1f"), C.ToFColor(true).ToPackedARGB(), Radius, Edge.ToFColor(true).ToPackedARGB(), EdgeW);
+	if (TSharedPtr<FSlateRoundedBoxBrush>* Found = Cache.Find(Key)) return Found->Get();
+	return Cache.Add(Key, MakeShared<FSlateRoundedBoxBrush>(C, Radius, Edge, EdgeW)).Get();
+}
+
+// `.on-card`: white at 4 %, 4 px corners, padding 12 x 14
+const FSlateBrush* CardBrush() {
+	static const FSlateRoundedBoxBrush B(FLinearColor(1.f, 1.f, 1.f, 0.04f), 4.f);
+	return &B;
+}
+// black at some opacity with rounded corners (`.on-p`, `.on-log`)
+const FSlateBrush* Shade(float A, float R) {
+	static TMap<FString, TSharedPtr<FSlateRoundedBoxBrush>> Cache;
+	const FString Key = FString::Printf(TEXT("%.2f %.1f"), A, R);
+	if (TSharedPtr<FSlateRoundedBoxBrush>* Found = Cache.Find(Key)) return Found->Get();
+	return Cache.Add(Key, MakeShared<FSlateRoundedBoxBrush>(FLinearColor(0.f, 0.f, 0.f, A), R)).Get();
+}
+
+FLinearColor PlayerColor(uint32 Hex) { return Srgb((Hex >> 16) & 255, (Hex >> 8) & 255, Hex & 255); }
+
+FSlateFontInfo RunFont(const FATGNetRun& R, float Px) { return R.bHud ? HudFont(Px * 1.1f, 1) : ATGFonts::Get(EATGFont::Text, Px, R.bBold, R.bItalic); }
+
+// a line of html (netui.js's innerHTML) as text: word by word, so the runs flow and wrap like inline html
+TSharedRef<SWidget> HtmlLine(const FString& Html, const FLinearColor& Base, float Px, bool bItalic) {
+	TSharedRef<SWrapBox> Box = SNew(SWrapBox).UseAllottedSize(true);
+	for (const FATGNetRun& R : ATGNetRuns(Html, Base, bItalic)) {
+		const FSlateFontInfo F = RunFont(R, Px);
+		// (each word keeps the space after it; a run's leading space stays with the run)
+		int32 I = 0;
+		while (I < R.S.Len()) {
+			int32 E = I;
+			while (E < R.S.Len() && R.S[E] == TEXT(' ')) E++;
+			while (E < R.S.Len() && R.S[E] != TEXT(' ')) E++;
+			while (E < R.S.Len() && R.S[E] == TEXT(' ')) E++;
+			Box->AddSlot().Padding(R.bHud ? FMargin(4.f, 0.f) : FMargin(0.f))[SNew(STextBlock).Text(FText::FromString(R.S.Mid(I, E - I))).Font(F).ColorAndOpacity(FSlateColor(R.Col))];
+			I = E;
+		}
+	}
+	return Box;
+}
+
+// a short line of html on one row (the status line)
+TSharedRef<SWidget> HtmlRow(const FString& Html, const FLinearColor& Base, float Px) {
+	TSharedRef<SHorizontalBox> Box = SNew(SHorizontalBox);
+	for (const FATGNetRun& R : ATGNetRuns(Html, Base, false))
+		Box->AddSlot().AutoWidth().VAlign(VAlign_Center)[SNew(STextBlock).Text(FText::FromString(R.S)).Font(RunFont(R, Px)).ColorAndOpacity(FSlateColor(R.Col))];
+	return Box;
+}
+
+FString RandomRoomCode() {
+	static const TCHAR* A = TEXT("abcdefghjkmnpqrstuvwxyz23456789");
+	const int32 N = FCString::Strlen(A);
+	FString S;
+	for (int32 I = 0; I < 5; I++) S.AppendChar(A[FMath::RandRange(0, N - 1)]);
+	return S;
+}
+
+// netui.js: letters, digits, space, _ . - only, trimmed, at most 16
+FString CleanName(const FString& In) {
+	FString S;
+	for (const TCHAR C : In) if (FChar::IsAlpha(C) || FChar::IsDigit(C) || C == TEXT(' ') || C == TEXT('_') || C == TEXT('.') || C == TEXT('-')) S.AppendChar(C);
+	return S.TrimStartAndEnd().Left(16);
+}
+
+FString Std(const std::string& S) { return FString(UTF8_TO_TCHAR(S.c_str())); }
+FString EscHtml(const FString& S) { return S.Replace(TEXT("&"), TEXT("&amp;")).Replace(TEXT("<"), TEXT("&lt;")).Replace(TEXT(">"), TEXT("&gt;")); }
+
+} // namespace
+
+TSharedPtr<bool> SATGPauseMenu::RegisterNav(TSharedRef<SButton> Button, const FString& Action, const FString& Label) {
+	TSharedPtr<bool> Flag = MakeShared<bool>(false);
+	ContentNavigationButtons.Add(Button);
+	ContentNavigationActions.Add(FOnClicked::CreateSP(this, &SATGPauseMenu::OnActionButtonClicked, Action));
+	ContentNavigationLabels.Add(Label);
+	ContentNavigationIds.Add(Action);
+	ContentNavigationHighlight.Add(Flag);
+	TWeakPtr<SButton> Weak = Button;
+	Button->SetOnHovered(FSimpleDelegate::CreateLambda([this, Weak]() { if (Weak.IsValid()) FocusRow(Weak.Pin()); }));
+	return Flag;
+}
+
+TSharedRef<SWidget> SATGPauseMenu::MakeTextBox(TSharedPtr<SEditableTextBox>& Out, FString& Value, const FText& Hint, int32 MaxLen, bool bCode, const FString& EnterAction) {
+	FString* V = &Value;
+	return SAssignNew(Out, SEditableTextBox)
+		.Style(&InputStyle(bCode))
+		.Text(FText::FromString(Value))
+		.HintText(Hint)
+		.MaximumLength(MaxLen)
+		.SelectAllTextWhenFocused(false)
+		.RevertTextOnEscape(false)
+		.ClearKeyboardFocusOnCommit(false)
+		.OnTextChanged_Lambda([this, V, bCode](const FText& T) {
+			*V = T.ToString();
+			// (`.on-code` shows the code in capitals)
+			if (bCode && !V->Equals(V->ToUpper(), ESearchCase::CaseSensitive)) { *V = V->ToUpper(); if (NetCodeBox.IsValid()) NetCodeBox->SetText(FText::FromString(*V)); }
+		})
+		.OnTextCommitted_Lambda([this, V, EnterAction](const FText& T, ETextCommit::Type How) {
+			*V = T.ToString();
+			if (How == ETextCommit::OnEnter && !EnterAction.IsEmpty()) OnActionButtonClicked(EnterAction);
+			else if (EnterAction == TEXT("NetName")) NetApplyName(); // (name.onblur)
+		});
+}
+
+void SATGPauseMenu::NetApplyName() {
+	atg::Game* G = GetSimulation();
+	if (!G || !G->net) return;
+	const FString V = CleanName(NetNameText);
+	if (!V.IsEmpty()) {
+		G->net->name = TCHAR_TO_UTF8(*V);
+		if (UATGGameInstance* GI = PlayerController ? Cast<UATGGameInstance>(PlayerController->GetGameInstance()) : nullptr)
+			GI->SetNetSettings(V, G->net->color, G->net->pvp);
+	}
+	NetNameText = Std(G->net->name);
+	if (NetNameBox.IsValid() && NetNameBox->GetText().ToString() != NetNameText) NetNameBox->SetText(FText::FromString(NetNameText));
+}
+
+bool SATGPauseMenu::TypeInto(const FString& Field, const FString& Text) {
+	TSharedPtr<SEditableTextBox> Box = Field == TEXT("name") ? NetNameBox : Field == TEXT("code") ? NetCodeBox : Field == TEXT("say") ? NetSayBox : nullptr;
+	if (!Box.IsValid()) return false;
+	Box->SetText(FText::FromString(Text));
+	(Field == TEXT("name") ? NetNameText : Field == TEXT("code") ? NetCodeText : NetSayText) = Field == TEXT("code") ? Text.ToUpper() : Text;
+	return true;
+}
+
+void SATGPauseMenu::NetGo(const FString& Code) {
+	atg::Game* G = GetSimulation();
+	if (!G || !G->net) return;
+	NetApplyName();
+	G->net->connect(std::make_unique<FATGWsTransport>(FATGWsTransport::DefaultUrl()), TCHAR_TO_UTF8(*Code));
+	RefreshOnline();
+}
+
+// what the tab shows, in short: the tab rebuilds when this changes (net.onChange / net.onChat)
+FString SATGPauseMenu::OnlineSignature() const {
+	atg::Game* G = GetSimulation();
+	if (!G || !G->net) return FString();
+	const atg::NetSystem& N = *G->net;
+	FString S = FString::Printf(TEXT("%s|%d|%s|%s|%d|%d|%d|"), *Std(N.status), N.linkUp, *Std(N.error), *Std(N.code), (int32)N.chat.size(),
+		N.chat.empty() ? 0 : (int32)N.chat.back().t, G->freeroamActive());
+	for (const auto& KV : N.peers) {
+		const atg::NetSystem::Peer& P = *KV.second;
+		S += FString::Printf(TEXT("%s:%s:%d:%d:%d;"), *Std(KV.first), *Std(P.name), atg::JTruthy(P.st.get("d")), atg::JTruthy(P.st.get("pz")), atg::JTruthy(P.st.get("pvp")));
+	}
+	return S;
+}
+
+void SATGPauseMenu::RefreshOnline() {
+	if (ActiveTab != FName(TEXT("Online"))) return;
+	// (the box being typed in keeps the keyboard)
+	int32 Focus = -1;
+	const TSharedPtr<SEditableTextBox> Boxes[] = { NetNameBox, NetCodeBox, NetSayBox };
+	for (int32 I = 0; I < 3; I++) if (Boxes[I].IsValid() && Boxes[I]->HasKeyboardFocus()) Focus = I;
+	RefreshTab();
+	const TSharedPtr<SEditableTextBox> Now[] = { NetNameBox, NetCodeBox, NetSayBox };
+	if (Focus >= 0 && Now[Focus].IsValid() && FSlateApplication::IsInitialized()) {
+		FSlateApplication::Get().SetKeyboardFocus(Now[Focus], EFocusCause::SetDirectly);
+		Now[Focus]->GoTo(ETextLocation::EndOfDocument);
+	}
+}
+
+void SATGPauseMenu::Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime) {
+	SCompoundWidget::Tick(AllottedGeometry, InCurrentTime, InDeltaTime);
+	if (ActiveTab != FName(TEXT("Online")) || (NetCheckT -= InDeltaTime) > 0.f) return;
+	NetCheckT = 0.2f;
+	if (OnlineSignature() != NetSignature) RefreshOnline();
+}
+
 TSharedRef<SWidget> SATGPauseMenu::CreateOnlineTab() {
+	atg::Game* G = GetSimulation();
 	TSharedRef<SVerticalBox> Out = SNew(SVerticalBox);
-	AddHeader(Out, LOCTEXT("OnlineTitle", "Online"), FText::GetEmpty());
-	AddMuted(Out, LOCTEXT("OnlineText", "Multiplayer is not in the Unreal port yet. This tab will hold the room code, the player list and the chat."));
+	NetNameBox.Reset(); NetCodeBox.Reset(); NetSayBox.Reset();
+	if (!G || !G->net) {
+		AddMuted(Out, LOCTEXT("NoNet", "Multiplayer starts with the game: pick Free Roam or Multiplayer on the title screen."));
+		return Out;
+	}
+	atg::NetSystem& N = *G->net;
+	NetSignature = OnlineSignature();
+	if (!bNetTextInit) { bNetTextInit = true; NetNameText = Std(N.name); NetCodeText = Std(N.code).ToUpper(); }
+	const bool bOn = N.online();
+	const FString Host = FATGWsTransport::DefaultUrl().Replace(TEXT("wss://"), TEXT("")).Replace(TEXT("ws://"), TEXT("")).Replace(TEXT("/mp"), TEXT(""));
+
+	// ---- the status line: a dot, where you are, and how
+	{
+		const FString Where = N.code.empty() ? FString(TEXT("the <b>public world</b>")) : FString::Printf(TEXT("room <b>%s</b>"), *EscHtml(Std(N.code).ToUpper()));
+		const FString St = N.status == "connecting" ? FString(TEXT("Connecting…"))
+			: bOn ? FString::Printf(TEXT("Online — %s%s"), *Where, N.linkUp ? TEXT("") : TEXT(" (reconnecting…)"))
+			: N.status == "error" ? FString(TEXT("Couldn't connect")) : FString(TEXT("Offline"));
+		const FLinearColor DotC = bOn && N.linkUp ? Srgb(0x3d, 0xdc, 0x84) : N.status == "connecting" ? Srgb(0xe0, 0xa0, 0x30) : Srgb(0x77, 0x77, 0x77);
+		TSharedRef<SVerticalBox> Box = SNew(SVerticalBox);
+		Box->AddSlot().AutoHeight()[
+			SNew(SHorizontalBox)
+			+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(0.f, 0.f, 7.f, 0.f)[SNew(SBox).WidthOverride(9.f).HeightOverride(9.f)[SNew(SImage).Image(Round(DotC, 4.5f, DotC, 0.f))]]
+			+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)[HtmlRow(St, Srgb(0xee, 0xee, 0xee), 16.f)]
+			+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(10.f, 0.f, 0.f, 0.f)[
+				SNew(STextBlock).Text(FText::FromString(TEXT("via local server"))).Font(TextFont(13)).ColorAndOpacity(FSlateColor(Muted))]];
+		if (N.status == "error" && !N.error.empty())
+			Box->AddSlot().AutoHeight().Padding(0.f, 4.f, 0.f, 0.f)[SNew(STextBlock).Text(FText::FromString(Std(N.error))).Font(TextFont(13)).ColorAndOpacity(FSlateColor(Srgb(0xff, 0x8a, 0x8a))).AutoWrapText(true)];
+		Out->AddSlot().AutoHeight().Padding(0.f, 0.f, 0.f, 12.f)[Box];
+	}
+
+	auto Card = [](const FText& Title, TSharedRef<SVerticalBox> Body) -> TSharedRef<SWidget> {
+		Body->InsertSlot(0).AutoHeight().Padding(0.f, 0.f, 0.f, 8.f)[SNew(STextBlock).Text(Title).Font(HudFont(24, 1)).ColorAndOpacity(FSlateColor(Gold))];
+		return SNew(SBorder).BorderImage(CardBrush()).Padding(FMargin(14.f, 12.f))[Body];
+	};
+	auto Btn = [this](const FText& Label, const FString& Action, bool bPrimary, bool bEnabled, bool bSmall) -> TSharedRef<SWidget> {
+		TSharedPtr<bool> Flag = MakeShared<bool>(false);
+		TSharedRef<SATGMenuRow> Row = SNew(SATGMenuRow).Label(Label).Primary(bPrimary).FontPx(bSmall ? 12.f : 0.f)
+			.Padding(bSmall ? FMargin(10.f, 4.f) : FMargin(18.f, 10.f))
+			.Highlight(Flag)
+			.OnClicked(FOnClicked::CreateSP(this, &SATGPauseMenu::OnActionButtonClicked, Action));
+		Row->Button()->SetEnabled(bEnabled);
+		RegisterNav(Row->Button().ToSharedRef(), Action, Label.ToString());
+		ContentNavigationHighlight.Last() = Flag;
+		Rows.Add(Row);
+		return Row;
+	};
+
+	// ---- you
+	TSharedRef<SVerticalBox> Me = SNew(SVerticalBox);
+	Me->AddSlot().AutoHeight().Padding(0.f, 0.f, 0.f, 8.f)[
+		SNew(SHorizontalBox)
+		+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)[SNew(SBox).WidthOverride(58.f)[SNew(STextBlock).Text(LOCTEXT("OnName", "Name")).Font(TextFont(15)).ColorAndOpacity(FSlateColor(Srgb(0xaa, 0xaa, 0xaa)))]]
+		+ SHorizontalBox::Slot().FillWidth(1.f)[MakeTextBox(NetNameBox, NetNameText, FText::GetEmpty(), 16, false, TEXT("NetName"))]];
+	{
+		TSharedRef<SHorizontalBox> Sw = SNew(SHorizontalBox);
+		for (int32 I = 0; I < 8; I++) {
+			const FLinearColor C = PlayerColor(atg::PLAYER_COLORS[I]);
+			const bool bSel = I == N.color;
+			const FString Action = FString::Printf(TEXT("NetColor:%d"), I);
+			TSharedRef<SButton> B = SNew(SButton).ButtonStyle(&FlatButton()).ContentPadding(FMargin(0.f)).IsFocusable(false).ClickMethod(EButtonClickMethod::MouseDown)
+				.ButtonColorAndOpacity(FLinearColor(0.f, 0.f, 0.f, 0.f))
+				.OnClicked(FOnClicked::CreateSP(this, &SATGPauseMenu::OnActionButtonClicked, Action));
+			const TSharedPtr<bool> Flag = RegisterNav(B, Action, FString::Printf(TEXT("Colour %d"), I + 1));
+			// (`.on-swatches button`: 26 px, a 2 px dark border; the chosen one has a white ring 2 px out)
+			B->SetContent(SNew(SBox).WidthOverride(34.f).HeightOverride(34.f)[
+				SNew(SOverlay)
+				+ SOverlay::Slot()[SNew(SImage)
+					.Image_Lambda([Flag, bSel]() { return bSel ? Round(FLinearColor(0.f, 0.f, 0.f, 0.f), 17.f, FLinearColor::White, 2.f)
+						: Flag.IsValid() && *Flag ? Round(FLinearColor(0.f, 0.f, 0.f, 0.f), 17.f, Gold, 2.f) : Round(FLinearColor(0.f, 0.f, 0.f, 0.f), 17.f, FLinearColor(0.f, 0.f, 0.f, 0.f), 0.f); })]
+				+ SOverlay::Slot().Padding(4.f)[SNew(SImage).Image(Round(C, 13.f, FLinearColor(0.f, 0.f, 0.f, 0.6f), 2.f))]]);
+			Sw->AddSlot().AutoWidth().Padding(0.f, 0.f, 2.f, 0.f)[B];
+		}
+		Me->AddSlot().AutoHeight().Padding(0.f, 0.f, 0.f, 8.f)[Sw];
+	}
+	{
+		TSharedPtr<SATGMenuRow> Pvp = MakeRow(LOCTEXT("OnPvp", "Player damage — others can hurt you (and you them)"), TEXT("NetPvp"), false, N.pvp ? LOCTEXT("On", "ON") : LOCTEXT("Off", "OFF"), true);
+		Rows.Add(Pvp);
+		Me->AddSlot().AutoHeight()[Pvp.ToSharedRef()];
+	}
+
+	// ---- join
+	TSharedRef<SVerticalBox> Join = SNew(SVerticalBox);
+	const bool bAvail = N.status != "connecting";
+	Join->AddSlot().AutoHeight().Padding(0.f, 0.f, 0.f, 8.f)[Btn(LOCTEXT("OnPublic", "Join the public world"), TEXT("NetPublic"), true, bAvail, false)];
+	Join->AddSlot().AutoHeight().Padding(0.f, 0.f, 0.f, 8.f)[
+		SNew(SHorizontalBox)
+		+ SHorizontalBox::Slot().FillWidth(1.f).MaxWidth(170.f).VAlign(VAlign_Center).Padding(0.f, 0.f, 8.f, 0.f)[MakeTextBox(NetCodeBox, NetCodeText, LOCTEXT("OnCodeHint", "ROOM CODE"), 12, true, TEXT("NetJoin"))]
+		+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(0.f, 0.f, 8.f, 0.f)[Btn(LOCTEXT("OnJoinRoom", "Join room"), TEXT("NetJoin"), false, bAvail, false)]
+		+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)[Btn(LOCTEXT("OnNewRoom", "New room"), TEXT("NetNew"), false, bAvail, false)]];
+	if (bOn) Join->AddSlot().AutoHeight().HAlign(HAlign_Left).Padding(0.f, 0.f, 0.f, 8.f)[Btn(LOCTEXT("OnLeave", "Leave multiplayer"), TEXT("NetLeave"), false, true, false)];
+	{
+		// (the browser's text for its local server; this port always plays through one)
+		const FString Help = bOn
+			? FString::Printf(TEXT("You're connected to the local game server. Friends on your network can open <b>%s</b> in their browser and join the same room code."), *EscHtml(Host))
+			: FString::Printf(TEXT("Multiplayer goes through the game's own server: run <b>node server.mjs</b> in the game's folder, then join. Friends on your network can open <b>%s</b> in their browser and join the same room code. For a private session, press <b>New room</b> and share the code."), *EscHtml(Host));
+		Join->AddSlot().AutoHeight()[HtmlLine(Help, Muted, 13.f, false)];
+	}
+
+	// ---- players
+	const std::vector<atg::NetSystem::RosterRow> Roster = N.roster();
+	TSharedRef<SVerticalBox> List = SNew(SVerticalBox);
+	auto PlayerLine = [](TSharedRef<SHorizontalBox> Line) -> TSharedRef<SWidget> {
+		return SNew(SBorder).BorderImage(Shade(0.25f, 3.f)).Padding(FMargin(8.f, 6.f))[Line];
+	};
+	auto DotOf = [](uint32 Hex) -> TSharedRef<SWidget> { return SNew(SBox).WidthOverride(12.f).HeightOverride(12.f)[SNew(SImage).Image(Round(PlayerColor(Hex), 6.f, FLinearColor::Black, 1.f))]; };
+	if (bOn) {
+		List->AddSlot().AutoHeight().Padding(0.f, 0.f, 0.f, 4.f)[PlayerLine(
+			SNew(SHorizontalBox)
+			+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(0.f, 0.f, 8.f, 0.f)[DotOf(atg::PLAYER_COLORS[N.color])]
+			+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)[SNew(STextBlock).Text(FText::FromString(Std(N.name))).Font(TextFont(15, true)).ColorAndOpacity(FSlateColor(RowText))]
+			+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(6.f, 0.f, 0.f, 0.f)[SNew(STextBlock).Text(LOCTEXT("OnYou", "(you)")).Font(TextFont(15)).ColorAndOpacity(FSlateColor(Muted))])];
+	}
+	const bool bFree = G->freeroamActive();
+	for (const atg::NetSystem::RosterRow& P : Roster) {
+		TArray<FString> Tags;
+		if (!P.vehicle.empty()) Tags.Add(Std(P.vehicle));
+		if (P.dead) Tags.Add(TEXT("wasted"));
+		if (P.paused) Tags.Add(TEXT("paused"));
+		if (!P.pvp) Tags.Add(TEXT("passive"));
+		if (P.story) Tags.Add(TEXT("story mode"));
+		if (P.guest) Tags.Add(TEXT("guest"));
+		const FString Dist = P.dist < 1000 ? FString::Printf(TEXT("%d m"), (int32)FMath::RoundHalfFromZero(P.dist)) : FString::Printf(TEXT("%.1f km"), P.dist / 1000);
+		const FString Where = Std(P.where) + TEXT(" · ") + Dist + (Tags.Num() ? TEXT(" · ") + FString::Join(Tags, TEXT(" · ")) : FString());
+		const FString Id = Std(P.id);
+		List->AddSlot().AutoHeight().Padding(0.f, 0.f, 0.f, 4.f)[PlayerLine(
+			SNew(SHorizontalBox)
+			+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(0.f, 0.f, 8.f, 0.f)[DotOf(P.col)]
+			+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(0.f, 0.f, 8.f, 0.f)[SNew(STextBlock).Text(FText::FromString(Std(P.name))).Font(TextFont(15, true)).ColorAndOpacity(FSlateColor(RowText))]
+			+ SHorizontalBox::Slot().FillWidth(1.f).VAlign(VAlign_Center).Padding(0.f, 0.f, 8.f, 0.f)[SNew(STextBlock).Text(FText::FromString(Where)).Font(TextFont(12)).ColorAndOpacity(FSlateColor(Srgb(0xaa, 0xaa, 0xaa))).AutoWrapText(true)]
+			+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(0.f, 0.f, 6.f, 0.f)[Btn(LOCTEXT("OnGoTo", "Go to"), TEXT("NetGoto:") + Id, false, bFree, true)]
+			+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)[Btn(NetWaypointSet.Contains(Id) ? LOCTEXT("OnWpSet", "Set ✓") : LOCTEXT("OnWp", "Waypoint"), TEXT("NetWp:") + Id, false, true, true)])];
+	}
+	if (bOn && Roster.empty()) List->AddSlot().AutoHeight()[Muted_(LOCTEXT("OnNobody", "Nobody else here yet — share the room code, or wait for someone to join the public world."))];
+	if (!bOn) List->AddSlot().AutoHeight()[Muted_(LOCTEXT("OnJoinFirst", "Join a world to see who's playing."))];
+	TSharedRef<SVerticalBox> People = SNew(SVerticalBox);
+	People->AddSlot().AutoHeight()[SNew(SBox).MaxDesiredHeight(240.f)[SNew(SScrollBox) + SScrollBox::Slot()[List]]];
+
+	// ---- chat
+	TSharedRef<SVerticalBox> Chat = SNew(SVerticalBox);
+	{
+		TSharedRef<SVerticalBox> Log = SNew(SVerticalBox);
+		const int32 From = FMath::Max(0, (int32)N.chat.size() - 40);
+		for (int32 I = From; I < (int32)N.chat.size(); I++) {
+			const atg::NetSystem::ChatLine& L = N.chat[I];
+			Log->AddSlot().AutoHeight().Padding(0.f, 0.f, 0.f, 3.f)[HtmlLine(ATGNetLineHtml(L.sys, L.name, L.text, L.col), L.sys ? Srgb(0xaa, 0xaa, 0xaa) : RowText, 14.f, L.sys)];
+		}
+		if (N.chat.empty()) Log->AddSlot().AutoHeight()[HtmlLine(TEXT("No messages yet."), Srgb(0xaa, 0xaa, 0xaa), 14.f, true)];
+		TSharedRef<SScrollBox> Scroll = SNew(SScrollBox) + SScrollBox::Slot()[Log];
+		Scroll->ScrollToEnd();
+		Chat->AddSlot().AutoHeight().Padding(0.f, 0.f, 0.f, 8.f)[
+			SNew(SBorder).BorderImage(Shade(0.3f, 3.f)).Padding(FMargin(8.f, 6.f))[SNew(SBox).HeightOverride(158.f)[Scroll]]];
+		Chat->AddSlot().AutoHeight()[
+			SNew(SHorizontalBox)
+			+ SHorizontalBox::Slot().FillWidth(1.f).VAlign(VAlign_Center).Padding(0.f, 0.f, 8.f, 0.f)[MakeTextBox(NetSayBox, NetSayText, LOCTEXT("OnSayHint", "Say something… (in game: press / )"), 140, false, TEXT("NetSend"))]
+			+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)[Btn(LOCTEXT("OnSend", "Send"), TEXT("NetSend"), false, true, false)]];
+	}
+
+	// `.on-grid`: repeat(auto-fit, minmax(300px, 1fr)) with 14 px gaps, inside the panel's padding
+	const float Avail = FMath::Min(1180.f, (float)ViewportSize().X * 0.96f) - 44.f - 14.f;
+	const int32 Cols = FMath::Clamp((int32)((Avail + 14.f) / 314.f), 1, 4);
+	TArray<TSharedRef<SWidget>> Cards;
+	Cards.Add(Card(LOCTEXT("OnYouH", "You"), Me));
+	Cards.Add(Card(LOCTEXT("OnJoinH", "Join a world"), Join));
+	Cards.Add(Card(bOn ? FText::FromString(FString::Printf(TEXT("Players (%d)"), (int32)Roster.size() + 1)) : LOCTEXT("OnPlayersH", "Players"), People));
+	Cards.Add(Card(LOCTEXT("OnChatH", "Chat"), Chat));
+	TSharedRef<SVerticalBox> Grid = SNew(SVerticalBox);
+	for (int32 I = 0; I < Cards.Num(); I += Cols) {
+		TSharedRef<SHorizontalBox> Line = SNew(SHorizontalBox);
+		for (int32 C = 0; C < Cols; C++)
+			Line->AddSlot().FillWidth(1.f).Padding(C ? 14.f : 0.f, 0.f, 0.f, 0.f)[I + C < Cards.Num() ? Cards[I + C] : SNullWidget::NullWidget];
+		Grid->AddSlot().AutoHeight().Padding(0.f, I ? 14.f : 0.f, 0.f, 0.f)[Line];
+	}
+	Out->AddSlot().AutoHeight()[Grid];
 	return Out;
 }
 
@@ -1461,6 +1839,51 @@ FReply SATGPauseMenu::OnActionButtonClicked(FString Action) {
 	if (!G) return FReply::Handled();
 	if (IsSetting(Action)) return ApplySetting(Action, 1);
 
+	// the Online tab
+	if (Action.StartsWith(TEXT("Net")) && G->net) {
+		atg::NetSystem& N = *G->net;
+		UATGGameInstance* GI = PlayerController ? Cast<UATGGameInstance>(PlayerController->GetGameInstance()) : nullptr;
+		if (Action == TEXT("NetName")) NetApplyName();
+		else if (Action == TEXT("NetPublic")) NetGo(FString());
+		else if (Action == TEXT("NetJoin")) {
+			const FString C = NetCodeText.TrimStartAndEnd();
+			if (!C.IsEmpty()) NetGo(C);
+			else if (NetCodeBox.IsValid() && FSlateApplication::IsInitialized()) FSlateApplication::Get().SetKeyboardFocus(NetCodeBox, EFocusCause::SetDirectly);
+		}
+		else if (Action == TEXT("NetNew")) { const FString C = RandomRoomCode(); NetCodeText = C.ToUpper(); NetGo(C); }
+		else if (Action == TEXT("NetLeave")) { N.disconnect(); RefreshOnline(); }
+		else if (Action.StartsWith(TEXT("NetColor:"))) {
+			N.color = FMath::Clamp(FCString::Atoi(*Action.RightChop(9)), 0, 7);
+			if (GI) GI->SetNetSettings(Std(N.name), N.color, N.pvp);
+			RefreshOnline();
+		}
+		else if (Action == TEXT("NetPvp")) {
+			N.pvp = !N.pvp;
+			if (GI) GI->SetNetSettings(Std(N.name), N.color, N.pvp);
+			RefreshOnline();
+		}
+		else if (Action == TEXT("NetSend")) {
+			if (!NetSayText.TrimStartAndEnd().IsEmpty()) { N.say(TCHAR_TO_UTF8(*NetSayText)); NetSayText.Reset(); if (NetSayBox.IsValid()) NetSayBox->SetText(FText::GetEmpty()); }
+			RefreshOnline();
+		}
+		else if (Action.StartsWith(TEXT("NetGoto:")) || Action.StartsWith(TEXT("NetWp:"))) {
+			const bool bGo = Action.StartsWith(TEXT("NetGoto:"));
+			const std::string Id = TCHAR_TO_UTF8(*Action.RightChop(bGo ? 8 : 6));
+			for (const atg::NetSystem::RosterRow& R : N.roster()) {
+				if (R.id != Id && Id != "*") continue; // (* = the nearest: test scripts)
+				if (bGo && G->freeroam && G->freeroamActive()) {
+					// (hud.closeOverlay, then freeroam.teleport next to them, on foot)
+					atg::FreeDestination D; D.name = R.name; D.x = R.x + 4; D.z = R.z + 4; D.foot = true;
+					if (OnAction.IsBound()) OnAction.Execute(TEXT("Resume"));
+					G->freeroam->teleport(D);
+					return FReply::Handled();
+				}
+				if (!bGo && G->hud) { G->hud->setWaypoint(R.x, R.z); NetWaypointSet.Add(Std(R.id)); RefreshOnline(); }
+				break;
+			}
+		}
+		return FReply::Handled();
+	}
 	if (Action == TEXT("SpawnInto")) { bSpawnInto = !bSpawnInto; RefreshTab(); }
 	else if (Action == TEXT("SpawnAir")) { bSpawnAir = !bSpawnAir; RefreshTab(); }
 	else if (Action.StartsWith(TEXT("Paint:"))) { SpawnColor = FCString::Atoi64(*Action.RightChop(6)); RefreshTab(); }
@@ -1514,6 +1937,8 @@ void UATGMenuSystem::CyclePauseTab(int32 D) { if (MenuSystemImpl.IsValid()) Menu
 void UATGMenuSystem::AdjustSelection(int32 D) { if (MenuSystemImpl.IsValid()) MenuSystemImpl->AdjustSelection(D); }
 FString UATGMenuSystem::SelectionLabel() const { return MenuSystemImpl.IsValid() ? MenuSystemImpl->SelectionLabel() : FString(); }
 bool UATGMenuSystem::SetMapWaypoint(float Fx, float Fy) { return MenuSystemImpl.IsValid() && MenuSystemImpl->SetMapWaypoint(Fx, Fy); }
+bool UATGMenuSystem::PauseDo(const FString& A) { return MenuSystemImpl.IsValid() && MenuSystemImpl->PauseDo(A); }
+bool UATGMenuSystem::PauseType(const FString& F, const FString& T) { return MenuSystemImpl.IsValid() && MenuSystemImpl->PauseType(F, T); }
 FString UATGMenuSystem::SelectionValue() const { return MenuSystemImpl.IsValid() ? MenuSystemImpl->SelectionValue() : FString(); }
 FATGMenuSystem::EATGMenuState UATGMenuSystem::GetMenuState() const { return MenuSystemImpl.IsValid() ? MenuSystemImpl->GetMenuState() : FATGMenuSystem::EATGMenuState::None; }
 bool UATGMenuSystem::IsMenuOpen() const { return MenuSystemImpl.IsValid() && MenuSystemImpl->IsMenuOpen(); }

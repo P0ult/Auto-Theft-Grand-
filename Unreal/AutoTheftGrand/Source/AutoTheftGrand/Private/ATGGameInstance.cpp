@@ -5,6 +5,8 @@
 #include "Game/ATGWorld.h"
 #include "GameFramework/GameModeBase.h"
 #include "Kismet/GameplayStatics.h"
+#include "Misc/CommandLine.h"
+#include "Misc/Parse.h"
 #include "Misc/Paths.h"
 #include "Sim/Audio.h"
 #include "Sim/Peds.h"
@@ -48,11 +50,20 @@ void UATGGameInstance::InitializeSaveSystem(atg::Game* Game, const FString& Save
 }
 
 bool UATGGameInstance::IsFreeRoamActive() const { return bFreeRoamActive; }
+// save.js saveSettings: the settings outlive the session (Saved/Config/<platform>/Game.ini). Test scripts change
+// settings freely, so a scripted run (-ATGScript=) leaves the file alone.
+void UATGGameInstance::Persist() {
+	FString Script;
+	if (FParse::Value(FCommandLine::Get(), TEXT("ATGScript="), Script) && !Script.IsEmpty()) return;
+	SaveConfig();
+}
+
 void UATGGameInstance::SetFreeRoamActive(bool bActive) { bFreeRoamActive = bActive; }
 
 void UATGGameInstance::ApplyQuality(FName Quality)
 {
 	QualitySetting = Quality;
+	Persist();
 	if (AATGGameMode* GM = GetWorld() ? Cast<AATGGameMode>(UGameplayStatics::GetGameMode(GetWorld())) : nullptr)
 		if (AATGWorld* World = AATGWorld::Get(GM)) if (atg::Game* G = World->Game()) {
 			G->settings.quality = TCHAR_TO_UTF8(*Quality.ToString());
@@ -62,43 +73,52 @@ void UATGGameInstance::ApplyQuality(FName Quality)
 		}
 }
 
-void UATGGameInstance::SetHUDStyle(FName Style) { HUDStyle = Style; }
+void UATGGameInstance::SetHUDStyle(FName Style) { HUDStyle = Style; Persist(); }
 void UATGGameInstance::SetVolume(float Volume)
 {
 	MasterVolume = FMath::Clamp(Volume, 0.f, 1.f);
+	Persist();
 	if (AATGGameMode* GM = GetWorld() ? Cast<AATGGameMode>(UGameplayStatics::GetGameMode(GetWorld())) : nullptr)
 		if (AATGWorld* World = AATGWorld::Get(GM)) if (atg::Game* G = World->Game()) { G->settings.volume = MasterVolume; if (G->audioSys) G->audioSys->setVolume(MasterVolume); }
 }
 void UATGGameInstance::SetMusicVolume(float Volume)
 {
 	MusicVolume = FMath::Clamp(Volume, 0.f, 1.f);
+	Persist();
 	if (AATGGameMode* GM = GetWorld() ? Cast<AATGGameMode>(UGameplayStatics::GetGameMode(GetWorld())) : nullptr)
 		if (AATGWorld* World = AATGWorld::Get(GM)) if (atg::Game* G = World->Game()) { G->settings.music = MusicVolume; if (G->audioSys) G->audioSys->setMusic(MusicVolume); }
 }
 void UATGGameInstance::SetSensitivity(float Sensitivity)
 {
 	MouseSensitivity = FMath::Clamp(Sensitivity, .2f, 3.f);
+	Persist();
 	if (AATGGameMode* GM = GetWorld() ? Cast<AATGGameMode>(UGameplayStatics::GetGameMode(GetWorld())) : nullptr)
 		if (AATGWorld* World = AATGWorld::Get(GM)) if (atg::Game* G = World->Game()) { G->settings.sensitivity = MouseSensitivity; G->input.sensitivity = MouseSensitivity; }
 }
 void UATGGameInstance::SetInvertY(bool bInvert)
 {
 	bInvertMouseY = bInvert;
+	Persist();
 	if (AATGGameMode* GM = GetWorld() ? Cast<AATGGameMode>(UGameplayStatics::GetGameMode(GetWorld())) : nullptr)
 		if (AATGWorld* World = AATGWorld::Get(GM)) if (atg::Game* G = World->Game()) { G->settings.invertY = bInvert; G->input.invertY = bInvert; }
 }
-void UATGGameInstance::SetReflectionsEnabled(bool bEnabled) { bReflectionsEnabled = bEnabled; ApplyRenderToggles(); }
-void UATGGameInstance::SetAOEnabled(bool bEnabled) { bAOEnabled = bEnabled; ApplyRenderToggles(); }
+void UATGGameInstance::SetReflectionsEnabled(bool bEnabled) { bReflectionsEnabled = bEnabled; ApplyRenderToggles(); Persist(); }
+void UATGGameInstance::SetAOEnabled(bool bEnabled) { bAOEnabled = bEnabled; ApplyRenderToggles(); Persist(); }
 void UATGGameInstance::ApplyRenderToggles() const {
 	auto Set = [](const TCHAR* Name, int32 V) { if (IConsoleVariable* C = IConsoleManager::Get().FindConsoleVariable(Name)) C->Set(V, ECVF_SetByGameSetting); };
 	Set(TEXT("r.Lumen.Reflections.Allow"), bReflectionsEnabled ? 1 : 0);
 	Set(TEXT("r.AmbientOcclusionLevels"), bAOEnabled ? -1 : 0);
 	Set(TEXT("r.Lumen.ScreenProbeGather.ShortRangeAO"), bAOEnabled ? 1 : 0);
 }
-void UATGGameInstance::SetShowFPS(bool bShow) { bShowFPS = bShow; }
+void UATGGameInstance::SetShowFPS(bool bShow) { bShowFPS = bShow; Persist(); }
+void UATGGameInstance::SetNetSettings(const FString& Name, int32 Color, bool bPvp) {
+	NetName = Name; NetColor = Color; bNetPvp = bPvp;
+	Persist();
+}
 void UATGGameInstance::SetNPCrimeLevel(FName Level)
 {
 	NPCrimeLevel = Level;
+	Persist();
 	if (AATGGameMode* GM = GetWorld() ? Cast<AATGGameMode>(UGameplayStatics::GetGameMode(GetWorld())) : nullptr)
 		if (AATGWorld* World = AATGWorld::Get(GM)) if (atg::Game* G = World->Game()) G->settings.npcCrime = TCHAR_TO_UTF8(*Level.ToString());
 }

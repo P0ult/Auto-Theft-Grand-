@@ -13,6 +13,8 @@
 #include "Sim/Peds.h"
 #include "Sim/Heists.h"
 #include "Sim/Hud.h"
+#include "Sim/Net.h"
+#include "Game/ATGNetTransport.h"
 #include "Sim/Player.h"
 #include "Sim/NpcCrime.h"
 #include "Sim/Police.h"
@@ -35,6 +37,7 @@
 
 #include "Engine/Engine.h"
 #include "Engine/World.h"
+#include "Framework/Application/SlateApplication.h"
 #include "HAL/IConsoleManager.h"
 #include "Misc/CommandLine.h"
 #include "Misc/FileHelper.h"
@@ -343,6 +346,18 @@ ATG_CMD(CmdJob, "ATG.Job", "ATG.Job race N | garage N | property N | vigilante |
 	else if (What == TEXT("taxi") && G->taxi) G->taxi->hailCab();
 	UE_LOG(LogATG, Display, TEXT("ATG job %s %d: at (%.1f, %.1f), menu '%s'"), *What, N, P.pos.x, P.pos.z, G->hudModel ? UTF8_TO_TCHAR(G->hudModel->menu.title.c_str()) : TEXT(""));
 })
+ATG_CMD(CmdNet, "ATG.Net", "ATG.Net join [code] | leave | say text... | state: multiplayer through server.mjs's relay (-ATGServer=url)", {
+	atg::Game* G = Sim(W);
+	if (!G || !G->net) return;
+	atg::NetSystem& N = *G->net;
+	const FString A = Args.Num() ? Args[0] : FString(TEXT("state"));
+	if (A == TEXT("join")) N.connect(std::make_unique<FATGWsTransport>(FATGWsTransport::DefaultUrl()), Args.Num() > 1 ? TCHAR_TO_UTF8(*Args[1]) : "");
+	else if (A == TEXT("leave")) N.disconnect();
+	else if (A == TEXT("say")) { FString T; for (int32 I = 1; I < Args.Num(); I++) T += (I > 1 ? TEXT(" ") : TEXT("")) + Args[I]; N.say(TCHAR_TO_UTF8(*T)); }
+	UE_LOG(LogATG, Display, TEXT("ATG net: %s%s, me %s '%s', %d peers"), UTF8_TO_TCHAR(N.status.c_str()), N.error.empty() ? TEXT("") : *(TEXT(" (") + FString(UTF8_TO_TCHAR(N.error.c_str())) + TEXT(")")), UTF8_TO_TCHAR(N.selfId().c_str()), UTF8_TO_TCHAR(N.name.c_str()), (int32)N.peers.size());
+	for (const auto& R : N.roster()) UE_LOG(LogATG, Display, TEXT("ATG net peer: %s '%s' at (%.1f, %.1f), %.0f m, hp %.0f%s"), UTF8_TO_TCHAR(R.id.c_str()), UTF8_TO_TCHAR(R.name.c_str()), R.x, R.z, R.dist, R.hp, R.vehicle.empty() ? TEXT("") : *(TEXT(", in ") + FString(UTF8_TO_TCHAR(R.vehicle.c_str()))));
+	for (const auto& L : N.chat) UE_LOG(LogATG, Display, TEXT("ATG net chat: %s%s"), L.sys ? TEXT("") : *(FString(UTF8_TO_TCHAR(L.name.c_str())) + TEXT(": ")), UTF8_TO_TCHAR(L.text.c_str()));
+})
 ATG_CMD(CmdState, "ATG.State", "ATG.State: log the player's position, vehicle, speed and the journey (free roam, cash, weapons)", {
 	atg::Game* G = Sim(W);
 	if (!G) { UE_LOG(LogATG, Display, TEXT("ATG state: no game")); return; }
@@ -356,7 +371,7 @@ ATG_CMD(CmdState, "ATG.State", "ATG.State: log the player's position, vehicle, s
 })
 // The menus as a script sees them: the title screen's buttons and the pause menu, driven through the real
 // handlers (the same ones the mouse and the pad use).
-ATG_CMD(CmdMenuAction, "ATG.Menu", "ATG.Menu NewGame|Continue|FreeRoam|Multiplayer|Settings|Controls | Pause|Resume|Save|Quit | Nav dx dy | Activate | Back | Tab n", {
+ATG_CMD(CmdMenuAction, "ATG.Menu", "ATG.Menu NewGame|Continue|FreeRoam|Multiplayer|Settings|Controls | Pause|Resume|Save|Quit | Nav dx dy | Activate | Back | Tab n | Page name | Do action | Type name|code|say text", {
 	AATGGameMode* GM = W ? Cast<AATGGameMode>(W->GetAuthGameMode()) : nullptr;
 	if (!GM || !Args.Num()) return;
 	const FString A = Args[0];
@@ -370,6 +385,12 @@ ATG_CMD(CmdMenuAction, "ATG.Menu", "ATG.Menu NewGame|Continue|FreeRoam|Multiplay
 	if (A == TEXT("Tab")) { GM->MenuCycleTab(Args.IsValidIndex(1) ? FCString::Atoi(*Args[1]) : 1); return; }
 	if (A == TEXT("Page") && Args.Num() > 1) { if (UATGMenuSystem* Menu = GM->GetMenuSystem()) Menu->SwitchPauseTab(FName(*Args[1])); return; }
 	if (A == TEXT("Pause")) { GM->ShowPauseMenu(); return; }
+	if (A == TEXT("Do") && Args.Num() > 1) { if (UATGMenuSystem* Menu = GM->GetMenuSystem()) Menu->PauseDo(Args[1]); return; }
+	if (A == TEXT("Type") && Args.Num() > 1) {
+		FString T; for (int32 I = 2; I < Args.Num(); I++) T += (I > 2 ? TEXT(" ") : TEXT("")) + Args[I];
+		if (UATGMenuSystem* Menu = GM->GetMenuSystem()) UE_LOG(LogATG, Display, TEXT("ATG menu type %s: %s"), *Args[1], Menu->PauseType(Args[1], T) ? TEXT("ok") : TEXT("no such box"));
+		return;
+	}
 	if (A == TEXT("Resume") || A == TEXT("Save") || A == TEXT("Quit")) { GM->OnPauseMenuAction(A); return; }
 	GM->OnMainMenuAction(A);
 })
@@ -388,6 +409,22 @@ ATG_CMD(CmdInput, "ATG.Input", "ATG.Input UnrealKeyName value: digital 1/0 or an
 	if (!Key.IsValid()) { UE_LOG(LogATG, Error, TEXT("ATG input: invalid key %s"), *Args[0]); return; }
 	const float Value = Arg(Args, 1);
 	PC->InputKey(FInputKeyEventArgs::CreateSimulated(Key, Key.IsAnalog() ? IE_Axis : Value != 0 ? IE_Pressed : IE_Released, Value));
+})
+// Typing, the way a keyboard reaches a text box: Slate's own key events go to whatever has the keyboard first
+ATG_CMD(CmdType, "ATG.Type", "ATG.Type text...: type the characters into whatever has the keyboard focus", {
+	if (!FSlateApplication::IsInitialized()) return;
+	FString T; for (int32 I = 0; I < Args.Num(); I++) T += (I ? TEXT(" ") : TEXT("")) + Args[I];
+	for (const TCHAR C : T) FSlateApplication::Get().ProcessKeyCharEvent(FCharacterEvent(C, FModifierKeysState(), 0, false));
+	const TSharedPtr<SWidget> F = FSlateApplication::Get().GetKeyboardFocusedWidget();
+	UE_LOG(LogATG, Display, TEXT("ATG type '%s' into %s (typing %d)"), *T, F.IsValid() ? *F->GetTypeAsString() : TEXT("nothing"), AATGPlayerController::IsTyping());
+})
+ATG_CMD(CmdSlateKey, "ATG.SlateKey", "ATG.SlateKey KeyName: press and release a key through Slate (the focused widget, then the game)", {
+	if (!FSlateApplication::IsInitialized() || !Args.Num()) return;
+	const FKey K(*Args[0]);
+	if (!K.IsValid()) { UE_LOG(LogATG, Error, TEXT("ATG slate key: invalid key %s"), *Args[0]); return; }
+	const bool bDown = FSlateApplication::Get().ProcessKeyDownEvent(FKeyEvent(K, FModifierKeysState(), 0, false, 0, 0));
+	FSlateApplication::Get().ProcessKeyUpEvent(FKeyEvent(K, FModifierKeysState(), 0, false, 0, 0));
+	UE_LOG(LogATG, Display, TEXT("ATG slate key %s: %s"), *Args[0], bDown ? TEXT("handled") : TEXT("not handled"));
 })
 ATG_CMD(CmdMapWaypoint, "ATG.MapWaypoint", "ATG.MapWaypoint fx fy: right-click the open pause map at that fraction of its size (sets or clears a waypoint), then log it", {
 	AATGGameMode* GM = W ? Cast<AATGGameMode>(W->GetAuthGameMode()) : nullptr;

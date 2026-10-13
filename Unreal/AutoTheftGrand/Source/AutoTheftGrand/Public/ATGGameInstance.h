@@ -87,7 +87,14 @@ public:
 	bool GetInvertY() const { return bInvertMouseY; }
 	FString GetNPCrimeLevel() const { return NPCrimeLevel.ToString(); }
 
+	// multiplayer (net.js saveSettings: the nickname, the colour and the player damage switch)
+	FString GetNetName() const { return NetName; }
+	int32 GetNetColor() const { return NetColor; }
+	bool GetNetPvp() const { return bNetPvp; }
+	void SetNetSettings(const FString& Name, int32 Color, bool bPvp);
+
 protected:
+	void Persist();
 	UPROPERTY(Config, EditAnywhere, Category = "ATG Settings") FName QualitySetting = TEXT("high");
 	UPROPERTY(Config, EditAnywhere, Category = "ATG Settings", meta = (ClampMin = "0", ClampMax = "1")) float MasterVolume = 0.8f;
 	UPROPERTY(Config, EditAnywhere, Category = "ATG Settings", meta = (ClampMin = "0", ClampMax = "1")) float MusicVolume = 0.6f;
@@ -98,6 +105,9 @@ protected:
 	UPROPERTY(Config, EditAnywhere, Category = "ATG Settings") bool bReflectionsEnabled = true;
 	UPROPERTY(Config, EditAnywhere, Category = "ATG Settings") bool bAOEnabled = true;
 	UPROPERTY(Config, EditAnywhere, Category = "ATG Settings") bool bShowFPS = false;
+	UPROPERTY(Config, EditAnywhere, Category = "ATG Multiplayer") FString NetName;
+	UPROPERTY(Config, EditAnywhere, Category = "ATG Multiplayer") int32 NetColor = -1;
+	UPROPERTY(Config, EditAnywhere, Category = "ATG Multiplayer") bool bNetPvp = true;
 
 	UPROPERTY()
 	TObjectPtr<UATGSaveSystem> SaveSystem;

@@ -60,6 +60,7 @@ private:
 	// (-ATGMenu with a test script: keep the title screen and the menus, don't start a journey by itself)
 	bool bMenuTest = false;
 	FString PendingJourneyMode;
+	bool bOpenOnlineTab = false; // (the title's Multiplayer: free roam, then the pause menu on its Online tab)
 	UPROPERTY() TObjectPtr<class UATGMenuSystem> MenuSystem;
 	// (a session has run in the current simulation: a new game starts a fresh one, as the browser game does by
 	// reloading the page)

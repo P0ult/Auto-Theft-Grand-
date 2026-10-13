@@ -22,6 +22,7 @@
 #include "Sim/Game.h"
 #include "Sim/Audio.h"
 #include "Sim/Missions.h"
+#include "Sim/Net.h"
 #include "Sim/Setup.h"
 
 #include "Components/SpotLightComponent.h"
@@ -146,7 +147,9 @@ void AATGGameMode::OnMainMenuAction(const FString& Action)
 	}
 	else if (Action == "Multiplayer")
 	{
+		// main.js: go(false, true), then hud.openPause('online')
 		PendingJourneyMode = "free";
+		bOpenOnlineTab = true;
 		bInMenu = false;
 		MenuSystem->HideMainMenu();
 	}
@@ -166,6 +169,7 @@ void AATGGameMode::OnPauseMenuAction(const FString& Action)
 	if (Action == "NewGame" || Action == "Continue" || Action == "FreeRoam" || Action == "Multiplayer")
 	{
 		PendingJourneyMode = Action == "Continue" ? TEXT("continue") : Action == "FreeRoam" || Action == "Multiplayer" ? TEXT("free") : TEXT("story");
+		bOpenOnlineTab = Action == "Multiplayer";
 		if (PendingJourneyMode == TEXT("story"))
 			if (UATGGameInstance* GI = Cast<UATGGameInstance>(GetGameInstance())) GI->ClearSave();
 		bInMenu = false;
@@ -260,6 +264,13 @@ void AATGGameMode::StartGame(const FString& JourneyMode) {
 		G->settings.sensitivity = GI->GetSensitivity(); G->input.sensitivity = G->settings.sensitivity;
 		G->settings.invertY = GI->GetInvertY(); G->input.invertY = G->settings.invertY;
 		G->settings.npcCrime = TCHAR_TO_UTF8(*GI->GetNPCrimeLevel());
+		// (net.js: the nickname, colour and player damage switch from last time)
+		if (G->net) {
+			const FString NetName = GI->GetNetName();
+			if (!NetName.IsEmpty()) G->net->name = TCHAR_TO_UTF8(*NetName);
+			if (GI->GetNetColor() >= 0) G->net->color = GI->GetNetColor() % 8;
+			G->net->pvp = GI->GetNetPvp();
+		}
 	}
 	if (G->hud) G->hud->help("Welcome back to Los Soles.", 4);
 	// the sound
@@ -310,6 +321,8 @@ void AATGGameMode::Tick(float Dt) {
 		if (!PendingJourneyMode.IsEmpty()) {
 			StartGame(PendingJourneyMode);
 			PendingJourneyMode.Empty();
+			if (bOpenOnlineTab && MenuSystem) MenuSystem->ShowPauseMenu(TEXT("Online"));
+			bOpenOnlineTab = false;
 		}
 	}
 	if (!bManual) Frame(FMath::Min((double)Dt, 1.0 / 20));

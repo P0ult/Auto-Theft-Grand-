@@ -13,7 +13,7 @@ namespace {
 // find through a UFont)
 struct FATGFontStack {
 	UFont* Font = nullptr;
-	FString Regular, Bold, BoldItalic;
+	FString Regular, Bold, BoldItalic, Italic;
 	bool bResolved = false;
 };
 
@@ -44,6 +44,7 @@ FATGFontStack& Resolve(EATGFont Which) {
 		S.Regular = FindFont({ TEXT("Rubik-Regular.ttf"), TEXT("Rubik-VariableFont_wght.ttf"), TEXT("segoeui.ttf") });
 		S.Bold = FindFont({ TEXT("Rubik-SemiBold.ttf"), TEXT("Rubik-Bold.ttf"), TEXT("segoeuib.ttf") });
 		S.BoldItalic = FindFont({ TEXT("Rubik-SemiBoldItalic.ttf"), TEXT("Rubik-BoldItalic.ttf"), TEXT("segoeuiz.ttf") });
+		S.Italic = FindFont({ TEXT("Rubik-Italic.ttf"), TEXT("segoeuii.ttf") });
 		break;
 	}
 	if (!S.Regular.IsEmpty()) {
@@ -54,6 +55,7 @@ FATGFontStack& Resolve(EATGFont Which) {
 		C = FCompositeFont(FName("Regular"), S.Regular, EFontHinting::Default, EFontLoadingPolicy::LazyLoad);
 		if (!S.Bold.IsEmpty()) C.DefaultTypeface.AppendFont(FName("Bold"), S.Bold, EFontHinting::Default, EFontLoadingPolicy::LazyLoad);
 		if (!S.BoldItalic.IsEmpty()) C.DefaultTypeface.AppendFont(FName("BoldItalic"), S.BoldItalic, EFontHinting::Default, EFontLoadingPolicy::LazyLoad);
+		if (!S.Italic.IsEmpty()) C.DefaultTypeface.AppendFont(FName("Italic"), S.Italic, EFontHinting::Default, EFontLoadingPolicy::LazyLoad);
 		// symbols the display and text fonts lack (stars, ticks, arrows) come from Segoe UI Symbol, else Roboto
 		FString Sym = FindFont({ TEXT("seguisym.ttf") });
 		if (Sym.IsEmpty()) Sym = FPaths::EngineContentDir() / TEXT("Slate/Fonts/Roboto-Regular.ttf");
@@ -71,7 +73,8 @@ FSlateFontInfo ATGFonts::Get(EATGFont Which, float Px, bool bBold, bool bItalic)
 	const float Pt = FMath::Max(1.f, Px * 0.75f);
 	const FATGFontStack& S = Resolve(Which);
 	if (!S.Font) return FCoreStyle::GetDefaultFontStyle(bBold && bItalic ? "BoldItalic" : bBold || Which != EATGFont::Text ? "Bold" : "Regular", Pt);
-	const FName Face = bBold && bItalic && !S.BoldItalic.IsEmpty() ? FName("BoldItalic") : bBold && !S.Bold.IsEmpty() ? FName("Bold") : FName("Regular");
+	const FName Face = bBold && bItalic && !S.BoldItalic.IsEmpty() ? FName("BoldItalic") : bBold && !S.Bold.IsEmpty() ? FName("Bold")
+		: bItalic && !S.Italic.IsEmpty() ? FName("Italic") : FName("Regular");
 	return FSlateFontInfo(S.Font, Pt, Face);
 }
 

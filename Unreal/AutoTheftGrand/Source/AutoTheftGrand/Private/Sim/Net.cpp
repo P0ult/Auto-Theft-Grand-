@@ -238,7 +238,7 @@ void NetSystem::connect(std::unique_ptr<NetTransport> t, const std::string& c) {
 	const std::string clean = CleanCode(c);
 	raw->join(clean, [this, raw, clean](bool ok, const std::string& err) {
 		if (transport.get() != raw) return;
-		if (!ok) { status = "error"; error = err.empty() ? "Could not join that room." : err; transport.reset(); return; }
+		if (!ok) { status = "error"; error = err.empty() ? "Could not join that room." : err; retired = std::move(transport); return; }
 		code = clean;
 		status = "online";
 		linkUp = true;
@@ -515,6 +515,7 @@ void NetSystem::takeHit(Peer& P, double dmg, bool head, bool kd, const Json* imp
 // ---- frame
 void NetSystem::tick(double dt) {
 	nowMs += dt * 1000;
+	retired.reset();
 	if (!online()) return;
 	sendT -= dt;
 	const double rate = game.paused ? 3 : SEND_HZ;

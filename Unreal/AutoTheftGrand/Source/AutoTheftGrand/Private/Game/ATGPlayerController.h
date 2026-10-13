@@ -43,7 +43,17 @@ public:
 	void ScriptMouse(double Dx, double Dy) { ScriptDx += Dx; ScriptDy += Dy; }
 	double ScriptDx = 0, ScriptDy = 0;
 
+	// multiplayer chat (net.js openChat / closeChat): a one-line box over the feed; the game gets no input meanwhile
+	void OpenChat();
+	void CloseChat(bool bSend);
+	bool IsChatOpen() const { return bChatOpen; }
+	// a text box has the keyboard (the menus' keys stay out of the way while you type)
+	static bool IsTyping();
+
 private:
+	TSharedPtr<class SWidget> ChatWidget;
+	TSharedPtr<class SEditableText> ChatText;
+	bool bChatOpen = false;
 	UPROPERTY() TObjectPtr<UATGMenuSystem> MenuSystem;
 	bool bMainMenuNavigation = false;
 	int32 MenuLastX = 0, MenuLastY = 0, MenuLastTab = 0;

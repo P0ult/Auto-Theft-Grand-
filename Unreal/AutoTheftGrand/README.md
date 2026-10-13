@@ -52,7 +52,7 @@ their dogs. Bullets, melee, explosions and cars can kill animals. Pet Palace has
 and sells all nine pet breeds at the browser's prices. Your pet follows, sits when you stop and rides in a
 free passenger seat. Whistle with K (right-stick click on foot) to tell it to stay or come; aim at someone
 and whistle to send your dog after them. Dogs also defend you against attackers. Pet treats heal your pet,
-and the HUD shows its name and state. Save data and online pet replication come with those systems.
+and the HUD shows its name and state. Your pet is saved with the game and shown to other players online.
 The mission engine runs sequential scripts with dialogue, cutscenes, objectives, timers, counters, GPS
 routes, target arrows, failure conditions, rewards and contact progression. Chapter I is playable:
 Welcome Home, Old Friends, Clean Sweep, Tooling Up and Drive-By. Chapter II is playable too: Burning Rubber,
@@ -154,6 +154,7 @@ far:
 | M / D-pad ↓ | Map (the pause menu's Map tab) | V / View | Camera distance |
 | | | N / D-pad → | Next radio station |
 | Esc / P / Menu | Pause or resume (B resumes from any pause tab; A selects) | B / RS click | Look behind |
+| / | Chat (multiplayer: Enter sends, Esc cancels) | / | Chat |
 | | | X / B (hold) | Cinematic camera |
 
 | Planes & jets | | Helicopters | | Tank | |
@@ -187,9 +188,23 @@ The Map tab (also M) is the browser's map: drag to pan, the wheel zooms, right-c
 waypoint (again on the same spot clears it). The GPS routes to the waypoint, cabs take you there, and free
 roam's Teleport tab lists it. Save game says why it can't save in free roam or during a mission.
 
-Settings has the browser's rows: graphics quality, volumes, mouse sensitivity and invert, ray-traced
+Settings has the browser's rows (kept between runs in `Saved/Config/<platform>/Game.ini`): graphics quality, volumes, mouse sensitivity and invert, ray-traced
 reflections (Lumen reflections), ambient occlusion (screen-space and Lumen short-range AO), an FPS readout,
 street crime and the day/night speed. The browser's HUD style choice is missing (only the modern HUD exists).
+
+### Multiplayer
+
+The same as the browser game's, through the relay built into `server.mjs`: run `node server.mjs` in the
+repository's root (it listens on port 8080), then pick Multiplayer on the title screen. That starts free roam
+with the pause menu on its Online tab: your name, your colour and the player damage switch (kept between runs),
+Join the public world, Join room with a code or New room for a private one, Leave, the players here with Go to
+(free roam) and Waypoint, and the chat. In the game, / opens the chat box. The other players appear with their
+names and health over them, the cars they drive come along, shots, hits, explosions and kills reach everyone,
+and free roam follows the clock and weather of whoever has been in the room longest. A browser opening
+`http://localhost:8080` and joining the same room plays in the same world. Another server:
+`-ATGServer=ws://host:port/mp` on the command line. The admin tools and the phone's cheats are off while you're
+online, as in the browser. Shared pedestrians and traffic (npcsync.js) are not ported yet, so each player sees
+their own.
 
 The text uses the browser's font stacks: Bebas Neue, Anton, Permanent Marker and Rubik if their files are in
 `Content/Fonts/` (`BebasNeue-Regular.ttf`, `Anton-Regular.ttf`, `PermanentMarker-Regular.ttf`,
@@ -331,6 +346,12 @@ checks without interrupting the simulation.
 `Tools/tests/landmarks.txt` shows the pier, the Ferris wheel, the Vistawood sign and the cranes by day and by night.
 `Tools/tests/menu-tabs.txt` (with `-ATGMenu`) opens the map with M, sets a waypoint on it (`ATG.MapWaypoint`) and
 shoots every pause tab and the title screen.
+`Tools/tests/online.txt` (with `-ATGMenu`, while `node server.mjs` runs) picks Multiplayer, types a name and room
+code into the Online tab (`ATG.Menu Type`), joins, chats from the tab and from the in-game box (`ATG.Type`,
+`ATG.SlateKey Enter`) and leaves. `Tools/tests/online-cross.txt` does the same with a browser in the room
+(`node tools/browser-test/run.mjs "http://localhost:8080/index.html?manual&autostart=multi&room=atgtest" out/mp tools/browser-test/tests/mp-peer.mjs`):
+the Players list, a waypoint and Go to, and the browser player's name tag. `ATG.Net join [code] | leave | say`
+drives multiplayer directly.
 `Tools/tests/rain.txt` shows a street dry, in the rain and at night with the puddles reflecting the shop signs.
 `Tools/tests/jobs.txt` stops at a race flag (and runs the race), a Customs garage, a business for sale, a hailed
 cab and a vigilante call (`ATG.Job` puts the player there). `Tools/tests/story8.txt` exercises Pacific Star, Timber!, High Ground and Saints and Sinners. Native tests also check the rings'

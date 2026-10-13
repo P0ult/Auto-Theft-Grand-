@@ -9,6 +9,23 @@
 #include "ATGMenuSystem.h"
 #include "Sim/Traffic.h"
 #include "Sim/Peds.h"
+#include "Sim/Gameplay.h"
+#include "Sim/Net.h"
+#include "Game/ATGFonts.h"
+
+#include "Containers/Ticker.h"
+#include "Engine/GameViewportClient.h"
+#include "Engine/UserInterfaceSettings.h"
+#include "Framework/Application/SlateApplication.h"
+#include "Styling/CoreStyle.h"
+#include "Brushes/SlateRoundedBoxBrush.h"
+#include "Widgets/Images/SImage.h"
+#include "Widgets/Input/SEditableText.h"
+#include "Widgets/Layout/SBorder.h"
+#include "Widgets/Layout/SBox.h"
+#include "Widgets/Layout/SDPIScaler.h"
+#include "Widgets/SBoxPanel.h"
+#include "Widgets/Text/STextBlock.h"
 
 #include "Engine/World.h"
 #include "InputCoreTypes.h"
@@ -75,6 +92,12 @@ void AATGPlayerController::MenuSystemInput(float Dt)
 	if (!GM || !GM->IsMenuOpen()) { MenuLastX = MenuLastY = MenuLastTab = 0; bMenuPadActive = false; return; }
 	if (!MenuSystem) MenuSystem = GM->GetMenuSystem();
 	if (!MenuSystem) return;
+	// (typing in the Online tab: Esc gives the keyboard back to the menu, nothing else is a menu key)
+	if (IsTyping()) {
+		if (WasInputKeyJustPressed(EKeys::Escape) && FSlateApplication::IsInitialized()) FSlateApplication::Get().SetAllUserFocusToGameViewport();
+		MenuLastX = MenuLastY = 0;
+		return;
+	}
 	float MouseX = 0.f, MouseY = 0.f;
 	GetInputMouseDelta(MouseX, MouseY);
 	const bool bMouseMoved = !FMath::IsNearlyZero(MouseX) || !FMath::IsNearlyZero(MouseY);
@@ -126,12 +149,19 @@ void AATGPlayerController::PlayerTick(float Dt) {
 	if (!G) return;
 	if (AATGGameMode* GM = Cast<AATGGameMode>(GetWorld()->GetAuthGameMode())) {
 		if (GM->IsMenuOpen()) {
+			if (bChatOpen) CloseChat(false);
 			MenuSystemInput(Dt);
 			MouseDx = MouseDy = Wheel = 0;
 			return; // closing a menu must not reopen it or leak the same input into gameplay.
 		}
 	}
 	MenuSystemInput(Dt);
+	// (the chat box has the keyboard: no hotkeys, and FeedInput gives the game nothing)
+	if (bChatOpen) {
+		if (!G->net || !G->net->online() || !G->gameplay || G->gameplay->state != "playing") CloseChat(false);
+		MouseDx = MouseDy = Wheel = 0;
+		return;
+	}
 	if (MenuInput(*G, Dt)) return;
 	// pause and the map (the HUD's keys in the browser game)
 	// Only handle ESC/P if the menu system is NOT managing menus
@@ -153,6 +183,11 @@ void AATGPlayerController::PlayerTick(float Dt) {
 	if (WasInputKeyJustPressed(EKeys::M) || WasInputKeyJustPressed(EKeys::Gamepad_DPad_Down)) {
 		if (bMenus) { if (!MapGM->IsMenuOpen()) { MapGM->ShowPauseMenu(TEXT("Map")); MouseDx = MouseDy = Wheel = 0; return; } }
 		else bMapOpen = !bMapOpen;
+	}
+	if (WasInputKeyJustPressed(EKeys::Slash) && !G->menuOpen && G->net && G->net->online() && G->gameplay && G->gameplay->state == "playing") {
+		OpenChat();
+		MouseDx = MouseDy = Wheel = 0;
+		return;
 	}
 	// the phone's Map app (hud.openPause('map'))
 	if (G->hudModel && !G->hudModel->pauseRequest.empty()) {
@@ -205,6 +240,14 @@ bool AATGPlayerController::MenuInput(atg::Game& G, float Dt) {
 
 void AATGPlayerController::FeedInput(atg::Game& G, double Dt) {
 	atg::Input& In = G.input;
+	if (bChatOpen) {
+		// (net.js openChat: input.enabled = false, keys cleared)
+		for (const FString& C : Held) In.KeyUp(TCHAR_TO_UTF8(*C));
+		Held.Reset();
+		In.mouse.dx = In.mouse.dy = 0; In.mouse.left = In.mouse.right = In.mouse.leftPressed = In.mouse.rightPressed = false; In.mouse.wheel = 0;
+		MouseDx = MouseDy = Wheel = 0; ScriptDx = ScriptDy = 0;
+		return;
+	}
 	// keys: tell the simulation about changes (it keeps its own held / pressed / released sets)
 	TSet<FString> Now = ScriptKeys;
 	for (const auto& K : KeyCodes()) if (IsInputKeyDown(K.Key)) Now.Add(K.Value);
@@ -235,4 +278,90 @@ const double Rx = GetInputAnalogKeyState(EKeys::Gamepad_RightX), Ry = GetInputAn
 	const bool bPad = bAny || FMath::Abs(Lx) + FMath::Abs(Ly) + FMath::Abs(Rx) + FMath::Abs(Ry) + Lt + Rt > 0.01 || In.gp.connected;
 	In.SetPad(bPad, Lx, Ly, Rx, Ry, Lt, Rt, B);
 	(void)Dt;
+}
+
+// ---- multiplayer chat (net.js _dom / openChat / closeChat)
+bool AATGPlayerController::IsTyping() {
+	if (!FSlateApplication::IsInitialized()) return false;
+	const TSharedPtr<SWidget> F = FSlateApplication::Get().GetKeyboardFocusedWidget();
+	if (!F.IsValid()) return false;
+	const FName T = F->GetType();
+	return T == FName(TEXT("SEditableText")) || T == FName(TEXT("SMultiLineEditableText"));
+}
+
+void AATGPlayerController::OpenChat() {
+	AATGWorld* W = AATGWorld::Get(this);
+	atg::Game* G = W ? W->Game() : nullptr;
+	UGameViewportClient* VC = GetWorld() ? GetWorld()->GetGameViewport() : nullptr;
+	if (bChatOpen || !G || !G->net || !VC) return;
+	bChatOpen = true;
+	G->net->chatOpen = true;
+	FVector2D V(1280, 720);
+	VC->GetViewportSize(V);
+	// (the HUD's units: 1080 lines tall, like the feed it sits under)
+	const float Ui = (float)V.Y / 1080.f;
+	const float Dpi = GetDefault<UUserInterfaceSettings>()->GetDPIScaleBasedOnSize(FIntPoint((int32)V.X, (int32)V.Y));
+	// `.net-chatbox`: black at 75 %, 4 px corners, a 3 px gold left border, padding 6 x 10, 8 px apart; "Say:" in
+	// the display font (18 px, gold), the input 15 px white, min(380px, 60vw) wide
+	static const FSlateRoundedBoxBrush Back(FLinearColor(0.f, 0.f, 0.f, 0.75f), 4.f);
+	static const FEditableTextStyle Style = FEditableTextStyle(FCoreStyle::Get().GetWidgetStyle<FEditableTextStyle>("NormalEditableText"))
+		.SetFont(ATGFonts::Get(EATGFont::Text, 15)).SetColorAndOpacity(FSlateColor(FLinearColor::White));
+	const FLinearColor Gold = FLinearColor(FColor(0xe8, 0xb6, 0x4c));
+	FSlateFontInfo SayFont = ATGFonts::Get(EATGFont::Hud, 18);
+	SayFont.LetterSpacing = 56; // (1 px at 18 px)
+	ChatWidget = SNew(SDPIScaler).DPIScale(Ui / FMath::Max(Dpi, 0.1f))[
+		SNew(SBox).HAlign(HAlign_Left).VAlign(VAlign_Bottom).Padding(FMargin(24.f, 0.f, 0.f, 196.f))[
+			SNew(SBorder).BorderImage(&Back).Padding(FMargin(0.f))[
+				SNew(SHorizontalBox)
+				+ SHorizontalBox::Slot().AutoWidth()[SNew(SBox).WidthOverride(3.f)[SNew(SImage).Image(FCoreStyle::Get().GetBrush("WhiteBrush")).ColorAndOpacity(Gold)]]
+				+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(FMargin(7.f, 6.f, 8.f, 6.f))[
+					SNew(STextBlock).Text(FText::FromString(TEXT("Say:"))).Font(SayFont).ColorAndOpacity(FSlateColor(Gold))]
+				+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(FMargin(0.f, 6.f, 10.f, 6.f))[
+					SNew(SBox).WidthOverride(FMath::Min(380.f, (float)V.X / Ui * 0.6f))[
+						SAssignNew(ChatText, SEditableText)
+						.Style(&Style)
+						.HintText(FText::FromString(TEXT("Press Enter to send, Esc to cancel")))
+						.ClearKeyboardFocusOnCommit(false)
+						.RevertTextOnEscape(false)
+						.OnKeyDownHandler_Lambda([this](const FGeometry&, const FKeyEvent& E) {
+							if (E.GetKey() == EKeys::Escape) { CloseChat(false); return FReply::Handled(); }
+							return FReply::Unhandled();
+						})
+						.OnTextCommitted_Lambda([this](const FText&, ETextCommit::Type How) {
+							// (Enter sends; losing the keyboard closes it, like the input's blur)
+							if (How == ETextCommit::OnEnter) CloseChat(true);
+							else if (How == ETextCommit::OnUserMovedFocus || How == ETextCommit::OnCleared) CloseChat(false);
+						})]]]]];
+	VC->AddViewportWidgetContent(ChatWidget.ToSharedRef(), 20);
+	// (the game keeps running but gets no input: input.enabled = false, keys cleared)
+	G->input.keys.clear(); G->input.pressed.clear(); G->input.released.clear();
+	FInputModeGameAndUI Mode;
+	Mode.SetWidgetToFocus(ChatText);
+	Mode.SetLockMouseToViewportBehavior(EMouseLockMode::LockAlways);
+	Mode.SetHideCursorDuringCapture(true);
+	SetInputMode(Mode);
+	if (FSlateApplication::IsInitialized()) FSlateApplication::Get().SetKeyboardFocus(ChatText, EFocusCause::SetDirectly);
+}
+
+void AATGPlayerController::CloseChat(bool bSend) {
+	if (!bChatOpen) return;
+	bChatOpen = false;
+	const FString Text = ChatText.IsValid() ? ChatText->GetText().ToString() : FString();
+	AATGWorld* W = AATGWorld::Get(this);
+	atg::Game* G = W ? W->Game() : nullptr;
+	if (G && G->net) {
+		G->net->chatOpen = false;
+		if (bSend && !Text.TrimStartAndEnd().IsEmpty()) G->net->say(TCHAR_TO_UTF8(*Text));
+	}
+	// (removed next frame: this can run inside the text box's own key handler)
+	TSharedPtr<SWidget> Old = ChatWidget;
+	ChatWidget.Reset(); ChatText.Reset();
+	if (UGameViewportClient* VC = GetWorld() ? GetWorld()->GetGameViewport() : nullptr)
+		if (Old.IsValid()) {
+			TWeakObjectPtr<UGameViewportClient> WeakVC = VC;
+			FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([WeakVC, Old](float) { if (WeakVC.IsValid()) WeakVC->RemoveViewportWidgetContent(Old.ToSharedRef()); return false; }));
+		}
+	SetInputMode(FInputModeGameOnly());
+	if (FSlateApplication::IsInitialized()) FSlateApplication::Get().SetAllUserFocusToGameViewport();
+	if (G) { G->input.keys.clear(); G->input.pressed.clear(); G->input.released.clear(); }
 }

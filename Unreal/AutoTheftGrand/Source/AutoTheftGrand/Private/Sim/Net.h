@@ -125,6 +125,7 @@ public:
 
 private:
 	std::unique_ptr<NetTransport> transport;
+	std::unique_ptr<NetTransport> retired; // (a transport that failed inside its own callback: freed next tick)
 	struct Out { double t; Json e; };
 	std::deque<Out> out;
 	double seq = 0, sendT = 0, joinedAt = 0, shotT = -1e9, actN = 0, clockT = 0;

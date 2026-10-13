@@ -158,6 +158,7 @@ void AATGHUD::DrawHUD() {
 	DrawPhone(G, Dt);
 	if (PC->MessageTime > 0) Text(PC->Message, Canvas->ClipX / 2, 70 * Ui, Small, 1.5f * Ui, FLinearColor(Paper.R, Paper.G, Paper.B, FMath::Min(1.f, PC->MessageTime)), 0.5f);
 	DrawMessages(G, Dt);
+	DrawNet(G);
 	DrawOverlays(G, Dt);
 	if (G->hudModel && !G->hudModel->menu.kind.empty()) DrawShopMenu(G);
 	else if (G->paused && !(GetWorld() && Cast<AATGGameMode>(GetWorld()->GetAuthGameMode()) && Cast<AATGGameMode>(GetWorld()->GetAuthGameMode())->IsMenuOpen())) {

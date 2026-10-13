@@ -198,6 +198,8 @@ AATGWorld::AATGWorld() {
 	Sun->SetAtmosphereSunLightIndex(0);
 	Sun->SetIntensity(SunLux);
 	Sun->SetCastShadows(true);
+	// (the sun lights translucency, water and fog; at dusk the moon is up too and must not compete)
+	Sun->ForwardShadingPriority = 1;
 
 	Moon = CreateDefaultSubobject<UDirectionalLightComponent>(TEXT("Moon"));
 	Moon->SetupAttachment(Root);
@@ -207,6 +209,7 @@ AATGWorld::AATGWorld() {
 	Moon->SetIntensity(0.f);
 	Moon->SetLightColor(FLinearColor(0.55f, 0.65f, 1.f));
 	Moon->SetCastShadows(false);
+	Moon->ForwardShadingPriority = 0;
 
 	Atmosphere = CreateDefaultSubobject<USkyAtmosphereComponent>(TEXT("Atmosphere"));
 	Atmosphere->SetupAttachment(Root);

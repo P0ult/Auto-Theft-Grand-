@@ -1,0 +1,27 @@
+# Cross-play (run with -ATGMenu while node server.mjs runs, and a browser joins room atgtest:
+# node tools/browser-test/run.mjs "http://localhost:8080/index.html?manual&autostart=multi&room=atgtest" out/mp
+# tools/browser-test/tests/mp-peer.mjs).
+# The browser player's name tag, the Players list, a waypoint on them and Go to.
+wait 4
+ATG.Menu Multiplayer
+wait 2
+ATG.Menu Type name Unreal
+ATG.Menu Type code atgtest
+ATG.Menu Do NetJoin
+wait 25
+ATG.Net
+shot cross_players
+ATG.Menu Do NetWp:*
+wait 0.5
+shot cross_waypoint
+ATG.Menu Do NetGoto:*
+wait 2
+ATG.Teleport -594.8 354 3.14159
+wait 2
+ATG.State
+ATG.Net
+shot cross_tag
+wait 10
+shot cross_tag2
+ATG.Net
+quit

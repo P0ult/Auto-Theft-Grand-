@@ -54,6 +54,9 @@ public:
 	FString SelectionValue() const;
 	// a waypoint at a point of the open Map tab (fractions of its width and height); false when it isn't open
 	bool SetMapWaypoint(float Fx, float Fy);
+	// (test scripts: press a pause-menu action by its id, or type into one of the Online tab's boxes)
+	bool PauseDo(const FString& Action);
+	bool PauseType(const FString& Field, const FString& Text);
 	bool IsPauseMenuOpen() const;
 	bool IsReturningToMainMenu() const { return bPauseReturnsToMainMenu; }
 	void ClearReturnToMainMenu() { bPauseReturnsToMainMenu = false; }
@@ -128,7 +131,7 @@ class SATGMenuRow : public SCompoundWidget
 {
 public:
 	SLATE_BEGIN_ARGS(SATGMenuRow)
-		: _Swatch(0.f, 0.f, 0.f, 0.f), _Primary(false), _Tab(false), _Title(false), _List(false), _Padding(0.f) {}
+		: _Swatch(0.f, 0.f, 0.f, 0.f), _Primary(false), _Tab(false), _Title(false), _List(false), _Padding(0.f), _FontPx(0.f) {}
 		SLATE_ATTRIBUTE(FText, Label)
 		SLATE_ARGUMENT(FText, Note)       // (a right-aligned second column, e.g. a vehicle's top speed)
 		SLATE_ARGUMENT(FLinearColor, Swatch) // (a paint colour: the row shows a block of it)
@@ -141,6 +144,7 @@ public:
 		SLATE_ARGUMENT(bool, Title)       // (`.title-menu button`: big, left aligned, wider spacing)
 		SLATE_ARGUMENT(bool, List)        // (`.tp-btn`: a small, left-aligned list button)
 		SLATE_ARGUMENT(FMargin, Padding)
+		SLATE_ARGUMENT(float, FontPx)     // (another text size: `.btn.small` is 12 px)
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs);
@@ -347,6 +351,24 @@ private:
 	TSharedPtr<SButton> QuitButton;
 	TSharedPtr<class STextBlock> SaveLabel;
 	TSharedPtr<class SATGMapView> MapView;
+
+	// the Online tab (netui.js): the text boxes keep what's typed across the tab's rebuilds
+	virtual void Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime) override;
+	TSharedPtr<class SEditableTextBox> NetNameBox, NetCodeBox, NetSayBox;
+	FString NetNameText, NetCodeText, NetSayText;
+	bool bNetTextInit = false;
+	FString NetSignature;
+	float NetCheckT = 0.f;
+	TSet<FString> NetWaypointSet;
+	TSharedPtr<bool> RegisterNav(TSharedRef<SButton> Button, const FString& Action, const FString& Label);
+	TSharedRef<SWidget> MakeTextBox(TSharedPtr<class SEditableTextBox>& Out, FString& Value, const FText& Hint, int32 MaxLen, bool bCode, const FString& EnterAction);
+	FString OnlineSignature() const;
+	void RefreshOnline();
+	void NetApplyName();
+	void NetGo(const FString& Code);
+public:
+	FReply DoAction(const FString& Action) { return OnActionButtonClicked(Action); }
+	bool TypeInto(const FString& Field, const FString& Text);
 };
 
 
@@ -374,6 +396,9 @@ public:
 	FString SelectionLabel() const;
 	FString SelectionValue() const;
 	bool SetMapWaypoint(float Fx, float Fy);
+	// (test scripts: press a pause-menu action by its id, or type into one of the Online tab's boxes)
+	bool PauseDo(const FString& Action);
+	bool PauseType(const FString& Field, const FString& Text);
 	FATGMenuSystem::EATGMenuState GetMenuState() const;
 	bool IsPauseMenuOpen() const;
 	bool IsMenuOpen() const;

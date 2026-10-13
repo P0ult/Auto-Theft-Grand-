@@ -1,0 +1,36 @@
+# The Online tab and chat (run with -ATGMenu while node server.mjs runs on localhost:8080): Multiplayer on the
+# title starts free roam with the pause menu on its Online tab. Join a room by its code, chat from the tab, then
+# the in-game chat box (/), and leave.
+wait 4
+ATG.Menu Multiplayer
+wait 2
+ATG.MenuCheck open 1
+ATG.MenuCheck tab Online
+shot online_offline
+ATG.Menu Type name Tester
+ATG.Menu Type code atgtest
+ATG.Menu Do NetJoin
+wait 1.5
+ATG.Net
+shot online_joined
+ATG.Menu Type say hello from the tab
+ATG.Menu Do NetSend
+ATG.Menu Do NetColor:3
+wait 0.5
+shot online_chat
+ATG.Menu Resume
+wait 1
+ATG.Input Slash 1
+wait 0.1
+ATG.Input Slash 0
+wait 0.3
+ATG.Type hello from the box
+shot online_chatbox
+ATG.SlateKey Enter
+wait 0.5
+shot online_feed
+ATG.Net
+ATG.Net leave
+wait 0.5
+ATG.Net
+quit

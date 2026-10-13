@@ -48,6 +48,7 @@ private:
 	float WheelAlpha = 0;
 	double SpeedoNeedle = 0; float SpeedoAlpha = 0;
 	void DrawMessages(atg::Game* G, float Dt);
+	void DrawNet(atg::Game* G); // (ATGHudNet.cpp: name tags, the chat feed, the ONLINE badge)
 	void DrawTags(atg::Game* G); // (speech bubbles and the stars over NPC suspects)
 	void DrawOverlays(atg::Game* G, float Dt);
 	void DrawCredits(atg::Game* G);
