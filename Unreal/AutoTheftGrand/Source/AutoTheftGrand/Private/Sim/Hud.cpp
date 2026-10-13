@@ -1,6 +1,7 @@
 #include "Hud.h"
 #include "Game.h"
 #include "Player.h"
+#include "SaveSystem.h"
 #include "Weapons.h"
 
 #include <cstdio>
@@ -52,10 +53,24 @@ void HudModel::setBar(const std::string* label, double v, const std::string& col
 	bar = { true, *label, Clamp(v, 0, 1), color };
 }
 
-// the safehouse: no saving on a job or in free roam (the save menu itself comes with save and load)
+// the safehouse: no saving on a job or in free roam; otherwise the Safehouse panel (hud.js promptSave: its text, a
+// Save game button and Cancel, here as a one-row panel)
 void HudModel::promptSave() {
 	if (game.missionActive) { help("You can't save during a mission."); return; }
 	if (game.freeRoam) { help("Free roam isn't saved \xe2\x80\x94 your story save is left untouched."); return; }
+	StoreItem save;
+	save.name = "Save your progress";
+	save.button = "Save game";
+	save.closes = true;
+	save.use = [this](Player& p, Game& g) {
+		if (g.saveSys) g.saveSys->save();
+		p.health = p.maxHealth;
+		g.env.setTime(g.env.hours + 6);
+		g.setTimeout(0, [this]() { help("Game saved."); });
+		return std::string();
+	};
+	PanelOpts o; o.leave = "Cancel";
+	openPanel("Safehouse", "Home sweet home. Save your progress? Saving also advances the clock by six hours and restores your health.", { save }, o);
 }
 
 // ------------------------------------------------------------------ the shop menus

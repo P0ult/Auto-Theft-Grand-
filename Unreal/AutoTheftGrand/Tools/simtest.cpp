@@ -1183,6 +1183,28 @@ static void TestAdminTools(World& w) {
 	Check(p.pos.y - g->map.GroundHeight(p.pos.x, p.pos.z) > 300, "the SKYFALL cheat skydives");
 }
 
+// ---- the safehouse's save panel (hud.js promptSave)
+static void TestSafehouse(World& w) {
+	printf("safehouse\n");
+	auto g = w.game(true);
+	Player& p = *g->player;
+	HudModel& hud = *g->hudModel;
+	g->freeRoam = false;
+	p.health = 40;
+	const double h0 = g->env.hours;
+	hud.promptSave();
+	printf("  menu '%s' (%s), %zu rows, button '%s'\n", hud.menu.title.c_str(), hud.menu.kind.c_str(), hud.menu.rows.size(), hud.menu.rows.empty() ? "" : hud.menu.rows[0].button.c_str());
+	Check(hud.menu.title == "Safehouse" && hud.menu.rows.size() == 2 && hud.menu.rows[0].button == "Save game" && hud.menu.rows[1].button == "Cancel" && g->paused, "the safehouse offers to save, or cancel");
+	hud.menuPress(0);
+	Run(*g, 0.1);
+	const double dh = std::fmod(g->env.hours - h0 + 24, 24);
+	printf("  saved: health %.0f, clock +%.2f h, menu '%s', help '%s'\n", p.health, dh, hud.menu.kind.c_str(), hud.helpLine.text.c_str());
+	Check(p.health == p.maxHealth && std::fabs(dh - 6) < 0.05 && hud.menu.kind.empty() && hud.helpLine.text == "Game saved.", "saving heals, moves the clock six hours and says so");
+	g->freeRoam = true;
+	hud.promptSave();
+	Check(hud.menu.kind.empty() && hud.helpLine.text.find("Free roam isn't saved") == 0, "free roam doesn't save");
+}
+
 static void TestJobs(World& w) {
 	printf("jobs\n");
 	auto g = w.game(true);
@@ -2362,6 +2384,7 @@ int main(int argc, char** argv) {
 	if (want("walk")) TestWalk(w);
 	if (want("admin")) TestAdmin(w);
 	if (want("admintools")) TestAdminTools(w);
+	if (want("safehouse")) TestSafehouse(w);
 	if (want("drive")) TestDrive(w);
 	if (want("crash")) TestCrash(w);
 	if (want("parked")) TestParked(w);

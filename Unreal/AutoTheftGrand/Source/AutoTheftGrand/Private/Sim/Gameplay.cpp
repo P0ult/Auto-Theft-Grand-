@@ -1,5 +1,6 @@
 #include "Gameplay.h"
 #include "Game.h"
+#include "Missions.h"
 #include "Peds.h"
 #include "Shops.h"
 
@@ -174,7 +175,7 @@ void Gameplay::respawn(const std::string& kind) {
 			if (free) g.hud->help(kind == "busted" ? "Back on the street. Free roam: you keep your weapons and cash." : "Patched up. Free roam: you keep your weapons and cash.", 5);
 			else g.hud->help(kind == "busted" ? "The cops took your weapons and $" + Fixed(lost, 0) + "." : "The hospital bill came to $" + Fixed(lost, 0) + ". Your weapons were... misplaced.", 5);
 		}
-		// (missions.refreshContacts comes with the missions)
+		if (g.missions) g.missions->refreshContacts();
 		if (afterRespawn) { auto f = afterRespawn; afterRespawn = nullptr; g.setTimeout(0.7, f); }
 	};
 	if (g.hud) g.hud->fade(0.8, after); else after();

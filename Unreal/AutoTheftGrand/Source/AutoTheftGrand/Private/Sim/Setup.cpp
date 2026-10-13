@@ -70,7 +70,7 @@ void InstallSystems(Game& g) {
 	g.audioSys = g.addSystem("audio", std::make_unique<Audio>(g));
 	g.audio = g.audioSys;
 	g.gameplay = g.addSystem("gameplay", std::make_unique<Gameplay>(g));
-	// main.js: freeroam, admin, taxi, modshop, races, vigilante, properties (the admin tools and taxis come later)
+	// main.js: freeroam, admin, taxi, modshop, races, vigilante, properties (admin.js lives in FreeRoam: its powers run in earlyInput)
 	g.freeroam = g.addSystem("freeroam", std::make_unique<FreeRoam>(g));
 	g.taxi = g.addSystem("taxi", std::make_unique<TaxiSystem>(g));
 	g.taxiSystem = g.taxi;
