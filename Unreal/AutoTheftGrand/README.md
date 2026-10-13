@@ -185,6 +185,9 @@ row. B, Menu, Esc or P resumes. Long read-only pages scroll with the D-pad or le
 both directions with left/right. Left-click increases a setting; right-click decreases it. Mouse and
 controller selection share the same highlight.
 
+The Controls tab switches between Keyboard & mouse and Controller (shown first while you play with a pad), and
+names the pad's buttons the Xbox / Logitech way or the PlayStation way.
+
 The Map tab (also M) is the browser's map: drag to pan, the wheel zooms, right-click or double-click sets a
 waypoint (again on the same spot clears it). The GPS routes to the waypoint, cabs take you there, and free
 roam's Teleport tab lists it. Save game says why it can't save in free roam or during a mission.

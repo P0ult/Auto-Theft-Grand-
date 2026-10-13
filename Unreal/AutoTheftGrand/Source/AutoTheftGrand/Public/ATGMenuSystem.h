@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include <string>
 #include "Framework/Docking/TabManager.h"
 #include "Widgets/SCompoundWidget.h"
 #include "Widgets/Input/SButton.h"
@@ -233,6 +234,7 @@ struct FATGMenuRowDef {
 	FATGMenuRowDef() = default;
 	FATGMenuRowDef(const char* InLabel, const char* InAction, const char* InNote = "") : Label(UTF8_TO_TCHAR(InLabel)), Action(UTF8_TO_TCHAR(InAction)), Note(UTF8_TO_TCHAR(InNote)) {}
 	FATGMenuRowDef(const FString& InLabel, const FString& InAction, const FString& InNote = FString()) : Label(InLabel), Action(InAction), Note(InNote) {}
+	FATGMenuRowDef(const std::string& InLabel, const std::string& InAction, const std::string& InNote = std::string()) : Label(UTF8_TO_TCHAR(InLabel.c_str())), Action(UTF8_TO_TCHAR(InAction.c_str())), Note(UTF8_TO_TCHAR(InNote.c_str())) {}
 };
 // a column of rows with a heading (`.tp-group`)
 struct FATGMenuGroup {
@@ -300,6 +302,7 @@ private:
 	int64 SpawnColor = -1;
 	FString VehMsg;   // (.vs-msg: why the spawner said no)
 	FString AdminMsg; // (.adm-msg: what the last admin action said)
+	FString CtlView, CtlGlyphs; // (the Controls tab: kb / pad, xbox / playstation)
 	// (the selected row stays put when a tab is rebuilt after an action)
 	void SetFocusIndex(int32 Index);
 	void FocusRow(TSharedPtr<SButton> RowButton);

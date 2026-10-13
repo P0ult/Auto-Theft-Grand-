@@ -1689,39 +1689,94 @@ TSharedRef<SWidget> SATGPauseMenu::CreateSettingsTab() {
 }
 
 TSharedRef<SWidget> SATGPauseMenu::CreateControlsTab() {
+	// hud.js _tab_controls: Keyboard & mouse or Controller (the controller's when one is in use), and for the
+	// controller the Xbox / Logitech or PlayStation button names
+	atg::Game* G = GetSimulation();
 	TSharedRef<SVerticalBox> Out = SNew(SVerticalBox);
-	AddMuted(Out, LOCTEXT("CtlHint", "Keyboard and mouse, then the standard pad layout (Xbox, PlayStation and Logitech). A selects and B / Menu resumes; LB / RB change pause tabs. D-pad / left stick navigates or scrolls, and left / right adjusts Settings."));
+	const bool bPadInUse = G && (G->input.gp.connected || G->input.lastDevice == "gamepad");
+	if (CtlView.IsEmpty()) CtlView = bPadInUse ? TEXT("pad") : TEXT("kb");
+	if (CtlGlyphs.IsEmpty()) CtlGlyphs = G && G->input.gp.family == "playstation" ? TEXT("playstation") : TEXT("xbox");
+	// `.ctl-seg`: two tab buttons, the shown one underlined
+	auto SegButton = [this](const FText& Label, const FString& Action, bool bOn) -> TSharedRef<SWidget> {
+		TSharedPtr<bool> Flag = MakeShared<bool>(false);
+		TSharedRef<SATGMenuRow> Row = SNew(SATGMenuRow).Label(Label).Tab(true).Active(MakeShared<bool>(bOn)).Highlight(Flag)
+			.OnClicked(FOnClicked::CreateSP(this, &SATGPauseMenu::OnActionButtonClicked, Action));
+		RegisterNav(Row->Button().ToSharedRef(), Action, Label.ToString());
+		ContentNavigationHighlight.Last() = Flag;
+		Rows.Add(Row);
+		return Row;
+	};
+	Out->AddSlot().AutoHeight().HAlign(HAlign_Left).Padding(0.f, 0.f, 0.f, 12.f)[
+		SNew(SHorizontalBox)
+		+ SHorizontalBox::Slot().AutoWidth()[SegButton(LOCTEXT("CtlKb", "Keyboard & mouse"), TEXT("Ctl:kb"), CtlView == TEXT("kb"))]
+		+ SHorizontalBox::Slot().AutoWidth()[SegButton(LOCTEXT("CtlPad", "Controller"), TEXT("Ctl:pad"), CtlView == TEXT("pad"))]];
 	TArray<FATGMenuGroup> Groups;
+	if (CtlView == TEXT("kb")) {
+		Groups.Add(FATGMenuGroup("On foot", {
+			{ "WASD", "Move" }, { "Mouse", "Look" }, { "Shift", "Sprint" }, { "Space", "Jump" }, { "C / Ctrl", "Crouch" },
+			{ "Left mouse", "Punch / fire" }, { "Right mouse", "Aim" }, { "R", "Reload" }, { "Q / E, wheel, 1-9", "Switch weapon" },
+			{ "Tab (hold)", "Weapon wheel (point with the mouse, let go to pick)" }, { "Wheel (sniper scope)", "Zoom in / out" },
+			{ "F / Enter", "Enter / steal vehicle" }, { "K", "Whistle for your pet: stay / come (aiming at someone: set your dog on them)" } }));
+		Groups.Add(FATGMenuGroup("In a vehicle", {
+			{ "W / S", "Accelerate / brake-reverse" }, { "A / D", "Steer" }, { "Space", "Handbrake (drift!)" }, { "H", "Horn (Shift+H: siren in police cars)" },
+			{ "N", "Next radio station" }, { "V", "Change camera" }, { "X (hold)", "Cinematic camera" }, { "B", "Look behind" },
+			{ "Right mouse + left mouse", "Drive-by (pistol / SMG)" }, { "G", "Hydraulics (lowriders)" }, { "Shift", "Nitrous (fitted at Customs)" },
+			{ "F", "Exit (bail out when fast)" } }));
+		Groups.Add(FATGMenuGroup("Planes & jets", {
+			{ "W / S", "Throttle up / down" }, { "Mouse, \xE2\x86\x91 \xE2\x86\x93", "Pitch (\xE2\x86\x93 pulls up)" }, { "A / D", "Roll (bank to turn)" },
+			{ "Q / E", "Rudder" }, { "Space", "Wheel brakes" }, { "Left / right mouse", "Cannon / homing missile" }, { "F", "Bail out (parachute)" } }));
+		Groups.Add(FATGMenuGroup("Helicopters", {
+			{ "Space / Shift", "Climb / descend" }, { "W / S", "Fly forward / back" }, { "A / D", "Turn" }, { "Q / E", "Strafe" },
+			{ "Left / right mouse", "Minigun / rockets" } }));
+		Groups.Add(FATGMenuGroup("Tank", { { "W / S, A / D", "Drive, turn on the spot" }, { "Mouse / left mouse", "Aim turret / fire" } }));
+		Groups.Add(FATGMenuGroup("General", {
+			{ "Esc / P", "Pause, map & settings" }, { "I", "Phone: contacts, cheats, Snapmatic (arrows, Enter, Backspace)" },
+			{ "Caps Lock / Z", "Special ability (slow motion; the yellow bar)" }, { "M", "Map" }, { "T", "Teleport (free roam)" },
+			{ "` (backtick)", "Admin console (free roam)" }, { "/", "Chat (multiplayer)" }, { "H (on foot)", "Whistle for a taxi" },
+			{ "G (on foot)", "Ride as a passenger" }, { "J (in a cab)", "Taxi driver job on / off" }, { "J (in a police car)", "Vigilante patrol on / off" },
+			{ "Space (in a cab's back seat)", "Skip the trip" }, { "Space / Enter", "Skip cutscene line" } }));
+		Out->AddSlot().AutoHeight()[MakeColumns(Groups)];
+		return Out;
+	}
+	// the controller: its status and the button names, then the columns
+	const bool bPs = CtlGlyphs == TEXT("playstation");
+	struct FG { const char *A, *B, *X, *Y, *LB, *RB, *LT, *RT, *VIEW, *MENU, *LS, *RS, *L, *R; };
+	static const FG Xb = { "A", "B", "X", "Y", "LB", "RB", "LT", "RT", "View", "Menu", "LS (click)", "RS (click)", "Left stick", "Right stick" };
+	static const FG Ps = { "\xE2\x9C\x95", "\xE2\x97\x8B", "\xE2\x96\xA1", "\xE2\x96\xB3", "L1", "R1", "L2", "R2", "Create / Share", "Options", "L3", "R3", "Left stick", "Right stick" };
+	const FG& K = bPs ? Ps : Xb;
+	const bool bConn = G && G->input.gp.connected;
+	{
+		TSharedRef<SHorizontalBox> Head = SNew(SHorizontalBox);
+		Head->AddSlot().FillWidth(1.f).VAlign(VAlign_Center)[
+			SNew(STextBlock).Text(bConn ? LOCTEXT("PadOn", "Connected: controller") : LOCTEXT("PadOff", "No controller detected — plug one in (or switch it on) and press any button."))
+			.Font(TextFont(14, true)).ColorAndOpacity(FSlateColor(bConn ? MoneyGreen : Srgb(0xff, 0xb0, 0x60))).AutoWrapText(true)];
+		Head->AddSlot().AutoWidth().VAlign(VAlign_Center)[SegButton(LOCTEXT("GlyphXb", "Xbox / Logitech"), TEXT("Glyph:xbox"), !bPs)];
+		Head->AddSlot().AutoWidth().VAlign(VAlign_Center)[SegButton(LOCTEXT("GlyphPs", "PlayStation"), TEXT("Glyph:playstation"), bPs)];
+		Out->AddSlot().AutoHeight().Padding(0.f, 0.f, 0.f, 10.f)[Head];
+	}
+	auto S = [](const char* A) { return std::string(A); };
 	Groups.Add(FATGMenuGroup("On foot", {
-		{ "WASD", "Move" }, { "Mouse", "Look" }, { "Shift", "Sprint" }, { "Space", "Jump" }, { "C / Ctrl", "Crouch" },
-		{ "Left mouse", "Punch / fire" }, { "Right mouse", "Aim" }, { "R", "Reload" }, { "Q / E, wheel, 1-9", "Switch weapon" },
-		{ "Tab (hold)", "Weapon wheel" }, { "F / Enter", "Enter or steal a vehicle" }, { "K", "Whistle for your pet" } }));
+		{ K.L, "Move" }, { K.R, "Look" }, { S(K.A) + " (hold)", "Sprint" }, { K.X, "Jump / open parachute" }, { K.LS, "Crouch" },
+		{ K.RT, "Fire / punch / throw" }, { S(K.LT) + " (hold)", "Aim \xE2\x80\x94 pair with " + S(K.RT) + " to shoot" }, { K.B, "Reload" },
+		{ S(K.LB) + " / " + K.RB, "Previous / next weapon" }, { S(K.LB) + " (hold)", "Weapon wheel (point with " + S(K.R) + ")" }, { K.Y, "Enter / steal vehicle" },
+		{ S(K.LS) + " + " + K.RS, "Special ability (slow motion)" }, { K.RS, "Whistle for your pet (stay / come / attack)" },
+		{ "D-pad \xE2\x86\x91", "Phone (D-pad, " + S(K.A) + " / " + K.B + ")" }, { "D-pad \xE2\x86\x92", "Whistle for a taxi" }, { "D-pad \xE2\x86\x90", "Ride as a passenger" },
+		{ "D-pad \xE2\x86\x93", "Map" }, { K.MENU, "Pause" } }));
 	Groups.Add(FATGMenuGroup("In a vehicle", {
-		{ "W / S", "Accelerate / brake-reverse" }, { "A / D", "Steer" }, { "Space", "Handbrake (drift!)" }, { "H", "Horn (Shift+H: siren)" },
-		{ "N", "Next radio station" }, { "V", "Change camera" }, { "X (hold)", "Cinematic camera" }, { "B", "Look behind" },
-		{ "Right + left mouse", "Drive-by (pistol / SMG)" }, { "G", "Hydraulics (lowriders)" }, { "F", "Exit (bail out when fast)" } }));
-	Groups.Add(FATGMenuGroup("Planes & jets", {
-		{ "W / S", "Throttle up / down" }, { "Mouse, up / down", "Pitch (down pulls up)" }, { "A / D", "Roll (bank to turn)" },
-		{ "Q / E", "Rudder" }, { "Space", "Wheel brakes" }, { "Left / right mouse", "Cannon / homing missile" }, { "F", "Bail out" } }));
-	Groups.Add(FATGMenuGroup("Helicopters", {
-		{ "Space / Shift", "Climb / descend" }, { "W / S", "Fly forward / back" }, { "A / D", "Turn" }, { "Q / E", "Strafe" },
-		{ "Left / right mouse", "Minigun / rockets" } }));
-	Groups.Add(FATGMenuGroup("Tank", { { "W / S, A / D", "Drive, turn on the spot" }, { "Mouse / left mouse", "Aim turret / fire" } }));
-	Groups.Add(FATGMenuGroup("General", {
-		{ "Esc / P / Menu", "Pause, map and settings" }, { "I / D-pad up", "Phone (contacts, cheats, Snapmatic)" },
-		{ "Caps Lock / Z / LS+RS", "Special ability" }, { "M / D-pad down", "Map" }, { "T", "Teleport (free roam)" },
-		{ "Backtick", "Admin console (free roam)" }, { "/", "Chat (multiplayer)" }, { "H (on foot)", "Whistle for a taxi" },
-		{ "Space / Enter", "Skip a cutscene line" } }));
-	Groups.Add(FATGMenuGroup("Controller - on foot", {
-		{ "Left stick", "Move" }, { "Right stick", "Look" }, { "A", "Sprint (hold) / select in menus" }, { "X", "Jump or open the parachute" },
-		{ "LS click", "Crouch" }, { "RT", "Fire / punch / throw" }, { "LT (hold)", "Aim" }, { "B", "Reload / back in menus" },
-		{ "LB / RB", "Previous / next weapon, pause tabs" }, { "LB (hold)", "Weapon wheel" }, { "Y", "Enter or steal a vehicle" },
-		{ "LS + RS", "Special ability" }, { "RS click", "Whistle for your pet" }, { "View", "Change camera" }, { "Menu", "Pause" } }));
-	Groups.Add(FATGMenuGroup("Controller - in a vehicle", {
-		{ "RT / LT", "Accelerate / brake-reverse" }, { "Left stick", "Steer" }, { "RB", "Handbrake (drift!)" }, { "LS click", "Horn" },
-		{ "LB (hold) + RB", "Drive-by: aim, shoot" }, { "RS click", "Look behind" }, { "D-pad right", "Next radio station" },
-		{ "D-pad up", "Phone (hydraulics in lowriders)" }, { "A", "Nitrous (fitted at Customs)" }, { "Y", "Exit (bail out when fast)" } }));
+		{ K.RT, "Accelerate" }, { K.LT, "Brake / reverse" }, { K.L, "Steer" }, { K.RB, "Handbrake (drift!)" },
+		{ S(K.LB) + " (hold) + " + K.RB, "Drive-by: aim, shoot (pistol / SMG)" }, { K.LS, "Horn" }, { K.RS, "Look behind" }, { K.VIEW, "Change camera" },
+		{ S(K.B) + " (hold)", "Cinematic camera" }, { "D-pad \xE2\x86\x92", "Next radio station" }, { "D-pad \xE2\x86\x91", "Phone \xC2\xB7 hydraulics in lowriders" },
+		{ "D-pad \xE2\x86\x90", "Taxi job (cab) \xC2\xB7 vigilante (police car)" }, { K.A, "Nitrous (fitted at Customs)" }, { K.Y, "Exit (bail out when fast)" },
+		{ K.A, "Skip the trip (in a cab's back seat)" } }));
+	Groups.Add(FATGMenuGroup("Aircraft & tank", {
+		{ S(K.RT) + " / " + K.LT, "Throttle (plane) \xC2\xB7 climb / descend (heli)" }, { K.L, "Pitch & roll (plane) \xC2\xB7 fly & turn (heli)" },
+		{ K.B, "Plane: wheel brakes" }, { S(K.RB) + " (hold)", "Cannon / minigun / tank gun" }, { K.LB, "Homing missile / rockets" },
+		{ K.R, "Look \xC2\xB7 aim the tank turret" }, { K.Y, "Bail out (parachute)" } }));
+	Groups.Add(FATGMenuGroup("Menus", {
+		{ "D-pad / " + S(K.L), "Move" }, { K.A, "Select" }, { K.B, "Back / close" }, { S(K.LB) + " / " + K.RB, "Switch tabs" },
+		{ "\xE2\x86\x90 / \xE2\x86\x92", "Change a slider or option" } }));
 	Out->AddSlot().AutoHeight()[MakeColumns(Groups)];
+	Out->AddSlot().AutoHeight().Padding(0.f, 10.f, 0.f, 0.f)[Muted_(LOCTEXT("PadNote", "Works with Xbox (One / Series), Logitech (F310 / F510 / F710 — use the X switch position if you can) and PlayStation controllers."))];
 	return Out;
 }
 
@@ -1977,6 +2032,9 @@ FReply SATGPauseMenu::OnActionButtonClicked(FString Action) {
 		}
 		return FReply::Handled();
 	}
+	// the Controls tab's switches
+	if (Action.StartsWith(TEXT("Ctl:"))) { CtlView = Action.RightChop(4); RefreshTab(); return FReply::Handled(); }
+	if (Action.StartsWith(TEXT("Glyph:"))) { CtlGlyphs = Action.RightChop(6); RefreshTab(); return FReply::Handled(); }
 	if (Action == TEXT("SpawnInto")) { bSpawnInto = !bSpawnInto; RefreshTab(); }
 	else if (Action == TEXT("SpawnAir")) { bSpawnAir = !bSpawnAir; RefreshTab(); }
 	else if (Action.StartsWith(TEXT("Paint:"))) {
