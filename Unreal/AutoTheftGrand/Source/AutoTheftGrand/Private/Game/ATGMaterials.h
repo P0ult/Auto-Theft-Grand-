@@ -31,10 +31,11 @@ class UMaterialParameterCollection;
 // Rain: effects.js Rain, streaks falling round the camera (uv0 = box x, z; uv1 = box y, seed; uv2 = end, side)
 // Wood: the pier's planks (landmarks.js pierwood, from the world position); Cutout: a picture with holes (its red
 // channel the mask), two-sided, lit (Color x the picture) and glowing (Mode.y): the Vistawood letters
-// Prop: a textured model (ATGAssets): the texture parameters Color, Masks (occlusion, roughness, metal) and Normal
+// Prop: a textured model (ATGAssets): the texture parameters Color, Masks (occlusion, roughness, metal) and Normal;
+// PropCutout: the same with holes where the colour's alpha is low, two-sided (leaves)
 // Terrain, Road, Street, Ground and Building have a second form (its asset name ends in T) that draws the
 // downloaded surface textures under the game's own colours and markings; it is used when they were imported
-enum class EATGMat : uint8 { Terrain, Road, Street, Ground, Building, VertexLit, Frond, Water, Standard, Glass, FxAlpha, FxAdd, Unlit, Picture, Rain, Wood, Cutout, Beam, DeathBlur, Human, DeathGrade, Prop, Count };
+enum class EATGMat : uint8 { Terrain, Road, Street, Ground, Building, VertexLit, Frond, Water, Standard, Glass, FxAlpha, FxAdd, Unlit, Picture, Rain, Wood, Cutout, Beam, DeathBlur, Human, DeathGrade, Prop, PropCutout, Count };
 
 namespace ATGMaterials {
 	// the material (falls back to the engine default if the generated one is missing)

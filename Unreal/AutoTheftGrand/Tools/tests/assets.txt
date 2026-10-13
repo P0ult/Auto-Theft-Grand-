@@ -1,5 +1,6 @@
 # The downloaded art (Tools/fetch_assets.mjs, Tools/import.sh): textured roads, pavements, lawns and brick, and
-# the hydrant, bin and bench models in place of the generated ones.
+# the hydrant, bin, bench and palm models in place of the generated ones, and the street dressing (utility boxes,
+# planters, barrels, crates, boxes and bin bags).
 wait 1
 ATG.Time 11
 ATG.Teleport -628 344 0
@@ -23,7 +24,32 @@ wait 1
 ATG.Cam 0 -0.25
 wait 0.5
 shot assets_bench
+ATG.Prop palm0 0 9
+wait 1
+ATG.Cam 0 0.25
+wait 0.5
+shot assets_palm
+ATG.Prop utilitybox0 0 3
+wait 1
+ATG.Cam 0 -0.3
+wait 0.5
+shot assets_utilitybox
+ATG.Prop planter0 0 3
+wait 1
+ATG.Cam 0 -0.3
+wait 0.5
+shot assets_planter
+ATG.Prop barrel0 0 3
+wait 1
+ATG.Cam 0 -0.3
+wait 0.5
+shot assets_dumpster
+ATG.Prop trashbag 0 2.5
+wait 1
+ATG.Cam 0 -0.3
+wait 0.5
+shot assets_trashbag
 ATG.Time 21
 wait 0.5
-shot assets_bench_night
+shot assets_night
 quit

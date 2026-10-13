@@ -36,7 +36,7 @@
 namespace {
 // bump when the generated materials change: new assets are made under new names
 constexpr int32 GMatVersion = 14;
-const TCHAR* GMatNames[] = { TEXT("Terrain"), TEXT("Road"), TEXT("Street"), TEXT("Ground"), TEXT("Building"), TEXT("VertexLit"), TEXT("Frond"), TEXT("Water"), TEXT("Standard"), TEXT("Glass"), TEXT("FxAlpha"), TEXT("FxAdd"), TEXT("Unlit"), TEXT("Picture"), TEXT("Rain"), TEXT("Wood"), TEXT("Cutout"), TEXT("Beam"), TEXT("DeathBlur"), TEXT("Human"), TEXT("DeathGrade"), TEXT("Prop") };
+const TCHAR* GMatNames[] = { TEXT("Terrain"), TEXT("Road"), TEXT("Street"), TEXT("Ground"), TEXT("Building"), TEXT("VertexLit"), TEXT("Frond"), TEXT("Water"), TEXT("Standard"), TEXT("Glass"), TEXT("FxAlpha"), TEXT("FxAdd"), TEXT("Unlit"), TEXT("Picture"), TEXT("Rain"), TEXT("Wood"), TEXT("Cutout"), TEXT("Beam"), TEXT("DeathBlur"), TEXT("Human"), TEXT("DeathGrade"), TEXT("Prop"), TEXT("PropCutout") };
 static_assert(UE_ARRAY_COUNT(GMatNames) == (int32)EATGMat::Count, "a name per material");
 
 // the ground and building materials draw the downloaded surface textures when those were imported (ATGAssets)
@@ -1257,10 +1257,14 @@ else if (m < 5.5) { // denim twill
 		B.Out()->Metallic.Connect(0, B.Mask(Mt, true, false, false, false));
 		break;
 	}
-	case EATGMat::Prop: {
+	case EATGMat::Prop:
+	case EATGMat::PropCutout: {
 		// a downloaded model (ATGAssets): its colour, its masks (glTF's packing: occlusion, roughness, metal) and its
-		// normal map, set per model by a material instance
+		// normal map, set per model by a material instance (cutout: leaves, holes where the colour's alpha is low)
 		M->SetUsageByFlag(MATUSAGE_InstancedStaticMeshes, true);
+		const bool bCut = Which == EATGMat::PropCutout;
+		// (leaves: light shows through them, the two-sided foliage model with the leaf's own colour)
+		if (bCut) { M->BlendMode = BLEND_Masked; M->TwoSided = true; M->OpacityMaskClipValue = 0.4f; M->SetShadingModel(MSM_TwoSidedFoliage); }
 		UMaterialExpression* U0 = B.UV(0);
 		auto* Col = B.TexParam(TEXT("Color"), TEXT("/Engine/EngineMaterials/DefaultDiffuse.DefaultDiffuse"), SAMPLERTYPE_Color, U0);
 		auto* Msk = B.TexParam(TEXT("Masks"), TEXT("/Engine/EngineMaterials/DefaultDiffuse_TC_Masks.DefaultDiffuse_TC_Masks"), SAMPLERTYPE_Masks, U0);
@@ -1270,6 +1274,7 @@ else if (m < 5.5) { // denim twill
 		B.Out()->Roughness.Connect(2, Msk);
 		B.Out()->Metallic.Connect(3, Msk);
 		B.Out()->Normal.Connect(0, Nrm);
+		if (bCut) { B.Out()->OpacityMask.Connect(4, Col); B.Out()->SubsurfaceColor.Connect(0, Col); }
 		break;
 	}
 	case EATGMat::DeathGrade: {

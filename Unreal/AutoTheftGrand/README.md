@@ -124,13 +124,15 @@ The game generates all of its geometry and looks. It can also draw free CC0 (pub
 | --- | --- | --- |
 | Asphalt031, Concrete034, PavingStones150, Grass004, Ground037, Bricks105 | ambientCG, 2K | roads, pavements, plazas, lawns, dirt lots, brick and concrete walls |
 | fire_hydrant, metal_trash_can, modular_street_seating | Poly Haven, glTF | hydrants, bins and benches |
-| concrete_road_barrier, utility_box_01, utility_box_02, street_lamp_01, street_lamp_02 | Poly Haven, glTF | imported (the barrier and boxes) or downloaded only; not placed yet |
-| LowPoly Cars | Quaternius, itch.io | downloaded only; not used yet |
+| Palm tree v2 (Nobiax / Yughues) | OpenGameArt, OBJ | every palm, in the city and the countryside |
+| utility_box_01/02, planter_box_01/02, Barrel_01/02, barrel_03, wooden_crate_01/02, cardboard_box_01, trashbag | Poly Haven, glTF | street dressing the browser game doesn't have (below) |
+| concrete_road_barrier, street_lamp_01, street_lamp_02 | Poly Haven, glTF | imported (the barrier) or downloaded only; not placed |
+| LowPoly Cars | Quaternius, itch.io | downloaded only; not used |
 
 The files are not in git. To get them and turn them into assets:
 
 ```sh
-node Tools/fetch_assets.mjs   # about 210 MB into SourceAssets/, with CREDITS.txt
+node Tools/fetch_assets.mjs   # about 260 MB into SourceAssets/, with CREDITS.txt
 Tools/import.sh               # the ATGImport commandlet: SourceAssets/ -> Content/ATG/Imported
 ```
 
@@ -140,6 +142,18 @@ materials then have a second form whose name ends in `T` (for example `M_ATG_Roa
 assets the game looks as it did before. `Tools/tests/assets.txt` takes screenshots of the textured ground and
 each model; `ATG.Prop type [n] [metres]` and `ATG.Facade style [n] [metres]` put the player beside a prop or a
 building wall.
+
+The street dressing (`ATGDressing`) goes beyond the browser game: a utility cabinet behind about one street lamp
+in five, a planter beside most benches, one to three barrels, crates, boxes or bin bags beside each dumpster,
+and now and then a bin bag by a bin. Each is placed from a fixed seed, only where it misses roads, buildings and
+other props, after the generated props, so their numbering is unchanged. They are props to the simulation:
+people and cars bump into them, and cars knock the light ones over. The browser game and online players on it
+don't have them.
+
+Other models can be added. The importer reads glTF 2.0 (`.gltf` with its `.bin` and images, or `.glb` once
+unpacked) and Wavefront OBJ with separate images. Real-world size in metres, y up. Textures as PNG, JPG or TGA:
+colour, a normal map, and roughness (glTF's packed occlusion-roughness-metal map, or a specular map). Each model
+gets an entry in `PropSpecs()` in `ATGAssets.cpp`.
 
 To start the story from PowerShell, add `-ATGStory` to the game launch:
 

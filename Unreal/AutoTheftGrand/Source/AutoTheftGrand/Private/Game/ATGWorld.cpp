@@ -4,6 +4,7 @@
 #include "Game/ATGCoords.h"
 #include "Game/ATGMaterials.h"
 #include "Game/ATGAssets.h"
+#include "Game/ATGDressing.h"
 #include "Game/ATGMeshUtil.h"
 #include "Game/ATGPictures.h"
 #include "Gen/BikeModels.h"
@@ -125,7 +126,7 @@ atg::MeshBuf BuildLake() {
 	return G;
 }
 
-FATGWorldData* Generate(std::atomic<int32>& Stage) {
+FATGWorldData* Generate(std::atomic<int32>& Stage, const std::map<std::string, std::pair<double, double>>& Dressing) {
 	using namespace atg;
 	const double T0 = FPlatformTime::Seconds();
 	Stage = 1;
@@ -144,6 +145,8 @@ FATGWorldData* Generate(std::atomic<int32>& Stage) {
 	Stage = 4;
 	D->PropDefs = BuildPropTemplates();
 	D->Props = PlaceProps(M);
+	// (the downloaded street dressing, after the generated props: ATGDressing)
+	if (!Dressing.empty()) ATGDressing::Place(M, D->Props, D->PropDefs, Dressing);
 	D->VegDefs = BuildVegTemplates();
 	D->Container = ContainerGeo();
 	{ MeshBuf S; S.ColorHex(0x4d443c); S.Rough(0.95); S.Add(Geo::Box(2.6, 0.16, 0.26), Mat4::Identity()); D->Sleeper = std::move(S); }
@@ -279,7 +282,14 @@ void AATGWorld::BeginPlay() {
 	InteriorLight->RegisterComponent();
 	UpdateSky(0.f);
 	std::atomic<int32>* StagePtr = &LoadStage;
-	Job = Async(EAsyncExecution::Thread, [StagePtr]() { return Generate(*StagePtr); });
+	// the street dressing that was imported (the models load here, on the game thread)
+	std::map<std::string, std::pair<double, double>> Dressing;
+	{
+		TArray<FString> Kinds;
+		for (const std::string& K : ATGDressing::Kinds()) Kinds.Add(UTF8_TO_TCHAR(K.c_str()));
+		for (const auto& Sz : ATGAssets::DressingSizes(Kinds)) Dressing[TCHAR_TO_UTF8(*Sz.Key)] = { Sz.Value.X, Sz.Value.Y };
+	}
+	Job = Async(EAsyncExecution::Thread, [StagePtr, Dressing]() { return Generate(*StagePtr, Dressing); });
 }
 
 void AATGWorld::EndPlay(const EEndPlayReason::Type Reason) {
@@ -769,8 +779,12 @@ void AATGWorld::QueueBuild() {
 			if (!T.nearLeaves.Empty()) L0.Add({ &T.nearLeaves, T.frond ? MFrond : MLit });
 			if (!T.farMesh.Empty()) Lods.AddDefaulted_GetRef().Add({ &T.farMesh, MLit });
 			const FString Name = Str(L.first);
-			UStaticMesh* SM = ATGMesh::BuildStaticMesh(this, *(TEXT("Veg_") + Name), Lods);
-			if (Lods.Num() > 1) ATGMesh::SetLodDistances(SM, { T.nearD > 0 ? T.nearD : 120.0 });
+			// (a downloaded model where one was imported for this kind, ATGAssets: the palms)
+			UStaticMesh* SM = ATGAssets::PropMesh(Name);
+			if (!SM) {
+				SM = ATGMesh::BuildStaticMesh(this, *(TEXT("Veg_") + Name), Lods);
+				if (Lods.Num() > 1) ATGMesh::SetLodDistances(SM, { T.nearD > 0 ? T.nearD : 120.0 });
+			}
 			Meshes.Add(SM);
 			UHierarchicalInstancedStaticMeshComponent* H = NewInstances(*(TEXT("Veg_") + Name), SM, 0);
 			const int32 FarCm = (int32)((T.farD > 0 ? T.farD : 1500.0) * 100);

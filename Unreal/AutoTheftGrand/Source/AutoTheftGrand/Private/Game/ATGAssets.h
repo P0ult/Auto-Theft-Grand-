@@ -17,8 +17,11 @@ namespace ATGAssets {
 	UTexture2D* Surface(const TCHAR* Set, TCHAR Kind);
 	// true when every surface set was imported (the materials then use them)
 	bool HasSurfaces();
-	// the model that replaces a kind of prop ("hydrant", "trashcan", "bench"), or null
+	// the model that replaces a kind of prop ("hydrant", "trashcan", "bench", "palm0", ...) or stands for a kind of
+	// street dressing (ATGDressing), or null
 	UStaticMesh* PropMesh(const FString& Type);
+	// of those kinds, the ones imported, with a collision radius and height in metres from the model's bounds
+	TMap<FString, FVector2D> DressingSizes(const TArray<FString>& Kinds);
 #if WITH_EDITOR
 	// the average linear colour of a texture's source image (the materials use it to keep the game's palette)
 	FLinearColor Mean(UTexture2D* Tex);

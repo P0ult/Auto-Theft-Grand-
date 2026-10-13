@@ -159,9 +159,13 @@ the browser game on purpose; the rules, numbers and collision stay the browser's
   (not in git); the `ATGImport` commandlet (`Tools/import.sh`, `ATGAssets`) imports them. Roads, streets, lots,
   pavements, plazas, lawns, dirt, the terrain's grass and forest floor, and brick and concrete walls draw the
   textures under the game's own colours and markings. Hydrants, bins and benches are the Poly Haven models.
+- Done: the palms (an OpenGameArt OBJ, with see-through two-sided leaves) and street dressing that the browser
+  game doesn't have (`ATGDressing`: utility cabinets, planters, barrels, crates, boxes and bin bags, with
+  collision, placed from a fixed seed after the generated props).
 - Not yet: the street lamps (the free lamps found are park lamps, not the city's arm lamps), the downloaded
-  barrier and utility boxes (no place yet), cars (the free Quaternius pack is low poly, no better than the
-  generated cars), trees and palms (the free tree models are 100 to 230 MB each), and people.
+  barrier (no place yet), cars (the free Quaternius pack is low poly, no better than the generated cars; cars
+  would need wheels as separate parts), the other trees (the free tree models are 100 to 230 MB each), and
+  people.
 
 ## Known gaps
 

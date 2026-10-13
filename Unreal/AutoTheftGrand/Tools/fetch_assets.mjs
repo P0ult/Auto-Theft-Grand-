@@ -1,8 +1,9 @@
 // Downloads the free (CC0) art the Unreal port uses into SourceAssets/, which git ignores. Run it once after a
-// clone, then start the editor: ATGAssets imports what it finds there into Content/ATG/Imported.
+// clone, then run Tools/import.sh: ATGAssets imports what it finds there into Content/ATG/Imported.
 //   node Tools/fetch_assets.mjs            fetch what is missing
 //   node Tools/fetch_assets.mjs --force    fetch everything again
 // Every asset here is CC0 (public domain); SourceAssets/CREDITS.txt lists where each one came from.
+// Archives are unpacked with unzip (.zip) and Windows' own tar (.7z).
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
@@ -31,6 +32,20 @@ const MODELS = [
 	['modular_street_seating', '1k'],
 	['utility_box_01', '2k'],
 	['utility_box_02', '2k'],
+	['Barrel_01', '2k'],
+	['Barrel_02', '2k'],
+	['barrel_03', '2k'],
+	['wooden_crate_01', '2k'],
+	['wooden_crate_02', '2k'],
+	['planter_box_01', '2k'],
+	['planter_box_02', '2k'],
+	['cardboard_box_01', '2k'],
+	['trashbag', '2k'],
+];
+
+// OpenGameArt files: [folder, file URL, what]
+const OGA = [
+	['palm_tree_v2', 'https://opengameart.org/sites/default/files/palm_tree_v2.7z', 'Palm tree v2 by Nobiax (Yughues), https://opengameart.org/node/6048 (the author asks for a link to the result: nobiax.deviantart.com)'],
 ];
 
 // itch.io packs (free, name your own price; fetched the way the page's "No thanks, just take me to the downloads"
@@ -57,7 +72,8 @@ async function download(url, file, opts) {
 
 function unzip(zip, dir) {
 	fs.mkdirSync(dir, { recursive: true });
-	execFileSync('unzip', ['-o', '-q', zip, '-d', dir]);
+	if (zip.endsWith('.7z')) execFileSync(path.join(process.env.SystemRoot || 'C:/Windows', 'System32', 'tar.exe'), ['-xf', zip, '-C', dir]);
+	else execFileSync('unzip', ['-o', '-q', zip, '-d', dir]);
 }
 
 function done(dir) { return !FORCE && fs.existsSync(path.join(dir, '.done')); }
@@ -135,9 +151,24 @@ async function itch() {
 	}
 }
 
+async function oga() {
+	for (const [name, url, what] of OGA) {
+		const dir = path.join(ROOT, 'opengameart', name);
+		credits.push(`${name}: ${what}, CC0 1.0`);
+		if (done(dir)) { console.log(`${name}: already here`); continue; }
+		const file = path.join(ROOT, 'downloads', path.basename(new URL(url).pathname));
+		const n = await download(url, file);
+		unzip(file, dir);
+		fs.rmSync(file);
+		mark(dir, n);
+		console.log(`${name}: ${mb(n)}`);
+	}
+}
+
 fs.mkdirSync(ROOT, { recursive: true });
 await textures();
 await models();
 await itch();
+await oga();
 fs.writeFileSync(path.join(ROOT, 'CREDITS.txt'), credits.join('\n') + '\n');
 console.log(`done: ${ROOT}`);
