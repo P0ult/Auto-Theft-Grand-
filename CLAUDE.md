@@ -191,7 +191,8 @@ Claude session that has the Artifact tool; a plain local CLI may not have it.
   collision and line-of-sight queries through a small interface, and play sound. This keeps most of the code
   testable without launching the engine.
 - **Geometry:** generate everything procedurally as phase 1 does (`ProceduralMeshComponent` and runtime
-  static meshes, built by `ATGMeshUtil`). The game ships no art assets. The models live in
+  static meshes, built by `ATGMeshUtil`). The game ships no art of its own; free CC0 art can be downloaded
+  on top (`Tools/fetch_assets.mjs`, imported by `Tools/import.sh`, see the Unreal README). The models live in
   `src/entities/vehiclemodels.js`, `humanoid.js`, `aircraftmodels.js`, `animals.js`, `bikes.js`, `boat.js`,
   `src/world/*`.
 - **Coordinates:** `Game/ATGCoords.h`. World: x, y, z → X = x, Y = z, Z = y, in centimetres. Things

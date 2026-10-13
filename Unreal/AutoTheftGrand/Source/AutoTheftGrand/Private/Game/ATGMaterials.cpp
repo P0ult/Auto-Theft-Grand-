@@ -4,6 +4,7 @@
 // anti-aliasing widths come from the pixel's depth instead.
 #include "Game/ATGMaterials.h"
 #include "AutoTheftGrand.h"
+#include "Game/ATGAssets.h"
 #include "Gen/RoadLayout.h"
 #include "Materials/Material.h"
 #include "Materials/MaterialInterface.h"
@@ -34,10 +35,15 @@
 
 namespace {
 // bump when the generated materials change: new assets are made under new names
-constexpr int32 GMatVersion = 13;
-const TCHAR* GMatNames[] = { TEXT("Terrain"), TEXT("Road"), TEXT("Street"), TEXT("Ground"), TEXT("Building"), TEXT("VertexLit"), TEXT("Frond"), TEXT("Water"), TEXT("Standard"), TEXT("Glass"), TEXT("FxAlpha"), TEXT("FxAdd"), TEXT("Unlit"), TEXT("Picture"), TEXT("Rain"), TEXT("Wood"), TEXT("Cutout"), TEXT("Beam"), TEXT("DeathBlur"), TEXT("Human"), TEXT("DeathGrade") };
+constexpr int32 GMatVersion = 14;
+const TCHAR* GMatNames[] = { TEXT("Terrain"), TEXT("Road"), TEXT("Street"), TEXT("Ground"), TEXT("Building"), TEXT("VertexLit"), TEXT("Frond"), TEXT("Water"), TEXT("Standard"), TEXT("Glass"), TEXT("FxAlpha"), TEXT("FxAdd"), TEXT("Unlit"), TEXT("Picture"), TEXT("Rain"), TEXT("Wood"), TEXT("Cutout"), TEXT("Beam"), TEXT("DeathBlur"), TEXT("Human"), TEXT("DeathGrade"), TEXT("Prop") };
+static_assert(UE_ARRAY_COUNT(GMatNames) == (int32)EATGMat::Count, "a name per material");
 
-FString AssetName(const TCHAR* Base) { return FString::Printf(TEXT("M_ATG_%s_%d"), Base, GMatVersion); }
+// the ground and building materials draw the downloaded surface textures when those were imported (ATGAssets)
+bool UsesSurfaces(int32 i) { return i <= (int32)EATGMat::Building; }
+bool GSurfaces = false;
+bool Surfaces() { if (!GSurfaces) GSurfaces = ATGAssets::HasSurfaces(); return GSurfaces; }
+FString AssetName(int32 i) { return FString::Printf(TEXT("M_ATG_%s_%d%s"), GMatNames[i], GMatVersion, UsesSurfaces(i) && Surfaces() ? TEXT("T") : TEXT("")); }
 FString MpcName() { return FString::Printf(TEXT("MPC_ATG_%d"), GMatVersion); }
 FString ObjectPath(const FString& Name) { return FString::Printf(TEXT("/Game/ATG/Materials/%s.%s"), *Name, *Name); }
 
@@ -60,6 +66,9 @@ struct ATGN {
 	float stripe(float x, float c, float w, float aa) { return 1.0 - smoothstep(w - aa, w + aa, abs(x - c)); }
 	float rectM(float2 f, float2 lo, float2 hi, float aa) { float2 a = smoothstep(lo - aa, lo + aa, f) * (1.0 - smoothstep(hi - aa, hi + aa, f)); return a.x * a.y; }
 	float bandG(float x, float c, float w) { return step(abs(x - c), w); }
+	// a level surface's normal (world space, Unreal's axes) bent by a tangent-space normal map sampled at its
+	// world position (u along X, v along Y)
+	float3 tbump(float3 nrm, float3 tn, float k) { return normalize(nrm * tn.z + float3(tn.x, tn.y, 0.0) * k); }
 	// materials.js WET_GLSL: standing water in low spots of level ground (flatN: the normal's up component) and
 	// rain on ground-like surfaces: darker, glossier, puddles of clear water (porous: 0 asphalt .. 1 soil)
 	float puddle(float2 xz, float flatN, float wet) {
@@ -655,6 +664,61 @@ FString WithRipples(FString Code) {
 }
 FString Out(const FString& Code, const TCHAR* Ret) { return Code.Replace(TEXT("%OUT%"), Ret); }
 
+// ---- the textured forms (ATGAssets' surfaces): the downloaded textures take the place of the generated fine
+// noise (asphalt, concrete, paving, grass, dirt, brick); the game's colours, markings and wear stay on top. Each
+// texture set P is a custom input PC (colour), PN (tangent-space normal) and PM (roughness, occlusion, height);
+// %PMean% and %PRough% are its average colour and roughness. NRMt is the bent normal (world space).
+void Swap(FString& Code, const TCHAR* Old, const TCHAR* New) {
+	if (!Code.Contains(Old, ESearchCase::CaseSensitive)) { UE_LOG(LogATG, Warning, TEXT("Textured material: no '%s' in the code"), Old); return; }
+	Code = Code.Replace(Old, New, ESearchCase::CaseSensitive);
+}
+FString TexturedCode(EATGMat Which, FString Code) {
+	Swap(Code, TEXT("ATGN N;\n"), TEXT("ATGN N;\nfloat3 NRMt = NRM;\n"));
+	switch (Which) {
+	case EATGMat::Terrain:
+		Swap(Code, TEXT("grass = lerp(grass, base, 0.35);"), TEXT("grass = lerp(grass, base, 0.35);\ngrass = lerp(grass, GrC * (0.8 + 0.35 * n3), 0.6);"));
+		Swap(Code, TEXT("col = lerp(col, ff, forest);"), TEXT("ff = lerp(ff, DiC * (0.6 + 0.3 * n2), 0.6);\ncol = lerp(col, ff, forest);"));
+		Swap(Code, TEXT("pv = lerp(pv, float3(0.2, 0.195, 0.185), joint * 0.5);"), TEXT("pv *= CoC / %CoMean%;\n\tpv = lerp(pv, float3(0.2, 0.195, 0.185), joint * 0.5);"));
+		Swap(Code, TEXT("float rough = lerp(0.96, 0.9, sand);"), TEXT("float rough = lerp(0.96, 0.9, sand);\nNRMt = N.tbump(NRM, lerp(lerp(GrN, DiN, forest), CoN, urb), 0.6 * (1.0 - sand) * (1.0 - steep));"));
+		break;
+	case EATGMat::Road:
+		Swap(Code, TEXT("col = float3(0.42, 0.33, 0.22) * (0.75 + 0.35 * n) * (0.85 + 0.25 * fine);"), TEXT("col = lerp(float3(0.42, 0.33, 0.22) * (0.75 + 0.35 * n) * (0.85 + 0.25 * fine), DiC * (0.8 + 0.3 * n), 0.65);\n\tNRMt = N.tbump(NRM, DiN, 0.8);"));
+		Swap(Code, TEXT("col = float3(0.09, 0.09, 0.095) * (0.72 + 0.45 * n) * (0.9 + 0.2 * fine);"), TEXT("col = float3(0.09, 0.09, 0.095) * (0.72 + 0.45 * n) * (AsC / %AsMean%);\n\tNRMt = N.tbump(NRM, AsN, 0.6);"));
+		Swap(Code, TEXT("rough = lerp(0.92, 0.6, saturate(paintW + paintY));"), TEXT("rough = lerp(0.92, 0.6, saturate(paintW + paintY));\n\trough = saturate(rough + (AsM.r - %AsRough%) * 0.5);\n\tNRMt = normalize(lerp(NRMt, NRM, saturate(paintW + paintY) * 0.7));"));
+		break;
+	case EATGMat::Street:
+		Swap(Code, TEXT("float3 col = float3(0.085, 0.085, 0.09) * (0.72 + 0.45 * n) * (0.9 + 0.2 * fine);"), TEXT("float3 col = float3(0.085, 0.085, 0.09) * (0.72 + 0.45 * n) * (AsC / %AsMean%);\nNRMt = N.tbump(NRM, AsN, 0.6);"));
+		Swap(Code, TEXT("float rough = lerp(0.92, 0.6, saturate(paintY + paintW));"), TEXT("float rough = lerp(0.92, 0.6, saturate(paintY + paintW));\nrough = saturate(rough + (AsM.r - %AsRough%) * 0.5);\nNRMt = normalize(lerp(NRMt, NRM, saturate(paintY + paintW) * 0.7));"));
+		break;
+	case EATGMat::Ground:
+		Swap(Code, TEXT("float3 asph = float3(0.1, 0.1, 0.105) * (0.75 + 0.35 * n) * (0.9 + 0.2 * N.vn2(wp * 5.0));"), TEXT("float3 asph = float3(0.1, 0.1, 0.105) * (0.75 + 0.35 * n) * (AsC / %AsMean%);\n\tNRMt = N.tbump(NRM, AsN, 0.6);"));
+		Swap(Code, TEXT("col = float3(0.38, 0.375, 0.36) * (0.9 + 0.1 * n) * (0.94 + 0.1 * slab) * (1.0 - saturate(step(g.x, 0.01) + step(g.y, 0.01)) * 0.35);"), TEXT("col = float3(0.38, 0.375, 0.36) * (0.9 + 0.1 * n) * (0.94 + 0.1 * slab) * (1.0 - saturate(step(g.x, 0.01) + step(g.y, 0.01)) * 0.35);\n\t\tcol *= CoC / %CoMean%;\n\t\tNRMt = N.tbump(NRM, CoN, 0.5);"));
+		Swap(Code, TEXT("col = float3(0.34, 0.35, 0.33) * (0.9 + 0.12 * n);"), TEXT("col = float3(0.34, 0.35, 0.33) * (0.9 + 0.12 * n) * (CoC / %CoMean%);\n\t\tNRMt = N.tbump(NRM, CoN, 0.5);"));
+		Swap(Code, TEXT("col = float3(0.4, 0.34, 0.24) * (0.75 + 0.4 * n) * (0.9 + 0.2 * N.vn2(wp * 3.0));"), TEXT("col = DiC * (0.8 + 0.35 * n);\n\t\tNRMt = N.tbump(NRM, DiN, 0.8);"));
+		Swap(Code, TEXT("col = float3(0.54, 0.53, 0.5) * (0.85 + 0.25 * n) * (1.0 - saturate(joint) * 0.25);"), TEXT("col = float3(0.54, 0.53, 0.5) * (0.85 + 0.25 * n) * (1.0 - saturate(joint) * 0.25);\n\tcol *= CoC / %CoMean%;\n\tNRMt = N.tbump(NRM, CoN, 0.5);"));
+		Swap(Code, TEXT("col = float3(0.5, 0.49, 0.47) * (0.8 + 0.3 * n); rough = 0.85;"), TEXT("col = float3(0.5, 0.49, 0.47) * (0.8 + 0.3 * n) * (CoC / %CoMean%); rough = 0.85;\n\tNRMt = N.tbump(NRM, CoN, 0.5);"));
+		Swap(Code, TEXT("col = lerp(float3(0.12, 0.2, 0.06), float3(0.3, 0.27, 0.12), dry) * (0.75 + 0.5 * N.vn2(wp * 2.5)) * (0.85 + 0.3 * n);"), TEXT("col = lerp(GrC, dot(GrC, float3(0.3, 0.6, 0.1)) * float3(1.5, 1.3, 0.6), dry * 0.45) * (0.85 + 0.3 * n);\n\tNRMt = N.tbump(NRM, GrN, 0.8);"));
+		Swap(Code, TEXT("col = float3(0.32, 0.25, 0.17) * (0.7 + 0.5 * n) * (0.9 + 0.2 * N.vn2(wp * 5.0)); rough = 1.0;"), TEXT("col = DiC * (0.8 + 0.4 * n); rough = 1.0;\n\tNRMt = N.tbump(NRM, DiN, 0.8);"));
+		Swap(Code, TEXT("col = float3(0.1, 0.1, 0.105) * (0.75 + 0.4 * n);"), TEXT("col = float3(0.1, 0.1, 0.105) * (0.75 + 0.4 * n) * (AsC / %AsMean%);\n\tNRMt = N.tbump(NRM, AsN, 0.6);"));
+		Swap(Code, TEXT("col = lerp(float3(0.62, 0.58, 0.52), float3(0.5, 0.46, 0.42), chk) * (0.9 + 0.15 * n);"), TEXT("col = PvC * (0.9 + 0.15 * n);\n\tNRMt = N.tbump(NRM, PvN, 0.8);"));
+		Swap(Code, TEXT("col *= 1.0 - (step(g.x, 0.02) + step(g.y, 0.02)) * 0.2;"), TEXT(""));
+		Swap(Code, TEXT("} else if (type < 5.5) {\n\tcol = float3(0.6, 0.59, 0.56) * (0.85 + 0.2 * n); rough = 0.8;"), TEXT("} else if (type < 5.5) {\n\tcol = float3(0.6, 0.59, 0.56) * (0.85 + 0.2 * n) * (CoC / %CoMean%); rough = 0.8;\n\tNRMt = N.tbump(NRM, CoN, 0.5);"));
+		Swap(Code, TEXT("if (gn.y < 0.5) { col"), TEXT("if (gn.y < 0.5) { NRMt = NRM; col"));
+		break;
+	case EATGMat::Building:
+		Swap(Code, TEXT("float3 brick = tint * float3(0.58, 0.3, 0.22) * (0.85 + 0.3 * N.h21(floor(b)));\n\t\twall = lerp(brick, float3(0.55, 0.52, 0.48), mortar * 0.8);"),
+			TEXT("wall = BrC * tint;\n\t\tfloat3 Tw = normalize(cross(float3(0.0, 0.0, 1.0), NRM) + float3(1e-4, 0.0, 0.0));\n\t\tNRMt = normalize(NRM * BrN.z + (Tw * BrN.x - float3(0.0, 0.0, 1.0) * BrN.y) * (1.0 - farK));"));
+		Swap(Code, TEXT("wall = tint * float3(0.62, 0.61, 0.6) * (0.9 + 0.1 * N.vn2(uv * 3.0));"), TEXT("wall = tint * float3(0.62, 0.61, 0.6) * (0.9 + 0.1 * N.vn2(uv * 3.0)) * lerp(1.0, CoC / %CoMean%, 0.7);"));
+		Swap(Code, TEXT("wall = tint * float3(0.82, 0.78, 0.7) * (0.9 + 0.15 * N.fbm3(uv * 2.0));"), TEXT("wall = tint * float3(0.82, 0.78, 0.7) * (0.9 + 0.15 * N.fbm3(uv * 2.0)) * lerp(1.0, CoC / %CoMean%, 0.6);"));
+		Swap(Code, TEXT("wall = tint * float3(0.78, 0.72, 0.64) * (0.9 + 0.15 * N.fbm3(uv * 2.0));"), TEXT("wall = tint * float3(0.78, 0.72, 0.64) * (0.9 + 0.15 * N.fbm3(uv * 2.0)) * lerp(1.0, CoC / %CoMean%, 0.6);"));
+		Swap(Code, TEXT("wall = tint * float3(0.9, 0.9, 0.88);"), TEXT("wall = tint * float3(0.9, 0.9, 0.88) * lerp(1.0, CoC / %CoMean%, 0.5);"));
+		Swap(Code, TEXT("rough = lerp(0.88, 0.06, win);"), TEXT("rough = lerp(0.88, 0.06, win);\n\tNRMt = normalize(lerp(NRMt, NRM, saturate(win + saturate(frame))));"));
+		break;
+	default: break;
+	}
+	return Code;
+}
+
 FString StreetCode() {
 	FString Xs, Zs, Rb;
 	for (size_t i = 0; i < atg::XS.size(); i++) Xs += FString::Printf(TEXT("%s%.1f"), i ? TEXT(", ") : TEXT(""), atg::XS[i]);
@@ -792,6 +856,21 @@ struct FMatBuilder {
 		return E;
 	}
 	UMaterialEditorOnlyData* Out() { return M->GetEditorOnlyData(); }
+	UMaterialExpressionTextureSample* Sample(UTexture* Tex, EMaterialSamplerType Type, UMaterialExpression* Coords) {
+		auto* E = New<UMaterialExpressionTextureSample>();
+		E->Texture = Tex; E->SamplerType = Type;
+		E->SamplerSource = SSM_Wrap_WorldGroupSettings; // (shared samplers: the ground reads up to fifteen textures)
+		E->Coordinates.Connect(0, Coords);
+		return E;
+	}
+	UMaterialExpressionTextureSampleParameter2D* TexParam(const TCHAR* Name, const TCHAR* Default, EMaterialSamplerType Type, UMaterialExpression* Coords) {
+		auto* E = New<UMaterialExpressionTextureSampleParameter2D>();
+		E->ParameterName = FName(Name);
+		E->Texture = LoadObject<UTexture2D>(nullptr, Default);
+		E->SamplerType = Type;
+		E->Coordinates.Connect(0, Coords);
+		return E;
+	}
 };
 
 void SaveAsset(UObject* Asset) {
@@ -823,7 +902,7 @@ UMaterialParameterCollection* MakeMpc() {
 }
 
 UMaterial* MakeMaterial(EATGMat Which, UMaterialParameterCollection* C) {
-	const FString Name = AssetName(GMatNames[(int32)Which]);
+	const FString Name = AssetName((int32)Which);
 	UPackage* Pkg = CreatePackage(*(TEXT("/Game/ATG/Materials/") + Name));
 	UMaterial* M = NewObject<UMaterial>(Pkg, FName(*Name), RF_Public | RF_Standalone | RF_Transactional);
 	FMatBuilder B(M);
@@ -837,9 +916,47 @@ UMaterial* MakeMaterial(EATGMat Which, UMaterialParameterCollection* C) {
 	};
 	auto UVs = [&](TArray<TPair<FString, UMaterialExpression*>>& Ins) { for (int32 i = 0; i < 4; i++) Ins.Add({ FString::Printf(TEXT("uv%d"), i), B.UV(i) }); };
 	// a ground material: its colour and roughness, and the rippled normal in world space from the extra output
-	auto Ground = [&](const FString& Code, TArray<TPair<FString, UMaterialExpression*>> Ins, const TCHAR* Desc) {
+	// the downloaded surfaces (textured forms only): a texture set sampled at Coords, added to a custom
+	// expression's inputs as PC, PN, PM with its averages filled into the code
+	const bool bTex = UsesSurfaces((int32)Which) && Surfaces();
+	struct FSurf { FString P; UMaterialExpression* C = nullptr; UMaterialExpression* N = nullptr; UMaterialExpression* M = nullptr; FLinearColor Mean; float Rough = 0.5f; };
+	auto Surf = [&](const TCHAR* Id, const TCHAR* P, UMaterialExpression* Coords) {
+		FSurf S; S.P = P;
+		S.C = B.Sample(ATGAssets::Surface(Id, 'C'), SAMPLERTYPE_Color, Coords);
+		S.N = B.Sample(ATGAssets::Surface(Id, 'N'), SAMPLERTYPE_Normal, Coords);
+		S.M = B.Sample(ATGAssets::Surface(Id, 'M'), SAMPLERTYPE_Masks, Coords);
+		S.Mean = ATGAssets::Mean(ATGAssets::Surface(Id, 'C'));
+		S.Rough = ATGAssets::Mean(ATGAssets::Surface(Id, 'M')).R;
+		return S;
+	};
+	auto Use = [&](TArray<TPair<FString, UMaterialExpression*>>& Ins, FString& Code, const FSurf& S) {
+		Ins.Add({ S.P + TEXT("C"), S.C }); Ins.Add({ S.P + TEXT("N"), S.N }); Ins.Add({ S.P + TEXT("M"), S.M });
+		Code = Code.Replace(*(TEXT("%") + S.P + TEXT("Mean%")), *FString::Printf(TEXT("float3(%.4f, %.4f, %.4f)"), S.Mean.R, S.Mean.G, S.Mean.B));
+		Code = Code.Replace(*(TEXT("%") + S.P + TEXT("Rough%")), *FString::Printf(TEXT("%.4f"), S.Rough));
+	};
+	// world-position texture coordinates, one tile every so many metres
+	auto WorldUV = [&](UMaterialExpression* Lp, double Metres) {
+		TArray<TPair<FString, UMaterialExpression*>> I; I.Add({ TEXT("LP"), Lp });
+		return B.Custom(FString::Printf(TEXT("return LP.xy / %.1f;"), Metres * 100.0), CMOT_Float2, I, TEXT("ATG texture uv"));
+	};
+	// the ground sets: P, ambientCG id, metres per tile
+	auto GroundSurfaces = [&](TArray<TPair<FString, UMaterialExpression*>>& Ins, FString& Code, UMaterialExpression* Lp, std::initializer_list<const TCHAR*> Ps) {
+		static const struct { const TCHAR* P; const TCHAR* Id; double Metres; } Sets[] = {
+			{ TEXT("As"), TEXT("Asphalt031"), 3.0 }, { TEXT("Co"), TEXT("Concrete034"), 4.0 }, { TEXT("Pv"), TEXT("PavingStones150"), 3.0 },
+			{ TEXT("Gr"), TEXT("Grass004"), 2.0 }, { TEXT("Di"), TEXT("Ground037"), 3.0 } };
+		for (const TCHAR* P : Ps) for (const auto& S : Sets) if (FCString::Strcmp(S.P, P) == 0) Use(Ins, Code, Surf(S.Id, S.P, WorldUV(Lp, S.Metres)));
+	};
+	auto Ground = [&](FString Code, TArray<TPair<FString, UMaterialExpression*>> Ins, const TCHAR* Desc, std::initializer_list<const TCHAR*> Ps) {
 		Ins.Add({ TEXT("Rain"), B.Mpc(C, TEXT("Rain")) }); Ins.Add({ TEXT("SimT"), B.Mpc(C, TEXT("SimTime")) });
-		UMaterialExpressionCustom* E = B.Custom(WithRipples(Code), CMOT_Float4, Ins, Desc);
+		if (bTex) {
+			Code = TexturedCode(Which, Code);
+			UMaterialExpression* Lp = nullptr;
+			for (const auto& In : Ins) if (In.Key == TEXT("LP")) Lp = In.Value;
+			GroundSurfaces(Ins, Code, Lp, Ps);
+		}
+		Code = WithRipples(Code);
+		if (bTex) Code = Code.Replace(TEXT("N.wetNormal(wp, pudR, NRM,"), TEXT("N.wetNormal(wp, pudR, NRMt,"));
+		UMaterialExpressionCustom* E = B.Custom(Code, CMOT_Float4, Ins, Desc);
 		FCustomOutput Rn; Rn.OutputName = FName(TEXT("RippleN")); Rn.OutputType = CMOT_Float3;
 		E->AdditionalOutputs.Add(Rn);
 		E->RebuildOutputs();
@@ -851,31 +968,44 @@ UMaterial* MakeMaterial(EATGMat Which, UMaterialParameterCollection* C) {
 	case EATGMat::Terrain: {
 		TArray<TPair<FString, UMaterialExpression*>> Ins; UVs(Ins);
 		Ins.Add({ TEXT("LP"), B.LocalPos() }); Ins.Add({ TEXT("NRM"), B.Normal() }); Ins.Add({ TEXT("Wet"), B.Mpc(C, TEXT("Wet")) });
-		Ground(Wrap(TerrainFields, TerrainBody), Ins, TEXT("ATG terrain"));
+		Ground(Wrap(TerrainFields, TerrainBody), Ins, TEXT("ATG terrain"), { TEXT("Gr"), TEXT("Di"), TEXT("Co") });
 		break;
 	}
 	case EATGMat::Road: {
 		TArray<TPair<FString, UMaterialExpression*>> Ins; UVs(Ins);
 		Ins.Add({ TEXT("LP"), B.LocalPos() }); Ins.Add({ TEXT("PD"), B.Depth() }); Ins.Add({ TEXT("NRM"), B.Normal() }); Ins.Add({ TEXT("Wet"), B.Mpc(C, TEXT("Wet")) });
-		Ground(Wrap(TEXT(""), RoadBody), Ins, TEXT("ATG road network"));
+		Ground(Wrap(TEXT(""), RoadBody), Ins, TEXT("ATG road network"), { TEXT("As"), TEXT("Di") });
 		break;
 	}
 	case EATGMat::Street: {
 		TArray<TPair<FString, UMaterialExpression*>> Ins;
 		Ins.Add({ TEXT("LP"), B.LocalPos() }); Ins.Add({ TEXT("PD"), B.Depth() }); Ins.Add({ TEXT("NRM"), B.Normal() }); Ins.Add({ TEXT("Wet"), B.Mpc(C, TEXT("Wet")) });
-		Ground(StreetCode(), Ins, TEXT("ATG city streets"));
+		Ground(StreetCode(), Ins, TEXT("ATG city streets"), { TEXT("As") });
 		break;
 	}
 	case EATGMat::Ground: {
 		TArray<TPair<FString, UMaterialExpression*>> Ins; UVs(Ins);
 		Ins.Add({ TEXT("LP"), B.LocalPos() }); Ins.Add({ TEXT("NRM"), B.Normal() }); Ins.Add({ TEXT("Wet"), B.Mpc(C, TEXT("Wet")) });
-		Ground(Wrap(TEXT(""), GroundBody), Ins, TEXT("ATG ground"));
+		Ground(Wrap(TEXT(""), GroundBody), Ins, TEXT("ATG ground"), { TEXT("As"), TEXT("Co"), TEXT("Pv"), TEXT("Gr"), TEXT("Di") });
 		break;
 	}
 	case EATGMat::Building: {
 		UMaterialExpression* Lp = B.LocalPos(); UMaterialExpression* Nrm = B.Normal(); UMaterialExpression* Cam = B.Camera(); UMaterialExpression* Pd = B.Depth();
 		UMaterialExpression* Night = B.Mpc(C, TEXT("Night")); UMaterialExpression* Boost = B.Mpc(C, TEXT("EmissiveBoost")); UMaterialExpression* T = B.Time(); UMaterialExpression* Wet = B.Mpc(C, TEXT("Wet"));
 		UMaterialExpression* U[4] = { B.UV(0), B.UV(1), B.UV(2), B.UV(3) };
+		FString Code = Wrap(BuildingRoom, BuildingBody);
+		// (textured: brick tiles every 1/1.5 of a cell across and 1/2.05 of a floor up, as the generated bricks
+		// were laid; concrete every 1.25 cells)
+		TArray<FSurf> Sets;
+		if (bTex) {
+			Code = TexturedCode(Which, Code);
+			auto FacadeUV = [&](double Su, double Sv) {
+				TArray<TPair<FString, UMaterialExpression*>> I; I.Add({ TEXT("uv0"), U[0] });
+				return B.Custom(FString::Printf(TEXT("return uv0 * float2(%.3f, %.3f);"), Su, Sv), CMOT_Float2, I, TEXT("ATG facade uv"));
+			};
+			Sets.Add(Surf(TEXT("Bricks105"), TEXT("Br"), FacadeUV(1.5, 2.05)));
+			Sets.Add(Surf(TEXT("Concrete034"), TEXT("Co"), FacadeUV(0.8, 0.85)));
+		}
 		auto Ins = [&](bool WithBoost) {
 			TArray<TPair<FString, UMaterialExpression*>> I;
 			for (int32 i = 0; i < 4; i++) I.Add({ FString::Printf(TEXT("uv%d"), i), U[i] });
@@ -883,9 +1013,15 @@ UMaterial* MakeMaterial(EATGMat Which, UMaterialParameterCollection* C) {
 			if (WithBoost) I.Add({ TEXT("Boost"), Boost });
 			return I;
 		};
-		const FString Code = Wrap(BuildingRoom, BuildingBody);
-		UMaterialExpressionCustom* A = B.Custom(Out(Code, TEXT("return float4(col, rough);")), CMOT_Float4, Ins(false), TEXT("ATG building surface"));
-		UMaterialExpressionCustom* E = B.Custom(Out(Code, TEXT("return float4(emit * Boost, metal);")), CMOT_Float4, Ins(true), TEXT("ATG building light"));
+		TArray<TPair<FString, UMaterialExpression*>> InA = Ins(false), InE = Ins(true), InN = Ins(false);
+		for (const FSurf& S : Sets) { Use(InA, Code, S); Use(InE, Code, S); Use(InN, Code, S); }
+		UMaterialExpressionCustom* A = B.Custom(Out(Code, TEXT("return float4(col, rough);")), CMOT_Float4, InA, TEXT("ATG building surface"));
+		UMaterialExpressionCustom* E = B.Custom(Out(Code, TEXT("return float4(emit * Boost, metal);")), CMOT_Float4, InE, TEXT("ATG building light"));
+		if (bTex) {
+			M->bTangentSpaceNormal = false;
+			UMaterialExpressionCustom* Nw = B.Custom(Out(Code, TEXT("return float4(NRMt, 0.0);")), CMOT_Float4, InN, TEXT("ATG building normal"));
+			B.Out()->Normal.Connect(0, B.Mask(Nw, true, true, true, false));
+		}
 		Split(A);
 		B.Out()->EmissiveColor.Connect(0, B.Mask(E, true, true, true, false));
 		B.Out()->Metallic.Connect(0, B.Mask(E, false, false, false, true));
@@ -1121,6 +1257,21 @@ else if (m < 5.5) { // denim twill
 		B.Out()->Metallic.Connect(0, B.Mask(Mt, true, false, false, false));
 		break;
 	}
+	case EATGMat::Prop: {
+		// a downloaded model (ATGAssets): its colour, its masks (glTF's packing: occlusion, roughness, metal) and its
+		// normal map, set per model by a material instance
+		M->SetUsageByFlag(MATUSAGE_InstancedStaticMeshes, true);
+		UMaterialExpression* U0 = B.UV(0);
+		auto* Col = B.TexParam(TEXT("Color"), TEXT("/Engine/EngineMaterials/DefaultDiffuse.DefaultDiffuse"), SAMPLERTYPE_Color, U0);
+		auto* Msk = B.TexParam(TEXT("Masks"), TEXT("/Engine/EngineMaterials/DefaultDiffuse_TC_Masks.DefaultDiffuse_TC_Masks"), SAMPLERTYPE_Masks, U0);
+		auto* Nrm = B.TexParam(TEXT("Normal"), TEXT("/Engine/EngineMaterials/DefaultNormal.DefaultNormal"), SAMPLERTYPE_Normal, U0);
+		B.Out()->BaseColor.Connect(0, Col);
+		B.Out()->AmbientOcclusion.Connect(1, Msk);
+		B.Out()->Roughness.Connect(2, Msk);
+		B.Out()->Metallic.Connect(3, Msk);
+		B.Out()->Normal.Connect(0, Nrm);
+		break;
+	}
 	case EATGMat::DeathGrade: {
 		// postfx.js, the death screen's grade after the tone mapping: harsh black and white with crushed blacks
 		// (lifted at night by uDeathBoost) and a slow darkening. The browser grades its linear display colour before
@@ -1197,7 +1348,7 @@ void ATGMaterials::EnsureAssets() {
 	if (!C) { UE_LOG(LogATG, Log, TEXT("Creating %s"), *MpcName()); C = MakeMpc(); }
 	GMpc = Keep(C);
 	for (int32 i = 0; i < (int32)EATGMat::Count; i++) {
-		const FString Name = AssetName(GMatNames[i]);
+		const FString Name = AssetName(i);
 		UMaterialInterface* M = LoadObject<UMaterialInterface>(nullptr, *ObjectPath(Name), nullptr, LOAD_NoWarn | LOAD_Quiet);
 		if (!M) { UE_LOG(LogATG, Log, TEXT("Creating %s"), *Name); M = MakeMaterial((EATGMat)i, C); }
 		GCache[i] = Keep(M);
@@ -1220,12 +1371,12 @@ UMaterialParameterCollection* ATGMaterials::Collection() {
 UMaterialInterface* ATGMaterials::Get(EATGMat Which) {
 	const int32 i = (int32)Which;
 	if (!GCache[i].IsValid()) {
-		UMaterialInterface* M = LoadObject<UMaterialInterface>(nullptr, *ObjectPath(AssetName(GMatNames[i])), nullptr, LOAD_NoWarn | LOAD_Quiet);
+		UMaterialInterface* M = LoadObject<UMaterialInterface>(nullptr, *ObjectPath(AssetName(i)), nullptr, LOAD_NoWarn | LOAD_Quiet);
 #if WITH_EDITOR
 		if (!M) { EnsureAssets(); M = GCache[i].Get(); }
 #endif
 		if (!M) {
-			UE_LOG(LogATG, Warning, TEXT("Material %s is missing (open the project in the editor once to generate it); using the default material"), *AssetName(GMatNames[i]));
+			UE_LOG(LogATG, Warning, TEXT("Material %s is missing (open the project in the editor once to generate it); using the default material"), *AssetName(i));
 			M = UMaterial::GetDefaultMaterial(MD_Surface);
 		}
 		GCache[i] = Keep(M);

@@ -1,0 +1,29 @@
+# The downloaded art (Tools/fetch_assets.mjs, Tools/import.sh): textured roads, pavements, lawns and brick, and
+# the hydrant, bin and bench models in place of the generated ones.
+wait 1
+ATG.Time 11
+ATG.Teleport -628 344 0
+wait 1
+shot assets_street
+ATG.Cam 0.3 -0.35
+wait 0.5
+shot assets_ground
+ATG.Prop hydrant 0 2.5
+wait 1
+ATG.Cam 0 -0.3
+wait 0.5
+shot assets_hydrant
+ATG.Prop trashcan 0 2.5
+wait 1
+ATG.Cam 0 -0.3
+wait 0.5
+shot assets_trashcan
+ATG.Prop bench 0 3
+wait 1
+ATG.Cam 0 -0.25
+wait 0.5
+shot assets_bench
+ATG.Time 21
+wait 0.5
+shot assets_bench_night
+quit

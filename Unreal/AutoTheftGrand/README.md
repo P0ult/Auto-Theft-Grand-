@@ -116,6 +116,31 @@ packaged exe takes the same `-ATGScript=` and `-ATGMenu` arguments as `Tools/run
 The build includes `Content/Audio/wasted` if you have added your own clip there. Do not share a build that
 contains a clip you have no rights to.
 
+### Downloaded art (optional)
+
+The game generates all of its geometry and looks. It can also draw free CC0 (public domain) art in places:
+
+| What | Source | Used for |
+| --- | --- | --- |
+| Asphalt031, Concrete034, PavingStones150, Grass004, Ground037, Bricks105 | ambientCG, 2K | roads, pavements, plazas, lawns, dirt lots, brick and concrete walls |
+| fire_hydrant, metal_trash_can, modular_street_seating | Poly Haven, glTF | hydrants, bins and benches |
+| concrete_road_barrier, utility_box_01, utility_box_02, street_lamp_01, street_lamp_02 | Poly Haven, glTF | imported (the barrier and boxes) or downloaded only; not placed yet |
+| LowPoly Cars | Quaternius, itch.io | downloaded only; not used yet |
+
+The files are not in git. To get them and turn them into assets:
+
+```sh
+node Tools/fetch_assets.mjs   # about 210 MB into SourceAssets/, with CREDITS.txt
+Tools/import.sh               # the ATGImport commandlet: SourceAssets/ -> Content/ATG/Imported
+```
+
+`Tools/package.sh` runs the import itself when `SourceAssets/` exists. The textures sit under the game's own
+colours, markings, wear and puddles; they replace only the generated fine noise. The ground and building
+materials then have a second form whose name ends in `T` (for example `M_ATG_Road_14T`). Without the imported
+assets the game looks as it did before. `Tools/tests/assets.txt` takes screenshots of the textured ground and
+each model; `ATG.Prop type [n] [metres]` and `ATG.Facade style [n] [metres]` put the player beside a prop or a
+building wall.
+
 To start the story from PowerShell, add `-ATGStory` to the game launch:
 
 ```powershell

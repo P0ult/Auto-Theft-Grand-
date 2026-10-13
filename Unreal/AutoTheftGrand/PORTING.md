@@ -150,6 +150,19 @@ missions recorded). Several optional single-player features and phase 6 items re
   share a room): the state, avatars, vehicle stand-ins, moments, player damage, chat, the host's clock, weather
   and trains, shared pedestrians and traffic, the Online tab and the chat box.
 
+## Beyond the browser game: downloaded art
+
+After the port, the next step is realism with free CC0 art (see the README, "Downloaded art"). This goes beyond
+the browser game on purpose; the rules, numbers and collision stay the browser's.
+
+- Done: `Tools/fetch_assets.mjs` downloads ambientCG texture sets and Poly Haven models into `SourceAssets/`
+  (not in git); the `ATGImport` commandlet (`Tools/import.sh`, `ATGAssets`) imports them. Roads, streets, lots,
+  pavements, plazas, lawns, dirt, the terrain's grass and forest floor, and brick and concrete walls draw the
+  textures under the game's own colours and markings. Hydrants, bins and benches are the Poly Haven models.
+- Not yet: the street lamps (the free lamps found are park lamps, not the city's arm lamps), the downloaded
+  barrier and utility boxes (no place yet), cars (the free Quaternius pack is low poly, no better than the
+  generated cars), trees and palms (the free tree models are 100 to 230 MB each), and people.
+
 ## Known gaps
 
 - The menus and the HUD use the browser's font stacks (`ATGFonts`), and the radar's letters its bold Arial. The

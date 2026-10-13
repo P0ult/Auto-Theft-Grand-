@@ -3,6 +3,7 @@
 #include "AutoTheftGrand.h"
 #include "Game/ATGCoords.h"
 #include "Game/ATGMaterials.h"
+#include "Game/ATGAssets.h"
 #include "Game/ATGMeshUtil.h"
 #include "Game/ATGPictures.h"
 #include "Gen/BikeModels.h"
@@ -723,10 +724,14 @@ void AATGWorld::QueueBuild() {
 			const FString Type = Str(P.type);
 			int32* M = MeshOf.Find(Type);
 			if (!M) {
-				TArray<FATGPart> Parts;
-				Parts.Add({ &Def->second.mesh, MLit });
-				if (!Def->second.leaves.Empty()) Parts.Add({ &Def->second.leaves, Def->second.frondMat ? MFrond : MLit });
-				UStaticMesh* SM = ATGMesh::BuildStaticMesh(this, *(TEXT("Prop_") + Type), Parts);
+				// (a downloaded model where one was imported for this kind, ATGAssets; else the generated one)
+				UStaticMesh* SM = ATGAssets::PropMesh(Type);
+				if (!SM) {
+					TArray<FATGPart> Parts;
+					Parts.Add({ &Def->second.mesh, MLit });
+					if (!Def->second.leaves.Empty()) Parts.Add({ &Def->second.leaves, Def->second.frondMat ? MFrond : MLit });
+					SM = ATGMesh::BuildStaticMesh(this, *(TEXT("Prop_") + Type), Parts);
+				}
 				Meshes.Add(SM);
 				UHierarchicalInstancedStaticMeshComponent* H = NewInstances(*(TEXT("Props_") + Type), SM, 4);
 				const bool bTree = Type.StartsWith(TEXT("tree")) || Type.StartsWith(TEXT("palm"));

@@ -526,7 +526,39 @@ ATG_CMD(CmdStation, "ATG.Station", "ATG.Station dry|fern|union: stand on that st
 	const atg::RailStop& S = G->rail->stations[I];
 	G->respawnPlayer(S.x, S.z, S.rot - atg::kPi / 2);
 })
-ATG_CMD(CmdCity, "ATG.City", "ATG.City: log the traffic, the people and the trains", {
+ATG_CMD(CmdProp, "ATG.Prop", "ATG.Prop type [n] [metres]: stand that far (default 3) from the nth prop of a kind (hydrant, bench, ...), facing it", {
+	atg::Game* G = Sim(W);
+	if (!G || !Args.Num()) return;
+	const std::string Type = TCHAR_TO_UTF8(*Args[0]);
+	int32 N = (int32)Arg(Args, 1, 0);
+	const double D = Arg(Args, 2, 3);
+	for (const atg::PropInstance& P : G->props) {
+		if (P.type != Type || N-- > 0) continue;
+		// (in front of it: props face +z, so out along their heading)
+		const double X = P.x + std::sin(P.rot) * D, Z = P.z + std::cos(P.rot) * D;
+		G->respawnPlayer(X, Z, P.rot + atg::kPi);
+		UE_LOG(LogATG, Display, TEXT("ATG.Prop: %s at (%.1f, %.1f), standing at (%.1f, %.1f)"), *Args[0], P.x, P.z, X, Z);
+		return;
+	}
+	UE_LOG(LogATG, Warning, TEXT("ATG.Prop: no %s number %s"), *Args[0], Args.Num() > 1 ? *Args[1] : TEXT("0"));
+})
+ATG_CMD(CmdFacade, "ATG.Facade", "ATG.Facade style [n] [metres]: stand that far (default 8) south of the nth unrotated building of a style (0-7), facing its wall", {
+	atg::Game* G = Sim(W);
+	if (!G || !Args.Num()) return;
+	const int32 Style = (int32)Arg(Args, 0, 0);
+	int32 N = (int32)Arg(Args, 1, 0);
+	const double D = Arg(Args, 2, 8);
+	for (const atg::Building& B : G->map.buildings) {
+		if (B.style != Style || B.rot != 0 || B.y1 - B.y0 < 6 || N-- > 0) continue;
+		// (south is +z: the face at z1, looked at from beyond it, heading north)
+		const double X = (B.x0 + B.x1) / 2, Z = B.z1 + D;
+		G->respawnPlayer(X, Z, atg::kPi);
+		UE_LOG(LogATG, Display, TEXT("ATG.Facade: style %d building (%.0f..%.0f, %.0f..%.0f), standing at (%.1f, %.1f)"), Style, B.x0, B.x1, B.z0, B.z1, X, Z);
+		return;
+	}
+	UE_LOG(LogATG, Warning, TEXT("ATG.Facade: no style %d building number %s"), Style, Args.Num() > 1 ? *Args[1] : TEXT("0"));
+})
+ATG_CMD(CmdCity,"ATG.City","ATG.City: log the traffic, the people and the trains", {
 	atg::Game* G = Sim(W);
 	if (!G) return;
 	int32 Moving = 0, Cars = 0;
